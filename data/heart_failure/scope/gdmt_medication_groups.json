@@ -1,0 +1,32 @@
+[
+  {
+    "group_id": "gdmt_arni_acei_arb",
+    "name": "Renin-angiotensin system inhibition",
+    "examples": ["sacubitril/valsartan", "enalapril", "lisinopril", "losartan", "valsartan"],
+    "week1_use": "Core HFrEF therapy class for future constraint and retrieval logic."
+  },
+  {
+    "group_id": "gdmt_beta_blocker",
+    "name": "Evidence-based beta blocker",
+    "examples": ["bisoprolol", "carvedilol", "metoprolol succinate"],
+    "week1_use": "Core HFrEF therapy class with blood pressure and heart-rate safety checks."
+  },
+  {
+    "group_id": "gdmt_mra",
+    "name": "Mineralocorticoid receptor antagonist",
+    "examples": ["spironolactone", "eplerenone"],
+    "week1_use": "Core HFrEF therapy class requiring potassium and renal function constraints."
+  },
+  {
+    "group_id": "gdmt_sglt2i",
+    "name": "SGLT2 inhibitor",
+    "examples": ["dapagliflozin", "empagliflozin"],
+    "week1_use": "Core HFrEF therapy class requiring renal eligibility and diabetes-aware checks."
+  },
+  {
+    "group_id": "symptom_loop_diuretic",
+    "name": "Loop diuretic",
+    "examples": ["furosemide", "torsemide", "bumetanide"],
+    "week1_use": "Symptom and congestion management class for later reasoning."
+  }
+]

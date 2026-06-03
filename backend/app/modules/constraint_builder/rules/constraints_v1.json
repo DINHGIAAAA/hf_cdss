@@ -1,0 +1,62 @@
+[
+  {
+    "constraint_id": "MRA_HARD_RENAL_OR_K",
+    "target_drug_class": "MRA",
+    "action": "avoid",
+    "constraint_type": "hard",
+    "risk_names": ["renal_impairment", "hyperkalemia"],
+    "severity_any": ["high"],
+    "reason": "Avoid or defer MRA when renal impairment is severe or potassium is high.",
+    "evidence_ref": "week2_rule:MRA_HARD_RENAL_OR_K"
+  },
+  {
+    "constraint_id": "MRA_MONITORING_K_RENAL",
+    "target_drug_class": "MRA",
+    "action": "caution",
+    "constraint_type": "monitoring",
+    "risk_names": ["renal_impairment", "hyperkalemia"],
+    "severity_any": ["moderate"],
+    "reason": "MRA may require close potassium and renal monitoring.",
+    "evidence_ref": "week2_rule:MRA_MONITORING_K_RENAL"
+  },
+  {
+    "constraint_id": "RAASI_CAUTION_BP_K",
+    "target_drug_class": "ARNI/ACEi/ARB",
+    "action": "caution",
+    "constraint_type": "soft",
+    "risk_names": ["hypotension", "hyperkalemia"],
+    "severity_any": ["moderate", "high"],
+    "reason": "RAAS-inhibiting therapy may need caution with low blood pressure or elevated potassium.",
+    "evidence_ref": "week2_rule:RAASI_CAUTION_BP_K"
+  },
+  {
+    "constraint_id": "BETA_BLOCKER_CAUTION_BRADY",
+    "target_drug_class": "beta_blocker",
+    "action": "caution",
+    "constraint_type": "soft",
+    "risk_names": ["bradycardia"],
+    "severity_any": ["moderate", "high"],
+    "reason": "Beta blocker initiation or titration requires caution when heart rate is low.",
+    "evidence_ref": "week2_rule:BETA_BLOCKER_CAUTION_BRADY"
+  },
+  {
+    "constraint_id": "SGLT2I_RENAL_REVIEW",
+    "target_drug_class": "SGLT2i",
+    "action": "caution",
+    "constraint_type": "dose",
+    "risk_names": ["renal_impairment"],
+    "severity_any": ["moderate", "high"],
+    "reason": "SGLT2 inhibitor eligibility and monitoring should be reviewed when renal function is reduced.",
+    "evidence_ref": "week2_rule:SGLT2I_RENAL_REVIEW"
+  },
+  {
+    "constraint_id": "ALL_GDMT_POLYPHARMACY_REVIEW",
+    "target_drug_class": "all_gdmt",
+    "action": "caution",
+    "constraint_type": "soft",
+    "risk_names": ["polypharmacy"],
+    "severity_any": ["moderate", "high"],
+    "reason": "Medication burden increases interaction, adherence, and sequencing risk.",
+    "evidence_ref": "week2_rule:ALL_GDMT_POLYPHARMACY_REVIEW"
+  }
+]

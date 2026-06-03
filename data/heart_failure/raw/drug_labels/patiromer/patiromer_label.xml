@@ -1,0 +1,1712 @@
+<?xml version="1.0" encoding="UTF-8"?><?xml-stylesheet href="https://www.accessdata.fda.gov/spl/stylesheet/spl.xsl" type="text/xsl"?>
+<document xmlns="urn:hl7-org:v3" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="urn:hl7-org:v3 https://www.accessdata.fda.gov/spl/schema/spl.xsd">
+   <id root="3e4b6452-1c7c-4f58-aee4-12fb185aaa83"/>
+   <code code="34391-3" codeSystem="2.16.840.1.113883.6.1" displayName="HUMAN PRESCRIPTION DRUG LABEL"/>
+   <title>These highlights do not include all the information needed to use VELTASSA<sup>®</sup> safely and effectively.  See full prescribing information for VELTASSA.<br/>
+      <br/>VELTASSA (patiromer) for oral suspension<br/>Initial U.S. Approval: 2015</title>
+   <effectiveTime value="20250131"/>
+   <setId root="bf002984-d6c9-46df-aecb-a07733f763c1"/>
+   <versionNumber value="23"/>
+   <author>
+      <time/>
+      <assignedEntity>
+         <representedOrganization>
+            <id extension="808446087" root="1.3.6.1.4.1.519.1"/>
+            <name>Vifor Pharma, Inc.</name>
+            <assignedEntity>
+               <assignedOrganization/>
+            </assignedEntity>
+         </representedOrganization>
+      </assignedEntity>
+   </author>
+   <relatedDocument typeCode="RPLC">
+      <relatedDocument>
+         <id root="18eb5165-da8f-4070-8e62-4a115c6e2c42"/>
+         <setId root="d1e6f3cc-3436-475d-9667-6722ed49ba61"/>
+         <versionNumber value="3"/>
+      </relatedDocument>
+   </relatedDocument>
+   <component>
+      <structuredBody>
+         <component>
+            <section ID="DLDE">
+               <id root="1db75ca0-d662-4f49-a22f-2998e6cfb1a1"/>
+               <code code="48780-1" codeSystem="2.16.840.1.113883.6.1" displayName="SPL PRODUCT DATA ELEMENTS SECTION"/>
+               <effectiveTime value="20250131"/>
+               <subject>
+                  <manufacturedProduct>
+                     <manufacturedProduct>
+                        <code code="53436-084" codeSystem="2.16.840.1.113883.6.69"/>
+                        <name>VELTASSA</name>
+                        <formCode code="C42975" codeSystem="2.16.840.1.113883.3.26.1.1" displayName="POWDER, FOR SUSPENSION"/>
+                        <asEntityWithGeneric>
+                           <genericMedicine>
+                              <name>patiromer</name>
+                           </genericMedicine>
+                        </asEntityWithGeneric>
+                        <ingredient classCode="ACTIM">
+                           <quantity>
+                              <numerator value="8.4" unit="g"/>
+                              <denominator value="1" unit="1"/>
+                           </quantity>
+                           <ingredientSubstance>
+                              <code code="1FQ2RY5YHH" codeSystem="2.16.840.1.113883.4.9"/>
+                              <name>patiromer</name>
+                              <activeMoiety>
+                                 <activeMoiety>
+                                    <code code="1FQ2RY5YHH" codeSystem="2.16.840.1.113883.4.9"/>
+                                    <name>patiromer</name>
+                                 </activeMoiety>
+                              </activeMoiety>
+                           </ingredientSubstance>
+                        </ingredient>
+                        <ingredient classCode="IACT">
+                           <quantity>
+                              <numerator value="0.12" unit="g"/>
+                              <denominator value="1" unit="1"/>
+                           </quantity>
+                           <ingredientSubstance>
+                              <code code="TTV12P4NEE" codeSystem="2.16.840.1.113883.4.9"/>
+                              <name>xanthan gum</name>
+                           </ingredientSubstance>
+                        </ingredient>
+                        <asContent>
+                           <quantity>
+                              <numerator value="1" unit="1"/>
+                              <denominator value="1"/>
+                           </quantity>
+                           <containerPackagedProduct>
+                              <code code="53436-084-01" codeSystem="2.16.840.1.113883.6.69"/>
+                              <formCode code="C43199" codeSystem="2.16.840.1.113883.3.26.1.1" displayName="PACKET"/>
+                              <asContent>
+                                 <quantity>
+                                    <numerator value="4" unit="1"/>
+                                    <denominator value="1"/>
+                                 </quantity>
+                                 <containerPackagedProduct>
+                                    <code code="53436-084-04" codeSystem="2.16.840.1.113883.6.69"/>
+                                    <formCode code="C43182" codeSystem="2.16.840.1.113883.3.26.1.1" displayName="CARTON"/>
+                                 </containerPackagedProduct>
+                                 <subjectOf>
+                                    <marketingAct>
+                                       <code code="C53292" codeSystem="2.16.840.1.113883.3.26.1.1"/>
+                                       <statusCode code="active"/>
+                                       <effectiveTime>
+                                          <low value="20151023"/>
+                                       </effectiveTime>
+                                    </marketingAct>
+                                 </subjectOf>
+                              </asContent>
+                           </containerPackagedProduct>
+                           <subjectOf>
+                              <characteristic>
+                                 <code code="SPLCMBPRDTP" codeSystem="2.16.840.1.113883.1.11.19255"/>
+                                 <value code="C112160" codeSystem="2.16.840.1.113883.3.26.1.1" displayName="Type 0: Not a Combination Product" xsi:type="CV"/>
+                              </characteristic>
+                           </subjectOf>
+                        </asContent>
+                        <asContent>
+                           <quantity>
+                              <numerator value="1" unit="1"/>
+                              <denominator value="1"/>
+                           </quantity>
+                           <containerPackagedProduct>
+                              <code code="53436-084-01" codeSystem="2.16.840.1.113883.6.69"/>
+                              <formCode code="C43199" codeSystem="2.16.840.1.113883.3.26.1.1" displayName="PACKET"/>
+                              <asContent>
+                                 <quantity>
+                                    <numerator value="30" unit="1"/>
+                                    <denominator value="1"/>
+                                 </quantity>
+                                 <containerPackagedProduct>
+                                    <code code="53436-084-30" codeSystem="2.16.840.1.113883.6.69"/>
+                                    <formCode code="C43182" codeSystem="2.16.840.1.113883.3.26.1.1" displayName="CARTON"/>
+                                 </containerPackagedProduct>
+                                 <subjectOf>
+                                    <marketingAct>
+                                       <code code="C53292" codeSystem="2.16.840.1.113883.3.26.1.1"/>
+                                       <statusCode code="active"/>
+                                       <effectiveTime>
+                                          <low value="20151023"/>
+                                       </effectiveTime>
+                                    </marketingAct>
+                                 </subjectOf>
+                              </asContent>
+                           </containerPackagedProduct>
+                           <subjectOf>
+                              <characteristic>
+                                 <code code="SPLCMBPRDTP" codeSystem="2.16.840.1.113883.1.11.19255"/>
+                                 <value code="C112160" codeSystem="2.16.840.1.113883.3.26.1.1" displayName="Type 0: Not a Combination Product" xsi:type="CV"/>
+                              </characteristic>
+                           </subjectOf>
+                        </asContent>
+                        <asContent>
+                           <quantity>
+                              <numerator value="1" unit="1"/>
+                              <denominator value="1"/>
+                           </quantity>
+                           <containerPackagedProduct>
+                              <code code="53436-084-91" codeSystem="2.16.840.1.113883.6.69"/>
+                              <formCode code="C43199" codeSystem="2.16.840.1.113883.3.26.1.1" displayName="PACKET"/>
+                              <asContent>
+                                 <quantity>
+                                    <numerator value="4" unit="1"/>
+                                    <denominator value="1"/>
+                                 </quantity>
+                                 <containerPackagedProduct>
+                                    <code code="53436-084-92" codeSystem="2.16.840.1.113883.6.69"/>
+                                    <formCode code="C43182" codeSystem="2.16.840.1.113883.3.26.1.1" displayName="CARTON"/>
+                                 </containerPackagedProduct>
+                                 <subjectOf>
+                                    <marketingAct>
+                                       <code code="C53292" codeSystem="2.16.840.1.113883.3.26.1.1"/>
+                                       <statusCode code="active"/>
+                                       <effectiveTime>
+                                          <low value="20160501"/>
+                                       </effectiveTime>
+                                    </marketingAct>
+                                 </subjectOf>
+                              </asContent>
+                           </containerPackagedProduct>
+                           <subjectOf>
+                              <characteristic>
+                                 <code code="SPLCMBPRDTP" codeSystem="2.16.840.1.113883.1.11.19255"/>
+                                 <value code="C112160" codeSystem="2.16.840.1.113883.3.26.1.1" displayName="Type 0: Not a Combination Product" xsi:type="CV"/>
+                              </characteristic>
+                           </subjectOf>
+                        </asContent>
+                     </manufacturedProduct>
+                     <subjectOf>
+                        <approval>
+                           <id extension="NDA205739" root="2.16.840.1.113883.3.150"/>
+                           <code code="C73594" codeSystem="2.16.840.1.113883.3.26.1.1" displayName="NDA"/>
+                           <author>
+                              <territorialAuthority>
+                                 <territory>
+                                    <code code="USA" codeSystem="2.16.840.1.113883.5.28"/>
+                                 </territory>
+                              </territorialAuthority>
+                           </author>
+                        </approval>
+                     </subjectOf>
+                     <subjectOf>
+                        <marketingAct>
+                           <code code="C53292" codeSystem="2.16.840.1.113883.3.26.1.1"/>
+                           <statusCode code="active"/>
+                           <effectiveTime>
+                              <low value="20151023"/>
+                           </effectiveTime>
+                        </marketingAct>
+                     </subjectOf>
+                     <subjectOf>
+                        <characteristic classCode="OBS">
+                           <code code="SPLCOLOR" codeSystem="2.16.840.1.113883.1.11.19255"/>
+                           <value code="C48325" codeSystem="2.16.840.1.113883.3.26.1.1" displayName="WHITE" xsi:type="CE">
+                              <originalText>off-white to light-brown</originalText>
+                           </value>
+                        </characteristic>
+                     </subjectOf>
+                     <consumedIn>
+                        <substanceAdministration>
+                           <routeCode code="C38288" codeSystem="2.16.840.1.113883.3.26.1.1" displayName="ORAL"/>
+                        </substanceAdministration>
+                     </consumedIn>
+                  </manufacturedProduct>
+               </subject>
+               <subject>
+                  <manufacturedProduct>
+                     <manufacturedProduct>
+                        <code code="53436-168" codeSystem="2.16.840.1.113883.6.69"/>
+                        <name>VELTASSA</name>
+                        <formCode code="C42975" codeSystem="2.16.840.1.113883.3.26.1.1" displayName="POWDER, FOR SUSPENSION"/>
+                        <asEntityWithGeneric>
+                           <genericMedicine>
+                              <name>patiromer</name>
+                           </genericMedicine>
+                        </asEntityWithGeneric>
+                        <ingredient classCode="ACTIM">
+                           <quantity>
+                              <numerator value="16.8" unit="g"/>
+                              <denominator value="1" unit="1"/>
+                           </quantity>
+                           <ingredientSubstance>
+                              <code code="1FQ2RY5YHH" codeSystem="2.16.840.1.113883.4.9"/>
+                              <name>patiromer</name>
+                              <activeMoiety>
+                                 <activeMoiety>
+                                    <code code="1FQ2RY5YHH" codeSystem="2.16.840.1.113883.4.9"/>
+                                    <name>patiromer</name>
+                                 </activeMoiety>
+                              </activeMoiety>
+                           </ingredientSubstance>
+                        </ingredient>
+                        <ingredient classCode="IACT">
+                           <quantity>
+                              <numerator value="0.24" unit="g"/>
+                              <denominator value="1" unit="1"/>
+                           </quantity>
+                           <ingredientSubstance>
+                              <code code="TTV12P4NEE" codeSystem="2.16.840.1.113883.4.9"/>
+                              <name>xanthan gum</name>
+                           </ingredientSubstance>
+                        </ingredient>
+                        <asContent>
+                           <quantity>
+                              <numerator value="1" unit="1"/>
+                              <denominator value="1"/>
+                           </quantity>
+                           <containerPackagedProduct>
+                              <code code="53436-168-01" codeSystem="2.16.840.1.113883.6.69"/>
+                              <formCode code="C43199" codeSystem="2.16.840.1.113883.3.26.1.1" displayName="PACKET"/>
+                              <asContent>
+                                 <quantity>
+                                    <numerator value="30" unit="1"/>
+                                    <denominator value="1"/>
+                                 </quantity>
+                                 <containerPackagedProduct>
+                                    <code code="53436-168-30" codeSystem="2.16.840.1.113883.6.69"/>
+                                    <formCode code="C43182" codeSystem="2.16.840.1.113883.3.26.1.1" displayName="CARTON"/>
+                                 </containerPackagedProduct>
+                                 <subjectOf>
+                                    <marketingAct>
+                                       <code code="C53292" codeSystem="2.16.840.1.113883.3.26.1.1"/>
+                                       <statusCode code="active"/>
+                                       <effectiveTime>
+                                          <low value="20151023"/>
+                                       </effectiveTime>
+                                    </marketingAct>
+                                 </subjectOf>
+                              </asContent>
+                           </containerPackagedProduct>
+                           <subjectOf>
+                              <characteristic>
+                                 <code code="SPLCMBPRDTP" codeSystem="2.16.840.1.113883.1.11.19255"/>
+                                 <value code="C112160" codeSystem="2.16.840.1.113883.3.26.1.1" displayName="Type 0: Not a Combination Product" xsi:type="CV"/>
+                              </characteristic>
+                           </subjectOf>
+                        </asContent>
+                     </manufacturedProduct>
+                     <subjectOf>
+                        <approval>
+                           <id extension="NDA205739" root="2.16.840.1.113883.3.150"/>
+                           <code code="C73594" codeSystem="2.16.840.1.113883.3.26.1.1" displayName="NDA"/>
+                           <author>
+                              <territorialAuthority>
+                                 <territory>
+                                    <code code="USA" codeSystem="2.16.840.1.113883.5.28"/>
+                                 </territory>
+                              </territorialAuthority>
+                           </author>
+                        </approval>
+                     </subjectOf>
+                     <subjectOf>
+                        <marketingAct>
+                           <code code="C53292" codeSystem="2.16.840.1.113883.3.26.1.1"/>
+                           <statusCode code="active"/>
+                           <effectiveTime>
+                              <low value="20151023"/>
+                           </effectiveTime>
+                        </marketingAct>
+                     </subjectOf>
+                     <subjectOf>
+                        <characteristic classCode="OBS">
+                           <code code="SPLCOLOR" codeSystem="2.16.840.1.113883.1.11.19255"/>
+                           <value code="C48325" codeSystem="2.16.840.1.113883.3.26.1.1" displayName="WHITE" xsi:type="CE">
+                              <originalText>off-white to light-brown</originalText>
+                           </value>
+                        </characteristic>
+                     </subjectOf>
+                     <consumedIn>
+                        <substanceAdministration>
+                           <routeCode code="C38288" codeSystem="2.16.840.1.113883.3.26.1.1" displayName="ORAL"/>
+                        </substanceAdministration>
+                     </consumedIn>
+                  </manufacturedProduct>
+               </subject>
+               <subject>
+                  <manufacturedProduct>
+                     <manufacturedProduct>
+                        <code code="53436-252" codeSystem="2.16.840.1.113883.6.69"/>
+                        <name>VELTASSA</name>
+                        <formCode code="C42975" codeSystem="2.16.840.1.113883.3.26.1.1" displayName="POWDER, FOR SUSPENSION"/>
+                        <asEntityWithGeneric>
+                           <genericMedicine>
+                              <name>patiromer</name>
+                           </genericMedicine>
+                        </asEntityWithGeneric>
+                        <ingredient classCode="ACTIM">
+                           <quantity>
+                              <numerator value="25.2" unit="g"/>
+                              <denominator value="1" unit="1"/>
+                           </quantity>
+                           <ingredientSubstance>
+                              <code code="1FQ2RY5YHH" codeSystem="2.16.840.1.113883.4.9"/>
+                              <name>patiromer</name>
+                              <activeMoiety>
+                                 <activeMoiety>
+                                    <code code="1FQ2RY5YHH" codeSystem="2.16.840.1.113883.4.9"/>
+                                    <name>patiromer</name>
+                                 </activeMoiety>
+                              </activeMoiety>
+                           </ingredientSubstance>
+                        </ingredient>
+                        <ingredient classCode="IACT">
+                           <quantity>
+                              <numerator value="0.36" unit="g"/>
+                              <denominator value="1" unit="1"/>
+                           </quantity>
+                           <ingredientSubstance>
+                              <code code="TTV12P4NEE" codeSystem="2.16.840.1.113883.4.9"/>
+                              <name>xanthan gum</name>
+                           </ingredientSubstance>
+                        </ingredient>
+                        <asContent>
+                           <quantity>
+                              <numerator value="1" unit="1"/>
+                              <denominator value="1"/>
+                           </quantity>
+                           <containerPackagedProduct>
+                              <code code="53436-252-01" codeSystem="2.16.840.1.113883.6.69"/>
+                              <formCode code="C43199" codeSystem="2.16.840.1.113883.3.26.1.1" displayName="PACKET"/>
+                              <asContent>
+                                 <quantity>
+                                    <numerator value="30" unit="1"/>
+                                    <denominator value="1"/>
+                                 </quantity>
+                                 <containerPackagedProduct>
+                                    <code code="53436-252-30" codeSystem="2.16.840.1.113883.6.69"/>
+                                    <formCode code="C43182" codeSystem="2.16.840.1.113883.3.26.1.1" displayName="CARTON"/>
+                                 </containerPackagedProduct>
+                                 <subjectOf>
+                                    <marketingAct>
+                                       <code code="C53292" codeSystem="2.16.840.1.113883.3.26.1.1"/>
+                                       <statusCode code="active"/>
+                                       <effectiveTime>
+                                          <low value="20151023"/>
+                                       </effectiveTime>
+                                    </marketingAct>
+                                 </subjectOf>
+                              </asContent>
+                           </containerPackagedProduct>
+                           <subjectOf>
+                              <characteristic>
+                                 <code code="SPLCMBPRDTP" codeSystem="2.16.840.1.113883.1.11.19255"/>
+                                 <value code="C112160" codeSystem="2.16.840.1.113883.3.26.1.1" displayName="Type 0: Not a Combination Product" xsi:type="CV"/>
+                              </characteristic>
+                           </subjectOf>
+                        </asContent>
+                     </manufacturedProduct>
+                     <subjectOf>
+                        <approval>
+                           <id extension="NDA205739" root="2.16.840.1.113883.3.150"/>
+                           <code code="C73594" codeSystem="2.16.840.1.113883.3.26.1.1" displayName="NDA"/>
+                           <author>
+                              <territorialAuthority>
+                                 <territory>
+                                    <code code="USA" codeSystem="2.16.840.1.113883.5.28"/>
+                                 </territory>
+                              </territorialAuthority>
+                           </author>
+                        </approval>
+                     </subjectOf>
+                     <subjectOf>
+                        <marketingAct>
+                           <code code="C53292" codeSystem="2.16.840.1.113883.3.26.1.1"/>
+                           <statusCode code="active"/>
+                           <effectiveTime>
+                              <low value="20151023"/>
+                           </effectiveTime>
+                        </marketingAct>
+                     </subjectOf>
+                     <subjectOf>
+                        <characteristic classCode="OBS">
+                           <code code="SPLCOLOR" codeSystem="2.16.840.1.113883.1.11.19255"/>
+                           <value code="C48325" codeSystem="2.16.840.1.113883.3.26.1.1" displayName="WHITE" xsi:type="CE">
+                              <originalText>off-white to light-brown</originalText>
+                           </value>
+                        </characteristic>
+                     </subjectOf>
+                     <consumedIn>
+                        <substanceAdministration>
+                           <routeCode code="C38288" codeSystem="2.16.840.1.113883.3.26.1.1" displayName="ORAL"/>
+                        </substanceAdministration>
+                     </consumedIn>
+                  </manufacturedProduct>
+               </subject>
+               <subject>
+                  <manufacturedProduct>
+                     <manufacturedProduct>
+                        <code code="53436-010" codeSystem="2.16.840.1.113883.6.69"/>
+                        <name>VELTASSA</name>
+                        <formCode code="C42975" codeSystem="2.16.840.1.113883.3.26.1.1" displayName="POWDER, FOR SUSPENSION"/>
+                        <asEntityWithGeneric>
+                           <genericMedicine>
+                              <name>patiromer</name>
+                           </genericMedicine>
+                        </asEntityWithGeneric>
+                        <ingredient classCode="ACTIM">
+                           <quantity>
+                              <numerator value="1" unit="g"/>
+                              <denominator value="1" unit="1"/>
+                           </quantity>
+                           <ingredientSubstance>
+                              <code code="1FQ2RY5YHH" codeSystem="2.16.840.1.113883.4.9"/>
+                              <name>patiromer</name>
+                              <activeMoiety>
+                                 <activeMoiety>
+                                    <code code="1FQ2RY5YHH" codeSystem="2.16.840.1.113883.4.9"/>
+                                    <name>patiromer</name>
+                                 </activeMoiety>
+                              </activeMoiety>
+                           </ingredientSubstance>
+                        </ingredient>
+                        <ingredient classCode="IACT">
+                           <quantity>
+                              <numerator value="0.014" unit="g"/>
+                              <denominator value="1" unit="1"/>
+                           </quantity>
+                           <ingredientSubstance>
+                              <code code="TTV12P4NEE" codeSystem="2.16.840.1.113883.4.9"/>
+                              <name>xanthan gum</name>
+                           </ingredientSubstance>
+                        </ingredient>
+                        <asContent>
+                           <quantity>
+                              <numerator value="1" unit="1"/>
+                              <denominator value="1"/>
+                           </quantity>
+                           <containerPackagedProduct>
+                              <code code="53436-010-01" codeSystem="2.16.840.1.113883.6.69"/>
+                              <formCode code="C43199" codeSystem="2.16.840.1.113883.3.26.1.1" displayName="PACKET"/>
+                              <asContent>
+                                 <quantity>
+                                    <numerator value="60" unit="1"/>
+                                    <denominator value="1"/>
+                                 </quantity>
+                                 <containerPackagedProduct>
+                                    <code code="53436-010-60" codeSystem="2.16.840.1.113883.6.69"/>
+                                    <formCode code="C43182" codeSystem="2.16.840.1.113883.3.26.1.1" displayName="CARTON"/>
+                                 </containerPackagedProduct>
+                                 <subjectOf>
+                                    <marketingAct>
+                                       <code code="C53292" codeSystem="2.16.840.1.113883.3.26.1.1"/>
+                                       <statusCode code="active"/>
+                                       <effectiveTime>
+                                          <low value="20241002"/>
+                                       </effectiveTime>
+                                    </marketingAct>
+                                 </subjectOf>
+                              </asContent>
+                           </containerPackagedProduct>
+                           <subjectOf>
+                              <characteristic>
+                                 <code code="SPLCMBPRDTP" codeSystem="2.16.840.1.113883.1.11.19255"/>
+                                 <value code="C112160" codeSystem="2.16.840.1.113883.3.26.1.1" displayName="Type 0: Not a Combination Product" xsi:type="CV"/>
+                              </characteristic>
+                           </subjectOf>
+                        </asContent>
+                     </manufacturedProduct>
+                     <subjectOf>
+                        <approval>
+                           <id extension="NDA205739" root="2.16.840.1.113883.3.150"/>
+                           <code code="C73594" codeSystem="2.16.840.1.113883.3.26.1.1" displayName="NDA"/>
+                           <author>
+                              <territorialAuthority>
+                                 <territory>
+                                    <code code="USA" codeSystem="2.16.840.1.113883.5.28"/>
+                                 </territory>
+                              </territorialAuthority>
+                           </author>
+                        </approval>
+                     </subjectOf>
+                     <subjectOf>
+                        <marketingAct>
+                           <code code="C53292" codeSystem="2.16.840.1.113883.3.26.1.1"/>
+                           <statusCode code="active"/>
+                           <effectiveTime>
+                              <low value="20241002"/>
+                           </effectiveTime>
+                        </marketingAct>
+                     </subjectOf>
+                     <subjectOf>
+                        <characteristic classCode="OBS">
+                           <code code="SPLCOLOR" codeSystem="2.16.840.1.113883.1.11.19255"/>
+                           <value code="C48325" codeSystem="2.16.840.1.113883.3.26.1.1" displayName="WHITE" xsi:type="CE">
+                              <originalText>off-white to light-brown</originalText>
+                           </value>
+                        </characteristic>
+                     </subjectOf>
+                     <consumedIn>
+                        <substanceAdministration>
+                           <routeCode code="C38288" codeSystem="2.16.840.1.113883.3.26.1.1" displayName="ORAL"/>
+                        </substanceAdministration>
+                     </consumedIn>
+                  </manufacturedProduct>
+               </subject>
+            </section>
+         </component>
+         <component>
+            <section ID="S1">
+               <id root="618a72a6-6e40-4963-a9a0-cbd6ba1b140f"/>
+               <code code="34067-9" codeSystem="2.16.840.1.113883.6.1" displayName="INDICATIONS &amp; USAGE SECTION"/>
+               <title>1 INDICATIONS AND USAGE</title>
+               <text>
+                  <paragraph>Veltassa is indicated for the treatment of hyperkalemia in adults and pediatric patients ages 12 years and older.</paragraph>
+                  <paragraph>Limitation of Use:  Veltassa should not be used as an emergency treatment for life-threatening hyperkalemia because of its delayed onset of action <content styleCode="italics">[see <linkHtml href="#S12.2">Clinical Pharmacology (12.2)</linkHtml>]</content>.</paragraph>
+               </text>
+               <effectiveTime value="20250131"/>
+               <excerpt>
+                  <highlight>
+                     <text>
+                        <paragraph>Veltassa is a potassium binder indicated for the treatment of hyperkalemia in adults and pediatric patients ages 12 years and older. (<linkHtml href="#S1">1</linkHtml>)</paragraph>
+                        <paragraph>
+                           <content styleCode="underline">Limitation of Use</content>
+                        </paragraph>
+                        <paragraph>Veltassa should not be used as an emergency treatment for life-threatening hyperkalemia because of its delayed onset of action. (<linkHtml href="#S1">1</linkHtml>)</paragraph>
+                     </text>
+                  </highlight>
+               </excerpt>
+            </section>
+         </component>
+         <component>
+            <section ID="S2">
+               <id root="ded1c969-c453-4ce8-8570-5aacc6979f69"/>
+               <code code="34068-7" codeSystem="2.16.840.1.113883.6.1" displayName="DOSAGE &amp; ADMINISTRATION SECTION"/>
+               <title>2 DOSAGE AND ADMINISTRATION</title>
+               <effectiveTime value="20250131"/>
+               <excerpt>
+                  <highlight>
+                     <text>
+                        <list listType="unordered" styleCode="disc">
+                           <item>For adults, the recommended starting dose of Veltassa is 8.4 grams administered orally once daily. (<linkHtml href="#S2.2">2.2</linkHtml>)</item>
+                           <item>For adults, adjust dose by 8.4 grams daily as needed at one-week intervals to obtain desired serum potassium target range. (<linkHtml href="#S2.2">2.2</linkHtml>)</item>
+                           <item>For pediatric patients 12 to 17 years of age, the recommended starting dose of Veltassa is 4 grams administered orally once daily. (<linkHtml href="#S2.2">2.2</linkHtml>)</item>
+                           <item>For pediatric patients 12 to 17 years of age, adjust dose by 4 grams daily as needed at one-week intervals to obtain desired serum potassium target range. (<linkHtml href="#S2.2">2.2</linkHtml>)</item>
+                           <item>The maximum recommended dosage in adults and pediatric patients older than 12 years is 25.2 grams once daily. (<linkHtml href="#S2.2">2.2</linkHtml>)</item>
+                        </list>
+                     </text>
+                  </highlight>
+               </excerpt>
+               <component>
+                  <section ID="S2.1">
+                     <id root="16013e5a-733a-4f19-b23e-c3791b10adae"/>
+                     <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
+                     <title>2.1	General Information</title>
+                     <text>
+                        <paragraph>Administer Veltassa at least 3 hours before or 3 hours after other oral medications except those shown to not have a clinically important interaction<content styleCode="italics"> [see <linkHtml href="#S7">Drug Interactions (7)</linkHtml> and <linkHtml href="#S12.3">Clinical Pharmacology (12.3)</linkHtml>].</content>
+                        </paragraph>
+                        <paragraph>Do not heat Veltassa (e.g., microwave) or add to heated foods or liquids.  Do not take Veltassa in its dry form. </paragraph>
+                     </text>
+                     <effectiveTime value="20250131"/>
+                  </section>
+               </component>
+               <component>
+                  <section ID="S2.2">
+                     <id root="792093cb-4f31-42f2-b7e4-17b5e4b1ca05"/>
+                     <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
+                     <title>2.2 	Recommended Dosing and Titration</title>
+                     <text>
+                        <paragraph>The recommended starting dose of Veltassa varies with age and is shown below.  Multiple packets may be used to achieve the prescribed dose.  Monitor serum potassium and adjust the dose of Veltassa based on the serum potassium level and the desired target range.  The dose may be increased or decreased, as necessary, to reach the desired serum potassium concentration, up to a maximum dose of 25.2 grams once daily in adults and pediatric patients aged 12 years and older.</paragraph>
+                     </text>
+                     <effectiveTime value="20250131"/>
+                     <component>
+                        <section>
+                           <id root="be9fbe67-e3e5-4335-aa36-95753d86b596"/>
+                           <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
+                           <text>
+                              <paragraph>
+                                 <content styleCode="italics">Adults:</content> The recommended starting dose of Veltassa is 8.4 grams patiromer orally once daily.  The dose can be up-titrated based on serum potassium level at 1-week or longer intervals, in increments of 8.4 grams.</paragraph>
+                           </text>
+                           <effectiveTime value="20250131"/>
+                        </section>
+                     </component>
+                     <component>
+                        <section>
+                           <id root="ed57dcfe-6ef9-49e8-bcbf-cfca2bb47ac8"/>
+                           <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
+                           <text>
+                              <paragraph>
+                                 <content styleCode="italics">Pediatric Patients Ages 12 years and older:</content> The recommended starting dose of Veltassa is 4 grams patiromer orally once daily.  The dose can be titrated based on serum potassium level at 1-week or longer intervals, in increments of 4 grams.</paragraph>
+                           </text>
+                           <effectiveTime value="20250131"/>
+                        </section>
+                     </component>
+                  </section>
+               </component>
+               <component>
+                  <section ID="S2.3">
+                     <id root="3b8c5def-cea4-4663-8d9d-c8797dcc8428"/>
+                     <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
+                     <title>2.3	Preparation of Veltassa</title>
+                     <text>
+                        <paragraph>Prepare each dose immediately prior to administration.</paragraph>
+                        <paragraph>Measure 1/3 cup of water.  Pour half of the water into a glass, then add the packet(s) of Veltassa and stir.  Add the remaining half of the water and stir thoroughly. The powder will not dissolve and the mixture will look cloudy. Add more water to the mixture as needed for desired consistency.</paragraph>
+                        <paragraph>Drink the mixture immediately.  If powder remains in the glass after drinking, add more water, stir and drink immediately.  Repeat as needed to ensure the entire dose is administered.</paragraph>
+                        <paragraph>Other beverages or soft foods (e.g., apple sauce, yogurt, pudding) can be used instead of water to prepare the mixture by following the same steps as described above. A minimum volume of 45 mL (3 tablespoons) can be used to prepare doses up to and including 4 grams patiromer.</paragraph>
+                        <paragraph>The potassium content of liquids or soft foods used to prepare the mixture should be considered as part of the dietary recommendations on potassium intake for each individual patient.</paragraph>
+                     </text>
+                     <effectiveTime value="20250131"/>
+                  </section>
+               </component>
+            </section>
+         </component>
+         <component>
+            <section ID="S3">
+               <id root="b0cc37ea-65ab-4674-84aa-7a33727e494a"/>
+               <code code="43678-2" codeSystem="2.16.840.1.113883.6.1" displayName="DOSAGE FORMS &amp; STRENGTHS SECTION"/>
+               <title>3 DOSAGE FORMS AND STRENGTHS</title>
+               <text>
+                  <paragraph>Veltassa is an off-white to light-brown powder for oral suspension packaged in single-use packets containing 1 gram, 8.4 grams, 16.8 grams or 25.2 grams patiromer.</paragraph>
+               </text>
+               <effectiveTime value="20250131"/>
+               <excerpt>
+                  <highlight>
+                     <text>
+                        <list listType="unordered">
+                           <item>Powder: 1 gram, 8.4 grams, 16.8 grams and 25.2 grams patiromer packets. (<linkHtml href="#S3">3</linkHtml>) </item>
+                        </list>
+                     </text>
+                  </highlight>
+               </excerpt>
+            </section>
+         </component>
+         <component>
+            <section ID="S4">
+               <id root="358ccf36-6a32-48eb-9999-aea7eddbac10"/>
+               <code code="34070-3" codeSystem="2.16.840.1.113883.6.1" displayName="CONTRAINDICATIONS SECTION"/>
+               <title>4 CONTRAINDICATIONS</title>
+               <text>
+                  <paragraph>Veltassa is contraindicated in patients with a history of a hypersensitivity reaction to Veltassa or any of its components <content styleCode="italics"> [see <linkHtml href="#S6.1">Adverse Reactions (6.1)</linkHtml>].</content>
+                  </paragraph>
+               </text>
+               <effectiveTime value="20250131"/>
+               <excerpt>
+                  <highlight>
+                     <text>
+                        <list listType="unordered">
+                           <item>Known hypersensitivity to Veltassa or any of its components. (<linkHtml href="#S4">4</linkHtml>)</item>
+                        </list>
+                     </text>
+                  </highlight>
+               </excerpt>
+            </section>
+         </component>
+         <component>
+            <section ID="S5">
+               <id root="a7880866-127d-4a21-bc55-2e82a9203368"/>
+               <code code="43685-7" codeSystem="2.16.840.1.113883.6.1" displayName="WARNINGS AND PRECAUTIONS SECTION"/>
+               <title>5 WARNINGS AND PRECAUTIONS</title>
+               <effectiveTime value="20250131"/>
+               <excerpt>
+                  <highlight>
+                     <text>
+                        <list listType="unordered">
+                           <item>Worsening of Gastrointestinal Motility. (<linkHtml href="#S5.1">5.1</linkHtml>)</item>
+                           <item>Hypomagnesemia. (<linkHtml href="#S5.2">5.2</linkHtml>)</item>
+                        </list>
+                     </text>
+                  </highlight>
+               </excerpt>
+               <component>
+                  <section ID="S5.1">
+                     <id root="cf9556ac-6ee9-4d2e-846c-54722c4a9cec"/>
+                     <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
+                     <title>5.1	Worsening of Gastrointestinal Motility </title>
+                     <text>
+                        <paragraph>Avoid use of Veltassa in patients with severe constipation, bowel obstruction or impaction, including abnormal post-operative bowel motility disorders, because Veltassa may be ineffective and may worsen gastrointestinal conditions.</paragraph>
+                        <paragraph>Patients with a history of bowel obstruction or major gastrointestinal surgery, severe gastrointestinal disorders, or swallowing disorders were not included in the clinical studies.</paragraph>
+                     </text>
+                     <effectiveTime value="20250131"/>
+                  </section>
+               </component>
+               <component>
+                  <section ID="S5.2">
+                     <id root="69acd000-ff76-44b2-ba2b-a85cee9557a2"/>
+                     <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
+                     <title>5.2	Hypomagnesemia</title>
+                     <text>
+                        <paragraph>Veltassa binds to magnesium in the colon, which can lead to hypomagnesemia.  In clinical studies, hypomagnesemia was reported as an adverse reaction in 5.3% of adult patients treated with Veltassa <content styleCode="italics">[see <linkHtml href="#S6.1">Adverse Reactions (6.1)</linkHtml>].</content>  Monitor serum magnesium.  Consider magnesium supplementation in patients who develop low serum magnesium levels on Veltassa.</paragraph>
+                     </text>
+                     <effectiveTime value="20250131"/>
+                  </section>
+               </component>
+            </section>
+         </component>
+         <component>
+            <section ID="S6">
+               <id root="dc30ca4d-12af-4223-82b8-5322d41fb8d5"/>
+               <code code="34084-4" codeSystem="2.16.840.1.113883.6.1" displayName="ADVERSE REACTIONS SECTION"/>
+               <title>6 ADVERSE REACTIONS</title>
+               <text>
+                  <paragraph>The following adverse reaction is discussed in greater detail elsewhere in the label:</paragraph>
+                  <list listType="unordered">
+                     <item>Hypomagnesemia <content styleCode="italics">[see <linkHtml href="#S5.2">Warnings and Precautions (5.2)</linkHtml>]</content>
+                     </item>
+                  </list>
+               </text>
+               <effectiveTime value="20250131"/>
+               <excerpt>
+                  <highlight>
+                     <text>
+                        <list listType="unordered">
+                           <item>Most common adverse reactions (incidence ≥ 2%) are constipation, hypomagnesemia, diarrhea, nausea, abdominal discomfort and flatulence. (<linkHtml href="#S6.1">6.1</linkHtml>)</item>
+                        </list>
+                        <br/>
+                        <paragraph>
+                           <content styleCode="bold">To report SUSPECTED ADVERSE REACTIONS, contact Vifor Pharma, Inc. at 1-844-VELTASSA (1-844-835-8277) or FDA at 1-800-FDA-1088 or <content styleCode="italics"> www.fda.gov/medwatch.</content>
+                           </content>
+                        </paragraph>
+                     </text>
+                  </highlight>
+               </excerpt>
+               <component>
+                  <section ID="S6.1">
+                     <id root="98bcae98-1a23-4a12-a183-0437c376cdfd"/>
+                     <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
+                     <title>6.1	Clinical Trials Experience</title>
+                     <effectiveTime value="20250131"/>
+                     <component>
+                        <section>
+                           <id root="507d0aac-962e-4599-85a5-326fee8b5073"/>
+                           <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
+                           <text>
+                              <paragraph>
+                                 <content styleCode="italics underline">Adult Patients</content>
+                              </paragraph>
+                              <paragraph>Because clinical trials are conducted under widely varying conditions, adverse reaction rates observed in the clinical trials of Veltassa cannot be directly compared to rates in the clinical trials of other drugs and may not reflect the rates observed in practice.</paragraph>
+                              <paragraph>In the safety and efficacy clinical trials, 666 adult patients received at least one dose of Veltassa, including 219 exposed for at least 6 months and 149 exposed for at least one year.</paragraph>
+                              <paragraph>Table 1 provides a summary of the most common adverse reactions (occurring in ≥ 2% of patients) in adult patients treated with Veltassa in these clinical trials.  Most adverse reactions were mild to moderate.  Constipation generally resolved during the course of treatment.</paragraph>
+                              <table width="75%" ID="table1">
+                                 <caption>Table 1:	Adverse Reactions Reported in ≥ 2% of Patients</caption>
+                                 <col width="45%" align="left" valign="bottom"/>
+                                 <col width="55%" align="center" valign="bottom"/>
+                                 <thead>
+                                    <tr>
+                                       <th styleCode="Lrule Rrule" valign="middle">Adverse Reactions</th>
+                                       <th styleCode="Rrule" valign="middle">Adult Patients treated with Veltassa<br/>(N=666)</th>
+                                    </tr>
+                                 </thead>
+                                 <tfoot>
+                                    <tr>
+                                       <td align="left" colspan="2">
+                                          <content styleCode="italics">Note: Diarrhea is an aggregate term for Diarrhea and frequent bowel movements. Abdominal discomfort is an aggregate term for Abdominal discomfort, abdominal pain, abdominal pain upper, and abdominal pain lower.</content>
+                                       </td>
+                                    </tr>
+                                 </tfoot>
+                                 <tbody>
+                                    <tr styleCode="Botrule">
+                                       <td styleCode="Lrule Rrule">Constipation</td>
+                                       <td styleCode="Rrule">7.2%</td>
+                                    </tr>
+                                    <tr styleCode="Botrule">
+                                       <td styleCode="Lrule Rrule">Hypomagnesemia</td>
+                                       <td styleCode="Rrule">5.3%</td>
+                                    </tr>
+                                    <tr styleCode="Botrule">
+                                       <td styleCode="Lrule Rrule">Diarrhea</td>
+                                       <td styleCode="Rrule">4.8%</td>
+                                    </tr>
+                                    <tr styleCode="Botrule">
+                                       <td styleCode="Lrule Rrule">Nausea</td>
+                                       <td styleCode="Rrule">2.3%</td>
+                                    </tr>
+                                    <tr styleCode="Botrule">
+                                       <td styleCode="Lrule Rrule">Abdominal discomfort</td>
+                                       <td styleCode="Rrule">2.0%</td>
+                                    </tr>
+                                    <tr>
+                                       <td styleCode="Lrule Rrule">Flatulence</td>
+                                       <td styleCode="Rrule">2.0%</td>
+                                    </tr>
+                                 </tbody>
+                              </table>
+                              <paragraph>The most commonly reported adverse reactions leading to discontinuation of Veltassa were gastrointestinal adverse reactions (2.7%), including vomiting (0.8%), diarrhea (0.6%), constipation (0.5%) and flatulence (0.5%).</paragraph>
+                              <paragraph>Mild to moderate hypersensitivity reactions were reported in 0.3% of adult patients treated with Veltassa in clinical trials.  Reactions have included edema of the lips.</paragraph>
+                           </text>
+                           <effectiveTime value="20250131"/>
+                           <component>
+                              <section>
+                                 <id root="0c69ecb1-77e3-4a5f-bc01-ca0569f3ac77"/>
+                                 <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
+                                 <text>
+                                    <paragraph>
+                                       <content styleCode="underline">Laboratory Abnormalities</content>
+                                    </paragraph>
+                                    <paragraph>Approximately 4.7% of adult patients in clinical trials developed hypokalemia with a serum potassium value &lt; 3.5 mEq/L.</paragraph>
+                                    <paragraph>Approximately 9% of adult patients in clinical trials developed hypomagnesemia with a serum magnesium value &lt; 1.4 mg/dL.</paragraph>
+                                 </text>
+                                 <effectiveTime value="20250131"/>
+                              </section>
+                           </component>
+                        </section>
+                     </component>
+                     <component>
+                        <section>
+                           <id root="8a8be984-c6ab-4263-a351-552cd6d7aef8"/>
+                           <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
+                           <text>
+                              <paragraph>
+                                 <content styleCode="underline italics">Pediatric Patients</content>
+                              </paragraph>
+                              <paragraph>In a single-arm, open-label pediatric study, 14 patients 12 to 17 years of age received at least one dose of Veltassa, including 12 patients exposed for at least 25 weeks.  The safety profile was generally similar to that observed in adult patients.</paragraph>
+                           </text>
+                           <effectiveTime value="20250131"/>
+                        </section>
+                     </component>
+                  </section>
+               </component>
+            </section>
+         </component>
+         <component>
+            <section ID="S7">
+               <id root="3680785e-df93-49cf-bba7-5389a6a0ed7a"/>
+               <code code="34073-7" codeSystem="2.16.840.1.113883.6.1" displayName="DRUG INTERACTIONS SECTION"/>
+               <title>7 DRUG INTERACTIONS</title>
+               <text>
+                  <paragraph>Veltassa has the potential to bind some oral co-administered medications, which could decrease their gastrointestinal absorption. Binding of Veltassa to other oral medications not listed in Table 3 below could cause decreased gastrointestinal absorption and loss of efficacy when taken close to the time Veltassa is administered. Administer other oral medications at least 3 hours before or 3 hours after Veltassa <content styleCode="italics">[see <linkHtml href="#S2.1">Dosage and Administration (2.1)</linkHtml> and <linkHtml href="#S12.3">Clinical Pharmacology (12.3)</linkHtml>]</content>.</paragraph>
+               </text>
+               <effectiveTime value="20250131"/>
+               <excerpt>
+                  <highlight>
+                     <text>
+                        <list listType="unordered">
+                           <item>Take other orally administered drugs at least 3 hours before or 3 hours after Veltassa except those shown to not have a clinically important interaction. (<linkHtml href="#S2.1">2.1</linkHtml>, <linkHtml href="#S7">7</linkHtml>)</item>
+                        </list>
+                     </text>
+                  </highlight>
+               </excerpt>
+               <component>
+                  <section ID="S7.1">
+                     <id root="b5828555-744d-4731-bd33-489525792f08"/>
+                     <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
+                     <title>7.1	Clinically Important Interaction of Veltassa with Other Drugs</title>
+                     <text>
+                        <paragraph>The <content styleCode="italics">in-vitro</content> binding of the following drugs to patiromer was evaluated and potentially clinically significant binding was observed. Some drugs were subsequently tested <content styleCode="italics">in-vivo</content> and significant reduction in systemic exposure was observed <content styleCode="italics">[see <linkHtml href="#S2.1">Dosage and Administration (2.1)</linkHtml> and <linkHtml href="#S12.3">Clinical Pharmacology (12.3)</linkHtml>]</content>.</paragraph>
+                        <paragraph>Binding by Veltassa may reduce the systemic exposure and decrease the clinical efficacy of the co-administered drugs shown in Table 2.  The administration of these drugs (and any drugs not listed in Table 3) should be separated by at least 3 hours from Veltassa.</paragraph>
+                        <table width="85%" ID="table2a">
+                           <caption>Table 2:	Clinically important drug interactions of Veltassa</caption>
+                           <col align="left" valign="middle" width="25%"/>
+                           <col align="left" valign="middle" width="75%"/>
+                           <tbody>
+                              <tr styleCode="Botrule">
+                                 <td styleCode="Lrule Rrule" colspan="2">
+                                    <content styleCode="bold">Angiotensin II receptor blockers (ARB)</content>
+                                    <br/>
+                                    <content styleCode="italics">Telmisartan</content>
+                                 </td>
+                              </tr>
+                              <tr styleCode="Botrule">
+                                 <td styleCode="Lrule Rrule" colspan="2">
+                                    <content styleCode="bold">β-adrenoceptor blockers (β-blocker)</content>
+                                    <br/>
+                                    <content styleCode="italics">Bisoprolol, carvedilol, nebivolol</content>
+                                 </td>
+                              </tr>
+                              <tr styleCode="Botrule">
+                                 <td styleCode="Lrule Rrule" colspan="2">
+                                    <content styleCode="bold">Antibiotics</content>
+                                    <br/>
+                                    <content styleCode="italics">Ciprofloxacin</content>
+                                 </td>
+                              </tr>
+                              <tr styleCode="Botrule">
+                                 <td styleCode="Lrule Rrule" colspan="2">
+                                    <content styleCode="bold">Anti-Parathyroid Agents and Thyroid Preparations</content>
+                                    <br/>
+                                    <content styleCode="italics">Levothyroxine</content>
+                                 </td>
+                              </tr>
+                              <tr styleCode="Botrule">
+                                 <td styleCode="Lrule Rrule" colspan="2">
+                                    <content styleCode="bold">Blood Glucose Lowering Drugs</content>
+                                    <br/>
+                                    <content styleCode="italics">Metformin</content>
+                                 </td>
+                              </tr>
+                              <tr styleCode="Botrule">
+                                 <td styleCode="Lrule Rrule" colspan="2">
+                                    <content styleCode="bold">Immunosuppressants</content>
+                                    <br/>
+                                    <content styleCode="italics">Mycophenolate mofetil</content>
+                                 </td>
+                              </tr>
+                              <tr>
+                                 <td styleCode="Lrule Rrule" colspan="2">
+                                    <content styleCode="bold">Others</content>
+                                    <br/>
+                                    <content styleCode="italics">Quinidine, thiamine</content>
+                                 </td>
+                              </tr>
+                           </tbody>
+                        </table>
+                     </text>
+                     <effectiveTime value="20250131"/>
+                  </section>
+               </component>
+               <component>
+                  <section ID="S7.2">
+                     <id root="667cf994-d4e2-4bef-b819-b9b205dccf7d"/>
+                     <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
+                     <title>7.2	No Observed Clinically Important Interaction of Veltassa with Other Drugs</title>
+                     <text>
+                        <paragraph>The binding of the following drugs to patiromer was evaluated <content styleCode="italics">[see <linkHtml href="#S12.3">Clinical Pharmacology (12.3)</linkHtml>]</content> and no clinically significant binding was observed. No separation of dosing is required for these drugs.</paragraph>
+                        <table width="85%" ID="table3">
+                           <caption>Table 3:	No observed clinically important drug interactions of Veltassa</caption>
+                           <col width="100%" align="left" valign="middle"/>
+                           <tbody>
+                              <tr styleCode="Botrule">
+                                 <td styleCode="Lrule Rrule">
+                                    <content styleCode="bold">Angiotensin-converting enzyme (ACE) inhibitors</content>
+                                    <br/>
+                                    <content styleCode="italics">Benazepril, captopril, enalapril, fosinopril, lisinopril, perindopril, quinapril, ramipril, trandolapril</content>
+                                 </td>
+                              </tr>
+                              <tr styleCode="Botrule">
+                                 <td styleCode="Lrule Rrule">
+                                    <content styleCode="bold">Angiotensin II receptor blockers (ARB)</content>
+                                    <br/>
+                                    <content styleCode="italics">Azilsartan, candesartan, irbesartan, losartan, olmesartan, valsartan</content>
+                                 </td>
+                              </tr>
+                              <tr styleCode="Botrule">
+                                 <td styleCode="Lrule Rrule">
+                                    <content styleCode="bold">β-adrenoceptor blockers (β-blocker)</content>
+                                    <br/>
+                                    <content styleCode="italics">Metoprolol</content>
+                                 </td>
+                              </tr>
+                              <tr styleCode="Botrule">
+                                 <td styleCode="Lrule Rrule">
+                                    <content styleCode="bold">Loop diuretics</content>
+                                    <br/>
+                                    <content styleCode="italics">Furosemide, bumetanide, torasemide</content>
+                                 </td>
+                              </tr>
+                              <tr styleCode="Botrule">
+                                 <td styleCode="Lrule Rrule">
+                                    <content styleCode="bold">Mineralocorticoid receptor antagonists (MRA)</content>
+                                    <br/>
+                                    <content styleCode="italics">Eplerenone, finerenone, spironolactone</content>
+                                 </td>
+                              </tr>
+                              <tr styleCode="Botrule">
+                                 <td styleCode="Lrule Rrule">
+                                    <content styleCode="bold">Neprilysin inhibitors</content>
+                                    <br/>
+                                    <content styleCode="italics">Sacubitril</content>
+                                 </td>
+                              </tr>
+                              <tr styleCode="Botrule">
+                                 <td styleCode="Lrule Rrule">
+                                    <content styleCode="bold">Sodium-glucose cotransporter-2 (SGLT-2) inhibitors</content>
+                                    <br/>
+                                    <content styleCode="italics">Canagliflozin, dapagliflozin, empagliflozin</content>
+                                 </td>
+                              </tr>
+                              <tr styleCode="Botrule">
+                                 <td styleCode="Lrule Rrule">
+                                    <content styleCode="bold">Antibiotics</content>
+                                    <br/>
+                                    <content styleCode="italics">Trimethoprim, amoxicillin, cephalexin</content>
+                                 </td>
+                              </tr>
+                              <tr styleCode="Botrule">
+                                 <td styleCode="Lrule Rrule">
+                                    <content styleCode="bold">Anticoagulants</content>
+                                    <br/>
+                                    <content styleCode="italics">Warfarin, apixaban, rivaroxaban</content>
+                                 </td>
+                              </tr>
+                              <tr styleCode="Botrule">
+                                 <td styleCode="Lrule Rrule">
+                                    <content styleCode="bold">Anti-parathyroid agents and Thyroid preparations</content>
+                                    <br/>
+                                    <content styleCode="italics">Cinacalcet</content>
+                                 </td>
+                              </tr>
+                              <tr styleCode="Botrule">
+                                 <td styleCode="Lrule Rrule">
+                                    <content styleCode="bold">Antithrombotic agents</content>
+                                    <br/>
+                                    <content styleCode="italics">Clopidogrel, acetylsalicylic acid</content>
+                                 </td>
+                              </tr>
+                              <tr styleCode="Botrule">
+                                 <td styleCode="Lrule Rrule">
+                                    <content styleCode="bold">Blood glucose lowering drugs</content>
+                                    <br/>
+                                    <content styleCode="italics">Glipizide</content>
+                                 </td>
+                              </tr>
+                              <tr styleCode="Botrule">
+                                 <td styleCode="Lrule Rrule">
+                                    <content styleCode="bold">Calcium channel blockers</content>
+                                    <br/>
+                                    <content styleCode="italics">Amlodipine, verapamil</content>
+                                 </td>
+                              </tr>
+                              <tr styleCode="Botrule">
+                                 <td styleCode="Lrule Rrule">
+                                    <content styleCode="bold">Immunosuppressants</content>
+                                    <br/>
+                                    <content styleCode="italics">Tacrolimus</content>
+                                 </td>
+                              </tr>
+                              <tr>
+                                 <td styleCode="Lrule Rrule">
+                                    <content styleCode="bold">Others</content>
+                                    <br/>
+                                    <content styleCode="italics">Lithium, allopurinol, atorvastatin, digoxin, phenytoin, riboflavin, sevelamer</content>
+                                 </td>
+                              </tr>
+                           </tbody>
+                        </table>
+                     </text>
+                     <effectiveTime value="20250131"/>
+                  </section>
+               </component>
+            </section>
+         </component>
+         <component>
+            <section ID="S8">
+               <id root="c3a6c95f-def3-4231-bce8-1bd6027a0480"/>
+               <code code="43684-0" codeSystem="2.16.840.1.113883.6.1" displayName="USE IN SPECIFIC POPULATIONS SECTION"/>
+               <title>8 USE IN SPECIFIC POPULATIONS</title>
+               <effectiveTime value="20250131"/>
+               <component>
+                  <section ID="S8.1">
+                     <id root="3221c53e-a180-416a-9a84-ba2db2ffae80"/>
+                     <code code="42228-7" codeSystem="2.16.840.1.113883.6.1" displayName="PREGNANCY SECTION"/>
+                     <title>8.1 Pregnancy</title>
+                     <effectiveTime value="20250131"/>
+                     <component>
+                        <section>
+                           <id root="29e4bd84-11d2-4dc9-a2be-fd3724448b10"/>
+                           <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
+                           <text>
+                              <paragraph>
+                                 <content styleCode="underline">Risk Summary</content>
+                              </paragraph>
+                              <paragraph>Veltassa is not absorbed systemically following oral administration and maternal use is not expected to result in fetal risk.</paragraph>
+                           </text>
+                           <effectiveTime value="20250131"/>
+                        </section>
+                     </component>
+                  </section>
+               </component>
+               <component>
+                  <section ID="S8.2">
+                     <id root="af7de5c0-a3f4-4a31-aa30-f69f8119f4bf"/>
+                     <code code="77290-5" codeSystem="2.16.840.1.113883.6.1" displayName="LACTATION SECTION"/>
+                     <title>8.2	Lactation</title>
+                     <effectiveTime value="20250131"/>
+                     <component>
+                        <section>
+                           <id root="4754084c-f5a9-4379-953b-74d9fe213dfe"/>
+                           <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
+                           <text>
+                              <paragraph>
+                                 <content styleCode="underline">Risk Summary</content>
+                              </paragraph>
+                              <paragraph>Veltassa is not absorbed systemically by the mother, so breastfeeding is not expected to result in risk to the infant.</paragraph>
+                           </text>
+                           <effectiveTime value="20250131"/>
+                        </section>
+                     </component>
+                  </section>
+               </component>
+               <component>
+                  <section ID="S8.4">
+                     <id root="ed90dfcc-10e2-4f14-9bdc-30210104a273"/>
+                     <code code="34081-0" codeSystem="2.16.840.1.113883.6.1" displayName="PEDIATRIC USE SECTION"/>
+                     <title>8.4 Pediatric Use</title>
+                     <text>
+                        <paragraph>The safety and effectiveness of Veltassa for lowering serum potassium levels have been established in pediatric patients ages 12 years and older.  Use of Veltassa for this indication is supported by evidence from an adequate and well-controlled study in adults, with additional pharmacodynamic and safety data in pediatric patients aged 12 years and older <content styleCode="italics">[see <linkHtml href="#S2.2">Dosage and Administration (2.2)</linkHtml>, <linkHtml href="#S6.1">Adverse Reactions (6.1)</linkHtml>, and <linkHtml href="#S14.3">Clinical Studies (14.3)</linkHtml>].</content>
+                        </paragraph>
+                        <paragraph>Safety and efficacy have not been established in pediatric patients below the age of 12 years.  Although the pediatric study included 9 patients 6 to less than 12 years of age, the dosing regimen that was evaluated in these patients did not appear to be effective in reducing serum potassium levels in this age group after 2 weeks.  The starting dose of Veltassa in this age group was 2 g/day and the median dose at Day 14 was 6 g/day.  In this age group the mean change in serum potassium from Baseline to Day 14 was -0.1 mEq/L (95% CI -0.7, 0.4).  Because the available data are not sufficient to determine a safe and effective dosing regimen in patients 6 to less than 12 years of age, labeling recommendations cannot be provided for this age group.</paragraph>
+                     </text>
+                     <effectiveTime value="20250131"/>
+                  </section>
+               </component>
+               <component>
+                  <section ID="S8.5">
+                     <id root="53b5df40-38da-4761-9f9e-1a2286085362"/>
+                     <code code="34082-8" codeSystem="2.16.840.1.113883.6.1" displayName="GERIATRIC USE SECTION"/>
+                     <title>8.5 Geriatric Use</title>
+                     <text>
+                        <paragraph>Of the 666 patients treated with Veltassa in clinical studies, 60% were age 65 and over, and 20% were age 75 and over.  No overall differences in effectiveness were observed between these patients and younger patients.  Patients age 65 and older reported more gastrointestinal adverse reactions than younger patients.</paragraph>
+                     </text>
+                     <effectiveTime value="20250131"/>
+                  </section>
+               </component>
+               <component>
+                  <section ID="S8.6">
+                     <id root="530a1511-73d7-49ba-8ed6-bc84a2b94b7c"/>
+                     <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
+                     <title>8.6	Renal Impairment</title>
+                     <text>
+                        <paragraph>Of the 666 adult patients treated with Veltassa in clinical studies, 93% had chronic kidney disease (CKD). All 14 pediatric patients ages 12 years and older treated with Veltassa in the clinical study had chronic kidney disease. No special dosing adjustments are needed for patients with renal impairment.</paragraph>
+                     </text>
+                     <effectiveTime value="20250131"/>
+                  </section>
+               </component>
+            </section>
+         </component>
+         <component>
+            <section ID="S10">
+               <id root="9f4b8423-24d5-4732-a98e-87b1c0b923d2"/>
+               <code code="34088-5" codeSystem="2.16.840.1.113883.6.1" displayName="OVERDOSAGE SECTION"/>
+               <title>10 OVERDOSAGE</title>
+               <text>
+                  <paragraph>Doses of Veltassa in excess of 50.4 grams per day have not been tested.  Excessive doses of Veltassa may result in hypokalemia.  Restore serum potassium if hypokalemia occurs.</paragraph>
+               </text>
+               <effectiveTime value="20250131"/>
+            </section>
+         </component>
+         <component>
+            <section ID="S11">
+               <id root="4dd608c1-c7f5-41b9-9936-4214ca1074f2"/>
+               <code code="34089-3" codeSystem="2.16.840.1.113883.6.1" displayName="DESCRIPTION SECTION"/>
+               <title>11 DESCRIPTION</title>
+               <text>
+                  <paragraph>Veltassa is a powder for suspension in water for oral administration.  The active ingredient is patiromer sorbitex calcium which consists of the active moiety, patiromer, a non-absorbed potassium-binding polymer, and a calcium-sorbitol counterion.  Each gram of patiromer is equivalent to a nominal amount of 2 grams of patiromer sorbitex calcium.</paragraph>
+                  <paragraph>The chemical name for patiromer sorbitex calcium is cross-linked polymer of calcium 2-fluoroprop-2-enoate with diethenylbenzene and octa-1,7-diene, combination with D-glucitol. </paragraph>
+                  <paragraph>Patiromer sorbitex calcium is an amorphous, free-flowing powder that is composed of individual spherical beads.  Patiromer sorbitex calcium is insoluble in solvents such as water, 0.1 M HCl, n-heptane and methanol.  The chemical structure of patiromer sorbitex calcium is presented in Figure 1.</paragraph>
+                  <paragraph>
+                     <content styleCode="bold">Figure 1:	Chemical Structure of Patiromer Sorbitex Calcium</content>
+                  </paragraph>
+                  <paragraph>
+                     <renderMultiMedia referencedObject="MM1"/>
+                  </paragraph>
+                  <paragraph>Each packet of Veltassa contains 1 gram, 8.4 grams, 16.8 grams or 25.2 grams of patiromer, the active moiety.  The inactive ingredient is xanthan gum.</paragraph>
+               </text>
+               <effectiveTime value="20250131"/>
+               <component>
+                  <observationMedia ID="MM1">
+                     <text>Figure 1</text>
+                     <value xsi:type="ED" mediaType="image/jpeg">
+                        <reference value="veltassa-01.jpg"/>
+                     </value>
+                  </observationMedia>
+               </component>
+            </section>
+         </component>
+         <component>
+            <section ID="S12">
+               <id root="5d9ac3c7-10fa-4404-90aa-cdb27d2bd242"/>
+               <code code="34090-1" codeSystem="2.16.840.1.113883.6.1" displayName="CLINICAL PHARMACOLOGY SECTION"/>
+               <title>12 CLINICAL PHARMACOLOGY</title>
+               <effectiveTime value="20250131"/>
+               <component>
+                  <section ID="S12.1">
+                     <id root="92af8367-6d79-4313-a01e-1a64dd2bf342"/>
+                     <code code="43679-0" codeSystem="2.16.840.1.113883.6.1" displayName="MECHANISM OF ACTION SECTION"/>
+                     <title>12.1 Mechanism of Action</title>
+                     <text>
+                        <paragraph>Veltassa is a non-absorbed, cation exchange polymer that contains a calcium-sorbitol counterion.</paragraph>
+                        <paragraph>Veltassa increases fecal potassium excretion through binding of potassium in the lumen of the gastrointestinal tract.  Binding of potassium reduces the concentration of free potassium in the gastrointestinal lumen, resulting in a reduction of serum potassium levels. </paragraph>
+                     </text>
+                     <effectiveTime value="20250131"/>
+                  </section>
+               </component>
+               <component>
+                  <section ID="S12.2">
+                     <id root="a11cfd6b-f6c7-480f-953e-a4dc9024be85"/>
+                     <code code="43681-6" codeSystem="2.16.840.1.113883.6.1" displayName="PHARMACODYNAMICS SECTION"/>
+                     <title>12.2 Pharmacodynamics</title>
+                     <text>
+                        <paragraph>In a Phase 1 study in healthy adult subjects (6 to 8 subjects per group), Veltassa (0 grams to 50.4 grams per day) administered three times a day for 8 days caused a dose-dependent increase in fecal potassium excretion.  A corresponding dose-dependent decrease in urinary potassium excretion with no change in serum potassium were also observed.  Compared to placebo, Veltassa doses of 25.2 and 50.4 grams per day significantly decreased mean daily urinary potassium excretion.</paragraph>
+                        <paragraph>In a Phase 1, open-label, multiple-dose crossover study in 12 healthy subjects, 25.2 grams of patiromer per day was administered orally as a once daily, twice daily or thrice daily regimen for 6 days in a randomly assigned order.  A significant increase in mean daily fecal potassium excretion and concomitant decrease in mean daily urinary potassium excretion were observed during the treatment periods for all three dosing regimens.  The mean increase in fecal potassium excretion ranged from 1283 to 1550 mg/day, and the mean decrease in urinary potassium excretion ranged from 1438 to 1534 mg/day across the three dosing regimens.  No significant differences were observed among the dosing regimens with respect to mean daily fecal potassium and urinary potassium excretion.  This was true for the overall comparison among the three dosing regimens, as well as for the pairwise comparisons.</paragraph>
+                        <paragraph>In an open-label, uncontrolled study, 25 patients with hyperkalemia (mean baseline serum potassium of 5.9 mEq/L) and chronic kidney disease were given a controlled potassium diet for 3 days, followed by 16.8 grams patiromer daily (as divided doses) for 2 days while the controlled diet was continued.  A statistically significant reduction in serum potassium (-0.2 mEq/L) was observed at 7 hours after the first dose.  Serum potassium levels continued to decline during the 48-hour treatment period (-0.8 mEq/L at 48 hours after the first dose).  Potassium levels remained stable for 24 hours after the last dose, then rose during the 4-day observation period following discontinuation of Veltassa.</paragraph>
+                     </text>
+                     <effectiveTime value="20250131"/>
+                  </section>
+               </component>
+               <component>
+                  <section ID="S12.3">
+                     <id root="d80c8a6d-4c4a-49b5-a21b-ddae232af7b1"/>
+                     <code code="43682-4" codeSystem="2.16.840.1.113883.6.1" displayName="PHARMACOKINETICS SECTION"/>
+                     <title>12.3 Pharmacokinetics</title>
+                     <effectiveTime value="20250131"/>
+                     <component>
+                        <section>
+                           <id root="53f20013-5a8d-4751-84b8-96ec937113be"/>
+                           <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
+                           <text>
+                              <paragraph>
+                                 <content styleCode="underline">Absorption</content>
+                              </paragraph>
+                              <paragraph>In radiolabeled ADME studies in rats and dogs, patiromer was not systemically absorbed and was excreted in the feces.  Quantitative whole-body autoradiography analysis in rats demonstrated that radioactivity was limited to the gastrointestinal tract, with no detectable level of radioactivity in any other tissues or organs.</paragraph>
+                           </text>
+                           <effectiveTime value="20250131"/>
+                        </section>
+                     </component>
+                     <component>
+                        <section>
+                           <id root="3c5cfead-6b0f-4972-8b85-34ee1b72121b"/>
+                           <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
+                           <text>
+                              <paragraph>
+                                 <content styleCode="underline">Effect of Food</content>
+                              </paragraph>
+                              <paragraph>Veltassa can be taken with or without food. In an open-label study, 114 patients with hyperkalemia were randomized to Veltassa once daily with food or without food. Serum potassium at the end of treatment, the change from baseline in serum potassium, and the mean dose of Veltassa were similar between groups.</paragraph>
+                           </text>
+                           <effectiveTime value="20250131"/>
+                        </section>
+                     </component>
+                     <component>
+                        <section>
+                           <id root="a2ada71a-bae4-4107-8798-f447b8f37ed6"/>
+                           <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
+                           <text>
+                              <paragraph>
+                                 <content styleCode="underline">Drug Interactions</content>
+                              </paragraph>
+                              <paragraph>Veltassa has the potential to bind some oral co-administered medications, which could decrease their gastrointestinal absorption.</paragraph>
+                              <paragraph>Fifty-six (56) drugs were tested <content styleCode="italics">in-vitro</content> to determine the potential for interaction with Veltassa  <content styleCode="italics">[see <linkHtml href="#S7">Drug Interactions (7)</linkHtml>].</content> For oral drug products not listed in Table 3, administration of patiromer should be separated by at least 3 hours as a precautionary measure.</paragraph>
+                              <paragraph>Twelve (12) drugs that showed an <content styleCode="italics">in vitro</content> interaction were subsequently tested <content styleCode="italics">in vivo</content>.  These studies in healthy volunteers showed that Veltassa did not alter the systemic exposure of amlodipine, cinacalcet, clopidogrel, furosemide, lithium, metoprolol, trimethoprim, verapamil or warfarin when coadministered with Veltassa.  Veltassa decreased the systemic exposure of coadministered ciprofloxacin, levothyroxine and metformin.  However, there was no interaction when Veltassa and these drugs were taken 3 hours apart (Figure 2) <content styleCode="italics">[see <linkHtml href="#S7">Drug Interactions (7)</linkHtml>]</content>.</paragraph>
+                              <paragraph>
+                                 <content styleCode="bold">Figure 2: Effects of Veltassa on the Pharmacokinetic Exposures of Other Orally Administered Medications with No Dosing Separation and with a 3-Hour Separation</content>
+                              </paragraph>
+                              <renderMultiMedia referencedObject="MM123"/>
+                           </text>
+                           <effectiveTime value="20250131"/>
+                           <component>
+                              <observationMedia ID="MM123">
+                                 <text>Figure 2</text>
+                                 <value xsi:type="ED" mediaType="image/jpeg">
+                                    <reference value="veltassa-02.jpg"/>
+                                 </value>
+                              </observationMedia>
+                           </component>
+                        </section>
+                     </component>
+                  </section>
+               </component>
+            </section>
+         </component>
+         <component>
+            <section ID="S13">
+               <id root="b7018697-734e-41aa-92d3-e6629a79878c"/>
+               <code code="43680-8" codeSystem="2.16.840.1.113883.6.1" displayName="NONCLINICAL TOXICOLOGY SECTION"/>
+               <title>13 NONCLINICAL TOXICOLOGY</title>
+               <effectiveTime value="20250131"/>
+               <component>
+                  <section ID="S13.1">
+                     <id root="08bc274b-add7-4d2b-b8a7-f6ba7228da29"/>
+                     <code code="34083-6" codeSystem="2.16.840.1.113883.6.1" displayName="CARCINOGENESIS &amp; MUTAGENESIS &amp; IMPAIRMENT OF FERTILITY SECTION"/>
+                     <title>13.1 Carcinogenesis, Mutagenesis, Impairment of Fertility</title>
+                     <text>
+                        <paragraph>Patiromer was not genotoxic in the reverse mutation test (Ames assay), chromosome aberration or rat micronucleus assays.</paragraph>
+                        <paragraph>Carcinogenicity studies have not been performed.</paragraph>
+                        <paragraph>Patiromer did not impair the fertility in male or female rats at doses up to 10-fold the maximum recommended human dose (MRHD). </paragraph>
+                     </text>
+                     <effectiveTime value="20250131"/>
+                  </section>
+               </component>
+            </section>
+         </component>
+         <component>
+            <section ID="S14">
+               <id root="94643e65-a260-48f0-b954-0196b960fdf7"/>
+               <code code="34092-7" codeSystem="2.16.840.1.113883.6.1" displayName="CLINICAL STUDIES SECTION"/>
+               <title>14 CLINICAL STUDIES</title>
+               <effectiveTime value="20250131"/>
+               <component>
+                  <section ID="S14.1">
+                     <id root="efc74679-d0be-40e0-9816-ca0e40a78bc3"/>
+                     <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
+                     <title>14.1 	Two-Part, Randomized Withdrawal Study</title>
+                     <text>
+                        <paragraph>The efficacy of Veltassa was demonstrated in a two-part, single-blind randomized withdrawal study that evaluated Veltassa in hyperkalemic patients with CKD on stable doses of at least one renin-angiotensin-aldosterone system inhibitor (i.e., angiotensin-converting enzyme inhibitor, angiotensin II receptor blocker, or aldosterone antagonist).</paragraph>
+                        <paragraph>In Part A, 243 patients were treated with Veltassa for 4 weeks.  Patients with a baseline serum potassium of 5.1 mEq/L to &lt; 5.5 mEq/L received a starting Veltassa dose of 8.4 grams patiromer per day (as a divided dose) and patients with a baseline serum potassium of 5.5 mEq/L to &lt; 6.5 mEq/L received a starting Veltassa dose of 16.8 grams patiromer per day (as a divided dose).  The dose of Veltassa was titrated, as needed, based on the serum potassium level, assessed starting on Day 3 and then at weekly visits (Weeks 1, 2 and 3) to the end of the 4-week treatment period, with the aim of maintaining serum potassium in the target range (3.8 mEq/L to &lt; 5.1 mEq/L).</paragraph>
+                        <paragraph>The mean age of patients was 64 years, 58% of patients were men, and 98% were white.  Approximately 97% of patients had hypertension, 57% had type 2 diabetes, and 42% had heart failure.</paragraph>
+                        <paragraph>Results for the Part A primary endpoint, the change in serum potassium from Baseline to Week 4, are summarized in Table 4.  Mean serum potassium over time for the intent-to-treat population is displayed in Figure 3.  For the Part A secondary endpoint, 76% (95% CI: 70%, 81%) of patients had a serum potassium in the target range of 3.8 mEq/L to &lt; 5.1 mEq/L at Week 4.  The mean daily doses of Veltassa were 13 grams and 21 grams in patients with serum potassium of 5.1 to &lt; 5.5 mEq/L and 5.5 to &lt; 6.5 mEq/L, respectively.</paragraph>
+                        <table width="75%" ID="table4">
+                           <caption>Table 4:	Veltassa Treatment Phase (Part A): Primary Endpoint</caption>
+                           <col width="33%" align="center" valign="middle"/>
+                           <col width="10%" align="center" valign="middle"/>
+                           <col width="15%" align="center" valign="middle"/>
+                           <col width="32%" align="center" valign="top"/>
+                           <col width="10%" align="center" valign="middle"/>
+                           <thead>
+                              <tr>
+                                 <th styleCode="Lrule Rrule" colspan="2"/>
+                                 <th styleCode="Rrule">Baseline, mean (SD)</th>
+                                 <th styleCode="Rrule">Week 4 Change from Baseline, Mean ± SE<br/>
+                                    <br/>(95% CI)</th>
+                                 <th styleCode="Rrule">
+                                    <content styleCode="italics">p</content>-value</th>
+                              </tr>
+                           </thead>
+                           <tbody>
+                              <tr styleCode="Botrule">
+                                 <td styleCode="Lrule Rrule">
+                                    <content styleCode="bold">Baseline Potassium 5.1 to &lt;5.5 mEq/L (n=90)</content>
+                                 </td>
+                                 <td styleCode="Rrule" rowspan="3">
+                                    <content styleCode="bold">Serum Potassium (mEq/L)</content>
+                                 </td>
+                                 <td styleCode="Rrule">5.31 (0.57)</td>
+                                 <td styleCode="Rrule">-0.65 ± 0.05<br/>
+                                    <br/>(-0.74, -0.55)</td>
+                                 <td styleCode="Rrule"/>
+                              </tr>
+                              <tr styleCode="Botrule">
+                                 <td styleCode="Lrule Rrule">
+                                    <content styleCode="bold">Baseline Potassium 5.5 to &lt;6.5 mEq/L (n=147)</content>
+                                 </td>
+                                 <td styleCode="Rrule">5.74 (0.40)</td>
+                                 <td styleCode="Rrule">-1.23 ± 0.04<br/>
+                                    <br/>(-1.31, -1.16)</td>
+                                 <td styleCode="Rrule"/>
+                              </tr>
+                              <tr>
+                                 <td styleCode="Lrule Rrule">
+                                    <content styleCode="bold">Overall Population (n=237)</content>
+                                 </td>
+                                 <td styleCode="Rrule">5.58 (0.51)</td>
+                                 <td styleCode="Rrule">-1.01 ± 0.03<br/>
+                                    <br/>(-1.07, -0.95)</td>
+                                 <td styleCode="Rrule">&lt; 0.001</td>
+                              </tr>
+                           </tbody>
+                        </table>
+                        <paragraph>
+                           <content styleCode="bold">Figure 3:	Estimated Mean (95% CI) of Central Serum Potassium (mEq/L) Over Time</content>
+                        </paragraph>
+                        <paragraph>
+                           <renderMultiMedia referencedObject="MM2"/>
+                        </paragraph>
+                        <paragraph>In Part B, 107 patients with a Part A baseline serum potassium of 5.5 mEq/L to &lt; 6.5 mEq/L and whose serum potassium was in the target range (3.8 mEq/L to &lt; 5.1 mEq/L) at Part A Week 4 and still receiving RAAS inhibitor medication were randomized to continue Veltassa or to receive placebo to evaluate the effect of withdrawing Veltassa on serum potassium.  In patients randomized to Veltassa, the mean daily dose was 21 grams at the start of Part B and during Part B.</paragraph>
+                        <paragraph>The Part B primary endpoint was the change in serum potassium from Part B baseline to the earliest visit at which the patient's serum potassium was first outside of the range of 3.8 to &lt; 5.5 mEq/L, or to Part B Week 4 if the patient's serum potassium remained in the range.  In Part B, serum potassium rose by 0.72 mEq/L in patients who were switched to placebo, versus no change in patients who remained on Veltassa.  Results are summarized in Table 5.</paragraph>
+                        <table width="75%" ID="table5">
+                           <caption>Table 5:	Randomized, Placebo-Controlled Withdrawal Phase (Part B): Primary Endpoint</caption>
+                           <col width="29%" align="center" valign="middle"/>
+                           <col width="17%" align="center" valign="middle"/>
+                           <col width="17%" align="center" valign="middle"/>
+                           <col width="20%" align="center" valign="middle"/>
+                           <col width="17%" align="center" valign="middle"/>
+                           <thead>
+                              <tr>
+                                 <th styleCode="Lrule Rrule" rowspan="2"/>
+                                 <th styleCode="Rrule" rowspan="2">Placebo<br/>(n=52)</th>
+                                 <th styleCode="Rrule" rowspan="2">Veltassa<br/>(n=55)</th>
+                                 <th styleCode="Rrule Botrule" colspan="2">Difference</th>
+                              </tr>
+                              <tr>
+                                 <th styleCode="Lrule Rrule">Estimate (95% CI)</th>
+                                 <th styleCode="Rrule">
+                                    <content styleCode="italics">p</content>-value</th>
+                              </tr>
+                           </thead>
+                           <tbody>
+                              <tr>
+                                 <td styleCode="Lrule Rrule">
+                                    <content styleCode="bold">Estimated Median Change in Serum Potassium from Baseline (mEq/L)</content>
+                                 </td>
+                                 <td styleCode="Rrule">0.72</td>
+                                 <td styleCode="Rrule">0.00</td>
+                                 <td styleCode="Rrule">0.72<br/>(0.46, 0.99)</td>
+                                 <td styleCode="Rrule">&lt; 0.001</td>
+                              </tr>
+                           </tbody>
+                        </table>
+                        <paragraph>More placebo patients (91%; 95% CI: 83%, 99%) developed a serum potassium ≥ 5.1 mEq/L at any time during Part B than Veltassa patients (43%; 95% CI: 30%, 56%), <content styleCode="italics">p</content> &lt; 0.001.  More placebo patients (60%; 95% CI: 47%, 74%) developed a serum potassium ≥ 5.5 mEq/L at any time during Part B than Veltassa patients (15%; 95% CI: 6%, 24%), <content styleCode="italics">p</content> &lt; 0.001. </paragraph>
+                     </text>
+                     <effectiveTime value="20250131"/>
+                     <component>
+                        <observationMedia ID="MM2">
+                           <text>Figure 3</text>
+                           <value xsi:type="ED" mediaType="image/jpeg">
+                              <reference value="veltassa-03.jpg"/>
+                           </value>
+                        </observationMedia>
+                     </component>
+                  </section>
+               </component>
+               <component>
+                  <section ID="S14.2">
+                     <id root="d91f505e-c3ae-4fd7-b8e2-86dd982f8e9f"/>
+                     <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
+                     <title>14.2	One-Year Study</title>
+                     <text>
+                        <paragraph>The effect of treatment with Veltassa for up to 52 weeks was evaluated in an open-label study of 304 hyperkalemic patients with CKD and type 2 diabetes mellitus on RAAS inhibitor therapy.  Figure 4 shows that the treatment effect on serum potassium was maintained during continued therapy.  In patients with a baseline serum potassium of &gt; 5.0 to 5.5 mEq/L who received an initial dose of 8.4 grams patiromer per day (as a divided dose), the mean daily dose was 14 grams; in those with a baseline serum potassium of &gt; 5.5 to &lt; 6.0 mEq/L who received an initial dose of 16.8 grams patiromer per day (as a divided dose), the mean daily dose was 20 grams during the entire study.</paragraph>
+                        <paragraph>
+                           <content styleCode="bold">Figure 4: 	Mean (95% CI) Serum Potassium over Time </content>
+                        </paragraph>
+                        <paragraph>
+                           <renderMultiMedia referencedObject="MM3"/>
+                        </paragraph>
+                     </text>
+                     <effectiveTime value="20250131"/>
+                     <component>
+                        <observationMedia ID="MM3">
+                           <text>Figure 4</text>
+                           <value xsi:type="ED" mediaType="image/jpeg">
+                              <reference value="veltassa-04.jpg"/>
+                           </value>
+                        </observationMedia>
+                     </component>
+                  </section>
+               </component>
+               <component>
+                  <section ID="S14.3">
+                     <id root="8da380f8-e773-4731-b331-48f7ecacfc33"/>
+                     <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
+                     <title>14.3	Pediatric Study</title>
+                     <text>
+                        <paragraph>The potassium-lowering effect of Veltassa was evaluated in an open-label, single-arm study in pediatric patients 12 to 17 years of age with CKD and hyperkalemia.  The study included an initial 14-day dose finding phase, followed by an up to 24-week long-term (LT) treatment phase and a 2-week follow-up period.  Veltassa was given once daily as a powder for oral suspension.   The dose of Veltassa was titrated, as needed, based on the serum potassium level, assessed starting on Day 3 and then at Day 7 and Day 14, with the aim of maintaining serum potassium in the target range (3.8 mEq/L to &lt; 5.0 mEq/L).</paragraph>
+                        <paragraph>All 14 patients 12 to 17 years of age completed the dose finding phase.  The mean age was 14.5 years, 79% were male, and all were white.  The average weight at baseline was 51 kg and 57% of patients had a baseline eGFR &lt;30 mL/min/1.73 m<sup>2</sup>.  Approximately 57% were on RAAS inhibitor therapy at baseline. The mean (SD) baseline serum potassium was 5.5 mEq/L (0.3 mEq/L).</paragraph>
+                        <paragraph>The mean change in serum potassium from baseline to Day 14 was -0.5 mEq/L (95% CI -0.8, -0.2). The proportion of patients 12 to 17 years of age with a serum potassium within the normal range was 50% at Day 14.  The median dose at Day 14 was 4.2 g/day.</paragraph>
+                     </text>
+                     <effectiveTime value="20250131"/>
+                  </section>
+               </component>
+            </section>
+         </component>
+         <component>
+            <section ID="S16">
+               <id root="acdaef2a-feb6-42b8-8033-167966f03304"/>
+               <code code="34069-5" codeSystem="2.16.840.1.113883.6.1" displayName="HOW SUPPLIED SECTION"/>
+               <title>16 HOW SUPPLIED/STORAGE AND HANDLING</title>
+               <effectiveTime value="20250131"/>
+               <component>
+                  <section ID="S16.1">
+                     <id root="06868baf-0e54-4f02-941b-cfe980ad6bac"/>
+                     <code code="34069-5" codeSystem="2.16.840.1.113883.6.1" displayName="HOW SUPPLIED SECTION"/>
+                     <title>16.1	How Supplied</title>
+                     <text>
+                        <paragraph>Veltassa is supplied as a powder for oral suspension formulated with xanthan gum.  Veltassa is packaged in single-use packets containing 1 gram, 8.4 grams, 16.8 grams or 25.2 grams patiromer as follows:</paragraph>
+                        <table width="60%">
+                           <col width="18%" align="center" valign="middle"/>
+                           <col width="27%" align="center" valign="middle"/>
+                           <col width="27%" align="center" valign="middle"/>
+                           <col width="28%" align="center" valign="middle"/>
+                           <thead>
+                              <tr>
+                                 <th styleCode="Lrule Rrule">Veltassa (grams)</th>
+                                 <th styleCode="Rrule">Carton of 4 Packets</th>
+                                 <th styleCode="Rrule">Carton of 30 Packets</th>
+                                 <th styleCode="Rrule">Carton of 60 Packets</th>
+                              </tr>
+                           </thead>
+                           <tbody>
+                              <tr styleCode="Botrule">
+                                 <td styleCode="Lrule Rrule">1</td>
+                                 <td styleCode="Rrule">-</td>
+                                 <td styleCode="Rrule">-</td>
+                                 <td styleCode="Rrule">NDC 53436-010-60</td>
+                              </tr>
+                              <tr styleCode="Botrule">
+                                 <td styleCode="Lrule Rrule">8.4</td>
+                                 <td styleCode="Rrule">NDC 53436-084-04</td>
+                                 <td styleCode="Rrule">NDC 53436-084-30</td>
+                                 <td styleCode="Rrule">-</td>
+                              </tr>
+                              <tr styleCode="Botrule">
+                                 <td styleCode="Lrule Rrule">16.8</td>
+                                 <td styleCode="Rrule">-</td>
+                                 <td styleCode="Rrule">NDC 53436-168-30</td>
+                                 <td styleCode="Rrule">-</td>
+                              </tr>
+                              <tr>
+                                 <td styleCode="Lrule Rrule">25.2</td>
+                                 <td styleCode="Rrule">-</td>
+                                 <td styleCode="Rrule">NDC 53436-252-30</td>
+                                 <td styleCode="Rrule">-</td>
+                              </tr>
+                           </tbody>
+                        </table>
+                     </text>
+                     <effectiveTime value="20250131"/>
+                  </section>
+               </component>
+               <component>
+                  <section ID="S16.2">
+                     <id root="2f902748-96f6-448f-ad77-d8f9151e9f3a"/>
+                     <code code="44425-7" codeSystem="2.16.840.1.113883.6.1" displayName="STORAGE AND HANDLING SECTION"/>
+                     <title>16.2	Stability and Storage</title>
+                     <text>
+                        <paragraph>Veltassa should be stored in the refrigerator at 2°C to 8°C (36°F to 46°F). </paragraph>
+                        <paragraph>If stored at room temperature (25°C ± 2°C [77°F ± 4°F]), Veltassa must be used within 3 months of being taken out of the refrigerator.  For either storage condition, do not use Veltassa after the expiration date printed on the packet.</paragraph>
+                        <paragraph>Avoid exposure to excessive heat above 40°C (104°F).</paragraph>
+                     </text>
+                     <effectiveTime value="20250131"/>
+                  </section>
+               </component>
+            </section>
+         </component>
+         <component>
+            <section ID="S17">
+               <id root="52a96ae4-109a-44cd-8fe7-7e0c123d001a"/>
+               <code code="34076-0" codeSystem="2.16.840.1.113883.6.1" displayName="INFORMATION FOR PATIENTS SECTION"/>
+               <title>17 PATIENT COUNSELING INFORMATION</title>
+               <effectiveTime value="20250131"/>
+               <component>
+                  <section>
+                     <id root="2021085f-def2-4c6c-bfb0-0d13d1da1e91"/>
+                     <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
+                     <text>
+                        <paragraph>
+                           <content styleCode="underline">Drug Interactions</content>
+                        </paragraph>
+                        <paragraph>Advise patients who are taking other oral medication that separation of dosing of Veltassa by at least 3 hours (before or after) may be needed except those shown to not have a clinically important interaction in Table 3 above <content styleCode="italics">[see <linkHtml href="#S7">Drug Interactions (7)</linkHtml>].</content>
+                        </paragraph>
+                     </text>
+                     <effectiveTime value="20250131"/>
+                  </section>
+               </component>
+               <component>
+                  <section>
+                     <id root="a2ff1f34-4e53-4cb8-b248-6d1e595b6e45"/>
+                     <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
+                     <text>
+                        <paragraph>
+                           <content styleCode="underline">Dosing Recommendations</content>
+                        </paragraph>
+                        <paragraph>Inform patients to take Veltassa as directed and adhere to their prescribed diets.</paragraph>
+                        <paragraph>Inform patients that Veltassa should not be heated (e.g., microwaved) or added to heated foods or liquids and should not be taken in its dry form.</paragraph>
+                     </text>
+                     <effectiveTime value="20250131"/>
+                  </section>
+               </component>
+            </section>
+         </component>
+         <component>
+            <section>
+               <id root="fc51ac5d-bd72-4a2b-9e71-de22235ae1bb"/>
+               <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
+               <text>
+                  <paragraph>
+                     <content styleCode="bold">Manufactured for:</content>
+                  </paragraph>
+                  <paragraph>Vifor Pharma, Inc.<br/>King of Prussia, PA 19406</paragraph>
+                  <paragraph>Version 11; January 2025</paragraph>
+               </text>
+               <effectiveTime value="20250131"/>
+            </section>
+         </component>
+         <component>
+            <section>
+               <id root="76394916-113a-4461-b72a-a8a9a019e4c3"/>
+               <code code="51945-4" codeSystem="2.16.840.1.113883.6.1" displayName="PACKAGE LABEL.PRINCIPAL DISPLAY PANEL"/>
+               <title>PRINCIPAL DISPLAY PANEL - 8.4 g Packet Carton</title>
+               <text>
+                  <paragraph>30 packets <br/>NDC 53436-084-30</paragraph>
+                  <paragraph>Veltassa<sup>®</sup>
+                     <br/>(patiromer)</paragraph>
+                  <paragraph>For Oral Suspension</paragraph>
+                  <paragraph>www.veltassa.com</paragraph>
+                  <paragraph>Each packet contains 8.4 grams of patiromer.<br/>Dispense as 1 box; 30-day supply.</paragraph>
+                  <paragraph>Rx only</paragraph>
+                  <paragraph>8.4 g</paragraph>
+                  <renderMultiMedia referencedObject="MM4"/>
+               </text>
+               <effectiveTime value="20250131"/>
+               <component>
+                  <observationMedia ID="MM4">
+                     <text>PRINCIPAL DISPLAY PANEL - 8.4 g Packet Carton</text>
+                     <value xsi:type="ED" mediaType="image/jpeg">
+                        <reference value="veltassa-05.jpg"/>
+                     </value>
+                  </observationMedia>
+               </component>
+            </section>
+         </component>
+         <component>
+            <section>
+               <id root="941ef456-fbfa-4dac-8abd-2da4f89ba9fd"/>
+               <code code="51945-4" codeSystem="2.16.840.1.113883.6.1" displayName="PACKAGE LABEL.PRINCIPAL DISPLAY PANEL"/>
+               <title>PRINCIPAL DISPLAY PANEL - 16.8 g Packet Carton</title>
+               <text>
+                  <paragraph>30 packets<br/>NDC 53436-168-30</paragraph>
+                  <paragraph>Veltassa<sup>®</sup>
+                     <br/>(patiromer)</paragraph>
+                  <paragraph>For Oral Suspension</paragraph>
+                  <paragraph>www.veltassa.com</paragraph>
+                  <paragraph>Each packet contains 16.8 grams of patiromer.<br/>Dispense as 1 box; 30-day supply.</paragraph>
+                  <paragraph>Rx only</paragraph>
+                  <paragraph>16.8 g</paragraph>
+                  <renderMultiMedia referencedObject="MM5"/>
+               </text>
+               <effectiveTime value="20250131"/>
+               <component>
+                  <observationMedia ID="MM5">
+                     <text>PRINCIPAL DISPLAY PANEL - 16.8 g Packet Carton</text>
+                     <value xsi:type="ED" mediaType="image/jpeg">
+                        <reference value="veltassa-06.jpg"/>
+                     </value>
+                  </observationMedia>
+               </component>
+            </section>
+         </component>
+         <component>
+            <section>
+               <id root="e3ac37ba-92df-4b25-851b-5387b6c78157"/>
+               <code code="51945-4" codeSystem="2.16.840.1.113883.6.1" displayName="PACKAGE LABEL.PRINCIPAL DISPLAY PANEL"/>
+               <title>PRINCIPAL DISPLAY PANEL - 25.2 g Packet Carton</title>
+               <text>
+                  <paragraph>
+                     <content styleCode="bold">30 packets</content>
+                     <br/>NDC 53436-252-30</paragraph>
+                  <paragraph>
+                     <content styleCode="bold">Veltassa</content>
+                     <sup>®</sup>
+                     <br/>(patiromer)</paragraph>
+                  <paragraph>
+                     <content styleCode="bold italics">For Oral Suspension</content>
+                  </paragraph>
+                  <paragraph>
+                     <content styleCode="bold">www.veltassa.com</content>
+                  </paragraph>
+                  <paragraph>Each packet contains 25.2 grams of patiromer.<br/>Dispense as 1 box; 30-day supply.</paragraph>
+                  <paragraph>
+                     <content styleCode="bold">Rx only</content>
+                  </paragraph>
+                  <paragraph>
+                     <content styleCode="bold">25.2 g</content>
+                  </paragraph>
+                  <renderMultiMedia referencedObject="MM6"/>
+               </text>
+               <effectiveTime value="20250131"/>
+               <component>
+                  <observationMedia ID="MM6">
+                     <text>PRINCIPAL DISPLAY PANEL - 25.2 g Packet Carton</text>
+                     <value xsi:type="ED" mediaType="image/jpeg">
+                        <reference value="veltassa-07.jpg"/>
+                     </value>
+                  </observationMedia>
+               </component>
+            </section>
+         </component>
+         <component>
+            <section>
+               <id root="beac6885-99c9-4c2a-b7ec-5ca71f351882"/>
+               <code code="51945-4" codeSystem="2.16.840.1.113883.6.1" displayName="PACKAGE LABEL.PRINCIPAL DISPLAY PANEL"/>
+               <title>PRINCIPAL DISPLAY PANEL - 1 g Packet Carton</title>
+               <text>
+                  <paragraph>							60 packets 							<br/>NDC 53436-010-60</paragraph>
+                  <paragraph>							Veltassa<sup>®</sup>
+                     <br/>(patiromer)</paragraph>
+                  <paragraph>							For Oral Suspension 						</paragraph>
+                  <paragraph>							www.veltassa.com 						</paragraph>
+                  <paragraph>Each packet contains 1 gram of patiromer.</paragraph>
+                  <paragraph>							Rx only 						</paragraph>
+                  <paragraph>							1 g 						</paragraph>
+                  <renderMultiMedia referencedObject="MM7"/>
+               </text>
+               <effectiveTime value="20250131"/>
+               <component>
+                  <observationMedia ID="MM7">
+                     <text>PRINCIPAL DISPLAY PANEL - 1 g Packet Carton</text>
+                     <value xsi:type="ED" mediaType="image/jpeg">
+                        <reference value="veltassa-08.jpg"/>
+                     </value>
+                  </observationMedia>
+               </component>
+            </section>
+         </component>
+      </structuredBody>
+   </component>
+</document>

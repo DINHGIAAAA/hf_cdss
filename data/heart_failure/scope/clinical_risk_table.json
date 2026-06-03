@@ -1,0 +1,37 @@
+[
+  {
+    "risk_id": "renal_impairment",
+    "inputs": ["egfr", "creatinine", "ckd diagnosis"],
+    "initial_threshold": "eGFR < 30 treated as high risk in week-1 placeholder logic.",
+    "affected_classes": ["MRA", "SGLT2 inhibitor", "ACEi", "ARB", "ARNI"],
+    "reason": "Renal impairment changes eligibility, dosing, and monitoring requirements."
+  },
+  {
+    "risk_id": "hyperkalemia",
+    "inputs": ["potassium"],
+    "initial_threshold": "Potassium >= 5.0 flagged; >= 5.5 high severity.",
+    "affected_classes": ["MRA", "ACEi", "ARB", "ARNI"],
+    "reason": "Potassium elevation increases risk with RAAS inhibition and MRA therapy."
+  },
+  {
+    "risk_id": "hypotension",
+    "inputs": ["systolic_bp", "symptoms"],
+    "initial_threshold": "SBP < 90 or symptomatic low blood pressure.",
+    "affected_classes": ["ARNI", "ACEi", "ARB", "beta blocker", "diuretic"],
+    "reason": "Low blood pressure may require slower titration or avoidance."
+  },
+  {
+    "risk_id": "bradycardia",
+    "inputs": ["heart_rate"],
+    "initial_threshold": "Heart rate < 60 flagged for review.",
+    "affected_classes": ["beta blocker", "digoxin"],
+    "reason": "Bradycardia affects beta blocker initiation and titration."
+  },
+  {
+    "risk_id": "polypharmacy",
+    "inputs": ["current_medications"],
+    "initial_threshold": "Five or more current medications.",
+    "affected_classes": ["all"],
+    "reason": "Medication burden increases interaction and adherence risk."
+  }
+]

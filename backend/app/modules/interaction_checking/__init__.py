@@ -1,0 +1,2 @@
+"""Interaction checking module."""
+

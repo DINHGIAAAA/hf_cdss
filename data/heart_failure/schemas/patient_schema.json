@@ -1,0 +1,216 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Heart Failure Medication Recommendation Patient Context",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "hf_type",
+    "ef",
+    "egfr",
+    "potassium",
+    "sbp",
+    "heart_rate",
+    "diabetes",
+    "ckd_stage",
+    "af",
+    "pregnancy",
+    "current_drugs"
+  ],
+  "properties": {
+    "hf_type": {
+      "type": "string",
+      "enum": [
+        "HFrEF",
+        "HFmrEF",
+        "HFpEF",
+        "unknown"
+      ]
+    },
+    "ef": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0,
+      "maximum": 100
+    },
+    "egfr": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0,
+      "maximum": 150
+    },
+    "potassium": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0,
+      "maximum": 10
+    },
+    "sbp": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 40,
+      "maximum": 260
+    },
+    "heart_rate": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 20,
+      "maximum": 250
+    },
+    "diabetes": {
+      "type": "boolean"
+    },
+    "diabetes_type": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "type_1",
+        "type_2",
+        "unknown",
+        null
+      ],
+      "default": null
+    },
+    "ckd_stage": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1,
+      "maximum": 5
+    },
+    "af": {
+      "type": "boolean"
+    },
+    "acute_decompensated_hf": {
+      "type": "boolean",
+      "default": false
+    },
+    "nyha_class": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1,
+      "maximum": 4,
+      "default": null
+    },
+    "volume_overload": {
+      "type": "boolean",
+      "default": false
+    },
+    "av_block": {
+      "type": "boolean",
+      "default": false
+    },
+    "sick_sinus_syndrome": {
+      "type": "boolean",
+      "default": false
+    },
+    "pacemaker": {
+      "type": "boolean",
+      "default": false
+    },
+    "cardiogenic_shock": {
+      "type": "boolean",
+      "default": false
+    },
+    "pregnancy": {
+      "type": "boolean"
+    },
+    "lactation": {
+      "type": "boolean",
+      "default": false
+    },
+    "hypersensitivities": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "prior_angioedema": {
+      "type": "boolean",
+      "default": false
+    },
+    "acei_recent_use_hours": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0,
+      "default": null
+    },
+    "liver_impairment": {
+      "type": "string",
+      "enum": [
+        "none",
+        "mild",
+        "moderate",
+        "severe",
+        "unknown"
+      ],
+      "default": "unknown"
+    },
+    "dialysis": {
+      "type": "boolean",
+      "default": false
+    },
+    "albuminuria": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "A1",
+        "A2",
+        "A3",
+        "unknown",
+        null
+      ],
+      "default": null
+    },
+    "bleeding_risk": {
+      "type": "string",
+      "enum": [
+        "low",
+        "moderate",
+        "high",
+        "active_bleeding",
+        "unknown"
+      ],
+      "default": "unknown"
+    },
+    "current_drugs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "indication": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "heart_failure",
+        "glycemic_control",
+        "hypertension",
+        "atrial_fibrillation",
+        "chronic_kidney_disease",
+        null
+      ]
+    }
+  }
+}
