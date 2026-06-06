@@ -42,3 +42,4 @@ def test_constraints_api() -> None:
     constraints = response.json()["constraints"]
     assert any(item["target_drug_class"] == "MRA" and item["action"] == "avoid" for item in constraints)
     assert any(item["target_drug_class"] == "beta_blocker" for item in constraints)
+    assert any(item["constraint_type"] == "hard" for item in constraints)

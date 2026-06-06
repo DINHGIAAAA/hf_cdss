@@ -37,6 +37,7 @@ def build_constraints(
                 target_drug_class=rule["target_drug_class"],
                 action=rule["action"],
                 reason=rule["reason"],
+                constraint_type=rule.get("constraint_type"),
                 evidence_ref=rule["evidence_ref"],
             )
         )

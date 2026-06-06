@@ -41,6 +41,7 @@ def test_missing_egfr_and_potassium_do_not_create_false_risks() -> None:
 
     assert "renal_impairment" not in names
     assert "hyperkalemia" not in names
+    assert {"missing_egfr", "missing_potassium", "missing_sbp", "missing_heart_rate"} <= names
 
 
 def test_ckd_history_when_egfr_not_reduced() -> None:
@@ -48,4 +49,5 @@ def test_ckd_history_when_egfr_not_reduced() -> None:
         PatientProfile(case_id="RISK_004", lvef=35, egfr=70, comorbidities=["CKD"])
     )
 
-    assert names == {"ckd_history"}
+    assert "ckd_history" in names
+    assert "renal_impairment" not in names

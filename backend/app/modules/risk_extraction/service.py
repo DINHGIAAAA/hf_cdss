@@ -15,6 +15,42 @@ def extract_risks(profile: NormalizedPatientProfile) -> list[RiskFlag]:
             )
         )
 
+    if profile.renal_status == "missing":
+        risks.append(
+            RiskFlag(
+                name="missing_egfr",
+                severity="moderate",
+                evidence="eGFR is missing; renal eligibility and dose safety cannot be fully assessed.",
+            )
+        )
+
+    if profile.potassium_status == "missing":
+        risks.append(
+            RiskFlag(
+                name="missing_potassium",
+                severity="moderate",
+                evidence="Potassium is missing; hyperkalemia-sensitive therapies need review.",
+            )
+        )
+
+    if profile.bp_status == "missing":
+        risks.append(
+            RiskFlag(
+                name="missing_sbp",
+                severity="moderate",
+                evidence="Systolic blood pressure is missing; hypotension-sensitive therapies need review.",
+            )
+        )
+
+    if profile.hr_status == "missing":
+        risks.append(
+            RiskFlag(
+                name="missing_heart_rate",
+                severity="moderate",
+                evidence="Heart rate is missing; beta blocker safety cannot be fully assessed.",
+            )
+        )
+
     if profile.renal_status in {"severely_reduced", "kidney_failure"}:
         risks.append(
             RiskFlag(

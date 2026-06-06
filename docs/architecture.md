@@ -140,7 +140,17 @@ The data artifacts are:
 
 ## Week-1 Runtime Contract
 
-The first milestone proves that the stack can be started locally and that the frontend can reach the backend. The `/recommend` route is present so downstream UI and test work can depend on the response shape, but it is not yet a clinically complete engine. The placeholder service flags renal impairment and hyperkalemia only to validate the contract for risk flags and warnings.
+The first milestone proves that the stack can be started locally and that the frontend can reach the backend. The original `/recommend` route stabilized the response shape so downstream UI and test work could depend on it.
+
+## Week-3 Clinical Recommendation MVP
+
+Week 3 upgrades `/recommend` from a placeholder contract into a rule-based clinical MVP:
+
+1. `reasoning` calls `clinical_normalization`, `risk_extraction`, and `constraint_builder`.
+2. The response includes patient summary, risk flags, medication constraints, recommendation statuses, overall status, and disclaimer.
+3. Each recommendation includes warning text and `constraint_ids` when patient-specific constraints apply.
+4. Hard constraints convert the affected medication class to `avoid`.
+5. The React dashboard calls `/recommend` for sample cases and displays clinical summary, risks, constraints, and medication-class decisions.
 
 ## Traceability Strategy
 

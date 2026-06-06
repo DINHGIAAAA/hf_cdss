@@ -11,3 +11,8 @@ dist/
 .DS_Store
 Thumbs.db
 
+# Clinical source data should live in LocalStack/S3 or be regenerated.
+data/heart_failure/raw/
+data/heart_failure/processed/
+data/heart_failure/artifacts/
+

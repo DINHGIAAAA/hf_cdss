@@ -36,6 +36,7 @@ class Constraint(BaseModel):
     target_drug_class: str
     action: str
     reason: str
+    constraint_type: str | None = None
     evidence_ref: str | None = None
 
 

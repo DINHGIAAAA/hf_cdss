@@ -7,7 +7,16 @@
     "risk_names": ["renal_impairment", "hyperkalemia"],
     "severity_any": ["high"],
     "reason": "Avoid or defer MRA when renal impairment is severe or potassium is high.",
-    "evidence_ref": "week2_rule:MRA_HARD_RENAL_OR_K"
+    "evidence_ref": "week2_rule:MRA_HARD_RENAL_OR_K",
+    "clinical_sources": [
+      {
+        "source_id": "aha_acc_hfsa_2022_hf_guideline",
+        "title": "2022 AHA/ACC/HFSA Guideline for the Management of Heart Failure",
+        "url": "https://www.jacc.org/doi/10.1016/j.jacc.2021.12.012",
+        "note": "MRA therapy in HFrEF is recommended only when renal function and serum potassium are acceptable; the rule operationalizes this as a safety stop/review.",
+        "source_type": "guideline"
+      }
+    ]
   },
   {
     "constraint_id": "MRA_MONITORING_K_RENAL",
@@ -17,7 +26,16 @@
     "risk_names": ["renal_impairment", "hyperkalemia"],
     "severity_any": ["moderate"],
     "reason": "MRA may require close potassium and renal monitoring.",
-    "evidence_ref": "week2_rule:MRA_MONITORING_K_RENAL"
+    "evidence_ref": "week2_rule:MRA_MONITORING_K_RENAL",
+    "clinical_sources": [
+      {
+        "source_id": "aha_acc_hfsa_2022_hf_guideline",
+        "title": "2022 AHA/ACC/HFSA Guideline for the Management of Heart Failure",
+        "url": "https://www.jacc.org/doi/10.1016/j.jacc.2021.12.012",
+        "note": "The MRA recommendation depends on renal function and potassium, so moderate abnormalities trigger monitoring rather than a simple approve.",
+        "source_type": "guideline"
+      }
+    ]
   },
   {
     "constraint_id": "RAASI_CAUTION_BP_K",
@@ -27,7 +45,23 @@
     "risk_names": ["hypotension", "hyperkalemia"],
     "severity_any": ["moderate", "high"],
     "reason": "RAAS-inhibiting therapy may need caution with low blood pressure or elevated potassium.",
-    "evidence_ref": "week2_rule:RAASI_CAUTION_BP_K"
+    "evidence_ref": "week2_rule:RAASI_CAUTION_BP_K",
+    "clinical_sources": [
+      {
+        "source_id": "aha_acc_hfsa_2022_hf_guideline",
+        "title": "2022 AHA/ACC/HFSA Guideline for the Management of Heart Failure",
+        "url": "https://www.jacc.org/doi/10.1016/j.jacc.2021.12.012",
+        "note": "RAAS-inhibiting therapies are core HFrEF treatment, but blood pressure, renal function, and potassium influence safe initiation/titration.",
+        "source_type": "guideline"
+      },
+      {
+        "source_id": "kdigo_2024_ckd_guideline",
+        "title": "KDIGO 2024 Clinical Practice Guideline for CKD",
+        "url": "https://kdigo.org/wp-content/uploads/2024/03/KDIGO-2024-CKD-Guideline.pdf",
+        "note": "CKD medication management emphasizes concurrent renal function and potassium monitoring for RAS inhibitor use.",
+        "source_type": "guideline"
+      }
+    ]
   },
   {
     "constraint_id": "BETA_BLOCKER_CAUTION_BRADY",
@@ -37,7 +71,16 @@
     "risk_names": ["bradycardia"],
     "severity_any": ["moderate", "high"],
     "reason": "Beta blocker initiation or titration requires caution when heart rate is low.",
-    "evidence_ref": "week2_rule:BETA_BLOCKER_CAUTION_BRADY"
+    "evidence_ref": "week2_rule:BETA_BLOCKER_CAUTION_BRADY",
+    "clinical_sources": [
+      {
+        "source_id": "aha_acc_hfsa_2022_hf_guideline",
+        "title": "2022 AHA/ACC/HFSA Guideline for the Management of Heart Failure",
+        "url": "https://www.jacc.org/doi/10.1016/j.jacc.2021.12.012",
+        "note": "Evidence-based beta blockers are guideline-directed therapy in HFrEF; low heart rate is a patient-specific safety concern for initiation/titration.",
+        "source_type": "guideline"
+      }
+    ]
   },
   {
     "constraint_id": "SGLT2I_RENAL_REVIEW",
@@ -47,7 +90,23 @@
     "risk_names": ["renal_impairment"],
     "severity_any": ["moderate", "high"],
     "reason": "SGLT2 inhibitor eligibility and monitoring should be reviewed when renal function is reduced.",
-    "evidence_ref": "week2_rule:SGLT2I_RENAL_REVIEW"
+    "evidence_ref": "week2_rule:SGLT2I_RENAL_REVIEW",
+    "clinical_sources": [
+      {
+        "source_id": "aha_acc_hfsa_2022_hf_guideline",
+        "title": "2022 AHA/ACC/HFSA Guideline for the Management of Heart Failure",
+        "url": "https://www.jacc.org/doi/10.1016/j.jacc.2021.12.012",
+        "note": "SGLT2 inhibitors are part of HFrEF guideline-directed therapy; renal function should be reviewed before drug-specific use.",
+        "source_type": "guideline"
+      },
+      {
+        "source_id": "esc_2023_hf_focused_update",
+        "title": "2023 ESC Focused Update of Heart Failure Guidelines",
+        "url": "https://www.escardio.org/Guidelines/Clinical-Practice-Guidelines/Focused-Update-on-Heart-Failure-Guidelines",
+        "note": "The focused update strengthens SGLT2 inhibitor recommendations across heart failure phenotypes.",
+        "source_type": "guideline"
+      }
+    ]
   },
   {
     "constraint_id": "ALL_GDMT_POLYPHARMACY_REVIEW",
@@ -57,6 +116,105 @@
     "risk_names": ["polypharmacy"],
     "severity_any": ["moderate", "high"],
     "reason": "Medication burden increases interaction, adherence, and sequencing risk.",
-    "evidence_ref": "week2_rule:ALL_GDMT_POLYPHARMACY_REVIEW"
+    "evidence_ref": "week2_rule:ALL_GDMT_POLYPHARMACY_REVIEW",
+    "clinical_sources": [
+      {
+        "source_id": "kdigo_2024_ckd_guideline",
+        "title": "KDIGO 2024 Clinical Practice Guideline for CKD",
+        "url": "https://kdigo.org/wp-content/uploads/2024/03/KDIGO-2024-CKD-Guideline.pdf",
+        "note": "Medication management in CKD highlights the need to consider medication burden, monitoring, and safety.",
+        "source_type": "guideline"
+      }
+    ]
+  },
+  {
+    "constraint_id": "MRA_MISSING_RENAL_OR_K_REVIEW",
+    "target_drug_class": "MRA",
+    "action": "caution",
+    "constraint_type": "monitoring",
+    "risk_names": ["missing_egfr", "missing_potassium"],
+    "severity_any": ["moderate"],
+    "reason": "MRA eligibility requires recent renal function and potassium data before recommendation.",
+    "evidence_ref": "week3_rule:MRA_MISSING_RENAL_OR_K_REVIEW",
+    "clinical_sources": [
+      {
+        "source_id": "aha_acc_hfsa_2022_hf_guideline",
+        "title": "2022 AHA/ACC/HFSA Guideline for the Management of Heart Failure",
+        "url": "https://www.jacc.org/doi/10.1016/j.jacc.2021.12.012",
+        "note": "Because MRA eligibility depends on renal function and potassium, missing values should block confident recommendation.",
+        "source_type": "guideline"
+      }
+    ]
+  },
+  {
+    "constraint_id": "RAASI_MISSING_BP_OR_K_REVIEW",
+    "target_drug_class": "ARNI/ACEi/ARB",
+    "action": "caution",
+    "constraint_type": "soft",
+    "risk_names": ["missing_sbp", "missing_potassium"],
+    "severity_any": ["moderate"],
+    "reason": "RAAS-inhibiting therapy requires blood pressure and potassium review when data are missing.",
+    "evidence_ref": "week3_rule:RAASI_MISSING_BP_OR_K_REVIEW",
+    "clinical_sources": [
+      {
+        "source_id": "aha_acc_hfsa_2022_hf_guideline",
+        "title": "2022 AHA/ACC/HFSA Guideline for the Management of Heart Failure",
+        "url": "https://www.jacc.org/doi/10.1016/j.jacc.2021.12.012",
+        "note": "RAAS-inhibiting therapy requires patient-specific review of blood pressure and potassium safety data.",
+        "source_type": "guideline"
+      },
+      {
+        "source_id": "kdigo_2024_ckd_guideline",
+        "title": "KDIGO 2024 Clinical Practice Guideline for CKD",
+        "url": "https://kdigo.org/wp-content/uploads/2024/03/KDIGO-2024-CKD-Guideline.pdf",
+        "note": "CKD guidance supports monitoring kidney function and potassium when using RAS-inhibiting treatment.",
+        "source_type": "guideline"
+      }
+    ]
+  },
+  {
+    "constraint_id": "BETA_BLOCKER_MISSING_HR_REVIEW",
+    "target_drug_class": "beta_blocker",
+    "action": "caution",
+    "constraint_type": "soft",
+    "risk_names": ["missing_heart_rate"],
+    "severity_any": ["moderate"],
+    "reason": "Beta blocker initiation or titration requires heart rate review when data are missing.",
+    "evidence_ref": "week3_rule:BETA_BLOCKER_MISSING_HR_REVIEW",
+    "clinical_sources": [
+      {
+        "source_id": "aha_acc_hfsa_2022_hf_guideline",
+        "title": "2022 AHA/ACC/HFSA Guideline for the Management of Heart Failure",
+        "url": "https://www.jacc.org/doi/10.1016/j.jacc.2021.12.012",
+        "note": "Beta blocker use is guideline-directed in HFrEF, but missing heart rate prevents confident titration safety review.",
+        "source_type": "guideline"
+      }
+    ]
+  },
+  {
+    "constraint_id": "SGLT2I_MISSING_EGFR_REVIEW",
+    "target_drug_class": "SGLT2i",
+    "action": "caution",
+    "constraint_type": "dose",
+    "risk_names": ["missing_egfr"],
+    "severity_any": ["moderate"],
+    "reason": "SGLT2 inhibitor eligibility requires renal function review when eGFR is missing.",
+    "evidence_ref": "week3_rule:SGLT2I_MISSING_EGFR_REVIEW",
+    "clinical_sources": [
+      {
+        "source_id": "aha_acc_hfsa_2022_hf_guideline",
+        "title": "2022 AHA/ACC/HFSA Guideline for the Management of Heart Failure",
+        "url": "https://www.jacc.org/doi/10.1016/j.jacc.2021.12.012",
+        "note": "SGLT2 inhibitor recommendation should be paired with renal function review before patient-specific use.",
+        "source_type": "guideline"
+      },
+      {
+        "source_id": "esc_2023_hf_focused_update",
+        "title": "2023 ESC Focused Update of Heart Failure Guidelines",
+        "url": "https://www.escardio.org/Guidelines/Clinical-Practice-Guidelines/Focused-Update-on-Heart-Failure-Guidelines",
+        "note": "The ESC update supports SGLT2 inhibitor use in heart failure, with drug-specific renal eligibility still needing review.",
+        "source_type": "guideline"
+      }
+    ]
   }
 ]

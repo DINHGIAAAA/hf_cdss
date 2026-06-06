@@ -1,5 +1,7 @@
 from pydantic import BaseModel, Field
 
+from app.schemas.clinical import Constraint
+from app.schemas.medication_safety import MedicationSafetyWarning
 from app.schemas.patient import PatientProfile
 
 
@@ -15,6 +17,8 @@ class MedicationRecommendation(BaseModel):
     rationale: str
     evidence: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+    constraint_ids: list[str] = Field(default_factory=list)
+    safety_warning_ids: list[str] = Field(default_factory=list)
 
 
 class RecommendationRequest(BaseModel):
@@ -25,6 +29,9 @@ class RecommendationResponse(BaseModel):
     case_id: str
     patient_summary: dict
     risk_flags: list[RiskFlag]
+    constraints: list[Constraint] = Field(default_factory=list)
+    dose_warnings: list[MedicationSafetyWarning] = Field(default_factory=list)
+    interaction_warnings: list[MedicationSafetyWarning] = Field(default_factory=list)
     recommendations: list[MedicationRecommendation]
     overall_status: str
     disclaimer: str

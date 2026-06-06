@@ -1,52 +1,286 @@
 services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: hf_cdss_ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-24h}
+      OLLAMA_NUM_PARALLEL: ${OLLAMA_NUM_PARALLEL:-2}
+      OLLAMA_MAX_LOADED_MODELS: ${OLLAMA_MAX_LOADED_MODELS:-2}
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+
+  ollama-pull:
+    image: ollama/ollama:latest
+    container_name: hf_cdss_ollama_pull
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["sh", "-c"]
+    command: ["ollama pull ${OLLAMA_MODEL:-qwen2.5:7b} && ollama pull ${OLLAMA_AGENT_MODEL:-qwen2.5:1.5b}"]
+    restart: "no"
+
   backend:
     build:
       context: ../backend
+    container_name: hf_cdss_backend
     ports:
       - "8000:8000"
+    depends_on:
+      ollama-pull:
+        condition: service_completed_successfully
+      datastore-init:
+        condition: service_completed_successfully
     environment:
-      HF_CDSS_ENVIRONMENT: docker
+      HF_CDSS_ENVIRONMENT: ${HF_CDSS_ENVIRONMENT:-docker}
+      HF_CDSS_CORS_ORIGINS: ${HF_CDSS_CORS_ORIGINS:-["http://localhost:5173","http://127.0.0.1:5173"]}
+      HF_CDSS_OPENAI_API_KEY: ${HF_CDSS_OPENAI_API_KEY:-${OPENAI_API_KEY:-}}
+      HF_CDSS_LLM_BASE_URL: ${HF_CDSS_LLM_BASE_URL:-http://ollama:11434/v1}
+      HF_CDSS_LLM_MODEL: ${HF_CDSS_LLM_MODEL:-${OLLAMA_MODEL:-qwen2.5:7b}}
+      HF_CDSS_LLM_API_TYPE: ${HF_CDSS_LLM_API_TYPE:-chat_completions}
+      HF_CDSS_LLM_TIMEOUT_SECONDS: ${HF_CDSS_LLM_TIMEOUT_SECONDS:-90}
+      HF_CDSS_LLM_CACHE_ENABLED: ${HF_CDSS_LLM_CACHE_ENABLED:-true}
+      HF_CDSS_LLM_CACHE_TTL_SECONDS: ${HF_CDSS_LLM_CACHE_TTL_SECONDS:-600}
+      HF_CDSS_LLM_CACHE_MAX_ENTRIES: ${HF_CDSS_LLM_CACHE_MAX_ENTRIES:-128}
+      HF_CDSS_POSTGRES_DSN: ${HF_CDSS_POSTGRES_DSN:-postgresql://hf_cdss:hf_cdss@postgres:5432/hf_cdss}
+      HF_CDSS_NEO4J_URI: ${HF_CDSS_NEO4J_URI:-bolt://neo4j:7687}
+      HF_CDSS_NEO4J_USER: ${HF_CDSS_NEO4J_USER:-neo4j}
+      HF_CDSS_NEO4J_PASSWORD: ${HF_CDSS_NEO4J_PASSWORD:-password}
+      HF_CDSS_CHROMA_HOST: ${HF_CDSS_CHROMA_HOST:-chromadb}
+      HF_CDSS_CHROMA_PORT: ${HF_CDSS_CHROMA_PORT:-8000}
+      HF_CDSS_CHROMA_COLLECTION: ${HF_CDSS_CHROMA_COLLECTION:-heart_failure_evidence}
+      HF_CDSS_DATASTORE_BOOTSTRAP_ON_STARTUP: "false"
+      HF_CDSS_RETRIEVAL_BACKEND: ${HF_CDSS_RETRIEVAL_BACKEND:-hybrid}
+      HF_CDSS_POSTGRES_AUDIT_ENABLED: ${HF_CDSS_POSTGRES_AUDIT_ENABLED:-true}
+      HF_CDSS_POSTGRES_POOL_MIN_SIZE: ${HF_CDSS_POSTGRES_POOL_MIN_SIZE:-1}
+      HF_CDSS_POSTGRES_POOL_MAX_SIZE: ${HF_CDSS_POSTGRES_POOL_MAX_SIZE:-5}
+      HF_CDSS_VERIFICATION_AGENT_MODE: ${HF_CDSS_VERIFICATION_AGENT_MODE:-hybrid}
+      HF_CDSS_VERIFICATION_AGENT_MODEL: ${HF_CDSS_VERIFICATION_AGENT_MODEL:-${OLLAMA_AGENT_MODEL:-qwen2.5:1.5b}}
+      HF_CDSS_VERIFICATION_AGENT_MAX_ITERATIONS: ${HF_CDSS_VERIFICATION_AGENT_MAX_ITERATIONS:-1}
+      HF_CDSS_VERIFICATION_AGENT_MAX_TOKENS: ${HF_CDSS_VERIFICATION_AGENT_MAX_TOKENS:-140}
+      HF_CDSS_VERIFICATION_AGENT_TIMEOUT_SECONDS: ${HF_CDSS_VERIFICATION_AGENT_TIMEOUT_SECONDS:-180}
+      HF_CDSS_VERIFICATION_AGENT_WORKERS: ${HF_CDSS_VERIFICATION_AGENT_WORKERS:-2}
+      HF_CDSS_VERIFICATION_AGENT_LLM_AGENTS: ${HF_CDSS_VERIFICATION_AGENT_LLM_AGENTS:-evidence_agent,guideline_alignment_agent}
+      HF_CDSS_VERIFICATION_AGENT_TOOL_MODE: ${HF_CDSS_VERIFICATION_AGENT_TOOL_MODE:-direct}
+      HF_CDSS_VERIFICATION_RETRIEVAL_TOP_K: ${HF_CDSS_VERIFICATION_RETRIEVAL_TOP_K:-3}
+      HF_CDSS_VERIFICATION_CACHE_ENABLED: ${HF_CDSS_VERIFICATION_CACHE_ENABLED:-true}
+      HF_CDSS_VERIFICATION_CACHE_TTL_SECONDS: ${HF_CDSS_VERIFICATION_CACHE_TTL_SECONDS:-300}
+      HF_CDSS_VERIFICATION_CACHE_MAX_ENTRIES: ${HF_CDSS_VERIFICATION_CACHE_MAX_ENTRIES:-128}
+    volumes:
+      - ../data:/data:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  datastore-init:
+    build:
+      context: ../backend
+    container_name: hf_cdss_datastore_init
+    command: ["python", "-m", "app.scripts.bootstrap_datastores"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+      chromadb:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+    environment:
+      HF_CDSS_POSTGRES_DSN: ${HF_CDSS_POSTGRES_DSN:-postgresql://hf_cdss:hf_cdss@postgres:5432/hf_cdss}
+      HF_CDSS_NEO4J_URI: ${HF_CDSS_NEO4J_URI:-bolt://neo4j:7687}
+      HF_CDSS_NEO4J_USER: ${HF_CDSS_NEO4J_USER:-neo4j}
+      HF_CDSS_NEO4J_PASSWORD: ${HF_CDSS_NEO4J_PASSWORD:-password}
+      HF_CDSS_CHROMA_HOST: ${HF_CDSS_CHROMA_HOST:-chromadb}
+      HF_CDSS_CHROMA_PORT: ${HF_CDSS_CHROMA_PORT:-8000}
+      HF_CDSS_CHROMA_COLLECTION: ${HF_CDSS_CHROMA_COLLECTION:-heart_failure_evidence}
+      HF_CDSS_DATA_STORAGE: ${HF_CDSS_DATA_STORAGE:-s3}
+      HF_CDSS_S3_ENDPOINT_URL: ${HF_CDSS_S3_ENDPOINT_URL:-http://localstack:4566}
+      HF_CDSS_S3_BUCKET: ${HF_CDSS_S3_BUCKET:-hf-cdss-data}
+      HF_CDSS_S3_PREFIX: ${HF_CDSS_S3_PREFIX:-heart_failure}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-test}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-test}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
+      HF_CDSS_POSTGRES_POOL_MIN_SIZE: ${HF_CDSS_POSTGRES_POOL_MIN_SIZE:-1}
+      HF_CDSS_POSTGRES_POOL_MAX_SIZE: ${HF_CDSS_POSTGRES_POOL_MAX_SIZE:-5}
+    volumes:
+      - ../data:/data:ro
+    restart: "no"
+
+  airflow:
+    build:
+      context: ./airflow
+    container_name: hf_cdss_airflow
+    profiles: ["airflow"]
+    command:
+      - bash
+      - -c
+      - >
+        airflow db migrate;
+        airflow users create
+        --username ${AIRFLOW_ADMIN_USER:-admin}
+        --password ${AIRFLOW_ADMIN_PASSWORD:-admin}
+        --firstname CDSS
+        --lastname Admin
+        --role Admin
+        --email ${AIRFLOW_ADMIN_EMAIL:-admin@example.com} || true;
+        airflow scheduler &
+        exec airflow webserver;
+    ports:
+      - "${AIRFLOW_WEBSERVER_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+      chromadb:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+    environment:
+      AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
+      AIRFLOW__CORE__EXECUTOR: SequentialExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "false"
+      AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
+      AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_WEBSERVER_SECRET_KEY:-hf_cdss_airflow_dev_secret}
+      HF_CDSS_PROJECT_ROOT: /opt/airflow/project
+      HF_CDSS_POSTGRES_DSN: ${HF_CDSS_POSTGRES_DSN:-postgresql://hf_cdss:hf_cdss@postgres:5432/hf_cdss}
+      HF_CDSS_NEO4J_URI: ${HF_CDSS_NEO4J_URI:-bolt://neo4j:7687}
+      HF_CDSS_NEO4J_USER: ${HF_CDSS_NEO4J_USER:-neo4j}
+      HF_CDSS_NEO4J_PASSWORD: ${HF_CDSS_NEO4J_PASSWORD:-password}
+      HF_CDSS_CHROMA_HOST: ${HF_CDSS_CHROMA_HOST:-chromadb}
+      HF_CDSS_CHROMA_PORT: ${HF_CDSS_CHROMA_PORT:-8000}
+      HF_CDSS_CHROMA_COLLECTION: ${HF_CDSS_CHROMA_COLLECTION:-heart_failure_evidence}
+      HF_CDSS_DATA_STORAGE: ${HF_CDSS_DATA_STORAGE:-s3}
+      HF_CDSS_S3_ENDPOINT_URL: ${HF_CDSS_S3_ENDPOINT_URL:-http://localstack:4566}
+      HF_CDSS_S3_BUCKET: ${HF_CDSS_S3_BUCKET:-hf-cdss-data}
+      HF_CDSS_S3_PREFIX: ${HF_CDSS_S3_PREFIX:-heart_failure}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-test}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-test}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
+      HF_CDSS_POSTGRES_POOL_MIN_SIZE: ${HF_CDSS_POSTGRES_POOL_MIN_SIZE:-1}
+      HF_CDSS_POSTGRES_POOL_MAX_SIZE: ${HF_CDSS_POSTGRES_POOL_MAX_SIZE:-5}
+    volumes:
+      - ../:/opt/airflow/project
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/logs:/opt/airflow/logs
+      - ./airflow/plugins:/opt/airflow/plugins
+    restart: unless-stopped
 
   frontend:
     build:
       context: ../frontend/doctor-dashboard
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+    container_name: hf_cdss_frontend
     ports:
-      - "5173:5173"
-    environment:
-      VITE_API_BASE_URL: http://localhost:8000
+      - "5173:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
 
   postgres:
     image: postgres:16-alpine
+    container_name: hf_cdss_postgres
     environment:
-      POSTGRES_USER: hf_cdss
-      POSTGRES_PASSWORD: hf_cdss
-      POSTGRES_DB: hf_cdss
+      POSTGRES_USER: ${POSTGRES_USER:-hf_cdss}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hf_cdss}
+      POSTGRES_DB: ${POSTGRES_DB:-hf_cdss}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_HOST_PORT:-55432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hf_cdss} -d ${POSTGRES_DB:-hf_cdss}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
 
   neo4j:
     image: neo4j:5-community
+    container_name: hf_cdss_neo4j
     environment:
-      NEO4J_AUTH: neo4j/password
+      NEO4J_AUTH: ${NEO4J_AUTH:-neo4j/password}
+      NEO4J_server_memory_heap_initial__size: 512m
+      NEO4J_server_memory_heap_max__size: 1G
     ports:
       - "7474:7474"
       - "7687:7687"
     volumes:
       - neo4j_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p ${NEO4J_PASSWORD:-password} 'RETURN 1' >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
 
   chromadb:
     image: chromadb/chroma:latest
+    container_name: hf_cdss_chromadb
     ports:
       - "8001:8000"
     volumes:
       - chroma_data:/chroma/chroma
+    healthcheck:
+      test: ["CMD", "/usr/bin/bash", "-c", "</dev/tcp/127.0.0.1/8000"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+
+  localstack:
+    image: localstack/localstack:3.8.1
+    container_name: hf_cdss_localstack
+    ports:
+      - "${LOCALSTACK_HOST_PORT:-4566}:4566"
+    environment:
+      SERVICES: s3
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-test}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-test}
+      PERSISTENCE: "1"
+    volumes:
+      - localstack_data:/var/lib/localstack
+      - ./localstack/init:/etc/localstack/init/ready.d:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:4566/_localstack/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
 
 volumes:
+  ollama_data:
   postgres_data:
   neo4j_data:
   chroma_data:
+  localstack_data:
 

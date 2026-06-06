@@ -1,0 +1,129 @@
+import json
+import hashlib
+from functools import lru_cache
+from typing import Any
+
+from app.core.config import settings
+from app.modules.datastores.common import CHUNKS_PATH, hashing_embedding, read_jsonl
+from app.schemas.graphrag import EvidenceChunk
+
+
+INDEX_VERSION = "heart_failure_chunks_v2"
+
+
+def _file_sha256(path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+@lru_cache(maxsize=1)
+def chroma_client():
+    import chromadb
+
+    return chromadb.HttpClient(host=settings.chroma_host, port=settings.chroma_port)
+
+
+def _collection():
+    return chroma_client().get_or_create_collection(
+        name=_collection_name(),
+        configuration={"hnsw": {"space": "cosine"}},
+    )
+
+
+def _collection_name() -> str:
+    return f"{settings.chroma_collection}_{INDEX_VERSION}"
+
+
+def _recreate_collection():
+    client = chroma_client()
+    name = _collection_name()
+    try:
+        client.delete_collection(name=name)
+    except Exception:
+        pass
+    return chroma_client().get_or_create_collection(
+        name=name,
+        configuration={"hnsw": {"space": "cosine"}},
+    )
+
+
+def _searchable_text(chunk: dict[str, Any]) -> str:
+    return " ".join(
+        [
+            chunk.get("document_id", ""),
+            chunk.get("source_type", ""),
+            chunk.get("section", ""),
+            chunk.get("text", ""),
+            " ".join(str(value) for value in chunk.get("metadata", {}).values() if isinstance(value, str)),
+        ]
+    )
+
+
+def initialize_chroma() -> dict[str, Any]:
+    chunks = read_jsonl(CHUNKS_PATH)
+    source_sha256 = _file_sha256(CHUNKS_PATH) if CHUNKS_PATH.exists() else ""
+    collection = _collection()
+    metadata = collection.metadata or {}
+    if collection.count() == len(chunks) and metadata.get("source_sha256") == source_sha256:
+        return {"status": "ok", "chunks": len(chunks), "action": "already_indexed"}
+
+    collection = _recreate_collection()
+    batch_size = 100
+    for start in range(0, len(chunks), batch_size):
+        batch = chunks[start : start + batch_size]
+        searchable_documents = [_searchable_text(chunk) for chunk in batch]
+        collection.upsert(
+            ids=[chunk["chunk_id"] for chunk in batch],
+            documents=[chunk.get("text", "") for chunk in batch],
+            embeddings=[hashing_embedding(document) for document in searchable_documents],
+            metadatas=[
+                {
+                    "document_id": chunk.get("document_id", ""),
+                    "source_type": chunk.get("source_type", ""),
+                    "section": chunk.get("section") or "",
+                    "metadata_json": json.dumps(chunk.get("metadata", {}), ensure_ascii=False),
+                }
+                for chunk in batch
+            ],
+        )
+    collection.modify(metadata={"index_version": INDEX_VERSION, "source_sha256": source_sha256})
+    return {"status": "ok", "chunks": len(chunks), "action": "upserted"}
+
+
+def retrieve_chroma(query: str, top_k: int) -> list[EvidenceChunk]:
+    results = _collection().query(
+        query_embeddings=[hashing_embedding(query)],
+        n_results=top_k,
+        include=["documents", "metadatas", "distances"],
+    )
+    ids = results.get("ids", [[]])[0]
+    documents = results.get("documents", [[]])[0]
+    metadatas = results.get("metadatas", [[]])[0]
+    distances = results.get("distances", [[]])[0]
+
+    chunks: list[EvidenceChunk] = []
+    for chunk_id, document, metadata, distance in zip(ids, documents, metadatas, distances):
+        raw_metadata = json.loads(metadata.get("metadata_json", "{}"))
+        chunks.append(
+            EvidenceChunk(
+                chunk_id=chunk_id,
+                document_id=metadata.get("document_id", ""),
+                source_type=metadata.get("source_type", ""),
+                section=metadata.get("section") or None,
+                text=(document or "")[:900],
+                score=max(0.0, 1.0 - float(distance)),
+                metadata=raw_metadata,
+            )
+        )
+    return chunks
+
+
+def chroma_status() -> dict[str, Any]:
+    try:
+        collection = _collection()
+        return {"status": "ok", "collection": collection.name, "chunks": collection.count()}
+    except Exception as exc:
+        return {"status": "unavailable", "detail": str(exc)}

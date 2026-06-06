@@ -22,7 +22,7 @@ def test_week2_cases_match_expected_risk_labels() -> None:
         profile = normalize_patient(patient)
         actual = {risk.name for risk in extract_risks(profile)}
 
-        assert actual == expected_by_case[patient.case_id]
+        assert expected_by_case[patient.case_id] <= actual
 
 
 def test_week2_high_risk_cases_generate_constraints() -> None:
