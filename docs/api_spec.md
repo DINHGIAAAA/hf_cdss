@@ -46,7 +46,7 @@ Response:
 
 ### `POST /recommend`
 
-Week 1 exposes a stable contract and placeholder reasoning service. Clinical logic is intentionally minimal until normalization, risk extraction, GraphRAG, dose checking, and verification modules are implemented in later weeks.
+Week 3 exposes a constraint-aware clinical recommendation contract. The route uses normalization, risk extraction, and constraint rules before generating structured medication-class statuses. GraphRAG and verification agents are exposed as separate MVP endpoints so the recommendation pipeline remains transparent and testable.
 
 Request:
 
@@ -55,7 +55,7 @@ Request:
   "patient": {
     "case_id": "CASE_001",
     "lvef": 30,
-    "egfr": 28,
+    "egfr": 38,
     "potassium": 5.4,
     "systolic_bp": 92,
     "heart_rate": 58,
@@ -74,7 +74,7 @@ Response:
   "patient_summary": {
     "hf_type": "HFrEF",
     "lvef": 30,
-    "egfr": 28,
+    "egfr": 38,
     "potassium": 5.4,
     "sbp": 92,
     "heart_rate": 58,
@@ -83,8 +83,8 @@ Response:
   "risk_flags": [
     {
       "name": "renal_impairment",
-      "severity": "high",
-      "evidence": "eGFR = 28"
+      "severity": "moderate",
+      "evidence": "eGFR = 38"
     },
     {
       "name": "hyperkalemia",
@@ -92,13 +92,58 @@ Response:
       "evidence": "Potassium = 5.4"
     }
   ],
+  "constraints": [
+    {
+      "constraint_id": "CASE_001:SGLT2I_RENAL_REVIEW",
+      "case_id": "CASE_001",
+      "target_drug_class": "SGLT2i",
+      "action": "caution",
+      "reason": "SGLT2 inhibitor eligibility and monitoring should be reviewed when renal function is reduced.",
+      "constraint_type": "dose",
+      "evidence_ref": "week2_rule:SGLT2I_RENAL_REVIEW"
+    }
+  ],
+  "dose_warnings": [
+    {
+      "warning_id": "dose_mra_renal_potassium_review",
+      "case_id": "CASE_001",
+      "category": "dose_checking",
+      "severity": "high",
+      "target": "MRA",
+      "message": "MRA dose or continuation requires potassium and renal function review.",
+      "evidence_ref": "week7_dose_rule:MRA_RENAL_K_REVIEW",
+      "related_medications": ["spironolactone"],
+      "related_observations": {
+        "egfr": 38,
+        "potassium": 5.4
+      }
+    }
+  ],
+  "interaction_warnings": [
+    {
+      "warning_id": "interaction_raasi_mra_hyperkalemia_monitoring",
+      "case_id": "CASE_001",
+      "category": "interaction_checking",
+      "severity": "high",
+      "target": "RAASi_MRA",
+      "message": "RAAS-inhibiting therapy combined with an MRA requires potassium and renal function monitoring.",
+      "evidence_ref": "week7_interaction_rule:RAASI_MRA_K_RENAL_MONITORING",
+      "related_medications": ["lisinopril", "spironolactone"],
+      "related_observations": {
+        "egfr": 38,
+        "potassium": 5.4
+      }
+    }
+  ],
   "recommendations": [
     {
       "drug_class": "SGLT2 inhibitor",
-      "status": "consider",
-      "rationale": "Potential GDMT option pending physician review and contraindication checks.",
-      "evidence": ["Guideline evidence placeholder"],
-      "warnings": []
+      "status": "consider_with_caution",
+      "rationale": "SGLT2 inhibitor may be relevant for HFrEF, but patient-specific risks require review.",
+      "evidence": ["week3_pipeline:patient_profile", "week3_pipeline:constraint_rules_v1"],
+      "warnings": ["SGLT2 inhibitor eligibility and monitoring should be reviewed when renal function is reduced."],
+      "constraint_ids": ["CASE_001:SGLT2I_RENAL_REVIEW"],
+      "safety_warning_ids": []
     }
   ],
   "overall_status": "approved_with_warnings",
@@ -108,20 +153,155 @@ Response:
 
 ## Status Values
 
-- `approved`: no week-1 placeholder risk flags.
-- `approved_with_warnings`: one or more risk flags.
-- `blocked`: reserved for later hard contraindication logic.
+- `approved`: no risk flags or medication constraints detected.
+- `approved_with_warnings`: one or more risk flags or caution constraints detected, without a hard avoid constraint.
+- `blocked`: one or more hard avoid constraints are present in the recommendation trace.
 
-## Future Routes
+## Medication Safety
 
-The following routes are planned but not implemented in week 1:
+### `POST /dose/check`
 
-- `POST /normalize`
-- `POST /risk-flags`
-- `POST /constraints`
-- `POST /graphrag/context`
-- `POST /verify`
-- `GET /audit/{case_id}`
+Runs Week-7 deterministic dose and monitoring checks against current medications and
+patient labs/vitals. This endpoint does not prescribe doses; it flags medication classes
+that require clinician review.
+
+Current checks include:
+
+- digoxin with reduced or missing renal function
+- MRA with low eGFR or elevated potassium
+- loop diuretic lab and volume monitoring
+- beta-blocker dose escalation with low or missing heart rate
+
+### `POST /interaction/check`
+
+Runs Week-7 deterministic drug-drug and drug-lab interaction checks.
+
+Current checks include:
+
+- ACE inhibitor + ARB combination
+- RAAS-inhibiting therapy + MRA potassium/renal monitoring
+- RAAS-inhibiting therapy + NSAID renal risk
+- anticoagulant + antiplatelet bleeding review
+
+Request shape:
+
+```json
+{
+  "patient": {
+    "case_id": "CASE_001",
+    "egfr": 24,
+    "potassium": 5.6,
+    "heart_rate": 54,
+    "current_medications": ["lisinopril", "spironolactone", "digoxin"],
+    "comorbidities": ["CKD"],
+    "allergies": []
+  }
+}
+```
+
+Response:
+
+```json
+{
+  "case_id": "CASE_001",
+  "warnings": [
+    {
+      "warning_id": "dose_digoxin_renal_review",
+      "category": "dose_checking",
+      "severity": "high",
+      "target": "digoxin",
+      "message": "Digoxin dosing requires renal function review because reduced eGFR increases toxicity risk.",
+      "evidence_ref": "week7_dose_rule:DIGOXIN_RENAL_REVIEW"
+    }
+  ]
+}
+```
+
+## GraphRAG and Verification
+
+### `POST /graphrag/context`
+
+Retrieves local graph facts and evidence chunks from Week-3 artifacts. This is GraphRAG v0: it uses the generated JSONL artifacts as a local retrieval index before Neo4j/Chroma integration.
+
+Request:
+
+```json
+{
+  "patient": {
+    "case_id": "CASE_001",
+    "lvef": 28,
+    "egfr": 32,
+    "potassium": 5.2,
+    "systolic_bp": 94,
+    "heart_rate": 56,
+    "comorbidities": ["CKD", "Atrial fibrillation"],
+    "current_medications": ["metoprolol", "furosemide", "apixaban"],
+    "allergies": []
+  },
+  "top_k": 8
+}
+```
+
+Response includes `query_terms`, `graph_facts`, `evidence_chunks`, and `context_summary`.
+
+### `POST /verify`
+
+Runs MVP verification agents against a patient and optional recommendation payload. If no recommendation is supplied, the backend builds one first.
+
+Agents:
+
+- `safety_agent`
+- `missing_data_agent`
+- `evidence_agent`
+- `guideline_alignment_agent`
+- `final_reviewer_agent`
+
+Response includes GraphRAG context, agent results, and `final_verdict`.
+
+### `POST /llm/answer`
+
+Generates a natural-language explanation from the structured recommendation and optional verification context. The LLM is only used as an explanation layer: medication status, constraints, and safety verdicts still come from the deterministic CDSS pipeline and verification agents.
+
+If `HF_CDSS_OPENAI_API_KEY` is not configured, the endpoint returns a deterministic fallback answer so the demo remains usable offline.
+
+Request:
+
+```json
+{
+  "user_input": "Male 68 with HFrEF, EF 28%, SBP 88 and HR 54...",
+  "patient": {
+    "case_id": "CASE_001",
+    "lvef": 28,
+    "egfr": 48,
+    "potassium": 4.9,
+    "systolic_bp": 88,
+    "heart_rate": 54,
+    "comorbidities": ["Atrial fibrillation"],
+    "current_medications": ["metoprolol", "furosemide", "apixaban"],
+    "allergies": []
+  },
+  "recommendation": {},
+  "verification": {}
+}
+```
+
+Response:
+
+```json
+{
+  "case_id": "CASE_001",
+  "answer": "Natural-language explanation...",
+  "model": "gpt-4o-mini",
+  "used_llm": true,
+  "safety_note": "LLM answer is constrained to explain structured CDSS output and must not replace physician review."
+}
+```
+
+## Audit
+
+### `GET /audit/{case_id}`
+
+Returns persisted PostgreSQL audit events for a case when audit storage is enabled.
 
 ## Clinical Pipeline
 
