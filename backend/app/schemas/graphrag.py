@@ -41,6 +41,14 @@ class GraphRAGContextResponse(BaseModel):
     retrieval_sources: list[str] = Field(default_factory=list)
 
 
+class EvidenceSearchResponse(BaseModel):
+    query: str
+    query_terms: list[str]
+    graph_facts: list[GraphFact] = Field(default_factory=list)
+    evidence_chunks: list[EvidenceChunk] = Field(default_factory=list)
+    retrieval_sources: list[str] = Field(default_factory=list)
+
+
 class AgentResult(BaseModel):
     agent_name: str
     verdict: str

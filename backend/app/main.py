@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.routing import APIRoute
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.router import api_router
@@ -15,9 +16,16 @@ from app.core.exceptions import (
 )
 from app.core.logging import configure_logging
 from app.modules.datastores.service import bootstrap_datastores
+from app.schemas.common import RouteCatalogResponse, RouteInfo
 
 
 configure_logging()
+
+
+def custom_generate_unique_id(route: APIRoute) -> str:
+    methods = "_".join(sorted(route.methods or []))
+    path = route.path_format.strip("/").replace("/", "_").replace("{", "").replace("}", "")
+    return f"{route.name}_{methods}_{path or 'root'}"
 
 
 @asynccontextmanager
@@ -32,6 +40,7 @@ app = FastAPI(
     version=settings.version,
     description="Heart failure medication decision support API.",
     lifespan=lifespan,
+    generate_unique_id_function=custom_generate_unique_id,
 )
 
 app.add_middleware(
@@ -46,29 +55,52 @@ app.add_exception_handler(StarletteHTTPException, http_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
 app.add_exception_handler(Exception, unhandled_exception_handler)
 app.include_router(api_router)
+app.include_router(api_router, prefix=settings.api_prefix)
+
+
+def public_route_catalog() -> list[RouteInfo]:
+    routes: list[RouteInfo] = []
+    hidden_prefixes = ("/docs", "/redoc", "/openapi.json")
+    for route in app.routes:
+        if not isinstance(route, APIRoute):
+            continue
+        if route.path in {"/", "/routes", f"{settings.api_prefix}/routes"}:
+            continue
+        if any(route.path.startswith(prefix) for prefix in hidden_prefixes):
+            continue
+        routes.append(
+            RouteInfo(
+                path=route.path,
+                methods=sorted(method for method in route.methods if method not in {"HEAD", "OPTIONS"}),
+                name=route.name,
+                tags=list(route.tags),
+            )
+        )
+    return sorted(routes, key=lambda item: (item.path, item.methods))
+
+
+@app.get("/routes", response_model=RouteCatalogResponse, tags=["system"])
+def routes() -> RouteCatalogResponse:
+    return RouteCatalogResponse(
+        service=settings.project_name,
+        version=settings.version,
+        routes=public_route_catalog(),
+    )
 
 
 @app.get("/")
 def root() -> dict:
+    endpoints = [
+        f"{method} {route.path}"
+        for route in public_route_catalog()
+        for method in route.methods
+        if not route.path.startswith(settings.api_prefix)
+    ]
     return {
         "service": settings.project_name,
         "version": settings.version,
         "status": "ok",
         "docs": "/docs",
-        "endpoints": [
-            "GET /health",
-            "GET /health/dependencies",
-            "GET /version",
-            "POST /normalize",
-            "POST /risks",
-            "POST /constraints",
-            "POST /recommend",
-            "POST /dose/check",
-            "POST /interaction/check",
-            "GET /rules",
-            "POST /graphrag/context",
-            "POST /verify",
-            "POST /llm/answer",
-            "GET /audit/{case_id}",
-        ],
+        "api_prefix": settings.api_prefix,
+        "endpoints": endpoints,
     }

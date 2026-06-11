@@ -13,7 +13,7 @@ DATA_ROOT = f"{PROJECT_ROOT}/data/heart_failure"
 BACKEND_ROOT = f"{PROJECT_ROOT}/backend"
 PYTHON = "python"
 PARSE_GUIDELINE_COMMAND = (
-    f"{PYTHON} scripts/parse_guideline_pdf.py "
+    f"{PYTHON} -m scraper.transform.parse_guideline_pdf "
     "--input-dir raw/guidelines "
     "--documents-output processed/documents/guideline_documents.jsonl "
     "--sections-output processed/sections/guideline_sections.jsonl "
@@ -23,7 +23,7 @@ PARSE_GUIDELINE_COMMAND = (
 
 
 def data_command(command: str) -> str:
-    return f"cd {DATA_ROOT} && {command}"
+    return f"cd {DATA_ROOT} && PYTHONPATH={PROJECT_ROOT} {command}"
 
 
 def backend_command(command: str) -> str:
@@ -40,7 +40,7 @@ default_args = {
 
 with DAG(
     dag_id="heart_failure_kg_ingestion",
-    description="Download clinical sources, rebuild Heart Failure KG artifacts, and reload ChromaDB/Neo4j/Postgres.",
+    description="Scrape clinical sources into S3 raw, rebuild Heart Failure KG artifacts, publish S3 processed, and reload datastores.",
     default_args=default_args,
     start_date=datetime(2026, 1, 1),
     schedule_interval=None,
@@ -54,24 +54,19 @@ with DAG(
             description="Registry path relative to data/heart_failure.",
         ),
         "skip_download": Param(
-            True,
+            False,
             type="boolean",
-            description="Use local files under data/heart_failure/raw instead of downloading.",
+            description="Skip scraping/downloading only when raw bucket already contains registered source objects.",
         ),
         "use_existing": Param(
             True,
             type="boolean",
             description="Do not overwrite already downloaded files.",
         ),
-        "storage": Param(
-            "s3",
-            enum=["local", "s3"],
-            description="Store downloaded source files locally or in LocalStack/S3.",
-        ),
         "parse_guidelines": Param(
-            False,
+            True,
             type="boolean",
-            description="Parse guideline PDFs. Disable for faster runs when PDF sections already exist.",
+            description="Parse guideline PDFs from staged S3 raw files.",
         ),
         "build_rules": Param(
             True,
@@ -86,9 +81,9 @@ with DAG(
             "if [ '{{ params.skip_download }}' = 'True' ]; then "
             "echo 'Skipping download.'; "
             "else "
-            f"{data_command(PYTHON + ' scripts/download_sources.py --registry {{{{ params.registry }}}} ')}"
-            "--storage {{ params.storage }} "
-            "--s3-bucket ${HF_CDSS_S3_BUCKET:-hf-cdss-data} "
+            f"{data_command(PYTHON + ' -m scraper.acquisition.download_sources --registry {{{{ params.registry }}}} ')}"
+            "--storage s3 "
+            "--s3-bucket ${HF_CDSS_RAW_BUCKET:-hf-cdss-raw} "
             "--s3-prefix ${HF_CDSS_S3_PREFIX:-heart_failure} "
             "--s3-endpoint-url ${HF_CDSS_S3_ENDPOINT_URL:-http://localstack:4566} "
             "{{ ' --use-existing' if params.use_existing else '' }}; "
@@ -99,14 +94,10 @@ with DAG(
     sync_sources_from_s3 = BashOperator(
         task_id="sync_sources_from_s3",
         bash_command=(
-            "if [ '{{ params.storage }}' = 's3' ]; then "
-            f"{data_command(PYTHON + ' scripts/sync_sources_from_s3.py --registry {{{{ params.registry }}}} ')}"
-            "--bucket ${HF_CDSS_S3_BUCKET:-hf-cdss-data} "
+            f"{data_command(PYTHON + ' -m scraper.acquisition.sync_sources_from_s3 --registry {{{{ params.registry }}}} ')}"
+            "--bucket ${HF_CDSS_RAW_BUCKET:-hf-cdss-raw} "
             "--prefix ${HF_CDSS_S3_PREFIX:-heart_failure} "
-            "--endpoint-url ${HF_CDSS_S3_ENDPOINT_URL:-http://localstack:4566}; "
-            "else "
-            "echo 'Using local raw files; skipping S3 sync.'; "
-            "fi"
+            "--endpoint-url ${HF_CDSS_S3_ENDPOINT_URL:-http://localstack:4566}"
         ),
     )
 
@@ -114,7 +105,7 @@ with DAG(
         task_id="parse_guideline_pdf",
         bash_command=(
             "if [ '{{ params.parse_guidelines }}' = 'True' ]; then "
-            f"{data_command(PARSE_GUIDELINE_COMMAND)}; "
+            f"{data_command(PARSE_GUIDELINE_COMMAND + ' --registry {{{{ params.registry }}}}')}; "
             "else "
             "echo 'Skipping guideline PDF parsing; using existing processed sections.'; "
             "fi"
@@ -124,7 +115,7 @@ with DAG(
     parse_drug_label_xml = BashOperator(
         task_id="parse_drug_label_xml",
         bash_command=data_command(
-            f"{PYTHON} scripts/parse_drug_label_xml.py "
+            f"{PYTHON} -m scraper.transform.parse_drug_label_xml "
             "--input-dir raw/drug_labels "
             "--manifest artifacts/manifests/download_manifest.json "
             "--output processed/sections/drug_label_sections.jsonl"
@@ -133,29 +124,29 @@ with DAG(
 
     extract_important_sections = BashOperator(
         task_id="extract_important_sections",
-        bash_command=data_command(f"{PYTHON} scripts/extract_important_sections.py"),
+        bash_command=data_command(f"{PYTHON} -m scraper.transform.extract_important_sections"),
     )
 
     chunk_sections = BashOperator(
         task_id="chunk_sections",
-        bash_command=data_command(f"{PYTHON} scripts/chunk_sections.py"),
+        bash_command=data_command(f"{PYTHON} -m scraper.transform.chunk_sections"),
     )
 
     extract_entities = BashOperator(
         task_id="extract_entities",
-        bash_command=data_command(f"{PYTHON} scripts/extract_entities.py"),
+        bash_command=data_command(f"{PYTHON} -m scraper.process.extract_entities"),
     )
 
     create_claims = BashOperator(
         task_id="create_claims",
-        bash_command=data_command(f"{PYTHON} scripts/create_claims.py"),
+        bash_command=data_command(f"{PYTHON} -m scraper.process.create_claims"),
     )
 
     generate_rules = BashOperator(
         task_id="generate_rules",
         bash_command=(
             "if [ '{{ params.build_rules }}' = 'True' ]; then "
-            f"{data_command(PYTHON + ' scripts/generate_rules.py')}; "
+            f"{data_command(PYTHON + ' -m scraper.process.generate_rules')}; "
             "else "
             "echo 'Skipping rule generation.'; "
             "fi"
@@ -166,7 +157,7 @@ with DAG(
         task_id="classify_rules",
         bash_command=(
             "if [ '{{ params.build_rules }}' = 'True' ]; then "
-            f"{data_command(PYTHON + ' scripts/classify_rules.py')}; "
+            f"{data_command(PYTHON + ' -m scraper.process.classify_rules')}; "
             "else "
             "echo 'Skipping rule classification.'; "
             "fi"
@@ -175,12 +166,22 @@ with DAG(
 
     derive_relationships = BashOperator(
         task_id="derive_relationships",
-        bash_command=data_command(f"{PYTHON} scripts/derive_relationships.py"),
+        bash_command=data_command(f"{PYTHON} -m scraper.process.derive_relationships"),
     )
 
     validate_kg_artifacts = BashOperator(
         task_id="validate_kg_artifacts",
-        bash_command=data_command(f"{PYTHON} scripts/validate_kg_artifacts.py --root ."),
+        bash_command=data_command(f"{PYTHON} -m scraper.validation.validate_kg_artifacts --root ."),
+    )
+
+    sync_processed_to_s3 = BashOperator(
+        task_id="sync_processed_to_s3",
+        bash_command=data_command(
+            f"{PYTHON} -m scraper.store.sync_processed_to_s3 "
+            "--bucket ${HF_CDSS_PROCESSED_BUCKET:-hf-cdss-processed} "
+            "--prefix ${HF_CDSS_S3_PREFIX:-heart_failure} "
+            "--endpoint-url ${HF_CDSS_S3_ENDPOINT_URL:-http://localstack:4566}"
+        ),
     )
 
     bootstrap_datastores = BashOperator(
@@ -201,5 +202,6 @@ with DAG(
         >> classify_rules
         >> derive_relationships
         >> validate_kg_artifacts
+        >> sync_processed_to_s3
         >> bootstrap_datastores
     )

@@ -5,6 +5,7 @@ class Settings(BaseSettings):
     project_name: str = "Heart Failure CDSS"
     version: str = "0.1.0"
     environment: str = "development"
+    api_prefix: str = "/api/v1"
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
     log_level: str = "INFO"
     openai_api_key: str | None = None
@@ -24,6 +25,14 @@ class Settings(BaseSettings):
     chroma_collection: str = "heart_failure_evidence"
     datastore_bootstrap_on_startup: bool = False
     retrieval_backend: str = "local"
+    artifact_storage: str = "local"
+    s3_endpoint_url: str = "http://localhost:4566"
+    raw_bucket: str = "hf-cdss-raw"
+    processed_bucket: str = "hf-cdss-processed"
+    s3_prefix: str = "heart_failure"
+    aws_access_key_id: str = "test"
+    aws_secret_access_key: str = "test"
+    aws_default_region: str = "us-east-1"
     postgres_audit_enabled: bool = False
     postgres_pool_min_size: int = 1
     postgres_pool_max_size: int = 5

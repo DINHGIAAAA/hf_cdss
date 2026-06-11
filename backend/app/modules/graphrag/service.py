@@ -6,15 +6,20 @@ from pathlib import Path
 from typing import Any
 
 from app.core.config import settings
+from app.modules.datastores.artifacts import sync_artifacts_from_processed_bucket
 from app.modules.datastores.chroma import retrieve_chroma
+from app.modules.datastores.common import CHUNKS_PATH, DATA_ROOT, RELATIONSHIPS_PATH
 from app.modules.datastores.neo4j import retrieve_neo4j
-from app.schemas.graphrag import EvidenceChunk, GraphFact, GraphRAGContextRequest, GraphRAGContextResponse
+from app.schemas.graphrag import (
+    EvidenceChunk,
+    EvidenceSearchResponse,
+    GraphFact,
+    GraphRAGContextRequest,
+    GraphRAGContextResponse,
+)
 from app.schemas.patient import PatientProfile
 
 
-ARTIFACT_ROOT = Path(__file__).resolve().parents[4] / "data" / "heart_failure" / "artifacts"
-CHUNKS_PATH = ARTIFACT_ROOT / "chunks" / "chunks.jsonl"
-RELATIONSHIPS_PATH = ARTIFACT_ROOT / "relationships" / "relationships.jsonl"
 logger = logging.getLogger(__name__)
 
 DRUG_CLASS_TERMS = {
@@ -50,11 +55,15 @@ def _read_jsonl(path: Path) -> list[dict[str, Any]]:
 
 @lru_cache(maxsize=1)
 def load_chunks() -> list[dict[str, Any]]:
+    if settings.artifact_storage == "s3" and not CHUNKS_PATH.exists():
+        sync_artifacts_from_processed_bucket(DATA_ROOT)
     return _read_jsonl(CHUNKS_PATH)
 
 
 @lru_cache(maxsize=1)
 def load_relationships() -> list[dict[str, Any]]:
+    if settings.artifact_storage == "s3" and not RELATIONSHIPS_PATH.exists():
+        sync_artifacts_from_processed_bucket(DATA_ROOT)
     return _read_jsonl(RELATIONSHIPS_PATH)
 
 
@@ -213,5 +222,24 @@ def build_graphrag_context(request: GraphRAGContextRequest) -> GraphRAGContextRe
             f"Retrieved {len(graph_facts)} graph fact(s) and {len(evidence_chunks)} evidence chunk(s) "
             f"using {', '.join(retrieval_sources)} for recommendation verification."
         ),
+        retrieval_sources=retrieval_sources,
+    )
+
+
+def search_evidence(query: str, top_k: int = 6) -> EvidenceSearchResponse:
+    terms = sorted(set(_tokenize(query)))
+    top_k = max(1, min(top_k, 12))
+    graph_facts = retrieve_graph_facts(terms, top_k) if terms else []
+    evidence_chunks = retrieve_evidence_chunks(terms, top_k) if terms else []
+    retrieval_sources = []
+    if graph_facts:
+        retrieval_sources.append("local_relationships")
+    if evidence_chunks:
+        retrieval_sources.append("local_chunks")
+    return EvidenceSearchResponse(
+        query=query,
+        query_terms=terms,
+        graph_facts=graph_facts,
+        evidence_chunks=evidence_chunks,
         retrieval_sources=retrieval_sources,
     )

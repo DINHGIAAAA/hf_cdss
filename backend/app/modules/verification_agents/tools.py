@@ -78,6 +78,9 @@ def build_agent_tools(
                     "section": chunk.section,
                     "text": chunk.text[:250],
                     "score": chunk.score,
+                    "source_url": chunk.metadata.get("source_url"),
+                    "publisher": chunk.metadata.get("publisher"),
+                    "citation": chunk.metadata.get("citation"),
                 }
                 for _, chunk in scored[:2]
             ],

@@ -21,6 +21,21 @@ def test_health() -> None:
     assert response.json()["status"] == "ok"
 
 
+def test_versioned_health_alias() -> None:
+    response = client.get("/api/v1/health")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "ok"
+
+
+def test_readiness_reports_dependencies() -> None:
+    response = client.get("/health/ready")
+
+    assert response.status_code == 200
+    assert response.json()["status"] in {"ok", "degraded"}
+    assert "dependencies" in response.json()
+
+
 def test_version() -> None:
     response = client.get("/version")
 
@@ -46,6 +61,26 @@ def test_rules_endpoint() -> None:
 
     assert response.status_code == 200
     assert any(rule["constraint_id"] == "MRA_HARD_RENAL_OR_K" for rule in response.json())
+
+
+def test_routes_catalog_includes_legacy_and_versioned_routes() -> None:
+    response = client.get("/routes")
+
+    assert response.status_code == 200
+    routes = {route["path"] for route in response.json()["routes"]}
+    assert "/recommend" in routes
+    assert "/api/v1/recommend" in routes
+    assert "/evidence/search" in routes
+
+
+def test_evidence_search_endpoint() -> None:
+    response = client.get("/evidence/search", params={"q": "egfr potassium mra", "top_k": 2})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["query"] == "egfr potassium mra"
+    assert "egfr" in payload["query_terms"]
+    assert "evidence_chunks" in payload
 
 
 def test_validation_error_shape() -> None:

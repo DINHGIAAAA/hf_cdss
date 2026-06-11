@@ -5,7 +5,8 @@ from pathlib import Path
 from typing import Any
 
 
-ARTIFACT_ROOT = Path(__file__).resolve().parents[4] / "data" / "heart_failure" / "artifacts"
+DATA_ROOT = Path(__file__).resolve().parents[4] / "data" / "heart_failure"
+ARTIFACT_ROOT = DATA_ROOT / "artifacts"
 CHUNKS_PATH = ARTIFACT_ROOT / "chunks" / "chunks.jsonl"
 RELATIONSHIPS_PATH = ARTIFACT_ROOT / "relationships" / "relationships.jsonl"
 

@@ -44,33 +44,38 @@ Check the planned pipeline without changing files:
 python data\heart_failure\scripts\run_ingestion_pipeline.py --dry-run --download-dry-run
 ```
 
+Preferred command from the project root:
+
+```powershell
+py -m scraper.orchestration.run_ingestion_pipeline --dry-run --download-dry-run
+```
+
 Check only planned downloads:
 
 ```powershell
-python data\heart_failure\scripts\download_sources.py --dry-run
+py -m scraper.acquisition.download_sources --dry-run
 ```
 
-## Run With Existing Local Files
+## Run With Existing S3 Objects
 
-If PDFs/XML files already exist under `data/heart_failure/raw`, skip network downloads:
+The registry URL is the source of truth. Raw PDFs/XML are scraped into LocalStack S3,
+not committed to the repo. If you want to avoid replacing objects that already exist:
 
 ```powershell
-python data\heart_failure\scripts\run_ingestion_pipeline.py --skip-download
+py -m scraper.orchestration.run_ingestion_pipeline --use-existing
 ```
 
-If you want to use the registry but avoid replacing files that already exist:
+Use `--skip-download` only when the raw bucket already contains every registered source
+object.
 
-```powershell
-python data\heart_failure\scripts\run_ingestion_pipeline.py --use-existing
-```
+## Store Data In LocalStack S3
 
-## Store Source Files In LocalStack S3
-
-Raw clinical source files can be stored in LocalStack instead of being kept in the repo.
-The default local bucket is:
+Raw clinical source files and processed KG artifacts are stored in separate LocalStack
+S3 buckets:
 
 ```text
-s3://hf-cdss-data/heart_failure/
+s3://hf-cdss-raw/heart_failure/
+s3://hf-cdss-processed/heart_failure/
 ```
 
 Start LocalStack:
@@ -79,33 +84,41 @@ Start LocalStack:
 docker compose -f infrastructure\docker-compose.yml up -d localstack
 ```
 
-Download registered sources into LocalStack:
+Scrape registered sources into the raw bucket:
 
 ```powershell
-python data\heart_failure\scripts\download_sources.py --storage s3 --use-existing
+py -m scraper.acquisition.download_sources --storage s3 --use-existing
 ```
 
-Sync source files from LocalStack to the local runtime before parsing:
+Stage raw source files from S3 into the runtime workspace before parsing:
 
 ```powershell
-python data\heart_failure\scripts\sync_sources_from_s3.py
+py -m scraper.acquisition.sync_sources_from_s3
 ```
 
-Run the full ingestion pipeline using LocalStack-backed source storage:
+Run the full S3-backed ingestion pipeline:
 
 ```powershell
-python data\heart_failure\scripts\run_ingestion_pipeline.py --storage s3 --use-existing
+py -m scraper.orchestration.run_ingestion_pipeline --use-existing
 ```
 
-In Airflow, the `heart_failure_kg_ingestion` DAG defaults to `storage=s3`. It downloads
-registered source files to LocalStack, syncs them into the runtime, then runs parsing and
-KG generation.
+The pipeline uploads `processed/` and `artifacts/` to the processed bucket after
+validation. Local files under `raw/`, `processed/`, and `artifacts/` are temporary
+runtime outputs and are ignored by git.
+
+In Airflow, the `heart_failure_kg_ingestion` DAG defaults to S3-only storage. It scrapes
+registered source files to the raw bucket, stages them into the runtime, runs parsing and
+KG generation, publishes processed outputs, then reloads datastores from the processed
+bucket.
 
 ## Validate Artifacts
 
 ```powershell
-python data\heart_failure\scripts\validate_kg_artifacts.py --root data\heart_failure
+py -m scraper.validation.validate_kg_artifacts --root data\heart_failure
 ```
+
+Legacy files under `data/heart_failure/scripts` are compatibility wrappers. New scraping
+logic lives under `scraper/`.
 
 ## Load Into Datastores
 
@@ -149,15 +162,16 @@ password: admin
 
 Trigger the DAG manually. Useful DAG parameters:
 
-- `skip_download=true`: use files already present under `data/heart_failure/raw`.
-- `use_existing=true`: download only files that are missing.
-- `parse_guidelines=false`: skip expensive PDF parsing when processed guideline sections already exist.
+- `skip_download=true`: use objects already present in the raw S3 bucket.
+- `use_existing=true`: download only raw S3 objects that are missing.
+- `parse_guidelines=false`: skip expensive PDF parsing only when processed sections are available in the runtime.
 - `build_rules=true`: regenerate rule artifacts before deriving graph relationships.
 
 The DAG runs these tasks in order:
 
 ```text
 download_sources
+  -> sync_sources_from_s3
   -> parse_guideline_pdf
   -> parse_drug_label_xml
   -> extract_important_sections
@@ -168,11 +182,12 @@ download_sources
   -> classify_rules
   -> derive_relationships
   -> validate_kg_artifacts
+  -> sync_processed_to_s3
   -> bootstrap_datastores
 ```
 
-`bootstrap_datastores` reloads ChromaDB and Neo4j from the generated artifacts and checks
-PostgreSQL audit table availability.
+`bootstrap_datastores` downloads required KG artifacts from the processed bucket, reloads
+ChromaDB and Neo4j, and checks PostgreSQL audit table availability.
 
 ## Safety Notes
 

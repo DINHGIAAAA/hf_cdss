@@ -1,12 +1,14 @@
 # LocalStack S3
 
-LocalStack provides a local S3-compatible bucket for clinical source files used by the
-ingestion pipeline.
+LocalStack provides S3-compatible buckets for the ingestion pipeline. Source files are
+scraped into the raw bucket, while normalized sections, chunks, claims, and KG artifacts
+are published to the processed bucket.
 
-Default bucket:
+Default buckets:
 
 ```text
-hf-cdss-data
+hf-cdss-raw
+hf-cdss-processed
 ```
 
 Default prefix:
@@ -30,6 +32,7 @@ docker compose -f infrastructure\docker-compose.yml exec localstack awslocal s3 
 Upload/downloads are handled by:
 
 ```text
-data/heart_failure/scripts/download_sources.py --storage s3
-data/heart_failure/scripts/sync_sources_from_s3.py
+py -m scraper.acquisition.download_sources --storage s3
+py -m scraper.acquisition.sync_sources_from_s3
+py -m scraper.store.sync_processed_to_s3
 ```
