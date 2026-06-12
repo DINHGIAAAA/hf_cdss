@@ -2,6 +2,7 @@ import argparse
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 from scraper.paths import data_root, project_root
@@ -36,12 +37,15 @@ def main() -> None:
     parser.add_argument("--processed-bucket", default=os.environ.get("HF_CDSS_PROCESSED_BUCKET", "hf-cdss-processed"))
     parser.add_argument("--s3-prefix", default=os.environ.get("HF_CDSS_S3_PREFIX", "heart_failure"))
     parser.add_argument("--s3-endpoint-url", default=os.environ.get("HF_CDSS_S3_ENDPOINT_URL", "http://localhost:4566"))
+    parser.add_argument("--run-id", default=os.environ.get("HF_CDSS_PIPELINE_RUN_ID"))
     parser.add_argument("--skip-guideline-parse", action="store_true")
     parser.add_argument("--skip-rules", action="store_true")
     parser.add_argument("--dry-run", action="store_true", help="Print the pipeline without executing steps.")
     args = parser.parse_args()
 
     python = sys.executable
+    run_id = args.run_id or time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+    print(f"Pipeline run id: {run_id}")
     if not args.skip_download:
         command = [
             python,
@@ -141,6 +145,7 @@ def main() -> None:
         [
             ("derive_relationships", [python, "-m", "scraper.process.derive_relationships"]),
             ("validate_kg_artifacts", [python, "-m", "scraper.validation.validate_kg_artifacts", "--root", "."]),
+            ("promote_artifacts", [python, "-m", "scraper.store.promote_artifacts", "--workspace", ".", "--run-id", run_id]),
         ]
     )
 
@@ -159,6 +164,8 @@ def main() -> None:
             args.s3_prefix,
             "--endpoint-url",
             args.s3_endpoint_url,
+            "--run-id",
+            run_id,
         ],
         args.dry_run,
     )

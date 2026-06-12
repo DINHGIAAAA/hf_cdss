@@ -10,6 +10,12 @@ DEFAULT_BUCKET = os.environ.get("HF_CDSS_PROCESSED_BUCKET", "hf-cdss-processed")
 DEFAULT_PREFIX = os.environ.get("HF_CDSS_S3_PREFIX", "heart_failure")
 
 
+def safe_run_id(value: str | None) -> str | None:
+    if value is None:
+        return None
+    return "".join(char if char.isalnum() or char in ("-", "_", ".") else "_" for char in value)
+
+
 def s3_client(endpoint_url: str):
     import boto3
 
@@ -37,12 +43,23 @@ def s3_key(prefix: str, path: Path, workspace: Path) -> str:
     return f"{prefix.strip('/')}/{relative}"
 
 
-def iter_outputs(workspace: Path) -> list[Path]:
+def iter_outputs(workspace: Path, run_id: str | None = None) -> list[Path]:
     paths: list[Path] = []
-    for folder in ("processed", "artifacts"):
-        root = workspace / folder
-        if root.exists():
-            paths.extend(path for path in root.rglob("*") if path.is_file())
+    processed_root = workspace / "processed"
+    if processed_root.exists():
+        paths.extend(path for path in processed_root.rglob("*") if path.is_file())
+
+    artifacts_root = workspace / "artifacts"
+    if artifacts_root.exists():
+        for path in artifacts_root.rglob("*"):
+            if not path.is_file():
+                continue
+            relative = path.relative_to(artifacts_root)
+            if relative.parts and relative.parts[0] == "runs":
+                if run_id and len(relative.parts) > 1 and relative.parts[1] == run_id:
+                    paths.append(path)
+                continue
+            paths.append(path)
     return sorted(paths)
 
 
@@ -52,12 +69,13 @@ def main() -> None:
     parser.add_argument("--bucket", default=DEFAULT_BUCKET)
     parser.add_argument("--prefix", default=DEFAULT_PREFIX)
     parser.add_argument("--endpoint-url", default=DEFAULT_ENDPOINT_URL)
+    parser.add_argument("--run-id", default=None, help="Upload only this artifacts/runs/<run_id> snapshot plus current artifacts.")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
     client = s3_client(args.endpoint_url)
     uploaded = 0
-    for path in iter_outputs(args.workspace):
+    for path in iter_outputs(args.workspace, safe_run_id(args.run_id)):
         key = s3_key(args.prefix, path, args.workspace)
         print(f"{path} -> s3://{args.bucket}/{key}")
         if args.dry_run:

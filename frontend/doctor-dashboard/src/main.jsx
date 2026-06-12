@@ -19,6 +19,8 @@ import {
 import "./styles.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000";
+const API_KEY = import.meta.env.VITE_API_KEY ?? "";
+const API_KEY_HEADER = import.meta.env.VITE_API_KEY_HEADER ?? "x-api-key";
 const CASE_HISTORY_KEY = "hf_cdss_case_history";
 
 const EXAMPLE_PROMPTS = [
@@ -77,6 +79,10 @@ const SOURCE_LABELS = {
     detail: "SGLT2 inhibitor eligibility requires renal function review when eGFR is missing.",
   },
 };
+
+function apiHeaders(extra = {}) {
+  return API_KEY ? { ...extra, [API_KEY_HEADER]: API_KEY } : extra;
+}
 
 function titleCase(value) {
   return value.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
@@ -230,6 +236,27 @@ function parsePatient(text) {
     comorbidities,
     current_medications: [...new Set(medications)],
     allergies,
+  };
+}
+
+function clinicalValue(profile, section, field) {
+  return profile?.[section]?.[field]?.value ?? null;
+}
+
+function patientDraftSummary(profile) {
+  if (!profile) return null;
+  return {
+    case_id: profile.patient_identity?.case_id ?? profile.case_id ?? `CHAT_${Date.now()}`,
+    age: profile.demographics?.age ?? profile.age ?? null,
+    sex: profile.demographics?.sex ?? profile.sex ?? null,
+    lvef: clinicalValue(profile, "heart_failure_profile", "lvef") ?? profile.lvef ?? null,
+    egfr: clinicalValue(profile, "labs", "egfr") ?? profile.egfr ?? null,
+    potassium: clinicalValue(profile, "labs", "potassium") ?? profile.potassium ?? null,
+    systolic_bp: clinicalValue(profile, "vitals", "systolic_bp") ?? profile.systolic_bp ?? null,
+    heart_rate: clinicalValue(profile, "vitals", "heart_rate") ?? profile.heart_rate ?? null,
+    comorbidities: profile.conditions?.map((item) => item.normalized_name ?? item.name).filter(Boolean) ?? profile.comorbidities ?? [],
+    current_medications: profile.medications?.map((item) => item.normalized_name ?? item.name).filter(Boolean) ?? profile.current_medications ?? [],
+    allergies: profile.allergy_statements?.map((item) => item.normalized_substance ?? item.substance).filter(Boolean) ?? profile.allergies ?? [],
   };
 }
 
@@ -613,6 +640,7 @@ function App() {
   const [processingStep, setProcessingStep] = useState(null);
   const [verification, setVerification] = useState(null);
   const [error, setError] = useState("");
+  const [conversationId, setConversationId] = useState(null);
   const [messages, setMessages] = useState([
     {
       role: "assistant",
@@ -628,7 +656,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    fetch(`${API_BASE_URL}/rules`)
+    fetch(`${API_BASE_URL}/rules`, { headers: apiHeaders() })
       .then((response) => response.json())
       .then((data) => setRules(data))
       .catch(() => setRules([]));
@@ -641,7 +669,7 @@ function App() {
     [recommendation],
   );
 
-  function submitCase(event) {
+  function submitCaseLegacy(event) {
     event.preventDefault();
     const trimmed = input.trim();
     if (!trimmed) return;
@@ -753,6 +781,84 @@ function App() {
         setProcessingStep(null);
       })
       .finally(() => setLoading(false));
+  }
+
+  function submitCase(event) {
+    event.preventDefault();
+    const trimmed = input.trim();
+    if (!trimmed) return;
+
+    const parsedPatient = parsePatient(trimmed);
+    setMessages((current) => [...current, { role: "user", content: trimmed }]);
+    setPatient(parsedPatient);
+    setRecommendation(null);
+    setVerification(null);
+    setError("");
+    setLoading(true);
+    setProcessingStep("parse");
+
+    fetch(`${API_BASE_URL}/chat`, {
+      method: "POST",
+      headers: apiHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({
+        message: trimmed,
+        conversation_id: conversationId,
+        patient: parsedPatient,
+        language: "vi",
+      }),
+    })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`Chat API returned ${response.status}`);
+        }
+        return response.json();
+      })
+      .then((data) => {
+        setConversationId(data.conversation_id);
+        const draftPatient = patientDraftSummary(data.patient_draft?.patient) ?? parsedPatient;
+        setPatient(draftPatient);
+        setMessages((current) => [...current, { role: "assistant", content: data.assistant_message.content }]);
+
+        if (data.status === "needs_more_information") {
+          return;
+        }
+
+        setProcessingStep("recommend");
+        setRecommendation(data.recommendation);
+        setProcessingStep("verify");
+        setVerificationLoading(true);
+        setVerification(data.verification);
+        setProcessingStep("explain");
+
+        if (data.recommendation) {
+          const record = {
+            id: `${data.conversation_id}_${Date.now()}`,
+            created_at: new Date().toISOString(),
+            input_text: trimmed,
+            patient: draftPatient,
+            recommendation: data.recommendation,
+            verification: data.verification,
+          };
+          setCaseHistory((current) => {
+            const next = [record, ...current].slice(0, 20);
+            writeCaseHistory(next);
+            return next;
+          });
+          setSelectedCaseId(record.id);
+        }
+      })
+      .catch((requestError) => {
+        setError(requestError.message);
+        setMessages((current) => [
+          ...current,
+          { role: "assistant", content: `API error: ${requestError.message}` },
+        ]);
+      })
+      .finally(() => {
+        setVerificationLoading(false);
+        setProcessingStep(null);
+        setLoading(false);
+      });
   }
 
   return (

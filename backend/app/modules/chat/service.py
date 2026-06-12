@@ -3,7 +3,13 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from app.modules.datastores.postgres import write_audit_event
+from app.modules.datastores.postgres import (
+    append_chat_message,
+    read_chat_messages,
+    read_patient_draft,
+    upsert_patient_draft,
+    write_audit_event,
+)
 from app.modules.explanation.llm_service import build_llm_answer
 from app.modules.missing_fields.service import build_missing_fields_prompt, check_missing_fields
 from app.modules.reasoning.service import build_recommendation
@@ -47,6 +53,26 @@ def _message(conversation_id: str, role: str, content: str, metadata: dict[str, 
 
 def _append_message(message: ChatMessage) -> None:
     _messages.setdefault(message.conversation_id, []).append(message)
+    try:
+        append_chat_message(message.model_dump(mode="json"))
+    except Exception:
+        pass
+
+
+def _load_draft(conversation_id: str) -> PatientDraft | None:
+    try:
+        data = read_patient_draft(conversation_id)
+        return PatientDraft.model_validate(data) if data else _drafts.get(conversation_id)
+    except Exception:
+        return _drafts.get(conversation_id)
+
+
+def _save_draft(draft: PatientDraft) -> None:
+    _drafts[draft.conversation_id] = draft
+    try:
+        upsert_patient_draft(draft.model_dump(mode="json"))
+    except Exception:
+        pass
 
 
 def _new_patient(conversation_id: str) -> PatientProfile:
@@ -176,7 +202,7 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
     conversation_id = request.conversation_id or str(uuid.uuid4())
     _append_message(_message(conversation_id, "user", request.message))
 
-    current = _drafts.get(conversation_id)
+    current = _load_draft(conversation_id)
     base_patient = current.patient if current else _new_patient(conversation_id)
     extracted_patient = _extract_patient_from_message(request.message, conversation_id)
     merged = _merge_patient(base_patient, extracted_patient)
@@ -184,7 +210,7 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
         merged = _merge_patient(merged, request.patient)
 
     draft = PatientDraft(conversation_id=conversation_id, patient=merged, updated_at=_now())
-    _drafts[conversation_id] = draft
+    _save_draft(draft)
 
     missing_check = check_missing_fields(merged)
     tool_outputs: list[dict[str, Any]] = [
@@ -259,4 +285,8 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
 
 
 def get_chat_history(conversation_id: str) -> tuple[list[ChatMessage], PatientDraft | None]:
-    return _messages.get(conversation_id, []), _drafts.get(conversation_id)
+    try:
+        messages = [ChatMessage.model_validate(row) for row in read_chat_messages(conversation_id)]
+    except Exception:
+        messages = _messages.get(conversation_id, [])
+    return messages, _load_draft(conversation_id)

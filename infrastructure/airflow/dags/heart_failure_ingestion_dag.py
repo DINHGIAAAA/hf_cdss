@@ -73,6 +73,11 @@ with DAG(
             type="boolean",
             description="Regenerate and classify rule artifacts.",
         ),
+        "pipeline_run_id": Param(
+            "",
+            type="string",
+            description="Optional stable artifact run id. Leave empty to use the Airflow run id.",
+        ),
     },
 ) as dag:
     download_sources = BashOperator(
@@ -174,13 +179,23 @@ with DAG(
         bash_command=data_command(f"{PYTHON} -m scraper.validation.validate_kg_artifacts --root ."),
     )
 
+    promote_artifacts = BashOperator(
+        task_id="promote_artifacts",
+        bash_command=data_command(
+            f"{PYTHON} -m scraper.store.promote_artifacts "
+            "--workspace . "
+            "--run-id \"{{{{ params.pipeline_run_id or run_id }}}}\""
+        ),
+    )
+
     sync_processed_to_s3 = BashOperator(
         task_id="sync_processed_to_s3",
         bash_command=data_command(
             f"{PYTHON} -m scraper.store.sync_processed_to_s3 "
             "--bucket ${HF_CDSS_PROCESSED_BUCKET:-hf-cdss-processed} "
             "--prefix ${HF_CDSS_S3_PREFIX:-heart_failure} "
-            "--endpoint-url ${HF_CDSS_S3_ENDPOINT_URL:-http://localstack:4566}"
+            "--endpoint-url ${HF_CDSS_S3_ENDPOINT_URL:-http://localstack:4566} "
+            "--run-id \"{{{{ params.pipeline_run_id or run_id }}}}\""
         ),
     )
 
@@ -202,6 +217,7 @@ with DAG(
         >> classify_rules
         >> derive_relationships
         >> validate_kg_artifacts
+        >> promote_artifacts
         >> sync_processed_to_s3
         >> bootstrap_datastores
     )

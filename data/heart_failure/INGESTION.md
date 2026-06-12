@@ -13,6 +13,7 @@ sources registry
   -> rule classification
   -> relationship derivation
   -> validation
+  -> versioned artifact promotion
   -> ChromaDB + Neo4j bootstrap
 ```
 
@@ -99,12 +100,48 @@ py -m scraper.acquisition.sync_sources_from_s3
 Run the full S3-backed ingestion pipeline:
 
 ```powershell
-py -m scraper.orchestration.run_ingestion_pipeline --use-existing
+py -m scraper.orchestration.run_ingestion_pipeline --use-existing --run-id manual-2026-06-12
 ```
 
-The pipeline uploads `processed/` and `artifacts/` to the processed bucket after
-validation. Local files under `raw/`, `processed/`, and `artifacts/` are temporary
-runtime outputs and are ignored by git.
+The pipeline uploads `processed/`, current artifacts, and the selected versioned run
+snapshot to the processed bucket after validation. Local files under `raw/`,
+`processed/`, and `artifacts/` are runtime outputs and are ignored by git.
+
+## Versioned Artifact Promotion
+
+Validation is the gate between generated files and datastore reloads. After
+`validate_kg_artifacts` passes, the promotion step writes:
+
+```text
+artifacts/runs/<run_id>/...
+artifacts/current/...
+artifacts/current/manifest.json
+artifacts/manifests/pipeline_runs/<run_id>.json
+```
+
+The manifest includes the run id, promotion timestamp, required artifact counts,
+file sizes, and SHA-256 checksums. Legacy paths such as
+`artifacts/chunks/chunks.jsonl` remain in place so the backend and local fallback
+loaders keep working while the pipeline gains run-level traceability.
+
+In Docker, backend runtime services read promoted artifacts from the processed S3
+bucket, not from the repository `data/` folder. `datastore-init` downloads
+`artifacts/current/...` from S3 into a writable runtime cache, then ChromaDB and
+Neo4j load from that cache. This means the application can still start after the
+local `data/` folder is removed, as long as the processed bucket contains a
+validated `artifacts/current` set.
+
+Promote already-generated artifacts manually:
+
+```powershell
+py -m scraper.store.promote_artifacts --workspace data\heart_failure --run-id manual-2026-06-12
+```
+
+Dry-run the upload selection for one promoted run:
+
+```powershell
+py -m scraper.store.sync_processed_to_s3 --workspace data\heart_failure --run-id manual-2026-06-12 --dry-run
+```
 
 In Airflow, the `heart_failure_kg_ingestion` DAG defaults to S3-only storage. It scrapes
 registered source files to the raw bucket, stages them into the runtime, runs parsing and
@@ -166,6 +203,7 @@ Trigger the DAG manually. Useful DAG parameters:
 - `use_existing=true`: download only raw S3 objects that are missing.
 - `parse_guidelines=false`: skip expensive PDF parsing only when processed sections are available in the runtime.
 - `build_rules=true`: regenerate rule artifacts before deriving graph relationships.
+- `pipeline_run_id=...`: optional stable artifact run id. If omitted, Airflow's run id is used.
 
 The DAG runs these tasks in order:
 
@@ -182,6 +220,7 @@ download_sources
   -> classify_rules
   -> derive_relationships
   -> validate_kg_artifacts
+  -> promote_artifacts
   -> sync_processed_to_s3
   -> bootstrap_datastores
 ```

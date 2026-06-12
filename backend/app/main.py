@@ -15,6 +15,7 @@ from app.core.exceptions import (
     validation_exception_handler,
 )
 from app.core.logging import configure_logging
+from app.core.middleware import production_guard_middleware
 from app.modules.datastores.service import bootstrap_datastores
 from app.schemas.common import RouteCatalogResponse, RouteInfo
 
@@ -50,6 +51,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.middleware("http")(production_guard_middleware)
 
 app.add_exception_handler(StarletteHTTPException, http_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)

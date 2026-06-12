@@ -8,6 +8,9 @@ class Settings(BaseSettings):
     api_prefix: str = "/api/v1"
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
     log_level: str = "INFO"
+    api_keys: str = ""
+    api_key_header: str = "x-api-key"
+    max_request_body_bytes: int = 1_000_000
     openai_api_key: str | None = None
     llm_base_url: str = "https://api.openai.com/v1"
     llm_model: str = "gpt-4o-mini"
@@ -26,6 +29,7 @@ class Settings(BaseSettings):
     datastore_bootstrap_on_startup: bool = False
     retrieval_backend: str = "local"
     artifact_storage: str = "local"
+    artifact_cache_root: str | None = None
     s3_endpoint_url: str = "http://localhost:4566"
     raw_bucket: str = "hf-cdss-raw"
     processed_bucket: str = "hf-cdss-processed"
@@ -34,6 +38,9 @@ class Settings(BaseSettings):
     aws_secret_access_key: str = "test"
     aws_default_region: str = "us-east-1"
     postgres_audit_enabled: bool = False
+    audit_schema_version: str = "2026-06-12"
+    rate_limit_requests: int = 60
+    rate_limit_window_seconds: int = 60
     postgres_pool_min_size: int = 1
     postgres_pool_max_size: int = 5
     verification_agent_mode: str = "rule_based"

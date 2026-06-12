@@ -31,9 +31,14 @@ def test_versioned_health_alias() -> None:
 def test_readiness_reports_dependencies() -> None:
     response = client.get("/health/ready")
 
-    assert response.status_code == 200
-    assert response.json()["status"] in {"ok", "degraded"}
-    assert "dependencies" in response.json()
+    assert response.status_code in {200, 503}
+    payload = response.json()
+    if response.status_code == 200:
+        assert payload["status"] == "ok"
+        assert "dependencies" in payload
+    else:
+        assert payload["error"]["code"] == "http_503"
+        assert "dependencies" in payload["error"]["details"]
 
 
 def test_version() -> None:

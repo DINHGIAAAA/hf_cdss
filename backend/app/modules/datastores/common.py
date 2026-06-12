@@ -1,11 +1,17 @@
 import hashlib
 import math
+import os
 import re
 from pathlib import Path
 from typing import Any
 
 
-DATA_ROOT = Path(__file__).resolve().parents[4] / "data" / "heart_failure"
+DEFAULT_DATA_ROOT = Path(__file__).resolve().parents[4] / "data" / "heart_failure"
+DATA_ROOT = Path(
+    os.environ.get("HF_CDSS_ARTIFACT_CACHE_ROOT")
+    or os.environ.get("HF_CDSS_DATA_ROOT")
+    or DEFAULT_DATA_ROOT
+).resolve()
 ARTIFACT_ROOT = DATA_ROOT / "artifacts"
 CHUNKS_PATH = ARTIFACT_ROOT / "chunks" / "chunks.jsonl"
 RELATIONSHIPS_PATH = ARTIFACT_ROOT / "relationships" / "relationships.jsonl"

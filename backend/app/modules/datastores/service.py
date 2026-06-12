@@ -1,7 +1,7 @@
 import logging
 from typing import Any
 
-from app.modules.datastores.artifacts import sync_artifacts_from_processed_bucket
+from app.modules.datastores.artifacts import artifact_status, sync_artifacts_from_processed_bucket
 from app.modules.datastores.common import DATA_ROOT
 from app.modules.datastores.chroma import chroma_status, initialize_chroma
 from app.modules.datastores.neo4j import initialize_neo4j, neo4j_status
@@ -34,6 +34,7 @@ def bootstrap_datastores() -> dict[str, Any]:
 
 def datastore_status() -> dict[str, Any]:
     return {
+        "artifacts": artifact_status(DATA_ROOT),
         "postgres": postgres_status(),
         "chroma": chroma_status(),
         "neo4j": neo4j_status(),
