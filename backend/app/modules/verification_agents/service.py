@@ -6,6 +6,7 @@ import threading
 import time
 
 from app.core.config import settings
+from app.modules.citation_validation.service import validate_citations
 from app.modules.graphrag.service import build_graphrag_context
 from app.modules.reasoning.service import build_recommendation
 from app.modules.verification_agents.llm_runtime import run_llm_agent
@@ -121,6 +122,36 @@ def guideline_alignment_agent(response: RecommendationResponse) -> AgentResult:
         verdict="warning",
         message="Recommendation has no structured evidence references.",
         evidence_refs=[],
+    )
+
+
+def citation_validator_agent(response: RecommendationResponse, context: GraphRAGContextResponse) -> AgentResult:
+    validation = validate_citations(response, context)
+    missing = [item for item in validation.supports if item.evidence_status == "missing"]
+    weak = [item for item in validation.supports if item.evidence_status == "weak"]
+    refs = [ref for item in validation.supports for ref in item.evidence_refs][:8]
+    if missing:
+        return AgentResult(
+            agent_name="citation_validator_agent",
+            verdict="warning",
+            message=f"{len(missing)} recommendation or safety item(s) have no supporting retrieved citation.",
+            evidence_refs=refs,
+            tools_used=["validate_citations"],
+        )
+    if weak:
+        return AgentResult(
+            agent_name="citation_validator_agent",
+            verdict="warning",
+            message=f"{len(weak)} recommendation or safety item(s) have weak citation coverage.",
+            evidence_refs=refs,
+            tools_used=["validate_citations"],
+        )
+    return AgentResult(
+        agent_name="citation_validator_agent",
+        verdict="pass",
+        message="All recommendation and safety items have retrieved citation support.",
+        evidence_refs=refs,
+        tools_used=["validate_citations"],
     )
 
 
@@ -345,6 +376,7 @@ async def verify_recommendation(request: VerificationRequest) -> VerificationRes
         ("missing_data_agent", missing_data_agent(response)),
         ("evidence_agent", evidence_agent(request, response, context)),
         ("guideline_alignment_agent", guideline_alignment_agent(response)),
+        ("citation_validator_agent", citation_validator_agent(response, context)),
     ]
 
     llm_agents = _llm_agent_names()
@@ -370,6 +402,7 @@ async def verify_recommendation(request: VerificationRequest) -> VerificationRes
         context=context,
         agent_results=agent_results,
         final_verdict=agent_results[-1].verdict,
+        citation_validation=validate_citations(response, context),
     )
     _write_cache(cache_key, result)
     return result

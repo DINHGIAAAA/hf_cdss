@@ -44,7 +44,9 @@ def test_verify_runs_agent_verdicts() -> None:
         "missing_data_agent",
         "evidence_agent",
         "guideline_alignment_agent",
+        "citation_validator_agent",
         "final_reviewer_agent",
     } <= agent_names
     assert payload["final_verdict"] in {"pass", "warning", "fail"}
     assert payload["context"]["evidence_chunks"]
+    assert payload["citation_validation"]["status"] in {"strong", "weak", "missing"}

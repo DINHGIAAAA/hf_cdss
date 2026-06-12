@@ -1,0 +1,2 @@
+"""Clinical intake extraction module."""
+

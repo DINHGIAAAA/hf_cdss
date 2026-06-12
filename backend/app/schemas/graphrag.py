@@ -24,6 +24,9 @@ class EvidenceChunk(BaseModel):
     text: str
     score: float
     metadata: dict[str, Any] = Field(default_factory=dict)
+    source_url: str | None = None
+    source_link: str | None = None
+    page: int | None = None
 
 
 class GraphRAGContextRequest(BaseModel):
@@ -59,6 +62,22 @@ class AgentResult(BaseModel):
     tools_used: list[str] = Field(default_factory=list)
 
 
+class CitationSupport(BaseModel):
+    target_id: str
+    target_type: str
+    evidence_status: str
+    message: str
+    required_terms: list[str] = Field(default_factory=list)
+    matched_terms: list[str] = Field(default_factory=list)
+    evidence_refs: list[str] = Field(default_factory=list)
+    source_links: list[str] = Field(default_factory=list)
+
+
+class CitationValidation(BaseModel):
+    status: str
+    supports: list[CitationSupport] = Field(default_factory=list)
+
+
 class VerificationRequest(BaseModel):
     patient: PatientProfile
     recommendation: RecommendationResponse | None = None
@@ -69,3 +88,4 @@ class VerificationResponse(BaseModel):
     context: GraphRAGContextResponse
     agent_results: list[AgentResult]
     final_verdict: str
+    citation_validation: CitationValidation | None = None

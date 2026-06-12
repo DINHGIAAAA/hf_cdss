@@ -3,6 +3,8 @@ import json
 import re
 from pathlib import Path
 
+from scraper.transform.text_normalization import normalize_inline_text
+
 
 DRUG_SECTION_ALIASES = {
     "INDICATIONS AND USAGE": {"INDICATIONS AND USAGE", "INDICATIONS & USAGE"},
@@ -29,8 +31,7 @@ GUIDELINE_TOPICS = {
 
 
 def normalize(value: str) -> str:
-    value = re.sub(r"\s+", " ", value or "")
-    return value.strip().upper()
+    return normalize_inline_text(value).upper()
 
 
 def read_jsonl(path: Path) -> list[dict]:

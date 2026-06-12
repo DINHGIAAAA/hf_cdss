@@ -48,6 +48,27 @@ def test_chat_accepts_nested_patient_payload() -> None:
     assert response.json()["recommendation"]["case_id"] == "CHAT_NESTED"
 
 
+def test_chat_uses_intake_extractor_for_contextual_fields() -> None:
+    response = client.post(
+        "/chat",
+        json={
+            "message": (
+                "EF 35, eGFR 55, K 4.8, BP 110/70, HR 68. "
+                "No CKD. Taking Entresto 49/51 mg bid and Farxiga 10mg daily. NKDA. Stable."
+            )
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    patient = payload["patient_draft"]["patient"]
+    medication_names = {item["name"] for item in patient["medications"]}
+    assert "sacubitril/valsartan" in medication_names
+    assert "dapagliflozin" in medication_names
+    assert patient["conditions"] == []
+    assert payload["missing_check"]["status"] == "complete"
+
+
 def test_chat_history_can_be_read_from_persistent_store(monkeypatch) -> None:
     persisted_messages = []
     persisted_drafts = {}

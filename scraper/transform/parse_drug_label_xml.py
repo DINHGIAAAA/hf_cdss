@@ -4,13 +4,14 @@ import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+from scraper.transform.text_normalization import normalize_inline_text
+
 
 NS = {"hl7": "urn:hl7-org:v3"}
 
 
 def clean_text(value: str) -> str:
-    value = re.sub(r"\s+", " ", value or "")
-    return value.replace("\xa0", " ").strip()
+    return normalize_inline_text(value)
 
 
 def section_name(section: ET.Element) -> str:
@@ -82,14 +83,26 @@ def parse_xml(xml_path: Path, raw_dir: Path, manifest: dict) -> list[dict]:
                     "source_id": row.get("source_id") or document_id,
                     "drug": drug,
                     "source": "DailyMed",
+                    "source_type": "drug_label",
                     "source_url": row.get("url"),
                     "publisher": publisher,
                     "published_date": row.get("published_date"),
+                    "retrieved_at": row.get("downloaded_at") or row.get("retrieved_at"),
                     "title": title,
                     "citation": citation,
                     "setid": row.get("setid"),
                     "spl_version": row.get("spl_version"),
+                    "sha256": row.get("sha256"),
+                    "storage_uri": row.get("storage_uri"),
                     "source_file": str(xml_path),
+                    "page": None,
+                    "provenance": {
+                        "source_id": row.get("source_id") or document_id,
+                        "source_url": row.get("url"),
+                        "section": section_name(section),
+                        "setid": row.get("setid"),
+                        "spl_version": row.get("spl_version"),
+                    },
                 },
             }
         )

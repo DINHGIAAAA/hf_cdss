@@ -26,6 +26,13 @@ class Settings(BaseSettings):
     chroma_host: str = "localhost"
     chroma_port: int = 8001
     chroma_collection: str = "heart_failure_evidence"
+    embedding_provider: str = "ollama"
+    embedding_model: str = "nomic-embed-text"
+    embedding_base_url: str = "http://localhost:11434"
+    embedding_dimensions: int = 384
+    semantic_rerank_enabled: bool = True
+    semantic_rerank_weight: float = 0.75
+    semantic_rerank_candidates: int = 24
     datastore_bootstrap_on_startup: bool = False
     retrieval_backend: str = "local"
     artifact_storage: str = "local"

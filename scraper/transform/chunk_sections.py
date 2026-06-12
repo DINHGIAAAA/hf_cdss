@@ -4,6 +4,8 @@ import json
 import re
 from pathlib import Path
 
+from scraper.transform.text_normalization import normalize_inline_text
+
 
 def read_jsonl(path: Path) -> list[dict]:
     with path.open(encoding="utf-8-sig") as handle:
@@ -32,7 +34,7 @@ def chunk_id(record: dict, index: int, text: str) -> str:
 
 
 def split_words_with_overlap(text: str, chunk_size: int, overlap: int) -> list[str]:
-    words = re.findall(r"\S+", text or "")
+    words = re.findall(r"\S+", normalize_inline_text(text))
     if not words:
         return []
 
@@ -54,17 +56,41 @@ def make_chunks(record: dict, chunk_size: int, overlap: int) -> list[dict]:
 
     for index, text in enumerate(text_chunks, start=1):
         metadata = dict(record.get("metadata") or {})
+        provenance = dict(metadata.get("provenance") or {})
+        page_start = metadata.get("page_start") or metadata.get("page")
+        page_end = metadata.get("page_end") or metadata.get("page")
+        source_id = metadata.get("source_id") or record.get("document_id")
+        source_section = record.get("section") or metadata.get("section")
+        provenance.update(
+            {
+                "source_id": source_id,
+                "source_url": metadata.get("source_url"),
+                "document_id": record.get("document_id"),
+                "section": source_section,
+                "page_start": page_start,
+                "page_end": page_end,
+                "chunk_index": index,
+                "chunk_count": len(text_chunks),
+            }
+        )
         metadata.update(
             {
                 "chunk_index": index,
                 "chunk_count": len(text_chunks),
                 "token_estimate": token_estimate(text),
                 "source_document_id": record.get("document_id"),
-                "source_section": record.get("section"),
-                "source_id": metadata.get("source_id") or record.get("document_id"),
+                "source_section": source_section,
+                "source_id": source_id,
                 "source_url": metadata.get("source_url"),
                 "publisher": metadata.get("publisher"),
                 "citation": metadata.get("citation"),
+                "title": metadata.get("title"),
+                "retrieved_at": metadata.get("retrieved_at"),
+                "published_date": metadata.get("published_date"),
+                "page": page_start,
+                "page_start": page_start,
+                "page_end": page_end,
+                "provenance": provenance,
             }
         )
         chunks.append(

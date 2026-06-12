@@ -1,8 +1,8 @@
-import re
 import uuid
 from datetime import datetime, timezone
 from typing import Any
 
+from app.modules.clinical_intake_extraction.service import extract_patient_from_message
 from app.modules.datastores.postgres import (
     append_chat_message,
     read_chat_messages,
@@ -17,18 +17,7 @@ from app.modules.verification_agents.service import verify_recommendation
 from app.schemas.chat import ChatMessage, ChatRequest, ChatResponse, PatientDraft
 from app.schemas.graphrag import VerificationRequest
 from app.schemas.llm import LLMAnswerRequest
-from app.schemas.patient import (
-    CareContext,
-    ClinicalValue,
-    Condition,
-    HeartFailureProfile,
-    Labs,
-    MedicationStatement,
-    PatientIdentity,
-    PatientProfile,
-    RedFlag,
-    Vitals,
-)
+from app.schemas.patient import PatientIdentity, PatientProfile
 from app.schemas.recommendation import RecommendationRequest
 
 
@@ -77,81 +66,6 @@ def _save_draft(draft: PatientDraft) -> None:
 
 def _new_patient(conversation_id: str) -> PatientProfile:
     return PatientProfile(patient_identity=PatientIdentity(case_id=conversation_id))
-
-
-def _num(pattern: str, text: str) -> float | None:
-    match = re.search(pattern, text, flags=re.IGNORECASE)
-    if not match:
-        return None
-    try:
-        return float(match.group(1).replace(",", "."))
-    except ValueError:
-        return None
-
-
-def _clinical_value(value: float | None, unit: str) -> ClinicalValue | None:
-    return ClinicalValue(value=value, unit=unit) if value is not None else None
-
-
-def _extract_patient_from_message(message: str, conversation_id: str) -> PatientProfile:
-    lvef = _num(r"\b(?:lvef|ef)\s*[:=]?\s*(\d+(?:[.,]\d+)?)", message)
-    egfr = _num(r"\b(?:egfr|e-gfr)\s*[:=]?\s*(\d+(?:[.,]\d+)?)", message)
-    potassium = _num(r"\b(?:kali|potassium|serum k|k)\s*[:=]?\s*(\d+(?:[.,]\d+)?)", message)
-    systolic_bp = _num(r"\b(?:sbp|huyet ap tam thu|systolic)\s*[:=]?\s*(\d+(?:[.,]\d+)?)", message)
-    heart_rate = _num(r"\b(?:hr|heart rate|nhip tim)\s*[:=]?\s*(\d+(?:[.,]\d+)?)", message)
-
-    conditions: list[Condition] = []
-    for name, terms in {
-        "CKD": ("ckd", "chronic kidney", "suy than"),
-        "Diabetes": ("diabetes", "tieu duong", "dai thao duong"),
-        "Atrial fibrillation": ("atrial fibrillation", "afib", "rung nhi"),
-        "Hypertension": ("hypertension", "tang huyet ap"),
-    }.items():
-        if any(term in message.lower() for term in terms):
-            conditions.append(Condition(name=name, status="active"))
-
-    medications: list[MedicationStatement] = []
-    for name, drug_class in {
-        "spironolactone": "MRA",
-        "eplerenone": "MRA",
-        "metoprolol": "beta_blocker",
-        "bisoprolol": "beta_blocker",
-        "carvedilol": "beta_blocker",
-        "lisinopril": "ACEi",
-        "losartan": "ARB",
-        "sacubitril valsartan": "ARNI",
-        "dapagliflozin": "SGLT2i",
-        "empagliflozin": "SGLT2i",
-        "furosemide": "loop_diuretic",
-    }.items():
-        if name in message.lower():
-            medications.append(MedicationStatement(name=name, drug_class=drug_class, status="active"))
-
-    red_flags: list[RedFlag] = []
-    for name, terms in {
-        "cardiogenic_shock": ("shock", "soc tim", "cardiogenic shock"),
-        "active_bleeding": ("active bleeding", "dang chay mau"),
-        "acute_decompensated_hf": ("kho tho tang", "phu chan", "acute decompensated"),
-    }.items():
-        if any(term in message.lower() for term in terms):
-            red_flags.append(RedFlag(name=name, status="present"))
-
-    return PatientProfile(
-        patient_identity=PatientIdentity(case_id=conversation_id),
-        heart_failure_profile=HeartFailureProfile(lvef=_clinical_value(lvef, "%")),
-        labs=Labs(
-            egfr=_clinical_value(egfr, "mL/min/1.73m2"),
-            potassium=_clinical_value(potassium, "mmol/L"),
-        ),
-        vitals=Vitals(
-            systolic_bp=_clinical_value(systolic_bp, "mmHg"),
-            heart_rate=_clinical_value(heart_rate, "bpm"),
-        ),
-        conditions=conditions,
-        medications=medications,
-        red_flags=red_flags,
-        care_context=CareContext(clinician_question=message),
-    )
 
 
 def _prefer(existing: Any, incoming: Any) -> Any:
@@ -204,7 +118,7 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
 
     current = _load_draft(conversation_id)
     base_patient = current.patient if current else _new_patient(conversation_id)
-    extracted_patient = _extract_patient_from_message(request.message, conversation_id)
+    extracted_patient = extract_patient_from_message(request.message, conversation_id)
     merged = _merge_patient(base_patient, extracted_patient)
     if request.patient:
         merged = _merge_patient(merged, request.patient)

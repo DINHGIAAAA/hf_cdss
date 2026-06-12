@@ -943,6 +943,21 @@ h3 {
   margin-top: 10px;
 }
 
+.source-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  color: #0f766e;
+  font-size: 13px;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.source-link:hover {
+  text-decoration: underline;
+}
+
 .retrieval-details {
   display: none;
 }

@@ -6,10 +6,13 @@ from pathlib import Path
 from typing import Any
 
 from app.core.config import settings
+from app.modules.citation_validation.service import source_link_for_chunk
 from app.modules.datastores.artifacts import sync_artifacts_from_processed_bucket
 from app.modules.datastores.chroma import retrieve_chroma
 from app.modules.datastores.common import CHUNKS_PATH, DATA_ROOT, RELATIONSHIPS_PATH
 from app.modules.datastores.neo4j import retrieve_neo4j
+from app.modules.evidence_text import normalize_evidence_text
+from app.modules.semantic_retrieval.service import rerank_evidence_chunks
 from app.schemas.graphrag import (
     EvidenceChunk,
     EvidenceSearchResponse,
@@ -129,7 +132,7 @@ def retrieve_evidence_chunks(terms: list[str], top_k: int) -> list[EvidenceChunk
                 chunk.get("document_id", ""),
                 chunk.get("source_type", ""),
                 chunk.get("section", ""),
-                chunk.get("text", ""),
+                normalize_evidence_text(chunk.get("text", "")),
                 " ".join(str(value) for value in chunk.get("metadata", {}).values() if isinstance(value, str)),
             ]
         )
@@ -138,18 +141,22 @@ def retrieve_evidence_chunks(terms: list[str], top_k: int) -> list[EvidenceChunk
             scored.append((score, chunk))
 
     scored.sort(key=lambda item: item[0], reverse=True)
-    return [
-        EvidenceChunk(
+    chunks: list[EvidenceChunk] = []
+    for score, chunk in scored[:top_k]:
+        metadata = chunk.get("metadata", {})
+        evidence_chunk = EvidenceChunk(
             chunk_id=chunk["chunk_id"],
             document_id=chunk["document_id"],
             source_type=chunk["source_type"],
             section=chunk.get("section"),
-            text=chunk["text"][:900],
+            text=normalize_evidence_text(chunk["text"])[:900],
             score=score,
-            metadata=chunk.get("metadata", {}),
+            metadata=metadata,
+            source_url=metadata.get("source_url"),
+            page=metadata.get("page") or metadata.get("page_start"),
         )
-        for score, chunk in scored[:top_k]
-    ]
+        chunks.append(evidence_chunk.model_copy(update={"source_link": source_link_for_chunk(evidence_chunk)}))
+    return rerank_evidence_chunks(" ".join(terms), chunks, top_k)
 
 
 def retrieve_graph_facts(terms: list[str], top_k: int) -> list[GraphFact]:

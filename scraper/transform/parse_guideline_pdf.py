@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pdfplumber
 
+from scraper.transform.text_normalization import normalize_text
+
 
 HEADING_RE = re.compile(
     r"^("
@@ -17,10 +19,7 @@ HEADING_RE = re.compile(
 
 
 def clean_text(value: str) -> str:
-    value = (value or "").replace("\xa0", " ")
-    value = re.sub(r"[ \t]+", " ", value)
-    value = re.sub(r"\n{3,}", "\n\n", value)
-    return value.strip()
+    return normalize_text(value)
 
 
 def document_id_from_path(path: Path) -> str:
@@ -51,11 +50,15 @@ def source_metadata(pdf_path: Path, registry: dict[str, dict]) -> dict:
     return {
         "source_id": source.get("source_id") or document_id_from_path(pdf_path),
         "source": "guideline_pdf",
+        "source_type": "guideline",
         "source_url": source.get("url"),
         "publisher": publisher,
         "title": source.get("title") or pdf_path.stem,
         "citation": citation,
         "license_note": source.get("license_note"),
+        "retrieved_at": source.get("downloaded_at") or source.get("retrieved_at"),
+        "sha256": source.get("sha256"),
+        "storage_uri": source.get("storage_uri"),
     }
 
 
@@ -136,6 +139,14 @@ def parse_pdf(
                             **provenance,
                             "guideline_topic": guideline_topic,
                             "source_file": str(pdf_path),
+                            "page": index,
+                            "section": f"TABLE {table_index}",
+                            "provenance": {
+                                "source_id": provenance["source_id"],
+                                "source_url": provenance.get("source_url"),
+                                "page": index,
+                                "table_index": table_index,
+                            },
                         },
                     }
                     tables.append(table_record)
@@ -149,6 +160,12 @@ def parse_pdf(
             "guideline_topic": guideline_topic,
             "source_file": str(pdf_path),
             "page_count": len(pages),
+            "provenance": {
+                "source_id": provenance["source_id"],
+                "source_url": provenance.get("source_url"),
+                "page_start": 1 if pages else None,
+                "page_end": len(pages) if pages else None,
+            },
         },
     }
 
@@ -166,6 +183,14 @@ def parse_pdf(
                     "source_file": str(pdf_path),
                     "page_start": section["page_start"],
                     "page_end": section["page_end"],
+                    "page": section["page_start"],
+                    "provenance": {
+                        "source_id": provenance["source_id"],
+                        "source_url": provenance.get("source_url"),
+                        "section": section["section"],
+                        "page_start": section["page_start"],
+                        "page_end": section["page_end"],
+                    },
                 },
             }
         )

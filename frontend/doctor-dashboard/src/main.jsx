@@ -475,8 +475,13 @@ function cleanEvidenceExcerpt(text) {
     .slice(0, 520);
 }
 
+function evidenceSourceLink(chunk) {
+  return chunk.source_link || chunk.source_url || chunk.metadata?.source_url || chunk.metadata?.storage_uri || "";
+}
+
 function EvidenceCard({ chunk }) {
   const score = typeof chunk.score === "number" ? Math.round(chunk.score * 100) : null;
+  const sourceLink = evidenceSourceLink(chunk);
   return (
     <article className="evidence-card">
       <div className="evidence-card-header">
@@ -487,8 +492,14 @@ function EvidenceCard({ chunk }) {
       <div className="evidence-meta">
         {score !== null && <span>Do lien quan: {score}%</span>}
         {chunk.metadata?.publisher && <span>{chunk.metadata.publisher}</span>}
+        {chunk.page && <span>Page {chunk.page}</span>}
         {chunk.metadata?.source_file && <span>{chunk.metadata.source_file.split(/[\\/]/).slice(-1)[0]}</span>}
       </div>
+      {sourceLink && (
+        <a className="source-link" href={sourceLink} rel="noreferrer" target="_blank">
+          Open source <ExternalLink size={14} />
+        </a>
+      )}
       <details className="lineage-details">
         <summary>Chi tiet ky thuat</summary>
         <p>{cleanEvidenceExcerpt(chunk.text)}</p>
