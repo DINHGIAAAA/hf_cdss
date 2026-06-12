@@ -7,6 +7,8 @@ from app.schemas.graphrag import (
     EvidenceChunk,
     GraphRAGContextResponse,
 )
+from app.core.metrics import increment
+from app.modules.evidence_quality import quality_score_for_chunk
 from app.schemas.recommendation import RecommendationResponse
 
 
@@ -31,7 +33,7 @@ SAFETY_TERMS = {
 class EvidenceMatch:
     chunk: EvidenceChunk
     matched_terms: list[str]
-    score: int
+    score: float
 
 
 def source_link_for_chunk(chunk: EvidenceChunk) -> str | None:
@@ -79,14 +81,30 @@ def _quality_bonus(chunk: EvidenceChunk) -> int:
     return 0
 
 
-def _match_chunks(chunks: list[EvidenceChunk], required_terms: list[str], top_k: int = 3) -> list[EvidenceMatch]:
+def _reference_terms(refs: list[str]) -> list[str]:
+    terms: list[str] = []
+    for ref in refs:
+        terms.extend(_tokens(ref.replace("_", " ")))
+    return terms
+
+
+def _match_chunks(
+    chunks: list[EvidenceChunk],
+    required_terms: list[str],
+    evidence_refs: list[str] | None = None,
+    top_k: int = 3,
+) -> list[EvidenceMatch]:
     matches: list[EvidenceMatch] = []
+    evidence_refs = evidence_refs or []
+    ref_terms = _reference_terms(evidence_refs)
     for chunk in chunks:
         text = _chunk_text(chunk)
         matched = [term for term in required_terms if _contains(text, term)]
-        if not matched:
+        ref_matched = [term for term in ref_terms if _contains(text, term)]
+        if not matched and not ref_matched:
             continue
-        score = len(matched) + _quality_bonus(chunk)
+        quality = quality_score_for_chunk(chunk, matched + ref_matched)
+        score = len(set(matched)) + (len(set(ref_matched)) * 0.75) + _quality_bonus(chunk) + quality
         matches.append(EvidenceMatch(chunk=chunk, matched_terms=matched, score=score))
     return sorted(matches, key=lambda item: (item.score, item.chunk.score), reverse=True)[:top_k]
 
@@ -104,14 +122,19 @@ def _safety_terms(text: str) -> list[str]:
     return terms
 
 
-def _support_status(matches: list[EvidenceMatch], required_terms: list[str]) -> tuple[str, str]:
+def _support_status(matches: list[EvidenceMatch], required_terms: list[str]) -> tuple[str, str, str, float]:
     if not matches:
-        return "missing", "No retrieved evidence chunk matched the target terms."
+        return "missing", "missing_citation", "No retrieved evidence chunk matched the target terms.", 0.0
     all_matched = {term for match in matches for term in match.matched_terms}
     coverage = len(all_matched) / max(len(set(required_terms)), 1)
-    if coverage >= 0.5 and any(match.chunk.source_type in {"guideline", "drug_label"} for match in matches):
-        return "strong", "Retrieved evidence directly supports this item."
-    return "weak", "Retrieved evidence is relevant but incomplete."
+    best_quality = max(quality_score_for_chunk(match.chunk, match.matched_terms) for match in matches)
+    has_authoritative_source = any(match.chunk.source_type in {"guideline", "drug_label"} for match in matches)
+    confidence = round(min((coverage * 0.65) + (best_quality * 0.35), 1.0), 3)
+    if coverage >= 0.5 and has_authoritative_source and best_quality >= 0.55:
+        return "strong", "supported", "Retrieved evidence directly supports this item.", confidence
+    if coverage >= 0.25 or best_quality >= 0.6:
+        return "weak", "weakly_supported", "Retrieved evidence is relevant but incomplete.", confidence
+    return "weak", "unsupported", "Retrieved evidence has low term coverage for this item.", confidence
 
 
 def _citation_support(
@@ -120,10 +143,12 @@ def _citation_support(
     message_basis: str,
     required_terms: list[str],
     chunks: list[EvidenceChunk],
+    evidence_refs: list[str] | None = None,
 ) -> CitationSupport:
     unique_terms = sorted({term.lower() for term in required_terms if term})
-    matches = _match_chunks(chunks, unique_terms)
-    status, message = _support_status(matches, unique_terms)
+    matches = _match_chunks(chunks, unique_terms, evidence_refs=evidence_refs)
+    status, verdict, message, confidence = _support_status(matches, unique_terms)
+    best_quality = max((quality_score_for_chunk(match.chunk, match.matched_terms) for match in matches), default=0.0)
     return CitationSupport(
         target_id=target_id,
         target_type=target_type,
@@ -133,6 +158,9 @@ def _citation_support(
         matched_terms=sorted({term for match in matches for term in match.matched_terms}),
         evidence_refs=[match.chunk.chunk_id for match in matches],
         source_links=[link for match in matches if (link := source_link_for_chunk(match.chunk))],
+        evidence_verdict=verdict,
+        confidence=confidence,
+        quality_score=round(best_quality, 3),
     )
 
 
@@ -145,6 +173,7 @@ def validate_citations(
 
     for item in response.recommendations:
         terms = _class_terms(item.drug_class) + _safety_terms(" ".join(item.warnings + [item.rationale]))
+        refs = item.evidence + item.constraint_ids + item.safety_warning_ids
         supports.append(
             _citation_support(
                 target_id=item.drug_class,
@@ -152,6 +181,7 @@ def validate_citations(
                 message_basis=item.rationale,
                 required_terms=terms,
                 chunks=chunks,
+                evidence_refs=refs,
             )
         )
 
@@ -164,6 +194,7 @@ def validate_citations(
                 message_basis=constraint.reason,
                 required_terms=terms,
                 chunks=chunks,
+                evidence_refs=[constraint.evidence_ref or constraint.constraint_id],
             )
         )
 
@@ -176,6 +207,7 @@ def validate_citations(
                 message_basis=warning.message,
                 required_terms=terms,
                 chunks=chunks,
+                evidence_refs=[getattr(warning, "evidence_ref", None) or warning.warning_id],
             )
         )
 
@@ -185,5 +217,10 @@ def validate_citations(
         status = "weak"
     else:
         status = "strong"
+    increment("hf_cdss_citation_validation_total", {"status": status})
+    for support in supports:
+        increment(
+            "hf_cdss_citation_support_total",
+            {"target_type": support.target_type, "verdict": support.evidence_verdict or support.evidence_status},
+        )
     return CitationValidation(status=status, supports=supports)
-

@@ -10,6 +10,7 @@ from app.api.routes import (
     knowledge_graph,
     llm,
     medication_safety,
+    metrics,
     recommendation,
     retrieval,
 )
@@ -27,3 +28,4 @@ api_router.include_router(graphrag.router, tags=["graphrag"])
 api_router.include_router(llm.router, tags=["llm"])
 api_router.include_router(audit.router, tags=["audit"])
 api_router.include_router(chat.router, tags=["chat"])
+api_router.include_router(metrics.router, tags=["metrics"])

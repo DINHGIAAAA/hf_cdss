@@ -7,6 +7,7 @@ from app.core.config import settings
 from app.modules.citation_validation.service import source_link_for_chunk
 from app.modules.datastores.common import CHUNKS_PATH, read_jsonl
 from app.modules.evidence_text import normalize_evidence_text
+from app.modules.evidence_quality import enrich_evidence_chunk, quality_score_for_chunk
 from app.modules.semantic_retrieval.service import embed_documents, embed_query, embedding_index_version, rerank_evidence_chunks
 from app.schemas.graphrag import EvidenceChunk
 
@@ -129,8 +130,9 @@ def retrieve_chroma(query: str, top_k: int) -> list[EvidenceChunk]:
             source_url=raw_metadata.get("source_url"),
             page=raw_metadata.get("page") or raw_metadata.get("page_start"),
         )
-        chunks.append(chunk.model_copy(update={"source_link": source_link_for_chunk(chunk)}))
-    return rerank_evidence_chunks(query, chunks, top_k)
+        chunks.append(enrich_evidence_chunk(chunk.model_copy(update={"source_link": source_link_for_chunk(chunk)})))
+    ranked = rerank_evidence_chunks(query, chunks, top_k)
+    return sorted(ranked, key=lambda item: (quality_score_for_chunk(item), item.score), reverse=True)[:top_k]
 
 
 def chroma_status() -> dict[str, Any]:

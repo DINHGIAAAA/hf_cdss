@@ -1,5 +1,6 @@
 import argparse
 import json
+import re
 from pathlib import Path
 
 
@@ -9,6 +10,9 @@ REQUIRED_FIELDS = {
     "claims": ("claim_id", "document_id", "source_type", "claim_type", "evidence", "confidence"),
     "relationships": ("relationship_id", "source_id", "relationship_type", "target_id", "metadata"),
 }
+MOJIBAKE_PATTERNS = ("\ufffd", "Ã", "Â", "â€™", "â€œ", "â€", "Ä‘")
+REQUIRED_CHUNK_METADATA = ("source_url", "citation", "provenance")
+PROVENANCE_FIELDS = ("source_id", "section")
 
 
 def read_jsonl(path: Path) -> list[dict]:
@@ -45,6 +49,69 @@ def validate_entity_occurrences(records: list[dict]) -> list[str]:
     return errors
 
 
+def _has_mojibake(value: str) -> bool:
+    return any(pattern in value for pattern in MOJIBAKE_PATTERNS)
+
+
+def validate_chunk_quality(path: Path, rows: list[dict]) -> list[str]:
+    errors = []
+    for index, row in enumerate(rows, start=1):
+        text = str(row.get("text") or "")
+        metadata = row.get("metadata") or {}
+        if _has_mojibake(text):
+            errors.append(f"{path}: row {index} contains likely encoding/mojibake artifacts")
+        missing_metadata = [field for field in REQUIRED_CHUNK_METADATA if metadata.get(field) in (None, "", {})]
+        if missing_metadata:
+            errors.append(f"{path}: row {index} missing metadata {missing_metadata}")
+        provenance = metadata.get("provenance") or {}
+        missing_provenance = [field for field in PROVENANCE_FIELDS if provenance.get(field) in (None, "")]
+        if missing_provenance:
+            errors.append(f"{path}: row {index} missing provenance {missing_provenance}")
+        source_type = str(row.get("source_type") or "").lower()
+        if source_type == "guideline" and not (metadata.get("page") or metadata.get("page_start")):
+            errors.append(f"{path}: row {index} guideline chunk missing page/page_start")
+        if not re.match(r"^https?://", str(metadata.get("source_url") or "")):
+            errors.append(f"{path}: row {index} source_url must be an http(s) URL")
+    return errors
+
+
+def validate_claim_quality(path: Path, rows: list[dict]) -> list[str]:
+    errors = []
+    for index, row in enumerate(rows, start=1):
+        evidence = str(row.get("evidence") or "")
+        confidence = row.get("confidence")
+        if _has_mojibake(evidence):
+            errors.append(f"{path}: row {index} evidence contains likely encoding/mojibake artifacts")
+        if not isinstance(confidence, int | float) or confidence < 0 or confidence > 1:
+            errors.append(f"{path}: row {index} confidence must be between 0 and 1")
+    return errors
+
+
+def validate_download_manifest(path: Path) -> tuple[int, list[str]]:
+    if not path.exists():
+        return 0, [f"{path}: download manifest is missing"]
+    rows = json.loads(path.read_text(encoding="utf-8-sig"))
+    if not isinstance(rows, list):
+        return 0, [f"{path}: download manifest must be a JSON array"]
+    errors = []
+    for index, row in enumerate(rows, start=1):
+        source_id = row.get("source_id") or row.get("id") or row.get("title")
+        if not source_id:
+            errors.append(f"{path}: row {index} missing source identifier")
+        if row.get("status") not in {"downloaded", "existing"}:
+            errors.append(f"{path}: row {index} has invalid download status {row.get('status')}")
+        if not row.get("url") and not row.get("source_url"):
+            errors.append(f"{path}: row {index} missing source URL")
+        if row.get("status") == "downloaded" and not row.get("sha256"):
+            errors.append(f"{path}: row {index} downloaded source missing sha256")
+        if row.get("status") == "downloaded" and not row.get("bytes"):
+            errors.append(f"{path}: row {index} downloaded source missing byte count")
+        for artifact in row.get("artifacts") or []:
+            if artifact.get("kind") in {"pdf", "xml", "html"} and not artifact.get("sha256"):
+                errors.append(f"{path}: row {index} artifact {artifact.get('target_path')} missing sha256")
+    return len(rows), errors
+
+
 def validate_file(name: str, path: Path, id_field: str | None) -> tuple[int, list[str]]:
     rows = read_jsonl(path)
     errors = []
@@ -52,10 +119,14 @@ def validate_file(name: str, path: Path, id_field: str | None) -> tuple[int, lis
         missing = [field for field in REQUIRED_FIELDS[name] if row.get(field) in (None, "")]
         if missing:
             errors.append(f"{path}: row {index} missing {missing}")
+    if id_field:
+        errors.extend(validate_unique(rows, id_field))
     if name == "entities":
         errors.extend(validate_entity_occurrences(rows))
-    elif id_field:
-        errors.extend(validate_unique(rows, id_field))
+    elif name == "chunks":
+        errors.extend(validate_chunk_quality(path, rows))
+    elif name == "claims":
+        errors.extend(validate_claim_quality(path, rows))
     return len(rows), errors
 
 
@@ -76,6 +147,12 @@ def main() -> None:
         count, errors = validate_file(name, path, id_field)
         summary[name] = count
         all_errors.extend(errors)
+
+    manifest_count, manifest_errors = validate_download_manifest(
+        args.root / "artifacts/manifests/download_manifest.json"
+    )
+    summary["download_manifest"] = manifest_count
+    all_errors.extend(manifest_errors)
 
     print(json.dumps({"summary": summary, "errors": all_errors[:20]}, ensure_ascii=False, indent=2))
     if all_errors:

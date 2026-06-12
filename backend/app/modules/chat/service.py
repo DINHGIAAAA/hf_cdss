@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from app.modules.clinical_intake_extraction.service import extract_patient_from_message
+from app.modules.chat.clinical_state import build_clinical_state, state_query_text
 from app.modules.datastores.postgres import (
     append_chat_message,
     read_chat_messages,
@@ -17,7 +18,7 @@ from app.modules.verification_agents.service import verify_recommendation
 from app.schemas.chat import ChatMessage, ChatRequest, ChatResponse, PatientDraft
 from app.schemas.graphrag import VerificationRequest
 from app.schemas.llm import LLMAnswerRequest
-from app.schemas.patient import PatientIdentity, PatientProfile
+from app.schemas.patient import ClinicalDocument, PatientIdentity, PatientProfile
 from app.schemas.recommendation import RecommendationRequest
 
 
@@ -66,6 +67,35 @@ def _save_draft(draft: PatientDraft) -> None:
 
 def _new_patient(conversation_id: str) -> PatientProfile:
     return PatientProfile(patient_identity=PatientIdentity(case_id=conversation_id))
+
+
+def _attachment_context(request: ChatRequest) -> str:
+    parts = []
+    for attachment in request.clinical_attachments:
+        if attachment.extracted_text:
+            parts.append(f"[{attachment.file_name}] {attachment.extracted_text[:4000]}")
+        elif attachment.note:
+            parts.append(f"[{attachment.file_name}] {attachment.note}")
+    return "\n".join(parts)
+
+
+def _merge_clinical_documents(patient: PatientProfile, request: ChatRequest) -> PatientProfile:
+    if not request.clinical_attachments:
+        return patient
+    merged = patient.model_copy(deep=True)
+    existing = {item.file_name for item in merged.clinical_documents if item.file_name}
+    for attachment in request.clinical_attachments:
+        if attachment.file_name in existing:
+            continue
+        merged.clinical_documents.append(
+            ClinicalDocument(
+                document_id=attachment.file_name,
+                file_name=attachment.file_name,
+                file_type=attachment.mime_type,
+                processing_status="text_extracted" if attachment.extracted_text else "metadata_only",
+            )
+        )
+    return merged
 
 
 def _prefer(existing: Any, incoming: Any) -> Any:
@@ -118,17 +148,32 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
 
     current = _load_draft(conversation_id)
     base_patient = current.patient if current else _new_patient(conversation_id)
-    extracted_patient = extract_patient_from_message(request.message, conversation_id)
+    attachment_context = _attachment_context(request)
+    extraction_message = "\n".join(value for value in [request.message, attachment_context] if value)
+    extracted_patient = extract_patient_from_message(extraction_message, conversation_id)
     merged = _merge_patient(base_patient, extracted_patient)
     if request.patient:
         merged = _merge_patient(merged, request.patient)
+    merged = _merge_clinical_documents(merged, request)
 
-    draft = PatientDraft(conversation_id=conversation_id, patient=merged, updated_at=_now())
+    clinical_state = build_clinical_state(merged, extraction_message)
+    if state_text := state_query_text(clinical_state):
+        merged.care_context.decision_context = " ".join(
+            value for value in [merged.care_context.decision_context, state_text] if value
+        ).strip()
+
+    draft = PatientDraft(
+        conversation_id=conversation_id,
+        patient=merged,
+        updated_at=_now(),
+        clinical_state=clinical_state,
+    )
     _save_draft(draft)
 
     missing_check = check_missing_fields(merged)
     tool_outputs: list[dict[str, Any]] = [
         {"tool": "patient_draft_merge", "patient": merged.legacy_summary()},
+        {"tool": "clinical_state_memory", "result": clinical_state},
         {"tool": "missing_field_checker", "result": missing_check.model_dump(mode="json")},
     ]
 
@@ -139,7 +184,12 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
         write_audit_event(
             merged.case_id,
             "chat_missing_fields",
-            {"message": request.message, "missing_check": missing_check.model_dump(mode="json")},
+            {
+                "message": request.message,
+                "attachments": [item.model_dump(mode="json") for item in request.clinical_attachments],
+                "clinical_state": clinical_state,
+                "missing_check": missing_check.model_dump(mode="json"),
+            },
         )
         return ChatResponse(
             conversation_id=conversation_id,
@@ -179,6 +229,8 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
         "chat_recommendation_completed",
         {
             "message": request.message,
+            "attachments": [item.model_dump(mode="json") for item in request.clinical_attachments],
+            "clinical_state": clinical_state,
             "patient": merged.model_dump(mode="json"),
             "recommendation": recommendation.model_dump(mode="json"),
             "verification": verification.model_dump(mode="json"),

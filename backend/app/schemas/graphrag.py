@@ -27,6 +27,8 @@ class EvidenceChunk(BaseModel):
     source_url: str | None = None
     source_link: str | None = None
     page: int | None = None
+    quality_score: float | None = None
+    evidence_level: str | None = None
 
 
 class GraphRAGContextRequest(BaseModel):
@@ -71,6 +73,9 @@ class CitationSupport(BaseModel):
     matched_terms: list[str] = Field(default_factory=list)
     evidence_refs: list[str] = Field(default_factory=list)
     source_links: list[str] = Field(default_factory=list)
+    evidence_verdict: str | None = None
+    confidence: float | None = None
+    quality_score: float | None = None
 
 
 class CitationValidation(BaseModel):

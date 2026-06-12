@@ -27,6 +27,14 @@ class PatientDraft(BaseModel):
     patient: PatientProfile
     updated_at: datetime
     source: str = "chat"
+    clinical_state: dict[str, Any] = Field(default_factory=dict)
+
+
+class ClinicalAttachment(BaseModel):
+    file_name: str
+    mime_type: str | None = None
+    extracted_text: str | None = None
+    note: str | None = None
 
 
 class ChatRequest(BaseModel):
@@ -34,6 +42,7 @@ class ChatRequest(BaseModel):
     conversation_id: str | None = None
     patient: PatientProfile | None = None
     language: str = "vi"
+    clinical_attachments: list[ClinicalAttachment] = Field(default_factory=list)
 
 
 class ChatMessage(BaseModel):

@@ -66,4 +66,5 @@ def test_validate_citations_marks_supported_items() -> None:
     assert any(item.target_type == "constraint" for item in validation.supports)
     assert any("mra_guideline_chunk" in item.evidence_refs for item in validation.supports)
     assert any("https://example.org/hf.pdf#page=77" in item.source_links for item in validation.supports)
-
+    assert any(item.evidence_verdict in {"supported", "weakly_supported"} for item in validation.supports)
+    assert any((item.confidence or 0) > 0 for item in validation.supports)

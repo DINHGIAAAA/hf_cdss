@@ -6,6 +6,7 @@ from typing import Any
 
 import httpx
 
+from app.core.metrics import increment, observe
 from app.core.config import settings
 from app.prompts.explanation import CLINICAL_EXPLANATION_SYSTEM_PROMPT
 from app.schemas.llm import LLMAnswerRequest, LLMAnswerResponse
@@ -156,9 +157,12 @@ def _write_cache(key: str, response: LLMAnswerResponse) -> None:
 
 
 def build_llm_answer(payload: LLMAnswerRequest) -> LLMAnswerResponse:
+    started = time.perf_counter()
     api_type = settings.llm_api_type.lower().strip()
     requires_api_key = api_type == "responses" and "api.openai.com" in settings.llm_base_url
     if requires_api_key and not settings.openai_api_key:
+        increment("hf_cdss_llm_requests_total", {"model": "fallback", "status": "missing_api_key"})
+        observe("hf_cdss_llm_latency", time.perf_counter() - started, {"model": "fallback", "status": "missing_api_key"})
         return LLMAnswerResponse(
             case_id=payload.patient.case_id,
             answer=fallback_answer(payload),
@@ -171,6 +175,8 @@ def build_llm_answer(payload: LLMAnswerRequest) -> LLMAnswerResponse:
     cache_key = _cache_key(compact_payload)
     cached = _read_cache(cache_key)
     if cached:
+        increment("hf_cdss_llm_requests_total", {"model": cached.model, "status": "cache_hit"})
+        observe("hf_cdss_llm_latency", time.perf_counter() - started, {"model": cached.model, "status": "cache_hit"})
         return cached
 
     try:
@@ -213,6 +219,12 @@ def build_llm_answer(payload: LLMAnswerRequest) -> LLMAnswerResponse:
             safety_note=SAFETY_NOTE,
         )
         _write_cache(cache_key, fallback_response)
+        increment("hf_cdss_llm_requests_total", {"model": "fallback_after_llm_error", "status": "error"})
+        observe(
+            "hf_cdss_llm_latency",
+            time.perf_counter() - started,
+            {"model": "fallback_after_llm_error", "status": "error"},
+        )
         return fallback_response
 
     response = LLMAnswerResponse(
@@ -223,4 +235,7 @@ def build_llm_answer(payload: LLMAnswerRequest) -> LLMAnswerResponse:
         safety_note=SAFETY_NOTE,
     )
     _write_cache(cache_key, response)
+    status = "ok" if response.used_llm else "empty_response"
+    increment("hf_cdss_llm_requests_total", {"model": response.model, "status": status})
+    observe("hf_cdss_llm_latency", time.perf_counter() - started, {"model": response.model, "status": status})
     return response

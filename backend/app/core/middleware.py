@@ -1,3 +1,5 @@
+import hashlib
+import logging
 import time
 import uuid
 from collections import defaultdict, deque
@@ -7,10 +9,12 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 
 from app.core.config import settings
+from app.core.metrics import increment, observe
 from app.core.request_context import request_id_var
 from app.schemas.common import ErrorDetail, ErrorResponse
 
 
+logger = logging.getLogger("app.access")
 PUBLIC_PATH_PREFIXES = (
     "/",
     "/api/v1/",
@@ -20,6 +24,8 @@ PUBLIC_PATH_PREFIXES = (
     "/api/v1/version",
     "/routes",
     "/api/v1/routes",
+    "/metrics",
+    "/api/v1/metrics",
     "/docs",
     "/redoc",
     "/openapi.json",
@@ -57,6 +63,11 @@ def _client_id(request: Request) -> str:
     return api_key or forwarded or host
 
 
+def _safe_client_id(request: Request) -> str:
+    value = _client_id(request)
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()[:16]
+
+
 def _is_rate_limited(request: Request) -> bool:
     if not any(request.url.path == path or request.url.path.startswith(f"{path}/") for path in RATE_LIMIT_PATHS):
         return False
@@ -81,9 +92,12 @@ async def production_guard_middleware(
     request_id = request.headers.get("x-request-id") or str(uuid.uuid4())
     request.state.request_id = request_id
     token = request_id_var.set(request_id)
+    started = time.perf_counter()
+    status_code = 500
     try:
         content_length = request.headers.get("content-length")
         if content_length and int(content_length) > settings.max_request_body_bytes:
+            status_code = 413
             return _error(413, "request_too_large", "Request body is too large.", request_id)
 
         if request.method != "OPTIONS" and _requires_auth(request.url.path):
@@ -91,13 +105,31 @@ async def production_guard_middleware(
             supplied_key = request.headers.get(settings.api_key_header)
             is_pytest_client = request.headers.get("user-agent") == "testclient"
             if not is_pytest_client and (not expected_keys or supplied_key not in expected_keys):
+                status_code = 401
                 return _error(401, "unauthorized", "A valid API key is required.", request_id)
 
         if _is_rate_limited(request):
+            status_code = 429
             return _error(429, "rate_limited", "Too many requests. Please retry later.", request_id)
 
         response = await call_next(request)
+        status_code = response.status_code
         response.headers["x-request-id"] = request_id
         return response
     finally:
+        elapsed = time.perf_counter() - started
+        logger.info(
+            "request completed",
+            extra={
+                "event": "http_request",
+                "method": request.method,
+                "path": request.url.path,
+                "status_code": status_code,
+                "duration_ms": round(elapsed * 1000, 2),
+                "client": _safe_client_id(request),
+            },
+        )
+        metric_labels = {"method": request.method, "path": request.url.path, "status": str(status_code)}
+        increment("hf_cdss_http_requests_total", metric_labels)
+        observe("hf_cdss_http_request_duration", elapsed, metric_labels)
         request_id_var.reset(token)

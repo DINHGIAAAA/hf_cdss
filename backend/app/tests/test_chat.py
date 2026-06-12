@@ -69,6 +69,47 @@ def test_chat_uses_intake_extractor_for_contextual_fields() -> None:
     assert payload["missing_check"]["status"] == "complete"
 
 
+def test_chat_builds_clinical_state_for_followup_intent() -> None:
+    response = client.post(
+        "/chat",
+        json={
+            "message": (
+                "EF 35, eGFR 55, K 4.8, BP 110/70, HR 68. "
+                "Dang dung Entresto 49/51 mg bid. NKDA. Stable. Co tang lieu Entresto duoc khong?"
+            )
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    state = payload["patient_draft"]["clinical_state"]
+    assert state["intent"] == "dose_adjustment"
+    assert "ARNI" in state["focus_medication_classes"]
+    assert state["hf_type"] == "HFrEF"
+
+
+def test_chat_uses_clinical_attachment_text_for_patient_draft() -> None:
+    response = client.post(
+        "/chat",
+        json={
+            "message": "Doc dinh kem co thong tin lam sang.",
+            "clinical_attachments": [
+                {
+                    "file_name": "clinic_note.txt",
+                    "mime_type": "text/plain",
+                    "extracted_text": "EF 31, eGFR 52, K 4.7, BP 116/72, HR 69. Taking carvedilol. NKDA. Stable.",
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    patient = payload["patient_draft"]["patient"]
+    assert patient["heart_failure_profile"]["lvef"]["value"] == 31
+    assert patient["clinical_documents"][0]["file_name"] == "clinic_note.txt"
+
+
 def test_chat_history_can_be_read_from_persistent_store(monkeypatch) -> None:
     persisted_messages = []
     persisted_drafts = {}

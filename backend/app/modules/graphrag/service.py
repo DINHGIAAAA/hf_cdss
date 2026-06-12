@@ -1,17 +1,20 @@
 import json
 import logging
 import re
+import time
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
 from app.core.config import settings
+from app.core.metrics import increment, observe
 from app.modules.citation_validation.service import source_link_for_chunk
 from app.modules.datastores.artifacts import sync_artifacts_from_processed_bucket
 from app.modules.datastores.chroma import retrieve_chroma
 from app.modules.datastores.common import CHUNKS_PATH, DATA_ROOT, RELATIONSHIPS_PATH
 from app.modules.datastores.neo4j import retrieve_neo4j
 from app.modules.evidence_text import normalize_evidence_text
+from app.modules.evidence_quality import enrich_evidence_chunk, quality_score_for_chunk
 from app.modules.semantic_retrieval.service import rerank_evidence_chunks
 from app.schemas.graphrag import (
     EvidenceChunk,
@@ -88,6 +91,14 @@ def query_terms_for_patient(patient: PatientProfile, query: str | None = None) -
     _add_terms(terms, patient.current_medications)
     _add_terms(terms, patient.comorbidities)
     _add_terms(terms, patient.allergies)
+    _add_terms(
+        terms,
+        [
+            patient.care_context.clinician_question or "",
+            patient.care_context.decision_context or "",
+            patient.care_context.treatment_goal or "",
+        ],
+    )
 
     for medication in patient.current_medications:
         med = medication.lower()
@@ -155,8 +166,15 @@ def retrieve_evidence_chunks(terms: list[str], top_k: int) -> list[EvidenceChunk
             source_url=metadata.get("source_url"),
             page=metadata.get("page") or metadata.get("page_start"),
         )
-        chunks.append(evidence_chunk.model_copy(update={"source_link": source_link_for_chunk(evidence_chunk)}))
-    return rerank_evidence_chunks(" ".join(terms), chunks, top_k)
+        matched_terms = [term for term in terms if term.lower() in text.lower()]
+        evidence_chunk = evidence_chunk.model_copy(update={"source_link": source_link_for_chunk(evidence_chunk)})
+        chunks.append(enrich_evidence_chunk(evidence_chunk, matched_terms))
+    ranked = rerank_evidence_chunks(" ".join(terms), chunks, top_k)
+    return sorted(
+        ranked,
+        key=lambda item: (quality_score_for_chunk(item), item.score),
+        reverse=True,
+    )[:top_k]
 
 
 def retrieve_graph_facts(terms: list[str], top_k: int) -> list[GraphFact]:
@@ -191,6 +209,7 @@ def retrieve_graph_facts(terms: list[str], top_k: int) -> list[GraphFact]:
 
 
 def build_graphrag_context(request: GraphRAGContextRequest) -> GraphRAGContextResponse:
+    started = time.perf_counter()
     terms = query_terms_for_patient(request.patient, request.query)
     top_k = max(1, min(request.top_k, 12))
     graph_facts: list[GraphFact] = []
@@ -220,7 +239,7 @@ def build_graphrag_context(request: GraphRAGContextRequest) -> GraphRAGContextRe
         evidence_chunks = retrieve_evidence_chunks(terms, top_k)
         retrieval_sources.append("local_chunks")
 
-    return GraphRAGContextResponse(
+    response = GraphRAGContextResponse(
         case_id=request.patient.case_id,
         query_terms=terms,
         graph_facts=graph_facts,
@@ -231,9 +250,17 @@ def build_graphrag_context(request: GraphRAGContextRequest) -> GraphRAGContextRe
         ),
         retrieval_sources=retrieval_sources,
     )
+    observe(
+        "hf_cdss_retrieval_latency",
+        time.perf_counter() - started,
+        {"sources": ",".join(retrieval_sources) or "none", "mode": settings.retrieval_backend},
+    )
+    increment("hf_cdss_retrieval_requests_total", {"mode": settings.retrieval_backend})
+    return response
 
 
 def search_evidence(query: str, top_k: int = 6) -> EvidenceSearchResponse:
+    started = time.perf_counter()
     terms = sorted(set(_tokenize(query)))
     top_k = max(1, min(top_k, 12))
     graph_facts = retrieve_graph_facts(terms, top_k) if terms else []
@@ -243,10 +270,17 @@ def search_evidence(query: str, top_k: int = 6) -> EvidenceSearchResponse:
         retrieval_sources.append("local_relationships")
     if evidence_chunks:
         retrieval_sources.append("local_chunks")
-    return EvidenceSearchResponse(
+    response = EvidenceSearchResponse(
         query=query,
         query_terms=terms,
         graph_facts=graph_facts,
         evidence_chunks=evidence_chunks,
         retrieval_sources=retrieval_sources,
     )
+    observe(
+        "hf_cdss_retrieval_latency",
+        time.perf_counter() - started,
+        {"sources": ",".join(retrieval_sources) or "none", "mode": "search"},
+    )
+    increment("hf_cdss_retrieval_requests_total", {"mode": "search"})
+    return response
