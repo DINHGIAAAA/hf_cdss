@@ -43,6 +43,13 @@ def s3_key(prefix: str, path: Path, workspace: Path) -> str:
     return f"{prefix.strip('/')}/{relative}"
 
 
+def ensure_bucket(client, bucket: str) -> None:
+    try:
+        client.head_bucket(Bucket=bucket)
+    except Exception:
+        client.create_bucket(Bucket=bucket)
+
+
 def iter_outputs(workspace: Path, run_id: str | None = None) -> list[Path]:
     paths: list[Path] = []
     processed_root = workspace / "processed"
@@ -74,6 +81,8 @@ def main() -> None:
     args = parser.parse_args()
 
     client = s3_client(args.endpoint_url)
+    if not args.dry_run:
+        ensure_bucket(client, args.bucket)
     uploaded = 0
     for path in iter_outputs(args.workspace, safe_run_id(args.run_id)):
         key = s3_key(args.prefix, path, args.workspace)

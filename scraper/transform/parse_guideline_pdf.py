@@ -43,6 +43,12 @@ def load_registry(path: Path | None) -> dict[str, dict]:
 
 def source_metadata(pdf_path: Path, registry: dict[str, dict]) -> dict:
     source = registry.get(pdf_path.name) or registry.get(document_id_from_path(pdf_path)) or {}
+    if not source:
+        normalized_path = pdf_path.as_posix()
+        for target_path, row in registry.items():
+            if "/" in target_path and normalized_path.endswith(target_path):
+                source = row
+                break
     citation = source.get("title") or pdf_path.stem
     publisher = source.get("publisher")
     if publisher:
@@ -213,6 +219,11 @@ def write_jsonl(records: list[dict], output_path: Path) -> None:
 
 
 def parse_pdf_job(args: tuple[Path, Path, bool, dict]) -> tuple[dict, list[dict], list[dict]]:
+    pdf_path = args[0]
+    with pdf_path.open("rb") as handle:
+        if handle.read(4) != b"%PDF":
+            print(f"Skipping non-PDF file: {pdf_path}")
+            return {}, [], []
     return parse_pdf(*args)
 
 
@@ -246,6 +257,8 @@ def main() -> None:
             results = list(executor.map(parse_pdf_job, jobs))
 
     for document, pdf_sections, tables in results:
+        if not document:
+            continue
         documents.append(document)
         sections.extend(pdf_sections)
         table_count += len(tables)

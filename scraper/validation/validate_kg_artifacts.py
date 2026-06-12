@@ -68,8 +68,14 @@ def validate_chunk_quality(path: Path, rows: list[dict]) -> list[str]:
         if missing_provenance:
             errors.append(f"{path}: row {index} missing provenance {missing_provenance}")
         source_type = str(row.get("source_type") or "").lower()
-        if source_type == "guideline" and not (metadata.get("page") or metadata.get("page_start")):
+        source_format = str(metadata.get("source") or metadata.get("source_type") or "").lower()
+        has_page = bool(metadata.get("page") or metadata.get("page_start"))
+        has_locator = bool(metadata.get("source_locator") or (metadata.get("provenance") or {}).get("source_locator"))
+        is_html_guideline = source_format == "guideline_html" or str(metadata.get("source_file") or "").lower().endswith(".html")
+        if source_type == "guideline" and not is_html_guideline and not has_page:
             errors.append(f"{path}: row {index} guideline chunk missing page/page_start")
+        if source_type == "guideline" and is_html_guideline and not has_locator:
+            errors.append(f"{path}: row {index} guideline HTML chunk missing source_locator")
         if not re.match(r"^https?://", str(metadata.get("source_url") or "")):
             errors.append(f"{path}: row {index} source_url must be an http(s) URL")
     return errors

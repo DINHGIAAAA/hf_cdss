@@ -23,6 +23,122 @@ GDMT_CLASSES = {
 }
 
 
+def _fmt_observation(profile: NormalizedPatientProfile, key: str, label: str, unit: str = "") -> str | None:
+    value = profile.observations.get(key)
+    if value in (None, ""):
+        return None
+    suffix = f" {unit}" if unit else ""
+    return f"{label} {value}{suffix}"
+
+
+def _current_med(profile: NormalizedPatientProfile, terms: set[str]) -> str | None:
+    for med in profile.normalized_current_medications:
+        lowered = med.lower()
+        if any(term in lowered for term in terms):
+            return med
+    return None
+
+
+def _patient_context(profile: NormalizedPatientProfile) -> str:
+    parts = [
+        _fmt_observation(profile, "lvef", "LVEF", "%"),
+        _fmt_observation(profile, "egfr", "eGFR"),
+        _fmt_observation(profile, "potassium", "K+", "mmol/L"),
+        _fmt_observation(profile, "systolic_bp", "SBP", "mmHg"),
+        _fmt_observation(profile, "heart_rate", "HR", "bpm"),
+    ]
+    return ", ".join(part for part in parts if part) or "structured clinical profile"
+
+
+def _class_guidance(
+    profile: NormalizedPatientProfile,
+    drug_class: str,
+    status: str,
+    relevant_constraints: list[Constraint],
+    relevant_warnings: list[MedicationSafetyWarning],
+) -> tuple[str, list[str], list[str], list[str]]:
+    context = _patient_context(profile)
+    warnings = [constraint.reason for constraint in relevant_constraints] + [
+        warning.message for warning in relevant_warnings
+    ]
+    meds = profile.normalized_current_medications
+
+    if drug_class == "ARNI/ACEi/ARB":
+        current = _current_med(profile, {"sacubitril", "valsartan", "enalapril", "lisinopril", "losartan", "candesartan"})
+        reasoning = [
+            f"Core disease-modifying therapy for HFrEF, but this patient context is {context}.",
+            f"Current RAAS/ARNI-like therapy detected: {current}." if current else "No clear current ARNI/ACEi/ARB therapy detected in the medication list.",
+        ]
+        if profile.bp_status in {"low", "hypotension"}:
+            reasoning.append("Low systolic BP increases risk of symptomatic hypotension during initiation or titration.")
+        if profile.potassium_status != "normal":
+            reasoning.append("Abnormal potassium increases risk when RAAS-inhibiting therapy is intensified.")
+        actions = [
+            "Review whether the patient is already on ACEi/ARB/ARNI and avoid duplicate RAAS blockade.",
+            "If clinically stable, consider low-dose initiation or cautious titration rather than escalation at full dose.",
+        ]
+        monitoring = ["BP and symptoms after initiation/titration", "Creatinine/eGFR and potassium within 1-2 weeks"]
+    elif drug_class == "beta_blocker":
+        current = _current_med(profile, {"metoprolol", "bisoprolol", "carvedilol"})
+        reasoning = [
+            f"Evidence-based beta blocker is core HFrEF therapy; patient context is {context}.",
+            f"Current beta blocker detected: {current}." if current else "No evidence-based beta blocker detected in the medication list.",
+        ]
+        if profile.hr_status in {"low", "bradycardia"}:
+            reasoning.append("Low heart rate makes dose escalation unsafe without assessing symptoms, ECG, and conduction disease.")
+        if profile.bp_status in {"low", "hypotension"}:
+            reasoning.append("Low BP may limit titration, especially if dizziness, shock, or congestion is present.")
+        actions = [
+            "Continue if tolerated and clinically stable; avoid up-titration while HR/BP are limiting.",
+            "Check for decompensated HF, bradycardia symptoms, and AV block before any dose increase.",
+        ]
+        monitoring = ["HR, BP, dizziness/syncope", "Signs of congestion or acute decompensation"]
+    elif drug_class == "MRA":
+        current = _current_med(profile, {"spironolactone", "eplerenone", "finerenone"})
+        reasoning = [
+            f"MRA can reduce HFrEF morbidity/mortality, but renal function and potassium drive safety; patient context is {context}.",
+            f"Current MRA detected: {current}." if current else "No current MRA detected in the medication list.",
+        ]
+        if profile.renal_status not in {"normal", "mild_impairment"}:
+            reasoning.append("Reduced eGFR increases hyperkalemia and renal adverse-event risk.")
+        if profile.potassium_status != "normal":
+            reasoning.append("Elevated potassium is a direct safety concern for MRA continuation or titration.")
+        actions = [
+            "Do not increase MRA dose when potassium is elevated or eGFR is severely reduced.",
+            "Consider holding or reducing MRA if hyperkalemia is confirmed; reassess after correction.",
+        ]
+        monitoring = ["Potassium and creatinine/eGFR promptly and after any change", "Dietary potassium, supplements, NSAIDs, and RAAS combination risk"]
+    elif drug_class == "SGLT2i":
+        current = _current_med(profile, {"dapagliflozin", "empagliflozin"})
+        reasoning = [
+            f"SGLT2 inhibitor is a core HFrEF GDMT class and is often useful with CKD/diabetes; patient context is {context}.",
+            f"Current SGLT2 inhibitor detected: {current}." if current else "No current SGLT2 inhibitor detected in the medication list.",
+        ]
+        if profile.renal_status in {"severe_impairment", "kidney_failure"}:
+            reasoning.append("Low eGFR requires product-specific threshold review before initiation.")
+        if profile.bp_status in {"low", "hypotension"}:
+            reasoning.append("Volume status should be reviewed because diuretic effect can worsen hypotension or dehydration.")
+        actions = [
+            "Consider initiation if no contraindication and eGFR meets product/guideline threshold.",
+            "Review volume status and diuretic dose before starting, especially if BP is low.",
+        ]
+        monitoring = ["eGFR/renal function after initiation", "Volume depletion, genital infections, ketoacidosis risk during fasting/acute illness"]
+    else:
+        reasoning = [f"Requires individualized review; patient context is {context}."]
+        actions = ["Review phenotype, contraindications, current medications, and patient goals."]
+        monitoring = ["Vitals, renal function, potassium, and adverse effects"]
+
+    if warnings:
+        reasoning.append(f"Safety flags found: {'; '.join(warnings[:2])}")
+    if status == "avoid":
+        actions.insert(0, "Defer this class until the blocking safety issue is corrected or specialist review is completed.")
+    elif status == "consider_with_caution":
+        actions.insert(0, "Treat this as a cautious/conditional option, not an automatic approval.")
+
+    rationale = " ".join(reasoning[:2])
+    return rationale, reasoning, actions, monitoring
+
+
 def _constraints_for_class(constraints: list[Constraint], drug_class: str) -> list[Constraint]:
     return [
         constraint
@@ -67,15 +183,23 @@ def _recommendation_for_class(
         rationale = f"{label} may be relevant for {profile.hf_type}, but patient-specific risks require review."
     elif profile.hf_type == "HFrEF":
         status = "consider"
-        rationale = f"{label} is a core HFrEF GDMT class pending physician review."
     else:
         status = "review"
-        rationale = f"{label} requires phenotype-specific review because HF type is {profile.hf_type}."
+    rationale, clinical_reasoning, action_items, monitoring = _class_guidance(
+        profile,
+        drug_class,
+        status,
+        relevant_constraints,
+        relevant_warnings,
+    )
 
     return MedicationRecommendation(
         drug_class=label,
         status=status,
         rationale=rationale,
+        clinical_reasoning=clinical_reasoning,
+        action_items=action_items,
+        monitoring=monitoring,
         evidence=[
             "week3_pipeline:patient_profile",
             "week3_pipeline:constraint_rules_v1",

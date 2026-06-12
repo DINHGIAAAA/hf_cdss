@@ -1,0 +1,25 @@
+Cardiology clinic note, de-identified demo.
+
+Reason for visit:
+Medication optimization for chronic HFrEF.
+
+Clinical summary:
+68-year-old male with chronic HFrEF, LVEF 28%, NYHA class III symptoms,
+CKD stage 3a, and atrial fibrillation.
+
+Vitals:
+BP 88/58 mmHg
+HR 54 bpm
+Weight 72 kg
+
+Labs:
+eGFR 48 mL/min/1.73m2
+Potassium 4.9 mmol/L
+
+Current medications:
+Metoprolol succinate
+Furosemide
+Apixaban
+
+Clinical question:
+Can GDMT be optimized while avoiding symptomatic hypotension and bradycardia?

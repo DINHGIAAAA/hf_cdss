@@ -15,6 +15,9 @@ class MedicationRecommendation(BaseModel):
     drug_class: str
     status: str
     rationale: str
+    clinical_reasoning: list[str] = Field(default_factory=list)
+    action_items: list[str] = Field(default_factory=list)
+    monitoring: list[str] = Field(default_factory=list)
     evidence: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     constraint_ids: list[str] = Field(default_factory=list)

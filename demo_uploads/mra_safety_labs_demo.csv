@@ -1,0 +1,18 @@
+field,value,unit
+age,71,years
+sex,female,
+weight,61,kg
+lvef,30,%
+nyha_class,III,
+egfr,24,mL/min/1.73m2
+potassium,5.7,mmol/L
+systolic_bp,104,mmHg
+heart_rate,70,bpm
+condition,HFrEF,
+condition,CKD,
+condition,diabetes,
+medication,spironolactone,
+medication,furosemide,
+medication,warfarin,
+red_flag,hyperkalemia,
+clinical_question,Should spironolactone be continued or increased?,

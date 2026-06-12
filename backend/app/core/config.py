@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     embedding_model: str = "nomic-embed-text"
     embedding_base_url: str = "http://localhost:11434"
     embedding_dimensions: int = 384
+    embedding_batch_size: int = 16
     semantic_rerank_enabled: bool = True
     semantic_rerank_weight: float = 0.75
     semantic_rerank_candidates: int = 24

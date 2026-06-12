@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?><?xml-stylesheet href="https://www.accessdata.fda.gov/spl/stylesheet/spl.xsl" type="text/xsl"?>
 <document xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="urn:hl7-org:v3" xsi:schemaLocation="urn:hl7-org:v3 https://www.accessdata.fda.gov/spl/schema/spl.xsd">
-   <id root="525abf19-736b-8fd8-e063-6294a90a30b9"/>
+   <id root="53e7b712-997b-1453-e063-6394a90a5242"/>
    <code code="34391-3" codeSystem="2.16.840.1.113883.6.1" displayName="HUMAN PRESCRIPTION DRUG LABEL"/>
    <title>These highlights do not include all the information needed to use LOSARTAN POTASSIUM TABLETS safely and effectively. See full prescribing information for LOSARTAN POTASSIUM TABLETS.
  <br/>
@@ -10,39 +10,15 @@ LOSARTAN POTASSIUM tablets, for oral use
       <br/>
 Initial U.S. Approval: 1995
 </title>
-   <effectiveTime value="20260521"/>
-   <setId root="abb56236-f2fe-45b5-93ac-35fd661f8992"/>
-   <versionNumber value="16"/>
+   <effectiveTime value="20260610"/>
+   <setId root="45c01cc9-c7d1-4bb6-a105-354fc936ec63"/>
+   <versionNumber value="8"/>
    <author>
       <time/>
       <assignedEntity>
          <representedOrganization>
-            <id root="1.3.6.1.4.1.519.1" extension="156893695"/>
-            <name>PD-Rx Pharmaceuticals, Inc.</name>
-            <assignedEntity>
-               <assignedOrganization>
-                  <id root="1.3.6.1.4.1.519.1" extension="156893695"/>
-                  <name>PD-Rx Pharmaceuticals, Inc.</name>
-                  <assignedEntity>
-                     <assignedOrganization>
-                        <id root="1.3.6.1.4.1.519.1" extension="156893695"/>
-                        <name>PD-Rx Pharmaceuticals, Inc.</name>
-                     </assignedOrganization>
-                     <performance>
-                        <actDefinition>
-                           <code code="C73606" displayName="repack" codeSystem="2.16.840.1.113883.3.26.1.1"/>
-                           <product>
-                              <manufacturedProduct classCode="MANU">
-                                 <manufacturedMaterialKind>
-                                    <code code="43063-854" codeSystem="2.16.840.1.113883.6.69"/>
-                                 </manufacturedMaterialKind>
-                              </manufacturedProduct>
-                           </product>
-                        </actDefinition>
-                     </performance>
-                  </assignedEntity>
-               </assignedOrganization>
-            </assignedEntity>
+            <id root="1.3.6.1.4.1.519.1" extension="829572556"/>
+            <name>REMEDYREPACK INC.</name>
          </representedOrganization>
       </assignedEntity>
    </author>
@@ -50,13 +26,13 @@ Initial U.S. Approval: 1995
       <structuredBody>
          <component>
             <section>
-               <id root="525b0693-0b26-17c4-e063-6394a90aa7c4"/>
+               <id root="53e7cb0d-f946-358a-e063-6394a90ad38a"/>
                <code code="48780-1" codeSystem="2.16.840.1.113883.6.1" displayName="SPL product data elements section"/>
-               <effectiveTime value="20260521"/>
+               <effectiveTime value="20260610"/>
                <subject>
                   <manufacturedProduct>
                      <manufacturedProduct>
-                        <code code="43063-854" codeSystem="2.16.840.1.113883.6.69"/>
+                        <code code="70518-3894" codeSystem="2.16.840.1.113883.6.69"/>
                         <name>Losartan Potassium</name>
                         <formCode code="C42931" codeSystem="2.16.840.1.113883.3.26.1.1" displayName="TABLET, FILM COATED"/>
                         <asEntityWithGeneric>
@@ -67,7 +43,7 @@ Initial U.S. Approval: 1995
                         <asEquivalentEntity classCode="EQUIV">
                            <code code="C64637" codeSystem="2.16.840.1.113883.3.26.1.1"/>
                            <definingMaterialKind>
-                              <code code="31722-701" codeSystem="2.16.840.1.113883.6.69"/>
+                              <code code="31722-700" codeSystem="2.16.840.1.113883.6.69"/>
                            </definingMaterialKind>
                         </asEquivalentEntity>
                         <ingredient classCode="IACT">
@@ -126,7 +102,7 @@ Initial U.S. Approval: 1995
                         </ingredient>
                         <ingredient classCode="ACTIB">
                            <quantity>
-                              <numerator unit="mg" value="50"/>
+                              <numerator unit="mg" value="25"/>
                               <denominator unit="1" value="1"/>
                            </quantity>
                            <ingredientSubstance>
@@ -142,11 +118,11 @@ Initial U.S. Approval: 1995
                         </ingredient>
                         <asContent>
                            <quantity>
-                              <numerator value="60" unit="1"/>
+                              <numerator value="90" unit="1"/>
                               <denominator value="1"/>
                            </quantity>
                            <containerPackagedProduct>
-                              <code code="43063-854-60" codeSystem="2.16.840.1.113883.6.69"/>
+                              <code code="70518-3894-0" codeSystem="2.16.840.1.113883.6.69"/>
                               <formCode code="C43173" codeSystem="2.16.840.1.113883.3.26.1.1" displayName="BOTTLE, PLASTIC"/>
                            </containerPackagedProduct>
                            <subjectOf>
@@ -160,7 +136,7 @@ Initial U.S. Approval: 1995
                                  <code code="C53292" codeSystem="2.16.840.1.113883.3.26.1.1"/>
                                  <statusCode code="active"/>
                                  <effectiveTime>
-                                    <low value="20190114"/>
+                                    <low value="20231016"/>
                                  </effectiveTime>
                               </marketingAct>
                            </subjectOf>
@@ -171,7 +147,7 @@ Initial U.S. Approval: 1995
                               <denominator value="1"/>
                            </quantity>
                            <containerPackagedProduct>
-                              <code code="43063-854-90" codeSystem="2.16.840.1.113883.6.69"/>
+                              <code code="70518-3894-1" codeSystem="2.16.840.1.113883.6.69"/>
                               <formCode code="C43173" codeSystem="2.16.840.1.113883.3.26.1.1" displayName="BOTTLE, PLASTIC"/>
                            </containerPackagedProduct>
                            <subjectOf>
@@ -185,7 +161,82 @@ Initial U.S. Approval: 1995
                                  <code code="C53292" codeSystem="2.16.840.1.113883.3.26.1.1"/>
                                  <statusCode code="active"/>
                                  <effectiveTime>
-                                    <low value="20180529"/>
+                                    <low value="20240725"/>
+                                 </effectiveTime>
+                              </marketingAct>
+                           </subjectOf>
+                        </asContent>
+                        <asContent>
+                           <quantity>
+                              <numerator value="30" unit="1"/>
+                              <denominator value="1"/>
+                           </quantity>
+                           <containerPackagedProduct>
+                              <code code="70518-3894-2" codeSystem="2.16.840.1.113883.6.69"/>
+                              <formCode code="C43168" codeSystem="2.16.840.1.113883.3.26.1.1" displayName="BLISTER PACK"/>
+                           </containerPackagedProduct>
+                           <subjectOf>
+                              <characteristic>
+                                 <code code="SPLCMBPRDTP" codeSystem="2.16.840.1.113883.1.11.19255"/>
+                                 <value code="C112160" codeSystem="2.16.840.1.113883.3.26.1.1" displayName="Type 0: Not a Combination Product" xsi:type="CV"/>
+                              </characteristic>
+                           </subjectOf>
+                           <subjectOf>
+                              <marketingAct>
+                                 <code code="C53292" codeSystem="2.16.840.1.113883.3.26.1.1"/>
+                                 <statusCode code="active"/>
+                                 <effectiveTime>
+                                    <low value="20250213"/>
+                                 </effectiveTime>
+                              </marketingAct>
+                           </subjectOf>
+                        </asContent>
+                        <asContent>
+                           <quantity>
+                              <numerator value="100" unit="1"/>
+                              <denominator value="1"/>
+                           </quantity>
+                           <containerPackagedProduct>
+                              <code code="70518-3894-3" codeSystem="2.16.840.1.113883.6.69"/>
+                              <formCode code="C43173" codeSystem="2.16.840.1.113883.3.26.1.1" displayName="BOTTLE, PLASTIC"/>
+                           </containerPackagedProduct>
+                           <subjectOf>
+                              <characteristic>
+                                 <code code="SPLCMBPRDTP" codeSystem="2.16.840.1.113883.1.11.19255"/>
+                                 <value code="C112160" codeSystem="2.16.840.1.113883.3.26.1.1" displayName="Type 0: Not a Combination Product" xsi:type="CV"/>
+                              </characteristic>
+                           </subjectOf>
+                           <subjectOf>
+                              <marketingAct>
+                                 <code code="C53292" codeSystem="2.16.840.1.113883.3.26.1.1"/>
+                                 <statusCode code="active"/>
+                                 <effectiveTime>
+                                    <low value="20250327"/>
+                                 </effectiveTime>
+                              </marketingAct>
+                           </subjectOf>
+                        </asContent>
+                        <asContent>
+                           <quantity>
+                              <numerator value="30" unit="1"/>
+                              <denominator value="1"/>
+                           </quantity>
+                           <containerPackagedProduct>
+                              <code code="70518-3894-4" codeSystem="2.16.840.1.113883.6.69"/>
+                              <formCode code="C43168" codeSystem="2.16.840.1.113883.3.26.1.1" displayName="BLISTER PACK"/>
+                           </containerPackagedProduct>
+                           <subjectOf>
+                              <characteristic>
+                                 <code code="SPLCMBPRDTP" codeSystem="2.16.840.1.113883.1.11.19255"/>
+                                 <value code="C112160" codeSystem="2.16.840.1.113883.3.26.1.1" displayName="Type 0: Not a Combination Product" xsi:type="CV"/>
+                              </characteristic>
+                           </subjectOf>
+                           <subjectOf>
+                              <marketingAct>
+                                 <code code="C53292" codeSystem="2.16.840.1.113883.3.26.1.1"/>
+                                 <statusCode code="active"/>
+                                 <effectiveTime>
+                                    <low value="20250726"/>
                                  </effectiveTime>
                               </marketingAct>
                            </subjectOf>
@@ -209,7 +260,7 @@ Initial U.S. Approval: 1995
                            <code code="C53292" codeSystem="2.16.840.1.113883.3.26.1.1"/>
                            <statusCode code="active"/>
                            <effectiveTime>
-                              <low value="20150819"/>
+                              <low value="20231016"/>
                            </effectiveTime>
                         </marketingAct>
                      </subjectOf>
@@ -232,19 +283,19 @@ Initial U.S. Approval: 1995
                      <subjectOf>
                         <characteristic classCode="OBS">
                            <code code="SPLSIZE" codeSystem="2.16.840.1.113883.1.11.19255"/>
-                           <value unit="mm" value="10" xsi:type="PQ"/>
+                           <value unit="mm" value="8" xsi:type="PQ"/>
                         </characteristic>
                      </subjectOf>
                      <subjectOf>
                         <characteristic classCode="OBS">
                            <code code="SPLSCORE" codeSystem="2.16.840.1.113883.1.11.19255"/>
-                           <value value="2" xsi:type="INT"/>
+                           <value value="1" xsi:type="INT"/>
                         </characteristic>
                      </subjectOf>
                      <subjectOf>
                         <characteristic classCode="OBS">
                            <code code="SPLIMPRINT" codeSystem="2.16.840.1.113883.1.11.19255"/>
-                           <value xsi:type="ST">I;6</value>
+                           <value xsi:type="ST">I;5</value>
                         </characteristic>
                      </subjectOf>
                      <consumedIn>
@@ -258,7 +309,7 @@ Initial U.S. Approval: 1995
          </component>
          <component>
             <section ID="Section_0">
-               <id root="525abf19-736c-8fd8-e063-6294a90a30b9"/>
+               <id root="471733cb-e09b-1fe8-e063-6394a90a09fe"/>
                <code code="34066-1" codeSystem="2.16.840.1.113883.6.1" displayName="BOXED WARNING SECTION"/>
                <title>
                   <content styleCode="bold">WARNING: FETAL TOXICITY</content>
@@ -275,7 +326,7 @@ Initial U.S. Approval: 1995
                   <br/>
                   <br/>
                </text>
-               <effectiveTime value="20250830"/>
+               <effectiveTime value="20251229"/>
                <excerpt>
                   <highlight>
                      <text>
@@ -298,10 +349,10 @@ Initial U.S. Approval: 1995
          </component>
          <component>
             <section ID="Section_1">
-               <id root="525abf19-736d-8fd8-e063-6294a90a30b9"/>
+               <id root="471733cb-e09c-1fe8-e063-6394a90a09fe"/>
                <code code="34067-9" codeSystem="2.16.840.1.113883.6.1" displayName="INDICATIONS &amp; USAGE SECTION"/>
                <title>1 INDICATIONS AND USAGE</title>
-               <effectiveTime value="20250830"/>
+               <effectiveTime value="20251229"/>
                <excerpt>
                   <highlight>
                      <text>
@@ -324,7 +375,7 @@ Initial U.S. Approval: 1995
                </excerpt>
                <component>
                   <section ID="Section_1.1">
-                     <id root="525abf19-736e-8fd8-e063-6294a90a30b9"/>
+                     <id root="471733cb-e09d-1fe8-e063-6394a90a09fe"/>
                      <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
                      <title>1.1 Hypertension</title>
                      <text>
@@ -343,12 +394,12 @@ Initial U.S. Approval: 1995
  </paragraph>
                         <br/>
                      </text>
-                     <effectiveTime value="20250830"/>
+                     <effectiveTime value="20251229"/>
                   </section>
                </component>
                <component>
                   <section ID="Section_1.2">
-                     <id root="525abf19-736f-8fd8-e063-6294a90a30b9"/>
+                     <id root="471733cb-e09e-1fe8-e063-6394a90a09fe"/>
                      <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
                      <title>1.2 Hypertensive Patients with Left Ventricular Hypertrophy</title>
                      <text>
@@ -364,12 +415,12 @@ Initial U.S. Approval: 1995
   </content>
                         </paragraph>
                      </text>
-                     <effectiveTime value="20250830"/>
+                     <effectiveTime value="20251229"/>
                   </section>
                </component>
                <component>
                   <section ID="Section_1.4">
-                     <id root="525abf19-7370-8fd8-e063-6294a90a30b9"/>
+                     <id root="471733cb-e09f-1fe8-e063-6394a90a09fe"/>
                      <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
                      <title>1.3 Nephropathy in Type 2 Diabetic Patients</title>
                      <text>
@@ -383,17 +434,17 @@ Initial U.S. Approval: 1995
   </content>
                         </paragraph>
                      </text>
-                     <effectiveTime value="20250830"/>
+                     <effectiveTime value="20251229"/>
                   </section>
                </component>
             </section>
          </component>
          <component>
             <section ID="Section_2">
-               <id root="525abf19-7371-8fd8-e063-6294a90a30b9"/>
+               <id root="471733cb-e0a0-1fe8-e063-6394a90a09fe"/>
                <code code="34068-7" codeSystem="2.16.840.1.113883.6.1" displayName="DOSAGE &amp; ADMINISTRATION SECTION"/>
                <title>2 DOSAGE AND ADMINISTRATION</title>
-               <effectiveTime value="20250830"/>
+               <effectiveTime value="20251229"/>
                <excerpt>
                   <highlight>
                      <text>
@@ -428,7 +479,7 @@ Initial U.S. Approval: 1995
                </excerpt>
                <component>
                   <section ID="Section_2.1">
-                     <id root="525abf19-7372-8fd8-e063-6294a90a30b9"/>
+                     <id root="471733cb-e0a1-1fe8-e063-6394a90a09fe"/>
                      <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
                      <title>2.1 Hypertension</title>
                      <text>
@@ -476,12 +527,12 @@ Initial U.S. Approval: 1995
                         <br/>
                         <br/>
                      </text>
-                     <effectiveTime value="20250830"/>
+                     <effectiveTime value="20251229"/>
                   </section>
                </component>
                <component>
                   <section ID="Section_2.2">
-                     <id root="525abf19-7373-8fd8-e063-6294a90a30b9"/>
+                     <id root="471733cb-e0a2-1fe8-e063-6394a90a09fe"/>
                      <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
                      <title>2.2 Hypertensive Patients with Left Ventricular Hypertrophy</title>
                      <text>
@@ -495,12 +546,12 @@ Initial U.S. Approval: 1995
   </content>
                         </paragraph>
                      </text>
-                     <effectiveTime value="20250830"/>
+                     <effectiveTime value="20251229"/>
                   </section>
                </component>
                <component>
                   <section ID="Section_2.3">
-                     <id root="525abf19-7374-8fd8-e063-6294a90a30b9"/>
+                     <id root="471733cb-e0a3-1fe8-e063-6394a90a09fe"/>
                      <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
                      <title>2.3 Nephropathy in Type 2 Diabetic Patients</title>
                      <text>
@@ -513,12 +564,12 @@ Initial U.S. Approval: 1995
   </content>
                         </paragraph>
                      </text>
-                     <effectiveTime value="20250830"/>
+                     <effectiveTime value="20251229"/>
                   </section>
                </component>
                <component>
                   <section ID="Section_2.4">
-                     <id root="525abf19-7375-8fd8-e063-6294a90a30b9"/>
+                     <id root="471733cb-e0a4-1fe8-e063-6394a90a09fe"/>
                      <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
                      <title>2.4 Dosage Modifications in Patients with Hepatic Impairment</title>
                      <text>
@@ -532,12 +583,12 @@ Initial U.S. Approval: 1995
   </content>
                         </paragraph>
                      </text>
-                     <effectiveTime value="20250830"/>
+                     <effectiveTime value="20251229"/>
                   </section>
                </component>
                <component>
                   <section ID="Section_2.5">
-                     <id root="525abf19-7376-8fd8-e063-6294a90a30b9"/>
+                     <id root="471733cb-e0a5-1fe8-e063-6394a90a09fe"/>
                      <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
                      <title>2.5 Preparation of Suspension (for 200 mL of a 2.5 mg/mL suspension)</title>
                      <text>
@@ -554,31 +605,26 @@ Initial U.S. Approval: 1995
 
  </paragraph>
                      </text>
-                     <effectiveTime value="20250830"/>
+                     <effectiveTime value="20251229"/>
                   </section>
                </component>
             </section>
          </component>
          <component>
             <section ID="Section_3">
-               <id root="525abf19-7377-8fd8-e063-6294a90a30b9"/>
+               <id root="47173c53-70de-f902-e063-6294a90a7918"/>
                <code code="43678-2" codeSystem="2.16.840.1.113883.6.1" displayName="DOSAGE FORMS &amp; STRENGTHS SECTION"/>
-               <title>3 DOSAGE FORMS AND STRENGTHS</title>
+               <title>3 DOSAGE FORMS AND STRENGTHS</title>
                <text>
-                  <paragraph>• Losartan potassium tablets USP, 25 mg are white to off white, film coated, oval shaped tablets debossed with 'I' on one side and '5' on the other side. 
-  <br/>  • Losartan potassium tablets USP, 50 mg are white to off white, film coated, oval shaped tablets debossed with 'I' on one side and '6' on the other side with score line. 
-  <br/>  • Losartan potassium tablets USP, 100 mg are white to off white, film coated, tear drop shaped tablets, debossed with 'H'  on one side and '145' on the other side.
- </paragraph>
-                  <br/>
+                  <paragraph>• Losartan potassium tablets USP, 25 mg are white to off white, film coated, oval shaped tablets debossed with 'I' on one side and '5' on the other side.</paragraph>
+                  <paragraph/>
                </text>
-               <effectiveTime value="20250830"/>
+               <effectiveTime value="20251229"/>
                <excerpt>
                   <highlight>
                      <text>
-                        <paragraph>Tablets: 25 mg; 50 mg; and 100 mg. (
- 
+                        <paragraph>Tablets: 25 mg( 
     <linkHtml href="#Section_3">3</linkHtml>)
-
    </paragraph>
                      </text>
                   </highlight>
@@ -587,7 +633,7 @@ Initial U.S. Approval: 1995
          </component>
          <component>
             <section ID="Section_4">
-               <id root="525abf19-7378-8fd8-e063-6294a90a30b9"/>
+               <id root="471733cb-e0a7-1fe8-e063-6394a90a09fe"/>
                <code code="34070-3" codeSystem="2.16.840.1.113883.6.1" displayName="CONTRAINDICATIONS SECTION"/>
                <title>4 CONTRAINDICATIONS</title>
                <text>
@@ -597,7 +643,7 @@ Initial U.S. Approval: 1995
  </paragraph>
                   <br/>
                </text>
-               <effectiveTime value="20250830"/>
+               <effectiveTime value="20251229"/>
                <excerpt>
                   <highlight>
                      <text>
@@ -617,10 +663,10 @@ Initial U.S. Approval: 1995
          </component>
          <component>
             <section ID="Section_5">
-               <id root="525abf19-7379-8fd8-e063-6294a90a30b9"/>
+               <id root="471733cb-e0a8-1fe8-e063-6394a90a09fe"/>
                <code code="43685-7" codeSystem="2.16.840.1.113883.6.1" displayName="WARNINGS AND PRECAUTIONS SECTION"/>
                <title>5 WARNINGS AND PRECAUTIONS</title>
-               <effectiveTime value="20250830"/>
+               <effectiveTime value="20251229"/>
                <excerpt>
                   <highlight>
                      <text>
@@ -641,7 +687,7 @@ Initial U.S. Approval: 1995
                </excerpt>
                <component>
                   <section ID="Section_5.1">
-                     <id root="525abf19-737a-8fd8-e063-6294a90a30b9"/>
+                     <id root="471733cb-e0a9-1fe8-e063-6394a90a09fe"/>
                      <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
                      <title>5.1 Fetal Toxicity</title>
                      <text>
@@ -655,12 +701,12 @@ Initial U.S. Approval: 1995
   </content>
                         </paragraph>
                      </text>
-                     <effectiveTime value="20250830"/>
+                     <effectiveTime value="20251229"/>
                   </section>
                </component>
                <component>
                   <section ID="Section_5.2">
-                     <id root="525abf19-737b-8fd8-e063-6294a90a30b9"/>
+                     <id root="471733cb-e0aa-1fe8-e063-6394a90a09fe"/>
                      <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
                      <title>5.2 Hypotension in Volume - or Salt-Depleted Patients</title>
                      <text>
@@ -674,12 +720,12 @@ Initial U.S. Approval: 1995
   </content>
                         </paragraph>
                      </text>
-                     <effectiveTime value="20250830"/>
+                     <effectiveTime value="20251229"/>
                   </section>
                </component>
                <component>
                   <section ID="Section_5.3">
-                     <id root="525abf19-737c-8fd8-e063-6294a90a30b9"/>
+                     <id root="471733cb-e0ab-1fe8-e063-6394a90a09fe"/>
                      <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
                      <title>5.3 Renal Function Deterioration</title>
                      <text>
@@ -695,12 +741,12 @@ Initial U.S. Approval: 1995
   </content>
                         </paragraph>
                      </text>
-                     <effectiveTime value="20250830"/>
+                     <effectiveTime value="20251229"/>
                   </section>
                </component>
                <component>
                   <section ID="Section_5.4">
-                     <id root="525abf19-737d-8fd8-e063-6294a90a30b9"/>
+                     <id root="471733cb-e0ac-1fe8-e063-6394a90a09fe"/>
                      <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
                      <title>5.4 Hyperkalemia</title>
                      <text>
@@ -723,17 +769,17 @@ Initial U.S. Approval: 1995
                         </paragraph>
                         <br/>
                      </text>
-                     <effectiveTime value="20250830"/>
+                     <effectiveTime value="20251229"/>
                   </section>
                </component>
             </section>
          </component>
          <component>
             <section ID="Section_6">
-               <id root="525abf19-737e-8fd8-e063-6294a90a30b9"/>
+               <id root="471733cb-e0ad-1fe8-e063-6394a90a09fe"/>
                <code code="34084-4" codeSystem="2.16.840.1.113883.6.1" displayName="ADVERSE REACTIONS SECTION"/>
                <title>6 ADVERSE REACTIONS</title>
-               <effectiveTime value="20250830"/>
+               <effectiveTime value="20251229"/>
                <excerpt>
                   <highlight>
                      <text>
@@ -755,7 +801,7 @@ Initial U.S. Approval: 1995
                </excerpt>
                <component>
                   <section ID="Section_6.1">
-                     <id root="525abf19-737f-8fd8-e063-6294a90a30b9"/>
+                     <id root="471733cb-e0ae-1fe8-e063-6394a90a09fe"/>
                      <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
                      <title>6.1 Clinical Trials Experience</title>
                      <text>
@@ -893,12 +939,12 @@ Initial U.S. Approval: 1995
 
  </paragraph>
                      </text>
-                     <effectiveTime value="20250830"/>
+                     <effectiveTime value="20251229"/>
                   </section>
                </component>
                <component>
                   <section ID="Section_6.2">
-                     <id root="525abf19-7380-8fd8-e063-6294a90a30b9"/>
+                     <id root="471733cb-e0af-1fe8-e063-6394a90a09fe"/>
                      <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
                      <title>6.2 Postmarketing Experience</title>
                      <text>
@@ -923,17 +969,17 @@ Initial U.S. Approval: 1995
 
  </paragraph>
                      </text>
-                     <effectiveTime value="20250830"/>
+                     <effectiveTime value="20251229"/>
                   </section>
                </component>
             </section>
          </component>
          <component>
             <section ID="Section_7">
-               <id root="525abf19-7381-8fd8-e063-6294a90a30b9"/>
+               <id root="471733cb-e0b0-1fe8-e063-6394a90a09fe"/>
                <code code="34073-7" codeSystem="2.16.840.1.113883.6.1" displayName="DRUG INTERACTIONS SECTION"/>
                <title>7 DRUG INTERACTIONS</title>
-               <effectiveTime value="20250830"/>
+               <effectiveTime value="20251229"/>
                <excerpt>
                   <highlight>
                      <text>
@@ -957,30 +1003,30 @@ Initial U.S. Approval: 1995
                </excerpt>
                <component>
                   <section ID="Section_7.1">
-                     <id root="525abf19-7382-8fd8-e063-6294a90a30b9"/>
+                     <id root="471733cb-e0b1-1fe8-e063-6394a90a09fe"/>
                      <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
                      <title>7.1 Agents Increasing Serum Potassium</title>
                      <text>
                         <paragraph>Coadministration of losartan with other drugs that raise serum potassium levels may result in hyperkalemia. Monitor serum potassium in such patients.</paragraph>
                      </text>
-                     <effectiveTime value="20250830"/>
+                     <effectiveTime value="20251229"/>
                   </section>
                </component>
                <component>
                   <section ID="Section_7.2">
-                     <id root="525abf19-7383-8fd8-e063-6294a90a30b9"/>
+                     <id root="471733cb-e0b2-1fe8-e063-6394a90a09fe"/>
                      <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
                      <title>7.2 Lithium</title>
                      <text>
                         <br/>
                         <paragraph>Increases in serum lithium concentrations and lithium toxicity have been reported during concomitant administration of lithium with angiotensin II receptor antagonists. Monitor serum lithium levels during concomitant use.</paragraph>
                      </text>
-                     <effectiveTime value="20250830"/>
+                     <effectiveTime value="20251229"/>
                   </section>
                </component>
                <component>
                   <section ID="Section_7.3">
-                     <id root="525abf19-7384-8fd8-e063-6294a90a30b9"/>
+                     <id root="471733cb-e0b3-1fe8-e063-6394a90a09fe"/>
                      <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
                      <title>7.3 Non-Steroidal Anti-Inflammatory Drugs (NSAIDs) Including Selective Cyclooxygenase-2 Inhibitors (COX-2 Inhibitors)</title>
                      <text>
@@ -991,12 +1037,12 @@ Initial U.S. Approval: 1995
  </paragraph>
                         <br/>
                      </text>
-                     <effectiveTime value="20250830"/>
+                     <effectiveTime value="20251229"/>
                   </section>
                </component>
                <component>
                   <section ID="Section_7.4">
-                     <id root="525abf19-7385-8fd8-e063-6294a90a30b9"/>
+                     <id root="471733cb-e0b4-1fe8-e063-6394a90a09fe"/>
                      <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
                      <title>7.4 Dual Blockade of the Renin-Angiotensin System (RAS)</title>
                      <text>
@@ -1012,17 +1058,17 @@ Initial U.S. Approval: 1995
                         <br/>
                         <br/>
                      </text>
-                     <effectiveTime value="20250830"/>
+                     <effectiveTime value="20251229"/>
                   </section>
                </component>
             </section>
          </component>
          <component>
             <section ID="Section_8">
-               <id root="525abf19-7386-8fd8-e063-6294a90a30b9"/>
+               <id root="471733cb-e0b5-1fe8-e063-6394a90a09fe"/>
                <code code="43684-0" codeSystem="2.16.840.1.113883.6.1" displayName="USE IN SPECIFIC POPULATIONS SECTION"/>
                <title>8 USE IN SPECIFIC POPULATIONS</title>
-               <effectiveTime value="20250830"/>
+               <effectiveTime value="20251229"/>
                <excerpt>
                   <highlight>
                      <text>
@@ -1049,7 +1095,7 @@ Initial U.S. Approval: 1995
                </excerpt>
                <component>
                   <section ID="Section_8.1">
-                     <id root="525abf19-7387-8fd8-e063-6294a90a30b9"/>
+                     <id root="471733cb-e0b6-1fe8-e063-6394a90a09fe"/>
                      <code code="42228-7" codeSystem="2.16.840.1.113883.6.1" displayName="PREGNANCY SECTION"/>
                      <title>8.1 Pregnancy</title>
                      <text>
@@ -1082,12 +1128,12 @@ Initial U.S. Approval: 1995
 
  </paragraph>
                      </text>
-                     <effectiveTime value="20250830"/>
+                     <effectiveTime value="20251229"/>
                   </section>
                </component>
                <component>
                   <section ID="Section_8.2">
-                     <id root="525abf19-7388-8fd8-e063-6294a90a30b9"/>
+                     <id root="471733cb-e0b7-1fe8-e063-6394a90a09fe"/>
                      <code code="34079-4" codeSystem="2.16.840.1.113883.6.1" displayName="LABOR &amp; DELIVERY SECTION"/>
                      <title>8.2 Lactation</title>
                      <text>
@@ -1098,12 +1144,12 @@ Initial U.S. Approval: 1995
 
  </paragraph>
                      </text>
-                     <effectiveTime value="20250830"/>
+                     <effectiveTime value="20251229"/>
                   </section>
                </component>
                <component>
                   <section ID="Section_8.4">
-                     <id root="525abf19-7389-8fd8-e063-6294a90a30b9"/>
+                     <id root="471733cb-e0b8-1fe8-e063-6394a90a09fe"/>
                      <code code="34081-0" codeSystem="2.16.840.1.113883.6.1" displayName="PEDIATRIC USE SECTION"/>
                      <title>8.4 Pediatric Use</title>
                      <text>
@@ -1122,23 +1168,23 @@ Initial U.S. Approval: 1995
   </content>
                         </paragraph>
                      </text>
-                     <effectiveTime value="20250830"/>
+                     <effectiveTime value="20251229"/>
                   </section>
                </component>
                <component>
                   <section ID="Section_8.5">
-                     <id root="525abf19-738a-8fd8-e063-6294a90a30b9"/>
+                     <id root="471733cb-e0b9-1fe8-e063-6394a90a09fe"/>
                      <code code="34082-8" codeSystem="2.16.840.1.113883.6.1" displayName="GERIATRIC USE SECTION"/>
                      <title>8.5 Geriatric Use</title>
                      <text>
                         <paragraph>Of the total number of patients receiving losartan potassium in controlled clinical studies for hypertension, 391 patients (19%) were 65 years and over, while 37 patients (2%) were 75 years and over. In a controlled clinical study for renal protection in type 2 diabetic patients with proteinuria, 248 patients (33%) were 65 years and over. In a controlled clinical study for the reduction in the combined risk of cardiovascular death, stroke and myocardial infarction in hypertensive patients with left ventricular hypertrophy, 2857 patients (62%) were 65 years and over, while 808 patients (18%) were 75 years and over. No overall differences in effectiveness or safety were observed between these patients and younger patients, but greater sensitivity of some older individuals cannot be ruled out.</paragraph>
                      </text>
-                     <effectiveTime value="20250830"/>
+                     <effectiveTime value="20251229"/>
                   </section>
                </component>
                <component>
                   <section ID="Section_8.6">
-                     <id root="525abf19-738b-8fd8-e063-6294a90a30b9"/>
+                     <id root="471733cb-e0ba-1fe8-e063-6394a90a09fe"/>
                      <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
                      <title>8.6 Race</title>
                      <text>
@@ -1152,12 +1198,12 @@ Initial U.S. Approval: 1995
   </content>
                         </paragraph>
                      </text>
-                     <effectiveTime value="20250830"/>
+                     <effectiveTime value="20251229"/>
                   </section>
                </component>
                <component>
                   <section ID="Section_8.7">
-                     <id root="525abf19-738c-8fd8-e063-6294a90a30b9"/>
+                     <id root="471733cb-e0bb-1fe8-e063-6394a90a09fe"/>
                      <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
                      <title>8.7 Renal Impairment</title>
                      <text>
@@ -1175,12 +1221,12 @@ Initial U.S. Approval: 1995
   </content>
                         </paragraph>
                      </text>
-                     <effectiveTime value="20250830"/>
+                     <effectiveTime value="20251229"/>
                   </section>
                </component>
                <component>
                   <section ID="Section_8.8">
-                     <id root="525abf19-738d-8fd8-e063-6294a90a30b9"/>
+                     <id root="471733cb-e0bc-1fe8-e063-6394a90a09fe"/>
                      <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
                      <title>8.8 Hepatic Impairment</title>
                      <text>
@@ -1196,14 +1242,14 @@ Initial U.S. Approval: 1995
   </content>
                         </paragraph>
                      </text>
-                     <effectiveTime value="20250830"/>
+                     <effectiveTime value="20251229"/>
                   </section>
                </component>
             </section>
          </component>
          <component>
             <section ID="Section_10">
-               <id root="525abf19-738e-8fd8-e063-6294a90a30b9"/>
+               <id root="471733cb-e0bd-1fe8-e063-6394a90a09fe"/>
                <code code="34088-5" codeSystem="2.16.840.1.113883.6.1" displayName="OVERDOSAGE SECTION"/>
                <title>10 OVERDOSAGE</title>
                <text>
@@ -1218,12 +1264,12 @@ Initial U.S. Approval: 1995
 
  </paragraph>
                </text>
-               <effectiveTime value="20250830"/>
+               <effectiveTime value="20251229"/>
             </section>
          </component>
          <component>
             <section ID="Section_11">
-               <id root="525abf19-738f-8fd8-e063-6294a90a30b9"/>
+               <id root="471733cb-e0be-1fe8-e063-6394a90a09fe"/>
                <code code="34089-3" codeSystem="2.16.840.1.113883.6.1" displayName="DESCRIPTION SECTION"/>
                <title>11 DESCRIPTION</title>
                <text>
@@ -1249,7 +1295,7 @@ Initial U.S. Approval: 1995
   <br/>  The botanical source for pregelatinized starch is corn starch.
  </paragraph>
                </text>
-               <effectiveTime value="20250830"/>
+               <effectiveTime value="20251229"/>
                <component>
                   <observationMedia ID="MM1">
                      <text>losartanstructure</text>
@@ -1262,13 +1308,13 @@ Initial U.S. Approval: 1995
          </component>
          <component>
             <section ID="Section_12">
-               <id root="525abf19-7390-8fd8-e063-6294a90a30b9"/>
+               <id root="471733cb-e0bf-1fe8-e063-6394a90a09fe"/>
                <code code="34090-1" codeSystem="2.16.840.1.113883.6.1" displayName="CLINICAL PHARMACOLOGY SECTION"/>
                <title>12 CLINICAL PHARMACOLOGY</title>
-               <effectiveTime value="20250830"/>
+               <effectiveTime value="20251229"/>
                <component>
                   <section ID="Section_12.1">
-                     <id root="525abf19-7391-8fd8-e063-6294a90a30b9"/>
+                     <id root="471733cb-e0c0-1fe8-e063-6394a90a09fe"/>
                      <code code="43679-0" codeSystem="2.16.840.1.113883.6.1" displayName="MECHANISM OF ACTION SECTION"/>
                      <title>12.1 Mechanism of Action</title>
                      <text>
@@ -1295,12 +1341,12 @@ Initial U.S. Approval: 1995
 
  </paragraph>
                      </text>
-                     <effectiveTime value="20250830"/>
+                     <effectiveTime value="20251229"/>
                   </section>
                </component>
                <component>
                   <section ID="Section_12.2">
-                     <id root="525abf19-7392-8fd8-e063-6294a90a30b9"/>
+                     <id root="471733cb-e0c1-1fe8-e063-6394a90a09fe"/>
                      <code code="43681-6" codeSystem="2.16.840.1.113883.6.1" displayName="PHARMACODYNAMICS SECTION"/>
                      <title>12.2 Pharmacodynamics</title>
                      <text>
@@ -1311,12 +1357,12 @@ Initial U.S. Approval: 1995
  </paragraph>
                         <br/>
                      </text>
-                     <effectiveTime value="20250830"/>
+                     <effectiveTime value="20251229"/>
                   </section>
                </component>
                <component>
                   <section ID="Section_12.3">
-                     <id root="525abf19-7393-8fd8-e063-6294a90a30b9"/>
+                     <id root="471733cb-e0c2-1fe8-e063-6394a90a09fe"/>
                      <code code="43682-4" codeSystem="2.16.840.1.113883.6.1" displayName="PHARMACOKINETICS SECTION"/>
                      <title>12.3 Pharmacokinetics</title>
                      <text>
@@ -1578,20 +1624,20 @@ Initial U.S. Approval: 1995
 
  </paragraph>
                      </text>
-                     <effectiveTime value="20250830"/>
+                     <effectiveTime value="20251229"/>
                   </section>
                </component>
             </section>
          </component>
          <component>
             <section ID="Section_13">
-               <id root="525abf19-7394-8fd8-e063-6294a90a30b9"/>
+               <id root="471733cb-e0c3-1fe8-e063-6394a90a09fe"/>
                <code code="43680-8" codeSystem="2.16.840.1.113883.6.1" displayName="NONCLINICAL TOXICOLOGY SECTION"/>
                <title>13 NONCLINICAL TOXICOLOGY</title>
-               <effectiveTime value="20250830"/>
+               <effectiveTime value="20251229"/>
                <component>
                   <section ID="Section_13.1">
-                     <id root="525abf19-7395-8fd8-e063-6294a90a30b9"/>
+                     <id root="471733cb-e0c4-1fe8-e063-6394a90a09fe"/>
                      <code code="34083-6" codeSystem="2.16.840.1.113883.6.1" displayName="CARCINOGENESIS &amp; MUTAGENESIS &amp; IMPAIRMENT OF FERTILITY SECTION"/>
                      <title>13.1 Carcinogenesis,  Mutagenesis, Impairment of Fertility</title>
                      <text>
@@ -1614,20 +1660,20 @@ Initial U.S. Approval: 1995
 
  </paragraph>
                      </text>
-                     <effectiveTime value="20250830"/>
+                     <effectiveTime value="20251229"/>
                   </section>
                </component>
             </section>
          </component>
          <component>
             <section ID="Section_14">
-               <id root="525abf19-7396-8fd8-e063-6294a90a30b9"/>
+               <id root="471733cb-e0c5-1fe8-e063-6394a90a09fe"/>
                <code code="34092-7" codeSystem="2.16.840.1.113883.6.1" displayName="CLINICAL STUDIES SECTION"/>
                <title>14 CLINICAL STUDIES</title>
-               <effectiveTime value="20250830"/>
+               <effectiveTime value="20251229"/>
                <component>
                   <section ID="Section_14.1">
-                     <id root="525abf19-7397-8fd8-e063-6294a90a30b9"/>
+                     <id root="471733cb-e0c6-1fe8-e063-6394a90a09fe"/>
                      <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
                      <title>14.1 Hypertension</title>
                      <text>
@@ -1652,12 +1698,12 @@ Initial U.S. Approval: 1995
 
  </paragraph>
                      </text>
-                     <effectiveTime value="20250830"/>
+                     <effectiveTime value="20251229"/>
                   </section>
                </component>
                <component>
                   <section ID="Section_14.2">
-                     <id root="525abf19-7398-8fd8-e063-6294a90a30b9"/>
+                     <id root="471733cb-e0c7-1fe8-e063-6394a90a09fe"/>
                      <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
                      <title>14.2 Hypertensive Patients with Left Ventricular Hypertrophy</title>
                      <text>
@@ -2078,7 +2124,7 @@ Initial U.S. Approval: 1995
 
  </paragraph>
                      </text>
-                     <effectiveTime value="20250830"/>
+                     <effectiveTime value="20251229"/>
                      <component>
                         <observationMedia ID="MM2">
                            <text>losartanfigure1</text>
@@ -2107,7 +2153,7 @@ Initial U.S. Approval: 1995
                </component>
                <component>
                   <section ID="Section_14.3">
-                     <id root="525abf19-7399-8fd8-e063-6294a90a30b9"/>
+                     <id root="471733cb-e0c8-1fe8-e063-6394a90a09fe"/>
                      <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
                      <title>14.3 Nephropathy in Type 2 Diabetic Patients</title>
                      <text>
@@ -2756,7 +2802,7 @@ Initial U.S. Approval: 1995
                            </tbody>
                         </table>
                      </text>
-                     <effectiveTime value="20250830"/>
+                     <effectiveTime value="20251229"/>
                      <component>
                         <observationMedia ID="MM5">
                            <text>losartanfigure4</text>
@@ -2771,249 +2817,349 @@ Initial U.S. Approval: 1995
          </component>
          <component>
             <section ID="Section_17">
-               <id root="525b185f-91ad-1a2e-e063-6394a90a221b"/>
+               <id root="471733cb-e0c9-1fe8-e063-6394a90a09fe"/>
                <code code="34069-5" codeSystem="2.16.840.1.113883.6.1" displayName="HOW SUPPLIED SECTION"/>
                <title>16 HOW SUPPLIED/STORAGE AND HANDLING</title>
                <text>
-                  <paragraph>
-                     <br/>
-Losartan potassium tablets USP, 50 mg are white to off-white, film coated, oval shaped tablets debossed with 'I' on one side and '6' on the other side with score line.
- </paragraph>
-                  <paragraph>
-                     <br/>
-Bottles of 60 tablets     (NDC 43063-854-60)
-  <br/>
-Bottles of 90 tablets     (NDC 43063-854-90)
- </paragraph>
+                  <paragraph>Losartan potassium tablets USP, 25 mg are white to off-white, film coated, oval shaped tablets debossed with 'I' on one side and '5' on the other side.</paragraph>
                   <paragraph/>
-                  <paragraph>
-                     <content styleCode="italics">Storage</content>
-                     <br/>
-Store at 20° to 25°C (68° to 77°F) [see USP Controlled Room Temperature]. Keep container tightly closed. Protect from light.
- </paragraph>
+                  <paragraph>NDC: 70518-3894-00</paragraph>
+                  <paragraph>NDC: 70518-3894-01</paragraph>
+                  <paragraph>NDC: 70518-3894-02</paragraph>
+                  <paragraph>NDC: 70518-3894-03</paragraph>
+                  <paragraph>NDC: 70518-3894-04</paragraph>
+                  <paragraph>PACKAGING: 90 in 1 BOTTLE PLASTIC</paragraph>
+                  <paragraph>PACKAGING: 90 in 1 BOTTLE PLASTIC</paragraph>
+                  <paragraph>PACKAGING: 30 in 1 BLISTER PACK</paragraph>
+                  <paragraph>PACKAGING: 100 in 1 BOTTLE PLASTIC</paragraph>
+                  <paragraph>PACKAGING: 30 in 1 BLISTER PACK</paragraph>
+                  <paragraph/>
+                  <paragraph>Storage</paragraph>
+                  <paragraph>Store at 20° to 25°C (68° to 77°F) [see USP Controlled Room Temperature]. Keep container tightly closed. Protect from light.</paragraph>
+                  <paragraph/>
+                  <paragraph>Repackaged and Distributed By:</paragraph>
+                  <paragraph>Remedy Repack, Inc.</paragraph>
+                  <paragraph>625 Kolter Dr. Suite #4 Indiana, PA 1-724-465-8762</paragraph>
+                  <paragraph/>
                </text>
-               <effectiveTime value="20250830"/>
+               <effectiveTime value="20251229"/>
             </section>
          </component>
          <component>
             <section ID="Section_16">
-               <id root="525abf19-739b-8fd8-e063-6294a90a30b9"/>
+               <id root="471add25-9d5c-5445-e063-6394a90a938c"/>
                <code code="34076-0" codeSystem="2.16.840.1.113883.6.1" displayName="INFORMATION FOR PATIENTS SECTION"/>
                <title>17 PATIENT COUNSELING INFORMATION</title>
                <text>
-                  <br/>
-                  <br/>
-                  <paragraph>Advise the patient to read the FDA-approved patient labeling (Patient Information). 
+                  <paragraph/>
+                  <paragraph/>
+                  <paragraph>Advise the patient to read the FDA-approved patient labeling (Patient Information).
   <br/>
                      <content styleCode="bold">Pregnancy</content>
-                     <br/>  Advise female patients of childbearing age about the consequences of exposure to losartan potassium during pregnancy. Discuss treatment options with women planning to become pregnant. Tell patients to report pregnancies to their physicians as soon as possible
- 
-  <content styleCode="italics">[see Warnings and Precautions (
-  
-   <linkHtml href="#Section_5.1">5.1</linkHtml>) and Use in Specific Populations (
-  
-   <linkHtml href="#Section_8.1">8.1</linkHtml>)].
- 
+                     <br/>
+Advise female patients of childbearing age about the consequences of exposure to losartan potassium during pregnancy. Discuss treatment options with women planning to become pregnant. Tell patients to report pregnancies to their physicians as soon as possible 
+  <content styleCode="italics">[see Warnings and Precautions ( 
+   <linkHtml href="#Section_5.1">5.1</linkHtml>) and Use in Specific Populations ( 
+   <linkHtml href="#Section_8.1">8.1</linkHtml>)]. 
   </content>
                      <br/>
                      <content styleCode="bold">Potassium Supplements</content>
-                     <br/>  Advise patients receiving losartan potassium tablets not to use potassium supplements or salt substitutes containing potassium without consulting their healthcare provider
- 
-  <content styleCode="italics">[see Drug Interactions (
-  
-   <linkHtml href="#Section_7.1">7.1</linkHtml>)].
- 
+                     <br/>
+Advise patients receiving losartan potassium tablets not to use potassium supplements or salt substitutes containing potassium without consulting their healthcare provider 
+  <content styleCode="italics">[see Drug Interactions ( 
+   <linkHtml href="#Section_7.1">7.1</linkHtml>)]. 
   </content>
-                     <br/>  The trademarks depicted herein are owned by their respective companies.
-
+                     <br/>
+The trademarks depicted herein are owned by their respective companies.
  </paragraph>
-                  <br/>
-                  <br/>
-                  <paragraph>Manufactured for: 
-  <br/>  Camber Pharmaceuticals, Inc., 
-  <br/>  Piscataway, NJ 08854 
-  <br/>  Manufactured by:
- 
-  <content styleCode="bold">HETERO
-  
-   <sup>TM</sup>
-                     </content>
-                     <br/>  Hetero Labs Limited, Unit V, Polepally, Jadcherla, 
-  <br/>  Mahabubnagar - 509 301, India. 
-  <br/>  Revised: 08/2025
-
- </paragraph>
+                  <paragraph>Repackaged By / Distributed By: RemedyRepack Inc.</paragraph>
+                  <paragraph>625 Kolter Drive, Indiana, PA 15701</paragraph>
+                  <paragraph>(724) 465-8762</paragraph>
                </text>
-               <effectiveTime value="20250830"/>
+               <effectiveTime value="20251229"/>
             </section>
          </component>
          <component>
             <section ID="Unclassified_Section_26">
-               <id root="525abf19-739c-8fd8-e063-6294a90a30b9"/>
+               <id root="471738bd-554f-1055-e063-6394a90a7dea"/>
                <code code="42229-5" codeSystem="2.16.840.1.113883.6.1" displayName="SPL UNCLASSIFIED SECTION"/>
                <title>Patient Information</title>
                <text>
-                  <br/>
-                  <br/>
-                  <br/>
-                  <br/>
+                  <paragraph/>
+                  <paragraph/>
+                  <paragraph/>
+                  <paragraph/>
                   <paragraph>
-                     <content styleCode="bold">Losartan Potassium Tablets, USP 
-   <br/>  (loe sar' tan poe tas' ee um)
+                     <content styleCode="bold">Losartan Potassium Tablets, USP
+   <br/>
+(loe sar' tan poe tas' ee um)
   </content>
                      <br/>
-                     <br/>  Read the Patient Information that comes with losartan potassium tablets before you start taking it and each time you get a refill. There may be new information. This leaflet does not take the place of talking with your doctor about your condition and treatment. 
+                     <br/>
+Read the Patient Information that comes with losartan potassium tablets before you start taking it and each time you get a refill. There may be new information. This leaflet does not take the place of talking with your doctor about your condition and treatment.
   <br/>
                      <br/>
                      <content styleCode="bold">What is the most important information I should know about losartan potassium tablets?</content>
                      <br/>
-                     <content styleCode="bold">•    Losartan</content> 
- 
-  <content styleCode="bold">potassium tablets can cause harm or death to an unborn baby.</content>
-                     <br/>  •     Talk to your doctor about other ways to lower your blood pressure if you   plan to become pregnant. 
-  <br/>  •     If you get pregnant while taking losartan potassium tablets, tell your doctor right   away. 
+                     <content styleCode="bold">•    Losartan</content>
+                     <content styleCode="bold">potassium tablets can cause harm or death to an unborn baby.</content>
+                     <br/>
+•     Talk to your doctor about other ways to lower your blood pressure if you   plan to become pregnant.
+  <br/>
+•     If you get pregnant while taking losartan potassium tablets, tell your doctor right   away.
   <br/>
                      <br/>
                      <content styleCode="bold">What is losartan potassium tablets?</content>
-                     <br/>  Losartan potassium tablets are a prescription medicine called an angiotensin receptor blocker (ARB). It is used: 
-  <br/>  •   alone or with other blood pressure medicines to lower high blood pressure   (hypertension). 
-  <br/>  •   to lower the chance of stroke in patients with high blood pressure and a heart problem called left ventricular hypertrophy. Losartan potassium tablets may not help Black patients with this problem. 
-  <br/>  •   to slow the worsening of diabetic kidney disease (nephropathy) in patients with type 2 diabetes who have or had high blood pressure. 
+                     <br/>
+Losartan potassium tablets are a prescription medicine called an angiotensin receptor blocker (ARB). It is used:
   <br/>
-                     <br/>    Losartan potassium tablets has not been studied in children less than 6 years old or in children with certain kidney problems. 
+•   alone or with other blood pressure medicines to lower high blood pressure   (hypertension).
+  <br/>
+•   to lower the chance of stroke in patients with high blood pressure and a heart problem called left ventricular hypertrophy. Losartan potassium tablets may not help Black patients with this problem.
+  <br/>
+•   to slow the worsening of diabetic kidney disease (nephropathy) in patients with type 2 diabetes who have or had high blood pressure.
   <br/>
                      <br/>
-                     <content styleCode="bold">High Blood Pressure (hypertension).</content>Blood pressure is the force in your blood vessels when your heart beats and when your heart rests. You have high blood pressure when the force is too much. Losartan potassium tablets can help your blood vessels relax so your blood pressure is lower. 
+  Losartan potassium tablets has not been studied in children less than 6 years old or in children with certain kidney problems.
   <br/>
                      <br/>
-                     <content styleCode="bold">Left Ventricular Hypertrophy (LVH)</content>is an enlargement of the walls of the left chamber of the heart (the heart’s main pumping chamber). LVH can happen from several things. High blood pressure is the most common cause of LVH. 
+                     <content styleCode="bold">High Blood Pressure (hypertension).</content>Blood pressure is the force in your blood vessels when your heart beats and when your heart rests. You have high blood pressure when the force is too much. Losartan potassium tablets can help your blood vessels relax so your blood pressure is lower.
   <br/>
                      <br/>
-                     <content styleCode="bold">Type 2 Diabetes with Nephropathy</content>. Type 2 diabetes is a type of diabetes that happens mainly in adults. If you have diabetic nephropathy it means that your kidneys do not work properly because of damage from the diabetes. 
+                     <content styleCode="bold">Left Ventricular Hypertrophy (LVH)</content>is an enlargement of the walls of the left chamber of the heart (the heart’s main pumping chamber). LVH can happen from several things. High blood pressure is the most common cause of LVH.
+  <br/>
+                     <br/>
+                     <content styleCode="bold">Type 2 Diabetes with Nephropathy</content>. Type 2 diabetes is a type of diabetes that happens mainly in adults. If you have diabetic nephropathy it means that your kidneys do not work properly because of damage from the diabetes.
   <br/>
                      <br/>
                      <content styleCode="bold">Who should not take losartan potassium tablets?</content>
                      <br/>
-                     <content styleCode="bold">• Do not take losartan potassium tablets if you are allergic to any of the ingredients in losartan potassium tablets.</content>See the end of this leaflet for a complete list of ingredients in losartan potassium tablets. 
-  <br/>  • Do not take losartan potassium tablets if you have diabetes and are taking a medicine called aliskiren to reduce blood pressure. 
+                     <content styleCode="bold">• Do not take losartan potassium tablets if you are allergic to any of the ingredients in losartan potassium tablets.</content>See the end of this leaflet for a complete list of ingredients in losartan potassium tablets.
+  <br/>
+• Do not take losartan potassium tablets if you have diabetes and are taking a medicine called aliskiren to reduce blood pressure.
   <br/>
                      <br/>
                      <content styleCode="bold">What should I tell my doctor before taking losartan potassium tablets?</content>
-                     <br/>  Tell your doctor about all of your medical conditions including if you: 
+                     <br/>
+Tell your doctor about all of your medical conditions including if you:
   <br/>
-                     <content styleCode="bold">• are pregnant  or  planning  to  become  pregnant. </content>See
- 
-  <content styleCode="bold">"What is  the  most important information I should know about losartan potassium tablets?" 
-   <br/>  • are breastfeeding
-  </content>. It is not known if losartan potassium passes into your breast milk. You should choose either to take losartan potassium tablets or breastfeed, but not both. 
-  <br/>  • are vomiting a lot or having a lot of diarrhea 
-  <br/>  • have liver problems 
-  <br/>  • have kidney problems 
+                     <content styleCode="bold">• are pregnant  or  planning  to  become  pregnant. </content>See 
+  <content styleCode="bold">"What is  the  most important information I should know about losartan potassium tablets?"
+   <br/>
+• are breastfeeding
+  </content>. It is not known if losartan potassium passes into your breast milk. You should choose either to take losartan potassium tablets or breastfeed, but not both.
+  <br/>
+• are vomiting a lot or having a lot of diarrhea
+  <br/>
+• have liver problems
+  <br/>
+• have kidney problems
   <br/>
                      <br/>
-                     <content styleCode="bold">Tell your doctor about all the medicines you take, including prescription and non-prescription medicines, vitamins, and herbal supplements.</content>Losartan potassium tablets and certain other medicines may interact with each other. Especially tell your doctor if you are taking: 
-  <br/>  • potassium supplements 
-  <br/>  • salt substitutes containing potassium 
-  <br/>  • other medicines that may increase serum potassium 
-  <br/>  • water pills (diuretics) 
-  <br/>  • lithium (a medicine used to treat a certain kind of depression) 
-  <br/>  • medicines used to treat pain and arthritis, called non-steroidal anti-inflammatory drugs (NSAIDs), including COX-2 inhibitors 
-  <br/>  • other medicines to reduce blood pressure 
+                     <content styleCode="bold">Tell your doctor about all the medicines you take, including prescription and non-prescription medicines, vitamins, and herbal supplements.</content>Losartan potassium tablets and certain other medicines may interact with each other. Especially tell your doctor if you are taking:
+  <br/>
+• potassium supplements
+  <br/>
+• salt substitutes containing potassium
+  <br/>
+• other medicines that may increase serum potassium
+  <br/>
+• water pills (diuretics)
+  <br/>
+• lithium (a medicine used to treat a certain kind of depression)
+  <br/>
+• medicines used to treat pain and arthritis, called non-steroidal anti-inflammatory drugs (NSAIDs), including COX-2 inhibitors
+  <br/>
+• other medicines to reduce blood pressure
   <br/>
                      <br/>
                      <content styleCode="bold">How should I take losartan potassium tablets?</content>
-                     <br/>  • Take losartan potassium tablets exactly as prescribed by your doctor. Your doctor may change your dose if needed. 
-  <br/>  • Losartan potassium tablets can be taken with or without food. 
-  <br/>  • If you miss a dose, take it as soon as you remember. If it is close to your next dose, do not take the missed dose. Just take the next dose at your regular time. 
-  <br/>  • If you take too much losartan potassium tablets, call your doctor or Poison Control Center, or go to the nearest hospital emergency room right away. 
+                     <br/>
+• Take losartan potassium tablets exactly as prescribed by your doctor. Your doctor may change your dose if needed.
+  <br/>
+• Losartan potassium tablets can be taken with or without food.
+  <br/>
+• If you miss a dose, take it as soon as you remember. If it is close to your next dose, do not take the missed dose. Just take the next dose at your regular time.
+  <br/>
+• If you take too much losartan potassium tablets, call your doctor or Poison Control Center, or go to the nearest hospital emergency room right away.
   <br/>
                      <br/>
                      <content styleCode="bold">What are the possible side effects of losartan potassium tablets?</content>
-                     <br/>  Losartan potassium tablets may cause the following side effects that may be serious: 
-  <br/>
-                     <content styleCode="bold">• Injury or death of unborn babies. See "What is the most important information I should know about losartan potassium tablets?"</content>
                      <br/>
-                     <content styleCode="bold">• Allergic reaction</content>. Symptoms of an allergic reaction are swelling of the face, lips, throat or tongue. Get emergency medical help right away and stop taking losartan potassium tablets. 
+Losartan potassium tablets may cause the following side effects that may be serious:
   <br/>
-                     <content styleCode="bold">• Low blood pressure (hypotension).</content>Low blood pressure may cause you to feel faint or dizzy. Lie down if you feel faint or dizzy. Call your doctor right away. 
+                     <content styleCode="bold">• Injury or death of unborn babies. See "What is the most important information I should know about losartan potassium tablets?"</content>
+                     <br/>
+                     <content styleCode="bold">• Allergic reaction</content>. Symptoms of an allergic reaction are swelling of the face, lips, throat or tongue. Get emergency medical help right away and stop taking losartan potassium tablets.
   <br/>
-                     <content styleCode="bold">• For people who already have kidney problems, you may see a worsening in how well your kidneys work</content>. Call your doctor if you get swelling in your feet, ankles, or hands, or unexplained weight gain. 
-  <br/>  •  High blood levels of potassium 
-  <br/>  The most common side effects of losartan potassium tablets in people with high blood pressure are: 
-  <br/>  • "colds" (upper respiratory infection) 
-  <br/>  • dizziness 
-  <br/>  • stuffy nose 
-  <br/>  • back pain 
-  <br/>  The most common side effects of losartan potassium tablets in people with type 2 diabetes with diabetic kidney disease are: 
-  <br/>  • diarrhea 
-  <br/>  • tiredness 
-  <br/>  • low blood sugar 
-  <br/>  • chest pain 
-  <br/>  • high blood potassium 
-  <br/>  • low blood pressure 
-  <br/>  Tell your doctor if you get any side effect that bothers you or that won' t go away. 
-  <br/>  This is
- 
-  <content styleCode="bold">not</content>a complete list of side effects. For a complete list, ask your doctor or pharmacist. 
+                     <content styleCode="bold">• Low blood pressure (hypotension).</content>Low blood pressure may cause you to feel faint or dizzy. Lie down if you feel faint or dizzy. Call your doctor right away.
+  <br/>
+                     <content styleCode="bold">• For people who already have kidney problems, you may see a worsening in how well your kidneys work</content>. Call your doctor if you get swelling in your feet, ankles, or hands, or unexplained weight gain.
+  <br/>
+•  High blood levels of potassium
+  <br/>
+The most common side effects of losartan potassium tablets in people with high blood pressure are:
+  <br/>
+• "colds" (upper respiratory infection)
+  <br/>
+• dizziness
+  <br/>
+• stuffy nose
+  <br/>
+• back pain
+  <br/>
+The most common side effects of losartan potassium tablets in people with type 2 diabetes with diabetic kidney disease are:
+  <br/>
+• diarrhea
+  <br/>
+• tiredness
+  <br/>
+• low blood sugar
+  <br/>
+• chest pain
+  <br/>
+• high blood potassium
+  <br/>
+• low blood pressure
+  <br/>
+Tell your doctor if you get any side effect that bothers you or that won' t go away.
+  <br/>
+This is 
+  <content styleCode="bold">not</content>a complete list of side effects. For a complete list, ask your doctor or pharmacist.
   <br/>
                      <br/>
                      <content styleCode="bold">How do I store losartan potassium tablets?</content>
-                     <br/>  • Store losartan potassium tablets at 68°F to 77°F (20°C to 25°C). 
-  <br/>  • Keep losartan potassium tablets in a tightly closed container that protects the medicine from light. 
+                     <br/>
+• Store losartan potassium tablets at 68°F to 77°F (20°C to 25°C).
   <br/>
-                     <content styleCode="bold">• Keep losartan potassium tablets and all medicines out of the reach of children. 
+• Keep losartan potassium tablets in a tightly closed container that protects the medicine from light.
+  <br/>
+                     <content styleCode="bold">• Keep losartan potassium tablets and all medicines out of the reach of children.
    <br/>
-                        <br/>  General information about losartan potassium tablets
+                        <br/>
+General information about losartan potassium tablets
   </content>
-                     <br/>  Medicines are sometimes prescribed for conditions that are not mentioned in patient information leaflets. Do not use losartan potassium tablets for a condition for which it was not prescribed. Do not give losartan potassium tablets to other people, even if they have the same symptoms that you have. It may harm them. 
+                     <br/>
+Medicines are sometimes prescribed for conditions that are not mentioned in patient information leaflets. Do not use losartan potassium tablets for a condition for which it was not prescribed. Do not give losartan potassium tablets to other people, even if they have the same symptoms that you have. It may harm them.
   <br/>
-                     <br/>  This leaflet summarizes the most important information about losartan potassium tablets. If you would like more information, talk with your doctor. You can ask your pharmacist or doctor for information about losartan potassium tablets that is written for health professionals. 
+                     <br/>
+This leaflet summarizes the most important information about losartan potassium tablets. If you would like more information, talk with your doctor. You can ask your pharmacist or doctor for information about losartan potassium tablets that is written for health professionals.
   <br/>
                      <br/>
                      <content styleCode="bold">What are the ingredients in losartan potassium tablets?</content>
                      <br/>
-                     <content styleCode="bold">Active ingredients:</content>losartan potassium, USP 
+                     <content styleCode="bold">Active ingredients:</content>losartan potassium, USP
   <br/>
-                     <content styleCode="bold">Inactive ingredients:</content>crospovidone, lactose monohydrate, low substituted hydroxy propyl cellulose, magnesium stearate, microcrystalline cellulose and pregelatinized starch. The tablets are coated with Opadry White which contains carnauba wax, hypromellose and titanium dioxide.   
-
+                     <content styleCode="bold">Inactive ingredients:</content>crospovidone, lactose monohydrate, low substituted hydroxy propyl cellulose, magnesium stearate, microcrystalline cellulose and pregelatinized starch. The tablets are coated with Opadry White which contains carnauba wax, hypromellose and titanium dioxide.   
  </paragraph>
                   <paragraph/>
-                  <br/>
-                  <paragraph>Manufactured for: 
-  <br/>  Camber Pharmaceuticals, Inc. 
-  <br/>  Piscataway, NJ 08854 
-  <br/>  By:
- 
-  <content styleCode="bold">HETERO
-  
-   <sup>TM</sup>
-                     </content>
-                     <br/>  Hetero Labs Limited, Unit V, Polepally, Jadcherla, 
-  <br/>  Mahabubnagar-509 301, India. 
-  <br/>                                                 
-  <br/>  Revised: 08/2025
-
- </paragraph>
+                  <paragraph/>
+                  <paragraph/>
+                  <paragraph/>
+                  <paragraph/>
+                  <paragraph>Repackaged and Distributed By:</paragraph>
+                  <paragraph>Remedy Repack, Inc.</paragraph>
+                  <paragraph>625 Kolter Dr. Suite #4 Indiana, PA 1-724-465-8762</paragraph>
+                  <paragraph/>
                </text>
-               <effectiveTime value="20250830"/>
+               <effectiveTime value="20251229"/>
             </section>
          </component>
          <component>
-            <section ID="Section_18">
-               <id root="525abf19-739d-8fd8-e063-6294a90a30b9"/>
+            <section ID="id_link_47174853-85c8-eda2-e063-6294a90a8253">
+               <id root="53e7b712-997c-1453-e063-6394a90a5242"/>
                <code code="51945-4" codeSystem="2.16.840.1.113883.6.1" displayName="PACKAGE LABEL.PRINCIPAL DISPLAY PANEL"/>
-               <title>PACKAGE LABEL.PRINCIPAL DISPLAY PANEL</title>
                <text>
-                  <paragraph>Losartan Potassium Tables USP 50 mg</paragraph>
-                  <br/>
-                  <renderMultiMedia referencedObject="MM9"/>
+                  <paragraph>DRUG: Losartan Potassium</paragraph>
+                  <paragraph>GENERIC: Losartan Potassium</paragraph>
+                  <paragraph>DOSAGE: TABLET, FILM COATED</paragraph>
+                  <paragraph>ADMINSTRATION: ORAL</paragraph>
+                  <paragraph>NDC: 70518-3894-0</paragraph>
+                  <paragraph>NDC: 70518-3894-1</paragraph>
+                  <paragraph>NDC: 70518-3894-2</paragraph>
+                  <paragraph>NDC: 70518-3894-3</paragraph>
+                  <paragraph>NDC: 70518-3894-4</paragraph>
+                  <paragraph>COLOR: white</paragraph>
+                  <paragraph>SHAPE: OVAL</paragraph>
+                  <paragraph>SCORE: No score</paragraph>
+                  <paragraph>SIZE: 8 mm</paragraph>
+                  <paragraph>IMPRINT: I;5</paragraph>
+                  <paragraph>PACKAGING: 90 in 1 BOTTLE PLASTIC</paragraph>
+                  <paragraph>PACKAGING: 90 in 1 BOTTLE PLASTIC</paragraph>
+                  <paragraph>PACKAGING: 30 in 1 BLISTER PACK</paragraph>
+                  <paragraph>PACKAGING: 100 in 1 BOTTLE PLASTIC</paragraph>
+                  <paragraph>PACKAGING: 30 in 1 BLISTER PACK</paragraph>
+                  <paragraph>ACTIVE INGREDIENT(S):</paragraph>
+                  <list listType="unordered">
+                     <item>LOSARTAN POTASSIUM 25mg in 1</item>
+                  </list>
+                  <paragraph>INACTIVE INGREDIENT(S):</paragraph>
+                  <list listType="unordered">
+                     <item>CROSPOVIDONE</item>
+                     <item>LACTOSE MONOHYDRATE</item>
+                     <item>HYDROXYPROPYL CELLULOSE, LOW SUBSTITUTED</item>
+                     <item>MAGNESIUM STEARATE</item>
+                     <item>CELLULOSE, MICROCRYSTALLINE</item>
+                     <item>STARCH, CORN</item>
+                     <item>CARNAUBA WAX</item>
+                     <item>HYPROMELLOSES</item>
+                     <item>TITANIUM DIOXIDE</item>
+                  </list>
+                  <paragraph>
+                     <renderMultiMedia referencedObject="img_53e79433-7654-9388-e063-6394a90a960a"/>
+                  </paragraph>
+                  <paragraph>
+                     <renderMultiMedia referencedObject="img_53e7c913-0f3a-2fcd-e063-6394a90a15de"/>
+                  </paragraph>
+                  <paragraph>
+                     <renderMultiMedia referencedObject="img_53e7ab36-0876-ba56-e063-6294a90a02c8"/>
+                  </paragraph>
+                  <paragraph>
+                     <renderMultiMedia referencedObject="img_53e7ab36-0873-ba56-e063-6294a90a02c8"/>
+                  </paragraph>
+                  <paragraph>
+                     <renderMultiMedia referencedObject="img_53e7b5c1-75b7-b20a-e063-6294a90a6b22"/>
+                  </paragraph>
+                  <paragraph/>
                </text>
-               <effectiveTime value="20250830"/>
+               <effectiveTime value="20251229"/>
                <component>
-                  <observationMedia ID="MM9">
-                     <text>43063854 Label</text>
+                  <observationMedia ID="img_53e79433-7654-9388-e063-6394a90a960a">
+                     <text>MM1</text>
                      <value mediaType="image/jpeg" xsi:type="ED">
-                        <reference value="43063854.jpg"/>
+                        <reference value="Losartan Potassium 25mg_70518-3894-00.jpg"/>
+                     </value>
+                  </observationMedia>
+               </component>
+               <component>
+                  <observationMedia ID="img_53e7c913-0f3a-2fcd-e063-6394a90a15de">
+                     <text>MM2</text>
+                     <value mediaType="image/jpeg" xsi:type="ED">
+                        <reference value="Losartan Potassium 25mg_70518-3894-01.jpg"/>
+                     </value>
+                  </observationMedia>
+               </component>
+               <component>
+                  <observationMedia ID="img_53e7ab36-0876-ba56-e063-6294a90a02c8">
+                     <text>MM3</text>
+                     <value mediaType="image/jpeg" xsi:type="ED">
+                        <reference value="Losartan Potassium 25mg_70518-3894-02.jpg"/>
+                     </value>
+                  </observationMedia>
+               </component>
+               <component>
+                  <observationMedia ID="img_53e7ab36-0873-ba56-e063-6294a90a02c8">
+                     <text>MM4</text>
+                     <value mediaType="image/jpeg" xsi:type="ED">
+                        <reference value="Losartan Potassium 25mg_70518-3894-03.jpg"/>
+                     </value>
+                  </observationMedia>
+               </component>
+               <component>
+                  <observationMedia ID="img_53e7b5c1-75b7-b20a-e063-6294a90a6b22">
+                     <text>MM5</text>
+                     <value mediaType="image/jpeg" xsi:type="ED">
+                        <reference value="Losartan Potassium 25mg_70518-3894-04.jpg"/>
                      </value>
                   </observationMedia>
                </component>

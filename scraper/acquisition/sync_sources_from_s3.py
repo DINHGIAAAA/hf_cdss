@@ -4,6 +4,8 @@ import os
 from pathlib import Path
 from typing import Any
 
+from botocore.exceptions import ClientError
+
 from scraper.paths import data_root
 
 ROOT = data_root()
@@ -56,8 +58,15 @@ def main() -> None:
         if args.dry_run:
             continue
         target.parent.mkdir(parents=True, exist_ok=True)
-        client.download_file(args.bucket, key, str(target))
-        synced += 1
+        try:
+            client.download_file(args.bucket, key, str(target))
+            synced += 1
+        except ClientError as exc:
+            error_code = exc.response.get("Error", {}).get("Code")
+            if error_code in {"404", "NoSuchKey", "NotFound"}:
+                print(f"Missing source in S3, skipping: s3://{args.bucket}/{key}")
+                continue
+            raise
 
     print(f"Synced {synced} source file(s) from s3://{args.bucket}/{args.prefix}")
 

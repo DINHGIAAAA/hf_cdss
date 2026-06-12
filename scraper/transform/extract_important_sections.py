@@ -86,6 +86,7 @@ def main() -> None:
         default=[
             "processed/sections/drug_label_sections.jsonl",
             "processed/sections/guideline_sections.jsonl",
+            "processed/sections/guideline_html_sections.jsonl",
         ],
         type=Path,
     )

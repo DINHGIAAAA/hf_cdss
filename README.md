@@ -86,6 +86,97 @@ Docker services:
 - ChromaDB: `http://localhost:8001`
 - LocalStack S3: `http://localhost:4566`
 
+## Docker Demo Flow
+
+Run these commands from the repository root: `C:\Users\VinhNgo\hf_cdss`.
+
+1. Prepare environment:
+
+```powershell
+Copy-Item infrastructure/.env.example infrastructure/.env -ErrorAction SilentlyContinue
+```
+
+2. Start infrastructure services first:
+
+```powershell
+docker compose -f infrastructure/docker-compose.yml up -d postgres neo4j chromadb localstack ollama ollama-pull
+```
+
+3. Confirm the embedding and chat models are available:
+
+```powershell
+docker exec hf_cdss_ollama ollama list
+```
+
+Expected models for the current backend:
+
+```text
+qwen2.5:7b
+qwen2.5:1.5b
+bge-m3
+```
+
+If `bge-m3` is missing:
+
+```powershell
+docker exec hf_cdss_ollama ollama pull bge-m3
+```
+
+4. Build or refresh scraped and processed data.
+
+Use this when LocalStack was recreated, raw files changed, or you want a clean demo dataset:
+
+```powershell
+python -m scraper.acquisition.download_sources --registry data/heart_failure/sources/sources.example.json --bucket hf-cdss-raw --prefix heart_failure --endpoint-url http://localhost:4566
+python -m scraper.orchestration.run_ingestion_pipeline --skip-download --s3-endpoint-url http://localhost:4566
+```
+
+If data was already scraped and validated locally, only upload processed artifacts:
+
+```powershell
+python -m scraper.store.sync_processed_to_s3 --bucket hf-cdss-processed --prefix heart_failure --endpoint-url http://localhost:4566
+```
+
+5. Rebuild backend datastores from S3.
+
+This loads processed artifacts into PostgreSQL, Neo4j, and ChromaDB. It can take several minutes because embeddings are generated with `bge-m3`.
+
+```powershell
+docker compose -f infrastructure/docker-compose.yml run --rm datastore-init
+```
+
+For a fast UI demo, use deterministic hashing embeddings for both datastore init and backend startup. This still uses the scraped/processed evidence data, but skips slow Ollama embedding calls:
+
+```powershell
+docker compose -f infrastructure/docker-compose.yml run -e HF_CDSS_EMBEDDING_PROVIDER=hashing --rm datastore-init
+$env:HF_CDSS_EMBEDDING_PROVIDER="hashing"
+docker compose -f infrastructure/docker-compose.yml up -d --no-deps backend frontend
+```
+
+For the full semantic embedding path, keep the default Ollama embedding provider and expect indexing to take longer.
+
+6. Start the demo UI and API with the default dependency flow:
+
+```powershell
+docker compose -f infrastructure/docker-compose.yml up -d --build backend frontend
+```
+
+7. Open and test:
+
+- Frontend dashboard: `http://localhost:5173`
+- Backend API docs: `http://localhost:8000/docs`
+- Backend readiness: `http://localhost:8000/health/ready`
+- Metrics: `http://localhost:8000/metrics`
+
+In the frontend, enter patient demographics and clinical values, optionally upload clinical text files/images, then ask a clinical question in chat. Evidence cards should include source metadata and clickable source links.
+
+If LocalStack fails with `port is already allocated`, stop the old container that is using port `4566`, then rerun the compose command:
+
+```powershell
+docker ps --filter publish=4566
+docker stop <container_name_or_id>
+```
+
 ### Local LLM
 
 The explanation layer can call either OpenAI Responses API or a local OpenAI-compatible chat-completions server.

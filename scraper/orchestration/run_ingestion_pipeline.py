@@ -113,6 +113,21 @@ def main() -> None:
             ],
             args.dry_run,
         )
+        run_step(
+            "parse_guideline_html",
+            [
+                python,
+                "-m",
+                "scraper.transform.parse_guideline_html",
+                "--input-dir",
+                "raw/guidelines",
+                "--registry",
+                str(args.registry),
+                "--sections-output",
+                "processed/sections/guideline_html_sections.jsonl",
+            ],
+            args.dry_run,
+        )
 
     steps = [
         (
@@ -125,6 +140,8 @@ def main() -> None:
                 "raw/drug_labels",
                 "--manifest",
                 "artifacts/manifests/download_manifest.json",
+                "--registry",
+                str(args.registry),
                 "--output",
                 "processed/sections/drug_label_sections.jsonl",
             ],

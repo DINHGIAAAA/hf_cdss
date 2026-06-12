@@ -77,6 +77,8 @@ def test_chat_rate_limit_can_throttle_expensive_endpoints(monkeypatch) -> None:
 
     assert first.status_code == 200
     assert second.status_code == 429
+    assert second.json()["error"]["code"] == "rate_limited"
+    _rate_windows.clear()
 
 
 def test_metrics_endpoint_exposes_prometheus_text() -> None:
@@ -87,5 +89,3 @@ def test_metrics_endpoint_exposes_prometheus_text() -> None:
     assert response.status_code == 200
     assert "hf_cdss_http_requests_total" in response.text
     assert "hf_cdss_http_request_duration_seconds_count" in response.text
-    assert second.json()["error"]["code"] == "rate_limited"
-    _rate_windows.clear()

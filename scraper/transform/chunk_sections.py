@@ -59,16 +59,22 @@ def make_chunks(record: dict, chunk_size: int, overlap: int) -> list[dict]:
         provenance = dict(metadata.get("provenance") or {})
         page_start = metadata.get("page_start") or metadata.get("page")
         page_end = metadata.get("page_end") or metadata.get("page")
+        source_url = metadata.get("source_url")
+        source_locator = metadata.get("source_locator")
+        if not source_locator and source_url and page_start:
+            source_locator = f"{source_url}#page={page_start}"
         source_id = metadata.get("source_id") or record.get("document_id")
         source_section = record.get("section") or metadata.get("section")
         provenance.update(
             {
                 "source_id": source_id,
-                "source_url": metadata.get("source_url"),
+                "source_url": source_url,
+                "source_locator": source_locator,
                 "document_id": record.get("document_id"),
                 "section": source_section,
                 "page_start": page_start,
                 "page_end": page_end,
+                "section_anchor": metadata.get("section_anchor"),
                 "chunk_index": index,
                 "chunk_count": len(text_chunks),
             }
@@ -81,7 +87,8 @@ def make_chunks(record: dict, chunk_size: int, overlap: int) -> list[dict]:
                 "source_document_id": record.get("document_id"),
                 "source_section": source_section,
                 "source_id": source_id,
-                "source_url": metadata.get("source_url"),
+                "source_url": source_url,
+                "source_locator": source_locator,
                 "publisher": metadata.get("publisher"),
                 "citation": metadata.get("citation"),
                 "title": metadata.get("title"),
@@ -90,6 +97,7 @@ def make_chunks(record: dict, chunk_size: int, overlap: int) -> list[dict]:
                 "page": page_start,
                 "page_start": page_start,
                 "page_end": page_end,
+                "section_anchor": metadata.get("section_anchor"),
                 "provenance": provenance,
             }
         )

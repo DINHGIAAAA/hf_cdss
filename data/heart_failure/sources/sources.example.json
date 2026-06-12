@@ -20,7 +20,7 @@
       "download_strategy": "direct_url",
       "publisher": "European Society of Cardiology",
       "topic": "heart_failure",
-      "url": "https://academic.oup.com/eurheartj/article-pdf/42/36/3599/40502772/ehab368.pdf",
+      "url": "https://dailycardiology.com/wp-content/uploads/2025/05/HF-ESC-2021.pdf",
       "target_path": "raw/guidelines/heart_failure/2021 ESC guidelines HF.pdf",
       "license_note": "Official publisher material. Verify terms before redistribution."
     },
@@ -31,7 +31,7 @@
       "download_strategy": "direct_url",
       "publisher": "European Society of Cardiology",
       "topic": "heart_failure",
-      "url": "https://academic.oup.com/eurheartj/article-pdf/44/37/3627/7246292/ehad195.pdf",
+      "url": "https://www.southwestmedicationreviews.com/wp-content/uploads/2025/05/ESC-Heart-Failure-2023-Focused-Update.pdf",
       "target_path": "raw/guidelines/heart_failure/2023 Focused Update of the ESC Guidelines.pdf",
       "license_note": "Official publisher material. Verify terms before redistribution."
     },
@@ -71,23 +71,25 @@
     {
       "source_id": "ada_2024_cv_risk_management",
       "title": "ADA Standards of Care in Diabetes 2024: Cardiovascular Disease and Risk Management",
-      "source_type": "guideline_pdf",
+      "source_type": "guideline_html",
       "download_strategy": "direct_url",
       "publisher": "American Diabetes Association",
       "topic": "diabetes",
-      "url": "https://diabetesjournals.org/care/article-pdf/47/Supplement_1/S179/740326/dc24s010.pdf",
-      "target_path": "raw/guidelines/diabetes/ada_2024_cv_risk_management.pdf",
+      "artifact_kind": "html",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10725811/",
+      "target_path": "raw/guidelines/diabetes/ada_2024_cv_risk_management.html",
       "license_note": "Official publisher material. Verify terms before redistribution."
     },
     {
       "source_id": "ada_2024_ckd_risk_management",
       "title": "ADA Standards of Care in Diabetes 2024: Chronic Kidney Disease and Risk Management",
-      "source_type": "guideline_pdf",
+      "source_type": "guideline_html",
       "download_strategy": "direct_url",
       "publisher": "American Diabetes Association",
       "topic": "diabetes",
-      "url": "https://diabetesjournals.org/care/article-pdf/47/Supplement_1/S219/740379/dc24s011.pdf",
-      "target_path": "raw/guidelines/diabetes/ada_2024_ckd_risk_management.pdf",
+      "artifact_kind": "html",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10725805/",
+      "target_path": "raw/guidelines/diabetes/ada_2024_ckd_risk_management.html",
       "license_note": "Official publisher material. Verify terms before redistribution."
     },
     {

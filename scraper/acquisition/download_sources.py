@@ -4,7 +4,6 @@ import json
 import os
 import time
 import urllib.parse
-import urllib.request
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
@@ -17,6 +16,11 @@ DEFAULT_MANIFEST = ROOT / "artifacts" / "manifests" / "download_manifest.json"
 DEFAULT_ENDPOINT_URL = os.environ.get("HF_CDSS_S3_ENDPOINT_URL", "http://localhost:4566")
 DEFAULT_BUCKET = os.environ.get("HF_CDSS_RAW_BUCKET", "hf-cdss-raw")
 DEFAULT_PREFIX = os.environ.get("HF_CDSS_S3_PREFIX", "heart_failure")
+BROWSER_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/125.0.0.0 Safari/537.36"
+)
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -31,21 +35,57 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def download_url(url: str, target: Path, timeout: int) -> None:
-    request = urllib.request.Request(url, headers={"User-Agent": "hf-cdss-ingestion/0.1"})
-    target.parent.mkdir(parents=True, exist_ok=True)
-    with urllib.request.urlopen(request, timeout=timeout) as response:
-        target.write_bytes(response.read())
-
-
 def download_bytes(url: str, timeout: int) -> bytes:
-    request = urllib.request.Request(url, headers={"User-Agent": "hf-cdss-ingestion/0.1"})
-    with urllib.request.urlopen(request, timeout=timeout) as response:
-        return response.read()
+    from playwright.sync_api import sync_playwright
+
+    with sync_playwright() as playwright:
+        request_context = playwright.request.new_context(
+            user_agent=BROWSER_USER_AGENT,
+            extra_http_headers={
+                "Accept": "application/pdf,application/xml,application/json,text/html,*/*",
+                "Accept-Language": "en-US,en;q=0.9",
+            },
+        )
+        response = request_context.get(url, timeout=timeout * 1000)
+        if response.ok:
+            payload = response.body()
+            request_context.dispose()
+            return payload
+        request_context.dispose()
+
+        browser = playwright.chromium.launch(headless=True)
+        context = browser.new_context(
+            user_agent=BROWSER_USER_AGENT,
+            extra_http_headers={
+                "Accept": "application/pdf,application/xml,application/json,text/html,*/*",
+                "Accept-Language": "en-US,en;q=0.9",
+            },
+        )
+        page = context.new_page()
+        response = page.goto(url, wait_until="domcontentloaded", timeout=timeout * 1000)
+        if response is None:
+            browser.close()
+            raise RuntimeError(f"No browser response for {url}")
+        if response.status >= 400:
+            status = response.status
+            browser.close()
+            raise RuntimeError(f"Browser download returned HTTP {status} for {url}")
+        payload = response.body()
+        browser.close()
+        return payload
 
 
 def fetch_json(url: str, timeout: int) -> dict[str, Any]:
     return json.loads(download_bytes(url, timeout).decode("utf-8"))
+
+
+def validate_payload(kind: str, target_path: str, payload: bytes, url: str) -> None:
+    suffix = Path(target_path).suffix.lower()
+    head = payload[:64].lstrip().lower()
+    if (kind == "pdf" or suffix == ".pdf") and not payload.startswith(b"%PDF"):
+        raise RuntimeError(f"Expected PDF but received non-PDF payload from {url}")
+    if (kind == "xml" or suffix == ".xml") and not (head.startswith(b"<?xml") or head.startswith(b"<")):
+        raise RuntimeError(f"Expected XML but received non-XML payload from {url}")
 
 
 def s3_client(endpoint_url: str):
@@ -264,6 +304,7 @@ def main() -> None:
             artifacts = []
             for item in downloads:
                 payload = download_bytes(item["url"], args.timeout)
+                validate_payload(item["kind"], item["target_path"], payload, item["url"])
                 item_key = s3_key(args.s3_prefix, item["target_path"])
                 item_sha = hashlib.sha256(payload).hexdigest()
                 client.put_object(
