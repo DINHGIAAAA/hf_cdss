@@ -37,7 +37,6 @@ class Settings(BaseSettings):
     semantic_rerank_enabled: bool = True
     semantic_rerank_weight: float = 0.75
     semantic_rerank_candidates: int = 24
-    datastore_bootstrap_on_startup: bool = False
     retrieval_backend: str = "local"
     artifact_storage: str = "local"
     artifact_cache_root: str | None = None

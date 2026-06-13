@@ -14,13 +14,13 @@ logger = logging.getLogger(__name__)
 def bootstrap_datastores() -> dict[str, Any]:
     results: dict[str, Any] = {}
     try:
-        print("[datastore-init] syncing artifacts from processed storage...", flush=True)
+        print("[datastore-bootstrap] syncing artifacts from processed storage...", flush=True)
         results["artifacts"] = sync_artifacts_from_processed_bucket(DATA_ROOT)
-        print(f"[datastore-init] artifacts: {results['artifacts']}", flush=True)
+        print(f"[datastore-bootstrap] artifacts: {results['artifacts']}", flush=True)
     except Exception as exc:
         logger.warning("artifact sync unavailable: %s", exc)
         results["artifacts"] = {"status": "unavailable", "detail": str(exc)}
-        print(f"[datastore-init] artifacts unavailable: {exc}", flush=True)
+        print(f"[datastore-bootstrap] artifacts unavailable: {exc}", flush=True)
 
     for name, initializer in (
         ("postgres", initialize_postgres),
@@ -28,13 +28,13 @@ def bootstrap_datastores() -> dict[str, Any]:
         ("neo4j", initialize_neo4j),
     ):
         try:
-            print(f"[datastore-init] initializing {name}...", flush=True)
+            print(f"[datastore-bootstrap] initializing {name}...", flush=True)
             results[name] = initializer()
-            print(f"[datastore-init] {name}: {results[name]}", flush=True)
+            print(f"[datastore-bootstrap] {name}: {results[name]}", flush=True)
         except Exception as exc:
             logger.warning("%s bootstrap unavailable: %s", name, exc)
             results[name] = {"status": "unavailable", "detail": str(exc)}
-            print(f"[datastore-init] {name} unavailable: {exc}", flush=True)
+            print(f"[datastore-bootstrap] {name} unavailable: {exc}", flush=True)
     return results
 
 

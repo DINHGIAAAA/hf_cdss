@@ -137,31 +137,24 @@ If data was already scraped and validated locally, only upload processed artifac
 python -m scraper.store.sync_processed_to_s3 --bucket hf-cdss-processed --prefix heart_failure --endpoint-url http://localhost:4566
 ```
 
-5. Rebuild backend datastores from S3.
+5. Start the demo UI and API with the default dependency flow.
 
-This loads processed artifacts into PostgreSQL, Neo4j, and ChromaDB. It can take several minutes because embeddings are generated with `bge-m3`.
-
-```powershell
-docker compose -f infrastructure/docker-compose.yml run --rm datastore-init
-```
-
-For a fast UI demo, use deterministic hashing embeddings for both datastore init and backend startup. This still uses the scraped/processed evidence data, but skips slow Ollama embedding calls:
-
-```powershell
-docker compose -f infrastructure/docker-compose.yml run -e HF_CDSS_EMBEDDING_PROVIDER=hashing --rm datastore-init
-$env:HF_CDSS_EMBEDDING_PROVIDER="hashing"
-docker compose -f infrastructure/docker-compose.yml up -d --no-deps backend frontend
-```
-
-For the full semantic embedding path, keep the default Ollama embedding provider and expect indexing to take longer.
-
-6. Start the demo UI and API with the default dependency flow:
+Backend startup automatically loads processed artifacts from S3 into PostgreSQL, Neo4j, and ChromaDB. It can take several minutes because embeddings are generated with `bge-m3`.
 
 ```powershell
 docker compose -f infrastructure/docker-compose.yml up -d --build backend frontend
 ```
 
-7. Open and test:
+For a fast UI demo, use deterministic hashing embeddings before starting backend. This still uses the scraped/processed evidence data, but skips slow Ollama embedding calls:
+
+```powershell
+$env:HF_CDSS_EMBEDDING_PROVIDER="hashing"
+docker compose -f infrastructure/docker-compose.yml up -d --build backend frontend
+```
+
+For the full semantic embedding path, keep the default Ollama embedding provider and expect indexing to take longer.
+
+6. Open and test:
 
 - Frontend dashboard: `http://localhost:5173`
 - Backend API docs: `http://localhost:8000/docs`

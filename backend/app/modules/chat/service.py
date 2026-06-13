@@ -127,6 +127,7 @@ def _merge_patient(existing: PatientProfile, incoming: PatientProfile) -> Patien
     patient.labs.potassium = _prefer(patient.labs.potassium, incoming.labs.potassium)
     patient.vitals.systolic_bp = _prefer(patient.vitals.systolic_bp, incoming.vitals.systolic_bp)
     patient.vitals.heart_rate = _prefer(patient.vitals.heart_rate, incoming.vitals.heart_rate)
+    patient.vitals.weight_kg = _prefer(patient.vitals.weight_kg, incoming.vitals.weight_kg)
     patient.conditions = _merge_named(patient.conditions, incoming.conditions, "name")
     patient.medications = _merge_named(patient.medications, incoming.medications, "name")
     patient.allergy_statements = _merge_named(patient.allergy_statements, incoming.allergy_statements, "substance")

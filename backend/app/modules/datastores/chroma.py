@@ -70,7 +70,7 @@ def initialize_chroma() -> dict[str, Any]:
     chunks = read_jsonl(CHUNKS_PATH)
     source_sha256 = _file_sha256(CHUNKS_PATH) if CHUNKS_PATH.exists() else ""
     print(
-        f"[datastore-init] chroma collection={_collection_name()} chunks={len(chunks)} "
+        f"[datastore-bootstrap] chroma collection={_collection_name()} chunks={len(chunks)} "
         f"embedding_provider={settings.embedding_provider} embedding_model={settings.embedding_model}",
         flush=True,
     )
@@ -84,7 +84,7 @@ def initialize_chroma() -> dict[str, Any]:
     for start in range(0, len(chunks), batch_size):
         batch = chunks[start : start + batch_size]
         end = min(start + batch_size, len(chunks))
-        print(f"[datastore-init] chroma upsert batch {start + 1}-{end}/{len(chunks)}", flush=True)
+        print(f"[datastore-bootstrap] chroma upsert batch {start + 1}-{end}/{len(chunks)}", flush=True)
         searchable_documents = [_searchable_text(chunk) for chunk in batch]
         collection.upsert(
             ids=[chunk["chunk_id"] for chunk in batch],

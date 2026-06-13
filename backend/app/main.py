@@ -1,4 +1,5 @@
 import asyncio
+import json
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -22,6 +23,8 @@ from app.schemas.common import RouteCatalogResponse, RouteInfo
 
 configure_logging()
 
+SUCCESSFUL_BOOTSTRAP_STATUSES = {"ok", "skipped"}
+
 
 def custom_generate_unique_id(route: APIRoute) -> str:
     methods = "_".join(sorted(route.methods or []))
@@ -31,8 +34,14 @@ def custom_generate_unique_id(route: APIRoute) -> str:
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    if settings.datastore_bootstrap_on_startup:
-        await asyncio.to_thread(bootstrap_datastores)
+    results = await asyncio.to_thread(bootstrap_datastores)
+    failed = {
+        name: result
+        for name, result in results.items()
+        if result.get("status") not in SUCCESSFUL_BOOTSTRAP_STATUSES
+    }
+    if failed:
+        raise RuntimeError(f"Datastore bootstrap failed: {json.dumps(failed, ensure_ascii=False)}")
     yield
 
 

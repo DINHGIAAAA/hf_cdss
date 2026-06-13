@@ -49,7 +49,7 @@ def test_chat_accepts_nested_patient_payload() -> None:
                 "care_context": {"clinician_question": "Can danh gia GDMT"},
                 "heart_failure_profile": {"lvef": {"value": 30}},
                 "labs": {"egfr": {"value": 60}, "potassium": {"value": 4.4}},
-                "vitals": {"systolic_bp": {"value": 118}, "heart_rate": {"value": 72}},
+                "vitals": {"systolic_bp": {"value": 118}, "heart_rate": {"value": 72}, "weight_kg": {"value": 70}},
                 "conditions": [{"name": "HFrEF"}],
                 "medications": [{"name": "metoprolol"}],
                 "allergy_statements": [{"substance": "no known drug allergies"}],
@@ -61,6 +61,7 @@ def test_chat_accepts_nested_patient_payload() -> None:
     assert response.status_code == 200
     assert response.json()["status"] == "completed"
     assert response.json()["recommendation"]["case_id"] == "CHAT_NESTED"
+    assert response.json()["patient_draft"]["patient"]["vitals"]["weight_kg"]["value"] == 70
 
 
 def test_chat_uses_intake_extractor_for_contextual_fields() -> None:

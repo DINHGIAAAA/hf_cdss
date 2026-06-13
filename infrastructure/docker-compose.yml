@@ -39,8 +39,14 @@ services:
     depends_on:
       ollama-pull:
         condition: service_completed_successfully
-      datastore-init:
-        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+      chromadb:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
     environment:
       HF_CDSS_ENVIRONMENT: ${HF_CDSS_ENVIRONMENT:-docker}
       HF_CDSS_CORS_ORIGINS: ${HF_CDSS_CORS_ORIGINS:-["http://localhost:5173","http://127.0.0.1:5173"]}
@@ -72,7 +78,6 @@ services:
       HF_CDSS_EMBEDDING_BATCH_SIZE: ${HF_CDSS_EMBEDDING_BATCH_SIZE:-16}
       HF_CDSS_SEMANTIC_RERANK_CANDIDATES: ${HF_CDSS_SEMANTIC_RERANK_CANDIDATES:-24}
       HF_CDSS_SEMANTIC_RERANK_WEIGHT: ${HF_CDSS_SEMANTIC_RERANK_WEIGHT:-0.75}
-      HF_CDSS_DATASTORE_BOOTSTRAP_ON_STARTUP: "false"
       HF_CDSS_RETRIEVAL_BACKEND: ${HF_CDSS_RETRIEVAL_BACKEND:-hybrid}
       HF_CDSS_POSTGRES_AUDIT_ENABLED: ${HF_CDSS_POSTGRES_AUDIT_ENABLED:-true}
       HF_CDSS_AUDIT_SCHEMA_VERSION: ${HF_CDSS_AUDIT_SCHEMA_VERSION:-2026-06-12}
@@ -106,54 +111,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
+      start_period: 60s
     restart: unless-stopped
-
-  datastore-init:
-    build:
-      context: ../backend
-    container_name: hf_cdss_datastore_init
-    command: ["python", "-m", "app.scripts.bootstrap_datastores"]
-    depends_on:
-      postgres:
-        condition: service_healthy
-      neo4j:
-        condition: service_healthy
-      chromadb:
-        condition: service_healthy
-      localstack:
-        condition: service_healthy
-    environment:
-      HF_CDSS_POSTGRES_DSN: ${HF_CDSS_POSTGRES_DSN:-postgresql://hf_cdss:hf_cdss@postgres:5432/hf_cdss}
-      HF_CDSS_NEO4J_URI: ${HF_CDSS_NEO4J_URI:-bolt://neo4j:7687}
-      HF_CDSS_NEO4J_USER: ${HF_CDSS_NEO4J_USER:-neo4j}
-      HF_CDSS_NEO4J_PASSWORD: ${HF_CDSS_NEO4J_PASSWORD:-password}
-      HF_CDSS_CHROMA_HOST: ${HF_CDSS_CHROMA_HOST:-chromadb}
-      HF_CDSS_CHROMA_PORT: ${HF_CDSS_CHROMA_PORT:-8000}
-      HF_CDSS_CHROMA_COLLECTION: ${HF_CDSS_CHROMA_COLLECTION:-heart_failure_evidence}
-      HF_CDSS_EMBEDDING_PROVIDER: ${HF_CDSS_EMBEDDING_PROVIDER:-ollama}
-      HF_CDSS_EMBEDDING_MODEL: ${HF_CDSS_EMBEDDING_MODEL:-${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}}
-      HF_CDSS_EMBEDDING_BASE_URL: ${HF_CDSS_EMBEDDING_BASE_URL:-http://ollama:11434}
-      HF_CDSS_EMBEDDING_DIMENSIONS: ${HF_CDSS_EMBEDDING_DIMENSIONS:-768}
-      HF_CDSS_EMBEDDING_BATCH_SIZE: ${HF_CDSS_EMBEDDING_BATCH_SIZE:-16}
-      HF_CDSS_SEMANTIC_RERANK_CANDIDATES: ${HF_CDSS_SEMANTIC_RERANK_CANDIDATES:-24}
-      HF_CDSS_SEMANTIC_RERANK_WEIGHT: ${HF_CDSS_SEMANTIC_RERANK_WEIGHT:-0.75}
-      HF_CDSS_DATA_STORAGE: ${HF_CDSS_DATA_STORAGE:-s3}
-      HF_CDSS_ARTIFACT_STORAGE: ${HF_CDSS_ARTIFACT_STORAGE:-s3}
-      HF_CDSS_ARTIFACT_CACHE_ROOT: ${HF_CDSS_ARTIFACT_CACHE_ROOT:-/tmp/hf_cdss/heart_failure}
-      HF_CDSS_S3_ENDPOINT_URL: ${HF_CDSS_S3_ENDPOINT_URL:-http://localstack:4566}
-      HF_CDSS_RAW_BUCKET: ${HF_CDSS_RAW_BUCKET:-hf-cdss-raw}
-      HF_CDSS_PROCESSED_BUCKET: ${HF_CDSS_PROCESSED_BUCKET:-hf-cdss-processed}
-      HF_CDSS_S3_PREFIX: ${HF_CDSS_S3_PREFIX:-heart_failure}
-      HF_CDSS_AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-test}
-      HF_CDSS_AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-test}
-      HF_CDSS_AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-test}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-test}
-      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
-      HF_CDSS_POSTGRES_POOL_MIN_SIZE: ${HF_CDSS_POSTGRES_POOL_MIN_SIZE:-1}
-      HF_CDSS_POSTGRES_POOL_MAX_SIZE: ${HF_CDSS_POSTGRES_POOL_MAX_SIZE:-5}
-    restart: "no"
 
   airflow:
     build:

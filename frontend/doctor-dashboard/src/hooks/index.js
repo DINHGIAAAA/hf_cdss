@@ -6,6 +6,29 @@ const API_KEY = import.meta.env.VITE_API_KEY ?? "";
 const API_KEY_HEADER = import.meta.env.VITE_API_KEY_HEADER ?? "x-api-key";
 const STORAGE_KEY = "hf_cdss_conversations_v2";
 
+function compactPatientForRequest(active) {
+  const draftPatient = active.draft?.patient;
+  const intakePatient = active.patient;
+  if (!draftPatient) return intakePatient;
+  if (!intakePatient) return draftPatient;
+
+  return {
+    ...draftPatient,
+    patient_identity: { ...intakePatient.patient_identity, ...draftPatient.patient_identity },
+    demographics: { ...intakePatient.demographics, ...draftPatient.demographics },
+    heart_failure_profile: { ...intakePatient.heart_failure_profile, ...draftPatient.heart_failure_profile },
+    labs: { ...intakePatient.labs, ...draftPatient.labs },
+    vitals: { ...intakePatient.vitals, ...draftPatient.vitals },
+    care_context: { ...intakePatient.care_context, ...draftPatient.care_context },
+    conditions: draftPatient.conditions?.length ? draftPatient.conditions : intakePatient.conditions,
+    medications: draftPatient.medications?.length ? draftPatient.medications : intakePatient.medications,
+    allergy_statements: draftPatient.allergy_statements?.length
+      ? draftPatient.allergy_statements
+      : intakePatient.allergy_statements,
+    red_flags: draftPatient.red_flags?.length ? draftPatient.red_flags : intakePatient.red_flags,
+  };
+}
+
 function apiHeaders(extra = {}) {
   return API_KEY ? { ...extra, [API_KEY_HEADER]: API_KEY } : extra;
 }
@@ -108,7 +131,7 @@ export function useChat({ activeId, active, patchConversation }) {
           body: JSON.stringify({
             message,
             conversation_id: conversationId,
-            patient: active.draft?.patient || active.patient,
+            patient: compactPatientForRequest(active),
             clinical_attachments: active.attachments || [],
             language: "vi",
           }),
