@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     llm_cache_enabled: bool = True
     llm_cache_ttl_seconds: int = 600
     llm_cache_max_entries: int = 128
+    clinical_intake_llm_enabled: bool = True
+    clinical_intake_llm_timeout_seconds: float = 20.0
+    clinical_intake_llm_max_tokens: int = 700
     postgres_dsn: str = "postgresql://hf_cdss:hf_cdss@localhost:55432/hf_cdss"
     neo4j_uri: str = "bolt://localhost:7687"
     neo4j_user: str = "neo4j"
@@ -51,7 +54,7 @@ class Settings(BaseSettings):
     rate_limit_window_seconds: int = 60
     postgres_pool_min_size: int = 1
     postgres_pool_max_size: int = 5
-    verification_agent_mode: str = "rule_based"
+    verification_agent_mode: str = "hybrid"
     verification_agent_model: str | None = None
     verification_agent_max_iterations: int = 2
     verification_agent_max_tokens: int = 140

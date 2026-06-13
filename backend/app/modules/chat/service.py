@@ -1,4 +1,7 @@
 import uuid
+import asyncio
+import json
+from collections.abc import AsyncIterator
 from datetime import datetime, timezone
 from typing import Any
 
@@ -11,7 +14,7 @@ from app.modules.datastores.postgres import (
     upsert_patient_draft,
     write_audit_event,
 )
-from app.modules.explanation.llm_service import build_llm_answer
+from app.modules.explanation.llm_service import build_llm_answer, stream_llm_answer
 from app.modules.missing_fields.service import build_missing_fields_prompt, check_missing_fields
 from app.modules.reasoning.service import build_recommendation
 from app.modules.verification_agents.service import verify_recommendation
@@ -39,6 +42,10 @@ def _message(conversation_id: str, role: str, content: str, metadata: dict[str, 
         created_at=_now(),
         metadata=metadata or {},
     )
+
+
+def _sse(event: str, data: Any) -> str:
+    return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False, default=str)}\n\n"
 
 
 def _append_message(message: ChatMessage) -> None:
@@ -142,6 +149,138 @@ def _merge_named(existing: list[Any], incoming: list[Any], attr: str) -> list[An
     return list(by_name.values())
 
 
+async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
+    conversation_id = request.conversation_id or str(uuid.uuid4())
+    yield _sse("status", {"step": "received", "conversation_id": conversation_id})
+    _append_message(_message(conversation_id, "user", request.message))
+
+    current = _load_draft(conversation_id)
+    base_patient = current.patient if current else _new_patient(conversation_id)
+    attachment_context = _attachment_context(request)
+    extraction_message = "\n".join(value for value in [request.message, attachment_context] if value)
+
+    yield _sse("status", {"step": "extracting_patient"})
+    extracted_patient = await asyncio.to_thread(extract_patient_from_message, extraction_message, conversation_id)
+    merged = _merge_patient(base_patient, extracted_patient)
+    if request.patient:
+        merged = _merge_patient(merged, request.patient)
+    merged = _merge_clinical_documents(merged, request)
+
+    clinical_state = build_clinical_state(merged, extraction_message)
+    if state_text := state_query_text(clinical_state):
+        merged.care_context.decision_context = " ".join(
+            value for value in [merged.care_context.decision_context, state_text] if value
+        ).strip()
+
+    draft = PatientDraft(
+        conversation_id=conversation_id,
+        patient=merged,
+        updated_at=_now(),
+        clinical_state=clinical_state,
+    )
+    _save_draft(draft)
+    yield _sse("draft_ready", draft.model_dump(mode="json"))
+
+    missing_check = check_missing_fields(merged)
+    tool_outputs: list[dict[str, Any]] = [
+        {"tool": "patient_draft_merge", "patient": merged.legacy_summary()},
+        {"tool": "clinical_state_memory", "result": clinical_state},
+        {"tool": "missing_field_checker", "result": missing_check.model_dump(mode="json")},
+    ]
+    yield _sse("missing_check", missing_check.model_dump(mode="json"))
+
+    if missing_check.missing_fields:
+        content = build_missing_fields_prompt(missing_check)
+        assistant_message = _message(conversation_id, "assistant", content, {"status": "needs_more_information"})
+        _append_message(assistant_message)
+        write_audit_event(
+            merged.case_id,
+            "chat_missing_fields",
+            {
+                "message": request.message,
+                "attachments": [item.model_dump(mode="json") for item in request.clinical_attachments],
+                "clinical_state": clinical_state,
+                "missing_check": missing_check.model_dump(mode="json"),
+            },
+        )
+        response = ChatResponse(
+            conversation_id=conversation_id,
+            status="needs_more_information",
+            assistant_message=assistant_message,
+            patient_draft=draft,
+            missing_check=missing_check,
+            tool_outputs=tool_outputs,
+        )
+        yield _sse("answer_delta", {"content": content})
+        yield _sse("done", response.model_dump(mode="json"))
+        return
+
+    yield _sse("status", {"step": "building_recommendation"})
+    recommendation = build_recommendation(RecommendationRequest(patient=merged))
+    tool_outputs.append({"tool": "recommendation", "result": recommendation.model_dump(mode="json")})
+    yield _sse("recommendation_ready", recommendation.model_dump(mode="json"))
+
+    yield _sse("status", {"step": "verifying_evidence"})
+    verification = await verify_recommendation(VerificationRequest(patient=merged, recommendation=recommendation))
+    tool_outputs.append({"tool": "verification", "result": verification.model_dump(mode="json")})
+    yield _sse("verification_ready", verification.model_dump(mode="json"))
+
+    yield _sse("status", {"step": "generating_answer"})
+    llm_request = LLMAnswerRequest(
+        user_input=request.message,
+        patient=merged,
+        recommendation=recommendation,
+        verification=verification,
+        language=request.language,
+    )
+    answer_parts: list[str] = []
+    llm_answer = None
+    async for event in stream_llm_answer(llm_request):
+        if event["type"] == "token":
+            answer_parts.append(event["content"])
+            yield _sse("answer_delta", {"content": event["content"]})
+        elif event["type"] == "final":
+            llm_answer = event["llm_answer"]
+
+    final_answer = llm_answer.answer if llm_answer else "".join(answer_parts).strip()
+    assistant_message = _message(
+        conversation_id,
+        "assistant",
+        final_answer,
+        {
+            "status": "completed",
+            "model": llm_answer.model if llm_answer else "unknown",
+            "used_llm": llm_answer.used_llm if llm_answer else False,
+        },
+    )
+    _append_message(assistant_message)
+    write_audit_event(
+        merged.case_id,
+        "chat_recommendation_completed",
+        {
+            "message": request.message,
+            "attachments": [item.model_dump(mode="json") for item in request.clinical_attachments],
+            "clinical_state": clinical_state,
+            "patient": merged.model_dump(mode="json"),
+            "recommendation": recommendation.model_dump(mode="json"),
+            "verification": verification.model_dump(mode="json"),
+            "assistant": llm_answer.model_dump(mode="json") if llm_answer else None,
+        },
+    )
+    response = ChatResponse(
+        conversation_id=conversation_id,
+        status="completed",
+        assistant_message=assistant_message,
+        patient_draft=draft,
+        missing_check=missing_check,
+        recommendation=recommendation,
+        verification=verification,
+        llm_answer=llm_answer,
+        tool_outputs=tool_outputs,
+    )
+    yield _sse("done", response.model_dump(mode="json"))
+
+
 async def process_chat(request: ChatRequest) -> ChatResponse:
     conversation_id = request.conversation_id or str(uuid.uuid4())
     _append_message(_message(conversation_id, "user", request.message))
@@ -150,7 +289,7 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
     base_patient = current.patient if current else _new_patient(conversation_id)
     attachment_context = _attachment_context(request)
     extraction_message = "\n".join(value for value in [request.message, attachment_context] if value)
-    extracted_patient = extract_patient_from_message(extraction_message, conversation_id)
+    extracted_patient = await asyncio.to_thread(extract_patient_from_message, extraction_message, conversation_id)
     merged = _merge_patient(base_patient, extracted_patient)
     if request.patient:
         merged = _merge_patient(merged, request.patient)
@@ -202,7 +341,7 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
 
     recommendation = build_recommendation(RecommendationRequest(patient=merged))
     verification = await verify_recommendation(VerificationRequest(patient=merged, recommendation=recommendation))
-    llm_answer = build_llm_answer(
+    llm_answer = await build_llm_answer(
         LLMAnswerRequest(
             user_input=request.message,
             patient=merged,

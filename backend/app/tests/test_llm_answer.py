@@ -76,20 +76,11 @@ def test_llm_answer_uses_cache_for_repeated_payload(monkeypatch) -> None:
             return {"choices": [{"message": {"content": "Cached clinical explanation."}}]}
 
     class FakeClient:
-        def __init__(self, *args, **kwargs):
-            pass
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *args):
-            return None
-
-        def post(self, *args, **kwargs):
+        async def post(self, *args, **kwargs):
             calls["count"] += 1
             return FakeResponse()
 
-    monkeypatch.setattr(llm_service.httpx, "Client", FakeClient)
+    monkeypatch.setattr(llm_service, "get_async_client", lambda *args, **kwargs: FakeClient())
 
     first = client.post("/llm/answer", json=body)
     second = client.post("/llm/answer", json=body)

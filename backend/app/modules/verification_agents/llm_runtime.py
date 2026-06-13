@@ -3,8 +3,7 @@ import logging
 import re
 from typing import Any
 
-import httpx
-
+from app.core.http_client import get_async_client
 from app.core.config import settings
 from app.prompts.verification_agents import AGENT_PROMPTS
 from app.schemas.graphrag import AgentResult
@@ -74,42 +73,42 @@ async def run_llm_agent(
     tool_map = {tool.name: tool for tool in tools}
     tools_used: list[str] = []
 
-    async with httpx.AsyncClient(timeout=settings.verification_agent_timeout_seconds) as client:
-        for _ in range(max(1, settings.verification_agent_max_iterations)):
-            response = await client.post(
-                f"{settings.llm_base_url.rstrip('/')}/chat/completions",
-                headers=_headers(),
-                json={
-                    "model": _agent_model(),
-                    "messages": messages,
-                    **({"tools": [tool.openai_schema() for tool in tools], "tool_choice": "auto"} if tools else {}),
-                    "temperature": 0.0,
-                    "max_tokens": settings.verification_agent_max_tokens,
-                },
-            )
-            response.raise_for_status()
-            message = response.json()["choices"][0]["message"]
-            tool_calls = message.get("tool_calls") or []
-            if not tool_calls:
-                return _parse_result(agent_name, message.get("content") or "", tools_used)
+    client = get_async_client("verification_agent", settings.verification_agent_timeout_seconds)
+    for _ in range(max(1, settings.verification_agent_max_iterations)):
+        response = await client.post(
+            f"{settings.llm_base_url.rstrip('/')}/chat/completions",
+            headers=_headers(),
+            json={
+                "model": _agent_model(),
+                "messages": messages,
+                **({"tools": [tool.openai_schema() for tool in tools], "tool_choice": "auto"} if tools else {}),
+                "temperature": 0.0,
+                "max_tokens": settings.verification_agent_max_tokens,
+            },
+        )
+        response.raise_for_status()
+        message = response.json()["choices"][0]["message"]
+        tool_calls = message.get("tool_calls") or []
+        if not tool_calls:
+            return _parse_result(agent_name, message.get("content") or "", tools_used)
 
-            messages.append(message)
-            for call in tool_calls:
-                function = call.get("function", {})
-                tool_name = function.get("name")
-                if tool_name not in tool_map:
-                    tool_output = json.dumps({"error": f"Tool {tool_name} is not allowed"})
-                else:
-                    tools_used.append(tool_name)
-                    tool_output = execute_tool(tool_map[tool_name], function.get("arguments"))
-                messages.append(
-                    {
-                        "role": "tool",
-                        "tool_call_id": call.get("id"),
-                        "name": tool_name,
-                        "content": tool_output,
-                    }
-                )
+        messages.append(message)
+        for call in tool_calls:
+            function = call.get("function", {})
+            tool_name = function.get("name")
+            if tool_name not in tool_map:
+                tool_output = json.dumps({"error": f"Tool {tool_name} is not allowed"})
+            else:
+                tools_used.append(tool_name)
+                tool_output = execute_tool(tool_map[tool_name], function.get("arguments"))
+            messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": call.get("id"),
+                    "name": tool_name,
+                    "content": tool_output,
+                }
+            )
 
         messages.append(
             {

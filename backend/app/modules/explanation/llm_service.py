@@ -1,13 +1,13 @@
-import json
 import hashlib
+import json
 import threading
 import time
+from collections.abc import AsyncIterator
 from typing import Any
 
-import httpx
-
-from app.core.metrics import increment, observe
 from app.core.config import settings
+from app.core.http_client import get_async_client
+from app.core.metrics import increment, observe
 from app.prompts.explanation import CLINICAL_EXPLANATION_SYSTEM_PROMPT
 from app.schemas.llm import LLMAnswerRequest, LLMAnswerResponse
 
@@ -49,6 +49,10 @@ def _compact_recommendation(payload: LLMAnswerRequest) -> dict[str, Any]:
                 "drug_class": item.drug_class,
                 "status": item.status,
                 "rationale": item.rationale,
+                "clinical_reasoning": item.clinical_reasoning[:3],
+                "action_items": item.action_items[:3],
+                "monitoring": item.monitoring[:2],
+                "warnings": item.warnings[:3],
             }
             for item in payload.recommendation.recommendations
         ],
@@ -61,33 +65,49 @@ def _compact_recommendation(payload: LLMAnswerRequest) -> dict[str, Any]:
 
 
 def fallback_answer(payload: LLMAnswerRequest) -> str:
-    caution = [
-        item.drug_class
-        for item in payload.recommendation.recommendations
-        if item.status in {"consider_with_caution", "avoid"}
-    ]
-    consider = [
-        item.drug_class
-        for item in payload.recommendation.recommendations
-        if item.status == "consider"
-    ]
+    blocked = [item for item in payload.recommendation.recommendations if item.status == "avoid"]
+    caution = [item for item in payload.recommendation.recommendations if item.status == "consider_with_caution"]
+    consider = [item for item in payload.recommendation.recommendations if item.status == "consider"]
     missing = [risk.name.replace("missing_", "") for risk in payload.recommendation.risk_flags if risk.name.startswith("missing_")]
 
-    lines = [
-        "Tôi đã đọc mô tả bệnh nhân và chạy qua pipeline CDSS. Kết quả hiện tại cho thấy cần thận trọng, nghĩa là có thể có lựa chọn điều trị phù hợp nhưng chưa nên xem đây là khuyến nghị chắc chắn nếu chưa được bác sĩ kiểm tra.",
+    facts = [
+        f"LVEF {payload.patient.lvef}%" if payload.patient.lvef is not None else None,
+        f"eGFR {payload.patient.egfr} mL/min/1.73 m2" if payload.patient.egfr is not None else None,
+        f"K+ {payload.patient.potassium} mmol/L" if payload.patient.potassium is not None else None,
+        f"SBP {payload.patient.systolic_bp} mmHg" if payload.patient.systolic_bp is not None else None,
+        f"HR {payload.patient.heart_rate} bpm" if payload.patient.heart_rate is not None else None,
     ]
-    if payload.recommendation.constraints:
-        lines.append(
-            f"Hệ thống tìm thấy {len(payload.recommendation.constraints)} cảnh báo an toàn liên quan đến thuốc, chủ yếu từ các yếu tố như huyết áp, nhịp tim, kali, chức năng thận hoặc dữ liệu còn thiếu."
-        )
-    if caution:
-        lines.append(f"Các nhóm cần xem kỹ trước khi dùng hoặc tăng liều gồm: {', '.join(caution)}.")
-    if consider:
-        lines.append(f"Các nhóm có thể cân nhắc nếu phù hợp với bối cảnh lâm sàng gồm: {', '.join(consider)}.")
-    if missing:
-        lines.append(f"Nên bổ sung thêm các dữ liệu còn thiếu sau trước khi ra quyết định chắc chắn: {', '.join(missing)}.")
+    context = ", ".join(item for item in facts if item) or "du lieu lam sang da nhap"
+    action_items = list(dict.fromkeys(item for rec in [*blocked, *caution, *consider] for item in rec.action_items))[:4]
+    monitoring = list(dict.fromkeys(item for rec in [*blocked, *caution, *consider] for item in rec.monitoring))[:4]
 
-    lines.append("Phần GraphRAG và agent verification bên dưới cho biết rule, evidence và agent nào đã góp phần tạo ra kết luận này.")
+    lines = ["Ket luan:"]
+    if blocked:
+        lines.append(f"Can tranh hoac hoan {', '.join(item.drug_class for item in blocked)} cho den khi xu ly duoc yeu to an toan.")
+    if caution:
+        lines.append(f"Can than trong voi {', '.join(item.drug_class for item in caution)}; day khong phai la phe duyet tu dong.")
+    if consider:
+        lines.append(f"Co the can nhac {', '.join(item.drug_class for item in consider)} neu khong co chong chi dinh.")
+
+    lines.append("\nLy do:")
+    lines.append(f"Thong tin hien co: {context}.")
+    if payload.recommendation.constraints:
+        lines.append("Canh bao chinh: " + "; ".join(constraint.reason for constraint in payload.recommendation.constraints[:3]))
+
+    lines.append("\nCan lam tiep:")
+    if action_items:
+        lines.extend(f"- {item}" for item in action_items)
+    else:
+        lines.append("- Doi chieu lai chan doan, thuoc hien dung, muc tieu dieu tri va chong chi dinh truoc khi quyet dinh.")
+    if missing:
+        lines.append(f"- Bo sung du lieu con thieu: {', '.join(missing)}.")
+
+    lines.append("\nTheo doi:")
+    if monitoring:
+        lines.extend(f"- {item}" for item in monitoring)
+    else:
+        lines.append("- Theo doi trieu chung, huyet ap, nhip tim, kali va chuc nang than sau moi thay doi dieu tri.")
+    lines.append("\nDay la ho tro quyet dinh lam sang; quyet dinh cuoi cung can duoc bac si dieu tri xac nhan.")
     return "\n\n".join(lines)
 
 
@@ -114,6 +134,23 @@ def _extract_chat_completion_text(data: dict[str, Any]) -> str:
     return content.strip() if isinstance(content, str) else ""
 
 
+def _finish_reason(data: dict[str, Any], api_type: str) -> str | None:
+    if api_type == "chat_completions":
+        choices = data.get("choices", [])
+        return choices[0].get("finish_reason") if choices else None
+    incomplete = data.get("incomplete_details") or {}
+    return incomplete.get("reason") or data.get("status")
+
+
+def _looks_truncated(answer: str, finish_reason: str | None) -> bool:
+    stripped = answer.strip()
+    if finish_reason in {"length", "max_output_tokens", "incomplete"}:
+        return True
+    if not stripped:
+        return True
+    return stripped[-1] not in ".!?:;\n"
+
+
 def _auth_headers() -> dict[str, str]:
     headers = {"Content-Type": "application/json"}
     if settings.openai_api_key:
@@ -121,12 +158,21 @@ def _auth_headers() -> dict[str, str]:
     return headers
 
 
+def _stable(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {key: _stable(value[key]) for key in sorted(value)}
+    if isinstance(value, list):
+        normalized = [_stable(item) for item in value]
+        return sorted(normalized, key=lambda item: json.dumps(item, sort_keys=True, ensure_ascii=False, default=str))
+    return value
+
+
 def _cache_key(compact_payload: dict[str, Any]) -> str:
     raw = {
         "model": settings.llm_model,
         "base_url": settings.llm_base_url,
         "api_type": settings.llm_api_type,
-        "payload": compact_payload,
+        "payload": _stable(compact_payload),
     }
     encoded = json.dumps(raw, sort_keys=True, ensure_ascii=False, default=str).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
@@ -156,20 +202,141 @@ def _write_cache(key: str, response: LLMAnswerResponse) -> None:
         )
 
 
-def build_llm_answer(payload: LLMAnswerRequest) -> LLMAnswerResponse:
+def _chunk_text(text: str, size: int = 28) -> list[str]:
+    words = text.split(" ")
+    chunks: list[str] = []
+    current: list[str] = []
+    length = 0
+    for word in words:
+        length += len(word) + 1
+        current.append(word)
+        if length >= size:
+            chunks.append(" ".join(current) + " ")
+            current = []
+            length = 0
+    if current:
+        chunks.append(" ".join(current))
+    return chunks or [text]
+
+
+def _fallback_response(payload: LLMAnswerRequest, model: str) -> LLMAnswerResponse:
+    return LLMAnswerResponse(
+        case_id=payload.patient.case_id,
+        answer=fallback_answer(payload),
+        model=model,
+        used_llm=False,
+        safety_note=SAFETY_NOTE,
+    )
+
+
+async def stream_llm_answer(payload: LLMAnswerRequest) -> AsyncIterator[dict[str, Any]]:
+    started = time.perf_counter()
+    api_type = settings.llm_api_type.lower().strip()
+    requires_api_key = api_type == "responses" and "api.openai.com" in settings.llm_base_url
+    compact_payload = _compact_recommendation(payload)
+    cache_key = _cache_key(compact_payload)
+
+    if requires_api_key and not settings.openai_api_key:
+        response = _fallback_response(payload, "fallback")
+        for chunk in _chunk_text(response.answer):
+            yield {"type": "token", "content": chunk}
+        yield {"type": "final", "llm_answer": response}
+        increment("hf_cdss_llm_requests_total", {"model": response.model, "status": "missing_api_key"})
+        observe("hf_cdss_llm_latency", time.perf_counter() - started, {"model": response.model, "status": "missing_api_key"})
+        return
+
+    cached = _read_cache(cache_key)
+    if cached:
+        for chunk in _chunk_text(cached.answer):
+            yield {"type": "token", "content": chunk}
+        yield {"type": "final", "llm_answer": cached}
+        increment("hf_cdss_llm_requests_total", {"model": cached.model, "status": "cache_hit"})
+        observe("hf_cdss_llm_latency", time.perf_counter() - started, {"model": cached.model, "status": "cache_hit"})
+        return
+
+    if api_type != "chat_completions":
+        response = await build_llm_answer(payload)
+        for chunk in _chunk_text(response.answer):
+            yield {"type": "token", "content": chunk}
+        yield {"type": "final", "llm_answer": response}
+        return
+
+    parts: list[str] = []
+    finish_reason: str | None = None
+    emitted_token = False
+    try:
+        client = get_async_client("llm_answer_stream", settings.llm_timeout_seconds)
+        async with client.stream(
+            "POST",
+            f"{settings.llm_base_url.rstrip('/')}/chat/completions",
+            headers=_auth_headers(),
+            json={
+                "model": settings.llm_model,
+                "messages": [
+                    {"role": "system", "content": CLINICAL_EXPLANATION_SYSTEM_PROMPT},
+                    {"role": "user", "content": json.dumps(compact_payload, ensure_ascii=False)},
+                ],
+                "temperature": 0.2,
+                "max_tokens": 420,
+                "stream": True,
+            },
+        ) as response:
+            response.raise_for_status()
+            async for line in response.aiter_lines():
+                if not line.startswith("data:"):
+                    continue
+                raw = line.removeprefix("data:").strip()
+                if raw == "[DONE]":
+                    break
+                try:
+                    event = json.loads(raw)
+                except json.JSONDecodeError:
+                    continue
+                choices = event.get("choices", [])
+                if not choices:
+                    continue
+                finish_reason = choices[0].get("finish_reason") or finish_reason
+                content = choices[0].get("delta", {}).get("content")
+                if isinstance(content, str) and content:
+                    parts.append(content)
+                    emitted_token = True
+                    yield {"type": "token", "content": content}
+
+        answer = "".join(parts).strip()
+        if not answer or _looks_truncated(answer, finish_reason):
+            response_model = _fallback_response(payload, "fallback_after_llm_stream_error")
+            if not emitted_token:
+                for chunk in _chunk_text(response_model.answer):
+                    yield {"type": "token", "content": chunk}
+        else:
+            response_model = LLMAnswerResponse(
+                case_id=payload.patient.case_id,
+                answer=answer,
+                model=settings.llm_model,
+                used_llm=True,
+                safety_note=SAFETY_NOTE,
+            )
+    except Exception:
+        response_model = _fallback_response(payload, "fallback_after_llm_stream_error")
+        if not emitted_token:
+            for chunk in _chunk_text(response_model.answer):
+                yield {"type": "token", "content": chunk}
+
+    _write_cache(cache_key, response_model)
+    status = "ok" if response_model.used_llm else "error"
+    increment("hf_cdss_llm_requests_total", {"model": response_model.model, "status": status})
+    observe("hf_cdss_llm_latency", time.perf_counter() - started, {"model": response_model.model, "status": status})
+    yield {"type": "final", "llm_answer": response_model}
+
+
+async def build_llm_answer(payload: LLMAnswerRequest) -> LLMAnswerResponse:
     started = time.perf_counter()
     api_type = settings.llm_api_type.lower().strip()
     requires_api_key = api_type == "responses" and "api.openai.com" in settings.llm_base_url
     if requires_api_key and not settings.openai_api_key:
         increment("hf_cdss_llm_requests_total", {"model": "fallback", "status": "missing_api_key"})
         observe("hf_cdss_llm_latency", time.perf_counter() - started, {"model": "fallback", "status": "missing_api_key"})
-        return LLMAnswerResponse(
-            case_id=payload.patient.case_id,
-            answer=fallback_answer(payload),
-            model="fallback",
-            used_llm=False,
-            safety_note=SAFETY_NOTE,
-        )
+        return _fallback_response(payload, "fallback")
 
     compact_payload = _compact_recommendation(payload)
     cache_key = _cache_key(compact_payload)
@@ -180,44 +347,40 @@ def build_llm_answer(payload: LLMAnswerRequest) -> LLMAnswerResponse:
         return cached
 
     try:
-        with httpx.Client(timeout=settings.llm_timeout_seconds) as client:
-            if api_type == "chat_completions":
-                response = client.post(
-                    f"{settings.llm_base_url.rstrip('/')}/chat/completions",
-                    headers=_auth_headers(),
-                    json={
-                        "model": settings.llm_model,
-                        "messages": [
-                            {"role": "system", "content": CLINICAL_EXPLANATION_SYSTEM_PROMPT},
-                            {"role": "user", "content": json.dumps(compact_payload, ensure_ascii=False)},
-                        ],
-                        "temperature": 0.2,
-                        "max_tokens": 120,
-                    },
-                )
-            else:
-                response = client.post(
-                    f"{settings.llm_base_url.rstrip('/')}/responses",
-                    headers=_auth_headers(),
-                    json={
-                        "model": settings.llm_model,
-                        "instructions": CLINICAL_EXPLANATION_SYSTEM_PROMPT,
-                        "input": json.dumps(compact_payload, ensure_ascii=False),
-                        "max_output_tokens": 120,
-                        "text": {"verbosity": "low"},
-                    },
-                )
-            response.raise_for_status()
-            data = response.json()
-            answer = _extract_chat_completion_text(data) if api_type == "chat_completions" else _extract_response_text(data)
+        client = get_async_client("llm_answer", settings.llm_timeout_seconds)
+        if api_type == "chat_completions":
+            response = await client.post(
+                f"{settings.llm_base_url.rstrip('/')}/chat/completions",
+                headers=_auth_headers(),
+                json={
+                    "model": settings.llm_model,
+                    "messages": [
+                        {"role": "system", "content": CLINICAL_EXPLANATION_SYSTEM_PROMPT},
+                        {"role": "user", "content": json.dumps(compact_payload, ensure_ascii=False)},
+                    ],
+                    "temperature": 0.2,
+                    "max_tokens": 420,
+                },
+            )
+        else:
+            response = await client.post(
+                f"{settings.llm_base_url.rstrip('/')}/responses",
+                headers=_auth_headers(),
+                json={
+                    "model": settings.llm_model,
+                    "instructions": CLINICAL_EXPLANATION_SYSTEM_PROMPT,
+                    "input": json.dumps(compact_payload, ensure_ascii=False),
+                    "max_output_tokens": 420,
+                    "text": {"verbosity": "medium"},
+                },
+            )
+        response.raise_for_status()
+        data = response.json()
+        answer = _extract_chat_completion_text(data) if api_type == "chat_completions" else _extract_response_text(data)
+        if _looks_truncated(answer, _finish_reason(data, api_type)):
+            answer = fallback_answer(payload)
     except Exception:
-        fallback_response = LLMAnswerResponse(
-            case_id=payload.patient.case_id,
-            answer=fallback_answer(payload),
-            model="fallback_after_llm_error",
-            used_llm=False,
-            safety_note=SAFETY_NOTE,
-        )
+        fallback_response = _fallback_response(payload, "fallback_after_llm_error")
         _write_cache(cache_key, fallback_response)
         increment("hf_cdss_llm_requests_total", {"model": "fallback_after_llm_error", "status": "error"})
         observe(

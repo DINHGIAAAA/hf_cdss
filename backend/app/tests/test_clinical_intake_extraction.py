@@ -1,3 +1,5 @@
+from app.core.config import settings
+from app.modules.clinical_intake_extraction import service
 from app.modules.clinical_intake_extraction.service import extract_patient_from_message
 
 
@@ -50,3 +52,60 @@ def test_extracts_brands_and_acute_red_flags() -> None:
     assert {"sacubitril/valsartan", "dapagliflozin"} <= set(patient.current_medications)
     assert any(flag.name == "active_bleeding" and flag.status == "present" for flag in patient.red_flags)
 
+
+def test_llm_extractor_enriches_patient_identity_and_structured_fields(monkeypatch) -> None:
+    monkeypatch.setattr(settings, "clinical_intake_llm_enabled", True)
+    monkeypatch.setattr(settings, "llm_api_type", "chat_completions")
+    monkeypatch.setattr(settings, "llm_base_url", "http://llm.test/v1")
+    monkeypatch.setattr(settings, "llm_model", "test-model")
+
+    class FakeResponse:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict:
+            return {
+                "choices": [
+                    {
+                        "message": {
+                            "content": (
+                                '{"full_name":"Nguyen Van A","age":72,"sex":"male","weight_kg":70,'
+                                '"systolic_bp":104,"heart_rate":66,"lvef":29,"egfr":24,'
+                                '"potassium":5.7,"conditions":["HFrEF","CKD"],'
+                                '"medications":[{"name":"spironolactone","dose_value":25,'
+                                '"dose_unit":"mg","frequency":"daily"}],"allergies":["NKDA"],'
+                                '"red_flags":[{"name":"hyperkalemia","status":"present"}],'
+                                '"chief_complaint":"medication safety review"}'
+                            )
+                        }
+                    }
+                ]
+            }
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def post(self, *args, **kwargs):
+            return FakeResponse()
+
+    monkeypatch.setattr(service.httpx, "Client", FakeClient)
+
+    patient = extract_patient_from_message("Can danh gia an toan MRA.", "LLM_INTAKE")
+
+    assert patient.patient_identity.full_name == "Nguyen Van A"
+    assert patient.age == 72
+    assert patient.sex == "male"
+    assert patient.vitals.weight_kg.value == 70
+    assert patient.lvef == 29
+    assert patient.egfr == 24
+    assert patient.potassium == 5.7
+    assert "spironolactone" in patient.current_medications
+    assert patient.medications[0].dose_value == 25
+    assert any(flag.name == "hyperkalemia" for flag in patient.red_flags)

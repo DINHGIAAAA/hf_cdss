@@ -8,5 +8,5 @@ router = APIRouter()
 
 
 @router.post("/llm/answer", response_model=LLMAnswerResponse)
-def llm_answer(payload: LLMAnswerRequest) -> LLMAnswerResponse:
-    return build_llm_answer(payload)
+async def llm_answer(payload: LLMAnswerRequest) -> LLMAnswerResponse:
+    return await build_llm_answer(payload)

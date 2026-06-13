@@ -1,0 +1,122 @@
+/* ── Modal backdrop ─────────────────────────────────────────────────────── */
+.modal-backdrop {
+  align-items: center;
+  background: rgba(16, 24, 32, 0.55);
+  display: grid;
+  inset: 0;
+  padding: 18px;
+  place-items: center;
+  position: fixed;
+  z-index: 100;
+}
+
+/* ── Modal container ── */
+.patient-modal {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 24px 70px rgba(16, 24, 32, 0.28);
+  display: grid;
+  gap: 16px;
+  max-height: calc(100dvh - 36px);
+  max-width: 740px;
+  overflow-y: auto;
+  padding: 22px;
+  width: 100%;
+}
+
+.patient-modal::-webkit-scrollbar {
+  width: 5px;
+}
+.patient-modal::-webkit-scrollbar-thumb {
+  background: #d0d8de;
+  border-radius: 4px;
+}
+
+/* ── Header ── */
+.modal-head {
+  align-items: flex-start;
+  display: flex;
+  justify-content: space-between;
+}
+
+.modal-close {
+  align-items: center;
+  background: #f3f6f8;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-text-2);
+  display: inline-flex;
+  height: 34px;
+  justify-content: center;
+  width: 34px;
+}
+
+.modal-close:hover {
+  background: #e8edf1;
+}
+
+.modal-head h1 {
+  font-size: 20px;
+  margin: 0;
+}
+
+.modal-subtitle {
+  color: var(--color-text-muted);
+  font-size: 12px;
+  margin: 4px 0 0;
+  font-family: monospace;
+}
+
+/* ── Grid ── */
+.modal-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (max-width: 520px) {
+  .modal-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Field ── */
+.field {
+  display: grid;
+  gap: 5px;
+}
+
+.field.wide {
+  grid-column: 1 / -1;
+}
+
+.field span {
+  color: var(--color-text-2);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.field input,
+.field select,
+.field textarea {
+  background: #fbfcfd;
+  border: 1px solid #cbd5dc;
+  border-radius: var(--radius);
+  color: var(--color-text);
+  outline: none;
+  padding: 8px 10px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  width: 100%;
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 3px rgba(31, 111, 178, 0.12);
+}
+
+.field textarea {
+  min-height: 56px;
+  resize: vertical;
+}

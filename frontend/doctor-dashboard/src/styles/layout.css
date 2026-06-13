@@ -1,0 +1,114 @@
+.app-shell {
+  --sidebar-width: 260px;
+  --panel-width: 380px;
+  background: var(--color-surface);
+  display: grid;
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr) var(--panel-width);
+  height: 100vh;
+  overflow: hidden;
+  transition: grid-template-columns 0.22s ease;
+}
+
+.app-shell--sidebar-collapsed {
+  --sidebar-width: 0px;
+}
+
+.app-shell--panel-collapsed {
+  --panel-width: 0px;
+}
+
+.conversation-sidebar.sidebar--collapsed {
+  overflow: hidden;
+  padding: 0;
+}
+
+.conversation-sidebar.sidebar--collapsed > * {
+  display: none;
+}
+
+.clinical-panel.panel--collapsed {
+  border-left: 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+.clinical-panel.panel--collapsed > * {
+  display: none;
+}
+
+.toggle-btn {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius);
+  color: var(--color-text-muted);
+  display: flex;
+  flex-shrink: 0;
+  height: 32px;
+  justify-content: center;
+  padding: 0;
+  transition: background 0.12s, color 0.12s;
+  width: 32px;
+}
+
+.toggle-btn:hover {
+  background: #f0f4f7;
+  color: var(--color-text);
+}
+
+.chat-toggles--empty {
+  display: flex;
+  inset: 0 0 auto;
+  justify-content: space-between;
+  padding: 14px 16px 0;
+  position: absolute;
+}
+
+.toggle-btn--right {
+  margin-left: auto;
+}
+
+@media (max-width: 1180px) {
+  .app-shell {
+    --sidebar-width: min(240px, 34vw);
+    grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+    grid-template-rows: 1fr auto;
+  }
+
+  .app-shell.app-shell--sidebar-collapsed {
+    --sidebar-width: 0px;
+  }
+
+  .clinical-panel {
+    border-left: none;
+    border-top: 1px solid var(--color-border);
+    grid-column: 1 / -1;
+    height: auto;
+    max-height: 45vh;
+  }
+
+  .clinical-panel.panel--collapsed {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr auto auto;
+  }
+
+  .conversation-sidebar {
+    height: auto;
+    max-height: 30vh;
+  }
+
+  .conversation-sidebar.sidebar--collapsed,
+  .clinical-panel.panel--collapsed {
+    display: none;
+  }
+
+  .clinical-panel {
+    max-height: 50vh;
+  }
+}

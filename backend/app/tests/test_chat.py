@@ -24,6 +24,21 @@ def test_chat_creates_draft_and_asks_for_missing_fields() -> None:
     assert len(history.json()["messages"]) == 2
 
 
+def test_chat_stream_emits_sse_events_for_missing_fields() -> None:
+    with client.stream(
+        "POST",
+        "/chat/stream",
+        json={"message": "Benh nhan kho tho tang, EF 30, eGFR 28, K 5.6, dang dung spironolactone."},
+    ) as response:
+        body = "".join(response.iter_text())
+
+    assert response.status_code == 200
+    assert "event: draft_ready" in body
+    assert "event: missing_check" in body
+    assert "event: answer_delta" in body
+    assert "event: done" in body
+
+
 def test_chat_accepts_nested_patient_payload() -> None:
     response = client.post(
         "/chat",

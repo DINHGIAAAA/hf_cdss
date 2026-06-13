@@ -1,0 +1,110 @@
+.conversation-sidebar {
+  background: #101820;
+  color: #f7fafc;
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  gap: 10px;
+  height: 100%;
+  overflow: hidden;
+  padding: 14px;
+}
+
+/* ── Brand ── */
+.brand {
+  align-items: center;
+  display: flex;
+  font-size: 16px;
+  gap: 8px;
+  padding: 6px 4px;
+}
+
+/* ── New chat button ── */
+.new-chat {
+  align-items: center;
+  background: #1f2a34;
+  border: 1px solid #344554;
+  border-radius: var(--radius);
+  color: #fff;
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  padding: 10px;
+  transition: background 0.15s;
+}
+
+.new-chat:hover {
+  background: #273646;
+}
+
+/* ── Conversation list ── */
+.conversation-list {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  overflow-y: auto;          /* scroll chỉ ở đây */
+  padding-right: 2px;
+}
+
+/* Scrollbar tối giản */
+.conversation-list::-webkit-scrollbar {
+  width: 4px;
+}
+.conversation-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+.conversation-list::-webkit-scrollbar-thumb {
+  background: #344554;
+  border-radius: 4px;
+}
+
+.conversation-list button {
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius);
+  color: #d7e0e7;
+  display: grid;
+  gap: 3px;
+  padding: 9px 10px;
+  text-align: left;
+  transition: background 0.12s;
+  min-width: 0;
+}
+
+.conversation-list button strong,
+.conversation-list button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conversation-list button span {
+  color: #aab8c2;
+  font-size: 12px;
+}
+
+.conversation-list button.active,
+.conversation-list button:hover {
+  background: #22303b;
+}
+
+/* ── API status ── */
+.api-status {
+  align-items: center;
+  border-radius: var(--radius);
+  display: flex;
+  font-size: 13px;
+  gap: 8px;
+  padding: 8px;
+}
+
+.api-status.ok {
+  background: #153d2a;
+  color: #bdf2d0;
+}
+
+.api-status.down,
+.api-status.checking,
+.api-status.degraded {
+  background: #4a3310;
+  color: #ffd996;
+}
