@@ -128,12 +128,18 @@ def generate_rule(claim: dict) -> dict | None:
         "drug_interaction",
         "population_constraint",
     }
+    # Exclude general_monitoring - these are not drug-specific enough for constraints
+    if claim_type == "general_monitoring":
+        return None
     if claim_type not in rule_worthy_types:
         return None
     if not condition and claim_type not in {"contraindication", "drug_interaction", "population_constraint"}:
         return None
 
-    drug = claim.get("drug") or claim.get("document_id")
+    # Drug must be present and not None for a usable rule
+    drug = claim.get("drug")
+    if not drug:
+        return None
     action = infer_action(text, claim_type)
     haystack = text.lower()
     if claim_type == "usage_constraint" and any(term in haystack for term in ("monitoring", "assay", "test is not recommended", "tests is not recommended")):

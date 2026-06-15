@@ -161,7 +161,14 @@ def create_claim(record: dict, sentence: str, index: int) -> dict | None:
     }
 
     if record.get("source_type") == "drug_label":
-        output["drug"] = metadata.get("drug") or record.get("document_id")
+        # Only assign drug if explicitly found; don't use document_id as fallback
+        drug = metadata.get("drug")
+        if drug:
+            output["drug"] = drug
+        else:
+            # No drug found - mark as general monitoring
+            output["drug"] = None
+            output["claim_type"] = "general_monitoring"
         output["metadata"]["published_date"] = metadata.get("published_date")
         output["metadata"]["setid"] = metadata.get("setid")
     else:

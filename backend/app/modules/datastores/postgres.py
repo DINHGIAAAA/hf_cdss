@@ -96,7 +96,61 @@ def initialize_postgres() -> dict[str, Any]:
                 "CREATE INDEX IF NOT EXISTS idx_chat_patient_drafts_case_updated "
                 "ON chat_patient_drafts (case_id, updated_at DESC)"
             )
-    return {"status": "ok", "tables": ["cdss_audit_events", "chat_conversations", "chat_messages", "chat_patient_drafts"]}
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS constraint_rules (
+                    id BIGSERIAL PRIMARY KEY,
+                    constraint_id TEXT NOT NULL,
+                    version INTEGER NOT NULL DEFAULT 1,
+                    status TEXT NOT NULL DEFAULT 'draft',
+                    risk_names TEXT[] NOT NULL DEFAULT '{}',
+                    severity_any TEXT[] NOT NULL DEFAULT '{}',
+                    target_drug_class TEXT,
+                    action TEXT NOT NULL,
+                    reason TEXT NOT NULL,
+                    evidence_ref TEXT,
+                    clinical_sources JSONB NOT NULL DEFAULT '[]'::jsonb,
+                    source TEXT NOT NULL,
+                    approved_by TEXT,
+                    approved_at TIMESTAMPTZ,
+                    retired_by TEXT,
+                    retired_at TIMESTAMPTZ,
+                    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS constraint_rule_history (
+                    history_id BIGSERIAL PRIMARY KEY,
+                    constraint_id TEXT NOT NULL,
+                    status_from TEXT,
+                    status_to TEXT NOT NULL,
+                    changed_by TEXT NOT NULL,
+                    changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    reason TEXT,
+                    CONSTRAINT fk_constraint_rule
+                        FOREIGN KEY(constraint_id) 
+                        REFERENCES constraint_rules(constraint_id)
+                        ON DELETE CASCADE
+                )
+                """
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_constraint_rules_status "
+                "ON constraint_rules (status)"
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_constraint_rules_target_drug_class "
+                "ON constraint_rules (target_drug_class)"
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_constraint_rule_history_constraint "
+                "ON constraint_rule_history (constraint_id, changed_at DESC)"
+            )
+    return {"status": "ok", "tables": ["cdss_audit_events", "chat_conversations", "chat_messages", "chat_patient_drafts", "constraint_rules", "constraint_rule_history"]}
 
 
 def write_audit_event(case_id: str, event_type: str, payload: dict[str, Any]) -> bool:
@@ -279,4 +333,453 @@ def read_patient_draft(conversation_id: str) -> dict[str, Any] | None:
                 "patient": row[1],
                 "updated_at": row[2],
                 "source": row[3],
+            }
+
+
+# Constraint Rules Management (Pipeline-Generated)
+
+
+def _log_constraint_rule_history(cursor, constraint_id: str, status_from: str | None, status_to: str, changed_by: str, reason: str | None = None):
+    """Internal helper to log a status change for a constraint rule."""
+    cursor.execute(
+        """
+        INSERT INTO constraint_rule_history (constraint_id, status_from, status_to, changed_by, reason)
+        VALUES (%s, %s, %s, %s, %s)
+        """,
+        (constraint_id, status_from, status_to, changed_by, reason),
+    )
+
+
+def read_approved_constraint_rules() -> list[dict[str, Any]]:
+    """Read all approved constraint rules for use in constraint builder."""
+    with postgres_pool().connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """ --noqa: S608
+                SELECT id, constraint_id, version, target_drug_class, action,
+                       reason, risk_names, severity_any, evidence_ref, 
+                       clinical_sources, metadata
+                FROM constraint_rules
+                WHERE status = 'approved'
+                ORDER BY target_drug_class, created_at DESC
+                """
+            )
+            return [
+                {
+                    "id": row[0],
+                    "constraint_id": row[1],
+                    "version": row[2],
+                    "target_drug_class": row[3],
+                    "action": row[4],
+                    "reason": row[5],
+                    "risk_names": list(row[6]) if row[6] else [],
+                    "severity_any": list(row[7]) if row[7] else [],
+                    "evidence_ref": row[8],
+                    "clinical_sources": row[9] or [],
+                    "metadata": row[10] or {},
+                }
+                for row in cursor.fetchall()
+            ]
+
+
+def read_constraint_rules_by_status(status: str, limit: int = 100) -> list[dict[str, Any]]:
+    """Read constraint rules filtered by status."""
+    with postgres_pool().connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """ --noqa: S608
+                SELECT id, constraint_id, version, target_drug_class, action,
+                       reason, risk_names, severity_any, evidence_ref, clinical_sources, status,
+                       source, approved_by, approved_at, retired_by, retired_at, created_at,
+                       updated_at, metadata
+                FROM constraint_rules
+                WHERE status = %s
+                ORDER BY created_at DESC
+                LIMIT %s
+                """,
+                (status, limit),
+            )
+            return [
+                {
+                    "id": row[0],
+                    "constraint_id": row[1],
+                    "version": row[2],
+                    "target_drug_class": row[3],
+                    "action": row[4],
+                    "reason": row[5],
+                    "risk_names": list(row[6]) if row[6] else [],
+                    "severity_any": list(row[7]) if row[7] else [],
+                    "evidence_ref": row[8],
+                    "clinical_sources": row[9] or [],
+                    "status": row[10],
+                    "source": row[11],
+                    "approved_by": row[12],
+                    "approved_at": row[13].isoformat() if row[13] else None,
+                    "retired_by": row[14],
+                    "retired_at": row[15].isoformat() if row[15] else None,
+                    "created_at": row[16].isoformat(),
+                    "updated_at": row[17].isoformat(),
+                    "metadata": row[18] or {},
+                }
+                for row in cursor.fetchall()
+            ]
+
+
+def read_all_constraint_rules(
+    status: str | None = None, limit: int = 100, offset: int = 0
+) -> list[dict[str, Any]]:
+    """Read all constraint rules with pagination and optional status filter."""
+    query = """
+        SELECT id, constraint_id, version, target_drug_class, action,
+               reason, risk_names, severity_any, evidence_ref, clinical_sources, status,
+               source, approved_by, approved_at, retired_by, retired_at, created_at,
+               updated_at, metadata
+        FROM constraint_rules
+    """
+    params = []
+    if status:
+        query += " WHERE status = %s"
+        params.append(status)
+    
+    query += " ORDER BY updated_at DESC LIMIT %s OFFSET %s"
+    params.extend([limit, offset])
+
+    with postgres_pool().connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(query, tuple(params))
+            return [
+                {
+                    "id": row[0],
+                    "constraint_id": row[1],
+                    "version": row[2],
+                    "target_drug_class": row[3],
+                    "action": row[4],
+                    "reason": row[5],
+                    "risk_names": list(row[6]) if row[6] else [],
+                    "severity_any": list(row[7]) if row[7] else [],
+                    "evidence_ref": row[8],
+                    "clinical_sources": row[9] or [],
+                    "status": row[10],
+                    "source": row[11],
+                    "approved_by": row[12],
+                    "approved_at": row[13].isoformat() if row[13] else None,
+                    "retired_by": row[14],
+                    "retired_at": row[15].isoformat() if row[15] else None,
+                    "created_at": row[16].isoformat(),
+                    "updated_at": row[17].isoformat(),
+                    "metadata": row[18] or {},
+                }
+                for row in cursor.fetchall()
+            ]
+
+
+def get_constraint_rule_counts() -> dict[str, int]:
+    """Get counts of rules by status."""
+    with postgres_pool().connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT status, COUNT(*) FROM constraint_rules GROUP BY status")
+            counts = {row[0]: row[1] for row in cursor.fetchall()}
+            return {
+                "draft": counts.get("draft", 0),
+                "approved": counts.get("approved", 0),
+                "retired": counts.get("retired", 0),
+                "total": sum(counts.values()),
+            }
+
+
+def insert_constraint_rule(rule: dict[str, Any]) -> bool:
+    """Insert or update a constraint rule from pipeline."""
+    try:
+        psycopg = _psycopg()
+        with postgres_pool().connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO constraint_rules ( --noqa: S608
+                        constraint_id, version, target_drug_class, action, reason,
+                        risk_names, severity_any, evidence_ref, clinical_sources,
+                        source, metadata
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (constraint_id, version) DO UPDATE -- noqa: S608
+                    SET version = EXCLUDED.version,
+                        target_drug_class = EXCLUDED.target_drug_class,
+                        action = EXCLUDED.action,
+                        reason = EXCLUDED.reason,
+                        risk_names = EXCLUDED.risk_names,
+                        severity_any = EXCLUDED.severity_any,
+                        evidence_ref = EXCLUDED.evidence_ref,
+                        clinical_sources = EXCLUDED.clinical_sources,
+                        metadata = EXCLUDED.metadata,
+                        updated_at = NOW()
+                    WHERE constraint_rules.status = 'draft'
+                    RETURNING xmax
+                    """,
+                    (
+                        rule.get("constraint_id"),
+                        rule.get("version", 1),
+                        rule.get("target_drug_class"),
+                        rule.get("action"),
+                        rule.get("reason"),
+                        rule.get("risk_names", []),
+                        rule.get("severity_any", []),
+                        rule.get("evidence_ref"),
+                        psycopg.types.json.Jsonb(rule.get("clinical_sources", [])),
+                        rule.get("source", "pipeline_generated"),
+                        psycopg.types.json.Jsonb(rule.get("metadata", {})),
+                    ),
+                )
+                result = cursor.fetchone()
+                # xmax = 0 for an insert, which means a new rule was created in 'draft' status.
+                if result and result[0] == 0:
+                    _log_constraint_rule_history(
+                        cursor,
+                        rule.get("constraint_id"),
+                        status_from=None,
+                        status_to='draft',
+                        changed_by=rule.get("source", "pipeline_generated"),
+                        reason="Rule created"
+                    )
+        return True
+    except Exception as exc:
+        logger.warning("Failed to insert constraint rule: %s", exc)
+        return False
+
+
+def approve_constraint_rule(rule_id: int, admin_user_id: str) -> bool:
+    """Approve a draft constraint rule, and retire any other approved versions."""
+    try:
+        with postgres_pool().connection() as connection:
+            with connection.cursor() as cursor:
+                # Step 1: Get the constraint_id of the rule being approved
+                cursor.execute(
+                    "SELECT constraint_id FROM constraint_rules WHERE id = %s AND status = 'draft'",
+                    (rule_id,)
+                )
+                result = cursor.fetchone()
+                if not result:
+                    logger.warning(f"No draft rule found with id {rule_id} to approve.")
+                    return False
+                constraint_id = result[0]
+
+                # Step 2: Retire all other currently approved versions of this rule
+                cursor.execute(
+                    """
+                    UPDATE constraint_rules
+                    SET status = 'retired',
+                        retired_by = %s,
+                        retired_at = NOW(),
+                        updated_at = NOW()
+                    WHERE constraint_id = %s AND status = 'approved' AND id != %s
+                    RETURNING id
+                    """,
+                    (f"system_auto_retire_by_{admin_user_id}", constraint_id, rule_id)
+                )
+                for retired_row in cursor.fetchall():
+                    _log_constraint_rule_history(cursor, constraint_id, 'approved', 'retired', f"system_auto_retire_by_{admin_user_id}", f"Auto-retired due to new version approval (rule_id: {rule_id})")
+
+                # Step 3: Approve the new version
+                cursor.execute(
+                    """
+                    UPDATE constraint_rules
+                    SET status = 'approved',
+                        approved_by = %s,
+                        approved_at = NOW(),
+                        updated_at = NOW()
+                    WHERE id = %s AND status = 'draft'
+                    """,
+                    (admin_user_id, rule_id)
+                )
+                if cursor.rowcount == 0:
+                    # This should not happen if step 1 succeeded, but as a safeguard
+                    raise Exception(f"Approve failed for rule {rule_id} because it was not in draft state.")
+                
+                _log_constraint_rule_history(cursor, constraint_id, 'draft', 'approved', admin_user_id, "Rule approved")
+        return True
+    except Exception as exc:
+        logger.warning("Failed to approve constraint rule transaction for rule_id %s: %s", rule_id, exc)
+        return False
+
+
+def retire_constraint_rule(rule_id: int, admin_user_id: str) -> bool:
+    """Retire an approved constraint rule."""
+    try:
+        with postgres_pool().connection() as connection:
+            with connection.cursor() as cursor:
+                # Get constraint_id for logging
+                cursor.execute("SELECT constraint_id FROM constraint_rules WHERE id = %s", (rule_id,))
+                res = cursor.fetchone()
+                if not res: return False
+                constraint_id = res[0]
+
+                cursor.execute(
+                    """
+                    UPDATE constraint_rules
+                    SET status = 'retired',
+                        retired_by = %s,
+                        retired_at = NOW(),
+                        updated_at = NOW()
+                    WHERE id = %s AND status = 'approved'
+                    """,
+                    (admin_user_id, rule_id),
+                )
+                if cursor.rowcount > 0:
+                    _log_constraint_rule_history(cursor, constraint_id, 'approved', 'retired', admin_user_id, "Rule retired")
+        return True
+    except Exception as exc:
+        logger.warning("Failed to retire constraint rule: %s", exc)
+        return False
+
+
+def unretire_constraint_rule(rule_id: int, admin_user_id: str) -> bool:
+    """Un-retire a retired constraint rule, setting it back to approved."""
+    try:
+        with postgres_pool().connection() as connection:
+            with connection.cursor() as cursor:
+                # Get constraint_id for logging
+                cursor.execute("SELECT constraint_id FROM constraint_rules WHERE id = %s", (rule_id,))
+                res = cursor.fetchone()
+                if not res: return False
+                constraint_id = res[0]
+
+                cursor.execute(
+                    """
+                    UPDATE constraint_rules
+                    SET status = 'approved',
+                        approved_by = %s,
+                        approved_at = NOW(),
+                        retired_by = NULL,
+                        retired_at = NULL,
+                        updated_at = NOW()
+                    WHERE id = %s AND status = 'retired'
+                    """,
+                    (admin_user_id, rule_id),
+                )
+                if cursor.rowcount > 0:
+                    # Note: This doesn't check for other approved versions. The assumption is un-retire is a specific admin action.
+                    _log_constraint_rule_history(cursor, constraint_id, 'retired', 'approved', admin_user_id, "Rule un-retired")
+        return True
+    except Exception as exc:
+        logger.warning("Failed to un-retire constraint rule: %s", exc)
+        return False
+
+
+def read_constraint_rule_history(constraint_id: str) -> list[dict[str, Any]]:
+    """Read the status change history for a specific constraint rule."""
+    with postgres_pool().connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT history_id, constraint_id, status_from, status_to,
+                       changed_by, changed_at, reason
+                FROM constraint_rule_history
+                WHERE constraint_id = %s
+                ORDER BY changed_at DESC
+                """,
+                (constraint_id,),
+            )
+            return [
+                {
+                    "history_id": row[0],
+                    "constraint_id": row[1],
+                    "status_from": row[2],
+                    "status_to": row[3],
+                    "changed_by": row[4],
+                    "changed_at": row[5].isoformat(),
+                    "reason": row[6],
+                }
+                for row in cursor.fetchall()
+            ]
+
+
+def get_latest_constraint_rule_version(constraint_id: str) -> dict[str, Any] | None:
+    """Get the latest version of a specific constraint rule by its constraint_id."""
+    with postgres_pool().connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT id, constraint_id, version, status, metadata
+                FROM constraint_rules
+                WHERE constraint_id = %s
+                ORDER BY version DESC
+                LIMIT 1
+                """,
+                (constraint_id,),
+            )
+            row = cursor.fetchone()
+            if not row:
+                return None
+            return {
+                "id": row[0],
+                "constraint_id": row[1],
+                "version": row[2],
+                "status": row[3],
+                "metadata": row[4] or {},
+            }
+
+
+def rule_with_constraint_id_exists(constraint_id: str) -> bool:
+    """Check if any version of a rule with the given constraint_id exists."""
+    with postgres_pool().connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT 1 FROM constraint_rules WHERE constraint_id = %s LIMIT 1",
+                (constraint_id,)
+            )
+            return cursor.fetchone() is not None
+
+
+def get_constraint_rule_versions(constraint_id: str) -> list[dict[str, Any]]:
+    """Get all versions of a specific constraint rule."""
+    with postgres_pool().connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """ --noqa: S608
+                SELECT id, constraint_id, version, status, created_at, updated_at
+                FROM constraint_rules
+                WHERE constraint_id = %s
+                ORDER BY version DESC
+                """,
+                (constraint_id,),
+            )
+            return [dict(zip(["id", "constraint_id", "version", "status", "created_at", "updated_at"], row)) for row in cursor.fetchall()]
+
+
+def get_constraint_rule(rule_id: int) -> dict[str, Any] | None:
+    """Get a specific constraint rule."""
+    with postgres_pool().connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """ --noqa: S608
+                SELECT id, constraint_id, version, target_drug_class, action,
+                       reason, risk_names, severity_any, evidence_ref, clinical_sources,
+                       status, source, approved_by, approved_at, retired_by, retired_at,
+                       created_at, updated_at, metadata
+                FROM constraint_rules
+                WHERE id = %s
+                """,
+                (rule_id,),
+            )
+            row = cursor.fetchone()
+            if row is None:
+                return None
+            return {
+                "id": row[0],
+                "constraint_id": row[1],
+                "version": row[2],
+                "target_drug_class": row[3],
+                "action": row[4],
+                "reason": row[5],
+                "risk_names": list(row[6]) if row[6] else [],
+                "severity_any": list(row[7]) if row[7] else [],
+                "evidence_ref": row[8],
+                "clinical_sources": row[9] or [],
+                "status": row[10],
+                "source": row[11],
+                "approved_by": row[12],
+                "approved_at": row[13].isoformat() if row[13] else None,
+                "retired_by": row[14],
+                "retired_at": row[15].isoformat() if row[15] else None,
+                "created_at": row[16].isoformat(),
+                "updated_at": row[17].isoformat(),
+                "metadata": row[18] or {},
             }
