@@ -19,6 +19,9 @@ from kafka.errors import KafkaError
 from langchain_ollama.embeddings import OllamaEmbeddings
 from tqdm import tqdm
 
+# Cấu hình model cấp dự án
+from config.models import EMBEDDING_MODEL
+
 
 def process_batch(batch: list, collection: chromadb.Collection, embeddings_model: OllamaEmbeddings):
     """
@@ -30,12 +33,34 @@ def process_batch(batch: list, collection: chromadb.Collection, embeddings_model
     # 1. Prepare data for ChromaDB and embedding model
     ids = [msg.value["chunk_id"] for msg in batch]
     documents = [msg.value["text"] for msg in batch]
-    metadatas = [msg.value["metadata"] for msg in batch]
 
-    # 2. Generate embeddings for the entire batch at once
+    # 2. Sanitize metadata for ChromaDB (only scalar values allowed)
+    metadatas = []
+    for msg in batch:
+        # Start with the original metadata
+        original_meta = msg.value.get("metadata", {})
+
+        # Create a new dict for sanitized metadata
+        sanitized_meta = {}
+        # Create a dict for complex fields to be serialized
+        complex_meta = {}
+
+        for key, value in original_meta.items():
+            if isinstance(value, (str, int, float, bool)):
+                sanitized_meta[key] = value
+            else:
+                complex_meta[key] = value
+
+        # Add serialized complex metadata into a single field
+        if complex_meta:
+            sanitized_meta["metadata_json"] = json.dumps(complex_meta)
+
+        metadatas.append(sanitized_meta)
+
+    # 3. Generate embeddings for the entire batch at once
     embeddings = embeddings_model.embed_documents(documents)
 
-    # 3. Upsert the batch to ChromaDB
+    # 4. Upsert the batch to ChromaDB
     # `upsert` is idempotent: it adds new documents or updates existing ones.
     collection.upsert(
         ids=ids,
@@ -56,7 +81,7 @@ def main():
     parser.add_argument("--chroma-port", default=8000, type=int)
     parser.add_argument("--chroma-collection", default="clinical_evidence")
     # Embedding Model Args
-    parser.add_argument("--embedding-model", default="nomic-embed-text")
+    parser.add_argument("--embedding-model", default=EMBEDDING_MODEL, help=f"Tên của model embedding để sử dụng trong Ollama. Mặc định: {EMBEDDING_MODEL}")
     parser.add_argument("--embedding-base-url", default="http://localhost:11434")
     # Batching Args
     parser.add_argument("--batch-size", default=100, type=int)

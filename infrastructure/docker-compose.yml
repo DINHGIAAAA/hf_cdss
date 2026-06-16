@@ -284,10 +284,60 @@ services:
       start_period: 10s
     restart: unless-stopped
 
+  # --- Consumer/Processor Services (Long-running) ---
+  filtering-service:
+    extends: scraper-base
+    command: python -m scraper.transform.extract_important_sections --kafka-bootstrap-servers kafka:29092
+    restart: unless-stopped
+
+  chunking-service:
+    extends: scraper-base
+    command: python -m scraper.transform.chunk_sections --kafka-bootstrap-servers kafka:29092 --embedding-base-url http://ollama:11434
+    restart: unless-stopped
+
+  entity-extraction-service:
+    extends: scraper-base
+    command: python -m scraper.process.extract_entities_stream --kafka-bootstrap-servers kafka:29092
+    restart: unless-stopped
+
+  chromadb-loader:
+    extends: scraper-base
+    command: python -m scraper.process.load_to_chromadb --kafka-bootstrap-servers kafka:29092 --chroma-host chromadb --embedding-base-url http://ollama:11434
+    restart: unless-stopped
+
+  neo4j-loader:
+    extends: scraper-base
+    command: python -m scraper.process.load_to_neo4j --kafka-bootstrap-servers kafka:29092 --neo4j-uri bolt://neo4j:7687 --neo4j-user ${NEO4J_USER:-neo4j} --neo4j-password ${NEO4J_PASSWORD:-password}
+    restart: unless-stopped
+
+  claim-creation-service:
+    extends: scraper-base
+    command: python -m scraper.process.create_claims --kafka-bootstrap-servers kafka:29092
+    restart: unless-stopped
+
+  rule-generation-service:
+    extends: scraper-base
+    command: python -m scraper.process.generate_rules --kafka-bootstrap-servers kafka:29092
+    restart: unless-stopped
+
+  rule-classification-service:
+    extends: scraper-base
+    command: python -m scraper.process.classify_rules --kafka-bootstrap-servers kafka:29092
+    restart: unless-stopped
+
+  relationship-derivation-service:
+    extends: scraper-base
+    command: python -m scraper.process.derive_relationships --kafka-bootstrap-servers kafka:29092
+    restart: unless-stopped
+
+  postgres-rule-sync-service:
+    extends: scraper-base
+    command: python -m scraper.process.sync_rules_to_postgres --kafka-bootstrap-servers kafka:29092
+    restart: unless-stopped
+
 volumes:
   ollama_data:
   postgres_data:
   neo4j_data:
   chroma_data:
   localstack_data:
-

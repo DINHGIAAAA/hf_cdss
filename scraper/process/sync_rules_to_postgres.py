@@ -11,7 +11,7 @@ from pathlib import Path
 
 # Add project root to path to allow backend imports.
 # This assumes the script is run from the project root.
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "backend"))
 
 from kafka import KafkaConsumer
 from kafka.errors import KafkaError

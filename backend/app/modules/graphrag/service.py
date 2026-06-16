@@ -12,7 +12,7 @@ from app.modules.citation_validation.service import source_link_for_chunk
 from app.modules.datastores.artifacts import sync_artifacts_from_processed_bucket 
 from app.modules.datastores.chroma import retrieve_chroma
 from app.modules.datastores.common import CHUNKS_PATH, DATA_ROOT, RELATIONSHIPS_PATH
-from app.modules.datastores.neo4j import get_driver, retrieve_neo4j
+from app.modules.datastores.neo4j import neo4j_driver as get_driver, retrieve_neo4j
 from app.modules.evidence_text import normalize_evidence_text
 from app.modules.evidence_quality import enrich_evidence_chunk, quality_score_for_chunk
 from app.modules.semantic_retrieval.service import rerank_evidence_chunks
@@ -184,8 +184,16 @@ def get_top_entities_from_chunks(chunks: list[EvidenceChunk], top_n: int = 3) ->
     generic_types = {"action", "threshold"}
 
     for chunk in chunks:
-        # The entity extraction pipeline adds an 'entities' list to the metadata
-        for entity in chunk.metadata.get("entities", []):
+        entities_to_process = []
+        # First, check for entities in the serialized metadata_json field
+        if "metadata_json" in chunk.metadata:
+            try:
+                complex_meta = json.loads(chunk.metadata["metadata_json"])
+                entities_to_process = complex_meta.get("entities", [])
+            except (json.JSONDecodeError, TypeError):
+                pass
+        
+        for entity in entities_to_process:
             entity_type = entity.get("entity_type")
             if entity_type in generic_types:
                 continue
@@ -238,7 +246,7 @@ def retrieve_dynamic_graph_facts(chunks: list[EvidenceChunk], top_k: int = 5) ->
                 continue
 
             if entity.get("entity_type") == "drug":
-                related_conditions = session.read_transaction(find_co_occurring_entities, entity_id, "condition")
+                related_conditions = session.execute_read(find_co_occurring_entities, entity_id, "condition")
                 for record in related_conditions:
                     fact_text = f"Drug '{entity_value}' is often mentioned with condition '{record['entity_name']}' (in {record['co_occurrences']} evidence chunks)."
                     fact = GraphFact(fact_id=f"dynamic_{entity_id}_{record['entity_name']}", source_id=entity_id, relationship_type="OFTEN_CO_OCCURS_WITH", target_id=f"condition:{record['entity_name']}", metadata={"description": fact_text, "source": "dynamic_graph_analysis"})

@@ -97,6 +97,12 @@ def is_heading(line: str) -> bool:
     return bool(HEADING_RE.match(line))
 
 
+IGNORED_SECTION_TITLES = {
+    "CONTENTS", "TABLE OF CONTENTS", "REFERENCES", "BIBLIOGRAPHY",
+    "CONTRIBUTORS", "DISCLOSURES", "APPENDIX", "INDEX", "PEER REVIEW"
+}
+
+
 def split_sections(pages: list[dict]) -> list[dict]:
     sections = []
     current = None
@@ -131,7 +137,17 @@ def split_sections(pages: list[dict]) -> list[dict]:
         current["text"] = clean_text(current["text"])
         sections.append(current)
 
-    return sections
+    # Filter out low-value sections like table of contents, references, etc.
+    filtered_sections = []
+    for section in sections:
+        section_title = section.get("section", "").upper()
+        # Check if any part of the section title matches the ignored keywords
+        if any(ignored in section_title for ignored in IGNORED_SECTION_TITLES):
+            print(f"  -> Filtering out low-value section: {section_title}")
+            continue
+        filtered_sections.append(section)
+
+    return filtered_sections
 
 
 def parse_pdf(
@@ -288,6 +304,10 @@ def main() -> None:
     parser.add_argument("--tables-dir", default="processed/tables", type=Path)
     parser.add_argument("--extract-tables", action="store_true")
     parser.add_argument("--fast-parsing", action="store_true", help="Use faster, less accurate parsing settings (e.g., disable text-based table finding).")
+    # Output mode arguments
+    parser.add_argument("--output-mode", default="kafka", choices=["kafka", "file"], help="Output mode: send to Kafka or write to files.")
+    parser.add_argument("--documents-output", default="processed/documents/guideline_documents.jsonl", type=Path)
+    parser.add_argument("--sections-output", default="processed/sections/guideline_sections.jsonl", type=Path)
     # Kafka arguments
     parser.add_argument("--kafka-bootstrap-servers", default="localhost:9092", help="Kafka bootstrap servers.")
     parser.add_argument("--sections-topic", default="sections_parsed", help="Kafka topic to produce parsed sections to.")
@@ -300,15 +320,17 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    print(f"Connecting to Kafka at {args.kafka_bootstrap_servers}...")
-    try:
-        producer = KafkaProducer(
-            bootstrap_servers=args.kafka_bootstrap_servers,
-            value_serializer=lambda m: json.dumps(m, ensure_ascii=False).encode('utf-8')
-        )
-    except KafkaError as e:
-        print(f"\nFATAL: Could not connect to Kafka. Is it running? Details: {e}")
-        return
+    producer = None
+    if args.output_mode == "kafka":
+        print(f"Connecting to Kafka at {args.kafka_bootstrap_servers}...")
+        try:
+            producer = KafkaProducer(
+                bootstrap_servers=args.kafka_bootstrap_servers,
+                value_serializer=lambda m: json.dumps(m, ensure_ascii=False).encode('utf-8')
+            )
+        except KafkaError as e:
+            print(f"\nFATAL: Could not connect to Kafka. Is it running? Details: {e}")
+            return
 
     registry = load_registry(args.registry)
     pdf_paths = sorted(args.input_dir.glob("*/*.pdf"))

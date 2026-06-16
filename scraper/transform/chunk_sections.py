@@ -4,12 +4,22 @@ import json
 import os
 import re
 from pathlib import Path 
-from functools import partial
+from functools import lru_cache, partial
+
+# Cấu hình model cấp dự án
+from scraper.models import EMBEDDING_TOKENIZER
 
 # LangChain is used for more semantic text splitting.
-# Ensure it's installed: pip install langchain langchain-experimental kafka-python
-from langchain_experimental.text_splitter import SemanticChunker
-from langchain_ollama.embeddings import OllamaEmbeddings
+# Ensure it's installed: pip install langchain kafka-python
+try:
+    from transformers import AutoTokenizer
+    # Sử dụng tokenizer tương ứng với model embedding để đếm token chính xác.
+    _tokenizer = AutoTokenizer.from_pretrained(EMBEDDING_TOKENIZER)
+except Exception as exc:
+    print(f"WARNING: tokenizer unavailable, falling back to estimate: {exc}")
+    _tokenizer = None
+
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 from kafka import KafkaConsumer, KafkaProducer
 from kafka.errors import KafkaError
 
@@ -28,9 +38,15 @@ def write_jsonl(records: list[dict], path: Path) -> None:
             handle.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
+@lru_cache(maxsize=8192)
 def token_estimate(text: str) -> int:
-    """Estimates token count by counting words."""
-    return max(1, len(re.findall(r"\S+", text)))
+    """Estimates token count accurately using the model's tokenizer if available, else falls back to word count."""
+    if not text:
+        return 0
+    if _tokenizer:
+        return len(_tokenizer.encode(text, add_special_tokens=False))
+    # Fallback to regex with a standard ~1.3 tokens per word multiplier
+    return max(1, int(len(re.findall(r"\S+", text)) * 1.3))
 
 
 def slug(value: str) -> str:
@@ -43,12 +59,19 @@ def chunk_id(record: dict, index: int, text: str) -> str:
     return f"{slug(record.get('document_id'))}__{slug(record.get('section'))}__{index:04d}__{digest}"
 
 
-def semantic_chunk_text(text: str, text_splitter: SemanticChunker) -> list[str]:
-    """Splits text into semantic chunks using a pre-configured LangChain text splitter."""
+def recursive_chunk_text(text: str, chunk_size: int, overlap: int) -> list[str]:
+    """Splits text into chunks using a recursive character-based strategy."""
     if not text:
         return []
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=chunk_size,
+        chunk_overlap=overlap,
+        length_function=token_estimate,
+        separators=["\n\n", "\n", ". ", ", ", " ", ""],
+        keep_separator=False,
+    )
     # We use normalize_text here to preserve newline characters, which are
-    # useful for sentence splitting before embedding.
+    # critical separators for the RecursiveCharacterTextSplitter.
     return text_splitter.split_text(normalize_text(text))
 
 
@@ -119,31 +142,24 @@ def main() -> None:
     parser.add_argument("--consumer-topic", default="important_sections", help="Kafka topic to consume sections from.")
     parser.add_argument("--producer-topic", default="chunks_to_index", help="Kafka topic to produce chunks to.")
     parser.add_argument("--consumer-group-id", default="chunking_service", help="Kafka consumer group ID.")
-    # Embedding model arguments
+    # Chunking arguments
     parser.add_argument(
-        "--embedding-model",
-        default="nomic-embed-text",
-        help="The Ollama model to use for semantic chunking.",
+        "--chunk-size",
+        default=500,
+        type=int,
+        help="Target chunk size (in words) for the recursive strategy.",
     )
     parser.add_argument(
-        "--embedding-base-url",
-        default="http://localhost:11434",
-        help="The base URL for the Ollama service for semantic chunking.",
+        "--overlap",
+        default=75,
+        type=int,
+        help="Chunk overlap (in words) for the recursive strategy.",
     )
     args = parser.parse_args()
 
-    # 1. Initialize the expensive components once
-    print("Initializing semantic chunker...")
-    try:
-        embeddings = OllamaEmbeddings(model=args.embedding_model, base_url=args.embedding_base_url)
-        embeddings.embed_query("test")  # Test connection to fail early
-        text_splitter = SemanticChunker(embeddings, breakpoint_threshold_type="percentile")
-    except Exception as e:
-        print(f"\nFATAL: Could not initialize semantic chunker. Is the Ollama service running at {args.embedding_base_url}?")
-        print(f"Details: {e}")
-        return
-
-    splitter_func = partial(semantic_chunk_text, text_splitter=text_splitter)
+    # 1. Configure the chunking function
+    print(f"Using 'recursive' chunking strategy with chunk size {args.chunk_size} and overlap {args.overlap}.")
+    splitter_func = partial(recursive_chunk_text, chunk_size=args.chunk_size, overlap=args.overlap)
 
     # 2. Connect to Kafka
     print(f"Connecting to Kafka at {args.kafka_bootstrap_servers}...")

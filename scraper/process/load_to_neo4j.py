@@ -56,12 +56,21 @@ def process_batch_neo4j(tx, batch_data: list[dict]):
     MERGE (c)-[:PART_OF]->(s)
     MERGE (s)-[:PART_OF]->(d)
 
-    // For each entity found in the chunk, create an Entity node and link it
-    FOREACH (entity IN row.entities |
-      MERGE (e:Entity {id: entity.entity_id})
-        ON CREATE SET e.type = entity.entity_type, e.value = entity.normalized_value, e.raw_value = entity.value
-      MERGE (c)-[:CONTAINS_ENTITY]->(e)
-    )
+    // Create entities and link them to the chunk
+    WITH c, row.entities AS entity_list
+    UNWIND entity_list AS entity_data
+    MERGE (e:Entity {id: entity_data.entity_id})
+      ON CREATE SET e.type = entity_data.entity_type, e.value = entity_data.normalized_value, e.raw_value = entity_data.value
+    MERGE (c)-[:CONTAINS_ENTITY]->(e)
+
+    // Re-collect entities per chunk and create co-occurrence links
+    WITH c, collect(e) AS entities_in_chunk
+    UNWIND entities_in_chunk AS e1
+    UNWIND entities_in_chunk AS e2
+    WHERE id(e1) < id(e2) // Use internal node ID to process each pair once
+    MERGE (e1)-[r:APPEARS_WITH]-(e2)
+      ON CREATE SET r.weight = 1
+      ON MATCH SET r.weight = r.weight + 1
     """
     tx.run(query, batch=batch_data)
 
