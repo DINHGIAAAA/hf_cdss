@@ -4,6 +4,9 @@ import json
 import re
 from pathlib import Path
 
+from kafka import KafkaConsumer, KafkaProducer
+from kafka.errors import KafkaError
+
 
 CLAIM_PATTERNS = {
     "contraindication": (
@@ -180,31 +183,52 @@ def create_claim(record: dict, sentence: str, index: int) -> dict | None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Create first-pass clinical claims from important sections.")
-    parser.add_argument("--input", default="processed/sections/important_sections.jsonl", type=Path)
-    parser.add_argument("--output", default="artifacts/claims/claims.jsonl", type=Path)
+    parser = argparse.ArgumentParser(description="A streaming service to create claims from important sections.")
+    parser.add_argument("--kafka-bootstrap-servers", default="localhost:9092")
+    parser.add_argument("--consumer-topic", default="important_sections")
+    parser.add_argument("--producer-topic", default="claims_created")
+    parser.add_argument("--consumer-group-id", default="claim_creation_service")
     parser.add_argument("--max-claims-per-section", default=8, type=int)
     args = parser.parse_args()
 
-    claims = []
-    seen = set()
-    for record in read_jsonl(args.input):
-        section_claims = 0
-        for index, sentence in enumerate(sentence_split(record.get("text", "")), start=1):
-            claim = create_claim(record, sentence, index)
-            if claim is None:
-                continue
-            key = (claim["document_id"], claim["source_section"], claim["claim"])
-            if key in seen:
-                continue
-            seen.add(key)
-            claims.append(claim)
-            section_claims += 1
-            if section_claims >= args.max_claims_per_section:
-                break
+    print(f"Connecting to Kafka at {args.kafka_bootstrap_servers}...")
+    try:
+        consumer = KafkaConsumer(
+            args.consumer_topic,
+            bootstrap_servers=args.kafka_bootstrap_servers,
+            group_id=args.consumer_group_id,
+            auto_offset_reset='earliest',
+            value_deserializer=lambda m: json.loads(m.decode('utf-8'))
+        )
+        producer = KafkaProducer(
+            bootstrap_servers=args.kafka_bootstrap_servers,
+            value_serializer=lambda m: json.dumps(m, ensure_ascii=False).encode('utf-8')
+        )
+    except KafkaError as e:
+        print(f"\nFATAL: Could not connect to Kafka. Is it running? Details: {e}")
+        return
 
-    write_jsonl(claims, args.output)
-    print(f"Wrote {len(claims)} claims to {args.output}")
+    print(f"Listening for messages on topic '{args.consumer_topic}'... (Press Ctrl+C to stop)")
+    try:
+        for message in consumer:
+            record = message.value
+            section_claims_count = 0
+            for index, sentence in enumerate(sentence_split(record.get("text", "")), start=1):
+                claim = create_claim(record, sentence, index)
+                if claim:
+                    producer.send(args.producer_topic, value=claim)
+                    section_claims_count += 1
+                    if section_claims_count >= args.max_claims_per_section:
+                        break
+            if section_claims_count > 0:
+                print(f"  -> Created {section_claims_count} claims from section in '{record.get('document_id')}', forwarding to '{args.producer_topic}'")
+    except KeyboardInterrupt:
+        print("\nShutting down...")
+    finally:
+        producer.flush()
+        producer.close()
+        consumer.close()
+        print("Kafka connections closed.")
 
 
 if __name__ == "__main__":

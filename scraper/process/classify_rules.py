@@ -2,20 +2,11 @@ import argparse
 import json
 from pathlib import Path
 
+from kafka import KafkaConsumer, KafkaProducer
+from kafka.errors import KafkaError
+
 
 HARD_BLOCK_ACTIONS = {"contraindicated", "avoid", "not_recommended"}
-
-
-def read_jsonl(path: Path) -> list[dict]:
-    with path.open(encoding="utf-8-sig") as handle:
-        return [json.loads(line) for line in handle if line.strip()]
-
-
-def write_jsonl(records: list[dict], path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8", newline="\n") as handle:
-        for record in records:
-            handle.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
 def rule_tier(rule: dict) -> str:
@@ -39,24 +30,45 @@ def annotate(rule: dict, tier: str) -> dict:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Split generated rules by recommendation safety tier.")
-    parser.add_argument("--input", default="artifacts/rules/rules.jsonl", type=Path)
-    parser.add_argument("--output-dir", default="artifacts/rules", type=Path)
+    parser = argparse.ArgumentParser(description="A streaming service to classify generated rules.")
+    parser.add_argument("--kafka-bootstrap-servers", default="localhost:9092")
+    parser.add_argument("--consumer-topic", default="rules_generated")
+    parser.add_argument("--producer-topic", default="rules_classified")
+    parser.add_argument("--consumer-group-id", default="rule_classification_service")
     args = parser.parse_args()
 
-    buckets = {
-        "usable_rules": [],
-        "needs_condition_refinement": [],
-        "rejected_rules": [],
-    }
+    print(f"Connecting to Kafka at {args.kafka_bootstrap_servers}...")
+    try:
+        consumer = KafkaConsumer(
+            args.consumer_topic,
+            bootstrap_servers=args.kafka_bootstrap_servers,
+            group_id=args.consumer_group_id,
+            auto_offset_reset='earliest',
+            value_deserializer=lambda m: json.loads(m.decode('utf-8'))
+        )
+        producer = KafkaProducer(
+            bootstrap_servers=args.kafka_bootstrap_servers,
+            value_serializer=lambda m: json.dumps(m, ensure_ascii=False).encode('utf-8')
+        )
+    except KafkaError as e:
+        print(f"\nFATAL: Could not connect to Kafka. Is it running? Details: {e}")
+        return
 
-    for rule in read_jsonl(args.input):
-        tier = rule_tier(rule)
-        buckets[tier].append(annotate(rule, tier))
-
-    for tier, records in buckets.items():
-        write_jsonl(records, args.output_dir / f"{tier}.jsonl")
-        print(f"Wrote {len(records)} {tier}")
+    print(f"Listening for messages on topic '{args.consumer_topic}'... (Press Ctrl+C to stop)")
+    try:
+        for message in consumer:
+            rule = message.value
+            tier = rule_tier(rule)
+            annotated_rule = annotate(rule, tier)
+            producer.send(args.producer_topic, value=annotated_rule)
+            print(f"  -> Classified rule '{rule.get('rule_id')}' as '{tier}', forwarding to '{args.producer_topic}'")
+    except KeyboardInterrupt:
+        print("\nShutting down...")
+    finally:
+        producer.flush()
+        producer.close()
+        consumer.close()
+        print("Kafka connections closed.")
 
 
 if __name__ == "__main__":

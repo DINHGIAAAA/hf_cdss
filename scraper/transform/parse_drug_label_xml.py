@@ -4,6 +4,10 @@ import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+from kafka import KafkaProducer
+from kafka.errors import KafkaError
+from tqdm import tqdm
+
 from scraper.transform.text_normalization import normalize_inline_text
 
 
@@ -158,29 +162,49 @@ def parse_xml(xml_path: Path, raw_dir: Path, manifest: dict, registry: dict | No
     return records
 
 
-def write_jsonl(records: list[dict], output_path: Path) -> None:
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with output_path.open("w", encoding="utf-8", newline="\n") as handle:
-        for record in records:
-            handle.write(json.dumps(record, ensure_ascii=False) + "\n")
-
-
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Parse DailyMed SPL XML labels into section JSONL.")
+    parser = argparse.ArgumentParser(description="Parse DailyMed SPL XML labels and produce to Kafka.")
     parser.add_argument("--input-dir", default="raw/drug_labels", type=Path)
     parser.add_argument("--manifest", default="artifacts/manifests/download_manifest.json", type=Path)
     parser.add_argument("--registry", default="sources/sources.example.json", type=Path)
-    parser.add_argument("--output", default="processed/sections/drug_label_sections.jsonl", type=Path)
+    parser.add_argument("--kafka-bootstrap-servers", default="localhost:9092", help="Kafka bootstrap servers.")
+    parser.add_argument("--producer-topic", default="sections_parsed", help="Kafka topic to produce parsed sections to.")
     args = parser.parse_args()
+
+    print(f"Connecting to Kafka at {args.kafka_bootstrap_servers}...")
+    try:
+        producer = KafkaProducer(
+            bootstrap_servers=args.kafka_bootstrap_servers,
+            value_serializer=lambda m: json.dumps(m, ensure_ascii=False).encode('utf-8')
+        )
+    except KafkaError as e:
+        print(f"\nFATAL: Could not connect to Kafka. Is it running? Details: {e}")
+        return
 
     manifest = load_manifest(args.manifest)
     registry = load_registry(args.registry)
-    records = []
-    for xml_path in sorted(args.input_dir.glob("*/*_label.xml")):
-        records.extend(parse_xml(xml_path, args.input_dir, manifest, registry))
+    xml_paths = sorted(args.input_dir.glob("*/*_label.xml"))
+    total_records = 0
 
-    write_jsonl(records, args.output)
-    print(f"Wrote {len(records)} drug label sections to {args.output}")
+    print(f"Parsing {len(xml_paths)} XML files and producing to topic '{args.producer_topic}'...")
+    try:
+        for xml_path in tqdm(xml_paths, desc="Parsing XML files"):
+            records = parse_xml(xml_path, args.input_dir, manifest, registry)
+            for record in records:
+                producer.send(args.producer_topic, value=record)
+            total_records += len(records)
+        
+        print("Flushing Kafka producer...")
+        producer.flush()
+    except KeyboardInterrupt:
+        print("\nShutting down...")
+    finally:
+        producer.close()
+        print("Kafka producer closed.")
+
+    print("\n--- Processing Summary ---")
+    print(f"Total XML files processed: {len(xml_paths)}")
+    print(f"Total sections produced to '{args.producer_topic}': {total_records}")
 
 
 if __name__ == "__main__":

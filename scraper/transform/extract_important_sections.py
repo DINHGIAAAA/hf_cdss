@@ -3,6 +3,9 @@ import json
 import re
 from pathlib import Path
 
+from kafka import KafkaConsumer, KafkaProducer
+from kafka.errors import KafkaError
+
 from scraper.transform.text_normalization import normalize_inline_text
 
 
@@ -79,35 +82,52 @@ def mark_record(record: dict, matched_topics: list[str]) -> dict:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Extract important sections from parsed drug labels and guidelines.")
-    parser.add_argument(
-        "--inputs",
-        nargs="+",
-        default=[
-            "processed/sections/drug_label_sections.jsonl",
-            "processed/sections/guideline_sections.jsonl",
-            "processed/sections/guideline_html_sections.jsonl",
-        ],
-        type=Path,
-    )
-    parser.add_argument("--output", default="processed/sections/important_sections.jsonl", type=Path)
+    parser = argparse.ArgumentParser(description="A streaming service to filter important sections from Kafka.")
+    parser.add_argument("--kafka-bootstrap-servers", default="localhost:9092", help="Kafka bootstrap servers.")
+    parser.add_argument("--consumer-topic", default="sections_parsed", help="Kafka topic to consume parsed sections from.")
+    parser.add_argument("--producer-topic", default="important_sections", help="Kafka topic to produce important sections to.")
+    parser.add_argument("--consumer-group-id", default="filtering_service", help="Kafka consumer group ID.")
     args = parser.parse_args()
 
-    important = []
-    for input_path in [Path(path) for path in args.inputs]:
-        for record in read_jsonl(input_path):
+    print(f"Connecting to Kafka at {args.kafka_bootstrap_servers}...")
+    try:
+        consumer = KafkaConsumer(
+            args.consumer_topic,
+            bootstrap_servers=args.kafka_bootstrap_servers,
+            group_id=args.consumer_group_id,
+            auto_offset_reset='earliest',
+            value_deserializer=lambda m: json.loads(m.decode('utf-8'))
+        )
+        producer = KafkaProducer(
+            bootstrap_servers=args.kafka_bootstrap_servers,
+            value_serializer=lambda m: json.dumps(m, ensure_ascii=False).encode('utf-8')
+        )
+    except KafkaError as e:
+        print(f"\nFATAL: Could not connect to Kafka. Is it running? Details: {e}")
+        return
+
+    print(f"Listening for messages on topic '{args.consumer_topic}'... (Press Ctrl+C to stop)")
+    try:
+        for message in consumer:
+            record = message.value
             if record.get("source_type") == "drug_label":
                 matches = drug_matches(record)
             elif record.get("source_type") == "guideline":
                 matches = guideline_matches(record)
             else:
                 matches = []
-
+            
             if matches:
-                important.append(mark_record(record, matches))
-
-    write_jsonl(important, args.output)
-    print(f"Wrote {len(important)} important sections to {args.output}")
+                important_record = mark_record(record, matches)
+                producer.send(args.producer_topic, value=important_record)
+                print(f"  -> Found important section in '{record.get('document_id')}', forwarding to '{args.producer_topic}'")
+    except KeyboardInterrupt:
+        print("\nShutting down...")
+    finally:
+        producer.flush()
+        producer.close()
+        consumer.close()
+        print("Kafka connections closed.")
 
 
 if __name__ == "__main__":

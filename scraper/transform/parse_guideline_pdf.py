@@ -6,15 +6,21 @@ from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 import pdfplumber
+from kafka import KafkaProducer
+from kafka.errors import KafkaError
+from tqdm import tqdm
 
 from scraper.transform.text_normalization import normalize_text
 
 
 HEADING_RE = re.compile(
-    r"^("
-    r"(\d+(\.\d+){0,4}\s+[\w(])|"
-    r"([A-Z][A-Z0-9 /,&:;()\-]{8,})"
-    r")"
+    r"^\s*("
+    # Pattern 1: Numbered/lettered headings (e.g., "1.2 Title", "A. Title")
+    r"((?:[A-Z]|\d+)(?:\.\d+)*\.?\s+.+)|"
+    # Pattern 2: All-caps headings that the heuristic below might miss.
+    # Loosened length from 9+ to 5+ and kept original punctuation.
+    r"([A-Z][A-Z0-9 /,&:;()\-]{4,})"
+    r")\s*$"
 )
 
 
@@ -70,10 +76,24 @@ def source_metadata(pdf_path: Path, registry: dict[str, dict]) -> dict:
 
 def is_heading(line: str) -> bool:
     line = clean_text(line)
-    if len(line) < 8 or len(line) > 140:
+    # Loosen length constraints: min 4 for short words, max 200 for long titles
+    if len(line) < 4 or len(line) > 200:
         return False
-    if line.endswith(".") and not re.match(r"^\d+(\.\d+)*\s+", line):
+
+    # Heuristic: A line ending with a period is not a heading,
+    # unless it's a numbered list item.
+    if line.endswith(".") and not re.match(r"^\s*\d+(\.\d+)*", line):
         return False
+
+    # Heuristic: A short line that is entirely uppercase is very likely a heading.
+    # This is more robust than a complex regex for many common cases.
+    if line.isupper() and len(line.split()) < 7:
+        # Filter out captions that are often all-caps, e.g., "TABLE 1", "FIGURE A"
+        if any(keyword in line for keyword in ["TABLE", "FIGURE", "CHART"]):
+            return False
+        return True
+
+    # Finally, apply the main regex for more complex patterns.
     return bool(HEADING_RE.match(line))
 
 
@@ -119,6 +139,7 @@ def parse_pdf(
     tables_dir: Path,
     extract_tables: bool,
     registry: dict[str, dict] | None = None,
+    fast_parsing: bool = False,
 ) -> tuple[dict, list[dict], list[dict]]:
     provenance = source_metadata(pdf_path, registry or {})
     document_id = provenance["source_id"]
@@ -128,11 +149,44 @@ def parse_pdf(
 
     with pdfplumber.open(pdf_path) as pdf:
         for index, page in enumerate(pdf.pages, start=1):
-            text = clean_text(page.extract_text() or "")
+            page_tables = []
+            found_tables_data = []
+
+            if extract_tables:
+                # Define text-based strategy for fallback
+                text_table_settings = {
+                    "vertical_strategy": "text",
+                    "horizontal_strategy": "text",
+                    "snap_x_tolerance": 6,
+                }
+                # Try default (line-based) strategy first
+                page_tables = page.find_tables()
+
+                # If no tables found, try the slow text-based strategy unless fast parsing is enabled
+                if not page_tables and not fast_parsing:
+                    page_tables = page.find_tables(text_table_settings)
+                
+                found_tables_data = [t.extract() for t in page_tables]
+
+            # Get bounding boxes of found tables to exclude their text from main content
+            table_bboxes = [t.bbox for t in page_tables]
+
+            def not_within_bboxes(obj):
+                """Checks if an object's center is not within any of the given bounding boxes."""
+                def obj_in_bbox(obj, bbox):
+                    v_mid = (obj["top"] + obj["bottom"]) / 2
+                    h_mid = (obj["x0"] + obj["x1"]) / 2
+                    x0, top, x1, bottom = bbox
+                    return (h_mid >= x0) and (h_mid < x1) and (v_mid >= top) and (v_mid < bottom)
+                return not any(obj_in_bbox(obj, bbox) for bbox in table_bboxes)
+
+            # Filter page to exclude tables, then extract text
+            page_to_extract = page.filter(not_within_bboxes) if extract_tables and table_bboxes else page
+            text = clean_text(page_to_extract.extract_text(layout=True) or "")
             pages.append({"page": index, "text": text})
 
             if extract_tables:
-                for table_index, table in enumerate(page.extract_tables() or [], start=1):
+                for table_index, table in enumerate(found_tables_data or [], start=1):
                     if not table:
                         continue
                     table_record = {
@@ -218,7 +272,7 @@ def write_jsonl(records: list[dict], output_path: Path) -> None:
             handle.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
-def parse_pdf_job(args: tuple[Path, Path, bool, dict]) -> tuple[dict, list[dict], list[dict]]:
+def parse_pdf_job(args: tuple[Path, Path, bool, dict, bool]) -> tuple[dict, list[dict], list[dict]]:
     pdf_path = args[0]
     with pdf_path.open("rb") as handle:
         if handle.read(4) != b"%PDF":
@@ -228,13 +282,16 @@ def parse_pdf_job(args: tuple[Path, Path, bool, dict]) -> tuple[dict, list[dict]
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Parse guideline PDFs into document, section, and table JSONL.")
+    parser = argparse.ArgumentParser(description="Parse guideline PDFs and produce documents and sections to Kafka topics.")
     parser.add_argument("--input-dir", default="raw/guidelines", type=Path)
     parser.add_argument("--registry", default="sources/sources.example.json", type=Path)
-    parser.add_argument("--documents-output", default="processed/documents/guideline_documents.jsonl", type=Path)
-    parser.add_argument("--sections-output", default="processed/sections/guideline_sections.jsonl", type=Path)
     parser.add_argument("--tables-dir", default="processed/tables", type=Path)
     parser.add_argument("--extract-tables", action="store_true")
+    parser.add_argument("--fast-parsing", action="store_true", help="Use faster, less accurate parsing settings (e.g., disable text-based table finding).")
+    # Kafka arguments
+    parser.add_argument("--kafka-bootstrap-servers", default="localhost:9092", help="Kafka bootstrap servers.")
+    parser.add_argument("--sections-topic", default="sections_parsed", help="Kafka topic to produce parsed sections to.")
+    parser.add_argument("--documents-topic", default="guideline_documents", help="Kafka topic to produce document metadata to.")
     parser.add_argument(
         "--workers",
         default=max((os.cpu_count() or 2) - 1, 1),
@@ -243,32 +300,57 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    print(f"Connecting to Kafka at {args.kafka_bootstrap_servers}...")
+    try:
+        producer = KafkaProducer(
+            bootstrap_servers=args.kafka_bootstrap_servers,
+            value_serializer=lambda m: json.dumps(m, ensure_ascii=False).encode('utf-8')
+        )
+    except KafkaError as e:
+        print(f"\nFATAL: Could not connect to Kafka. Is it running? Details: {e}")
+        return
+
     registry = load_registry(args.registry)
-    documents = []
-    sections = []
-    table_count = 0
     pdf_paths = sorted(args.input_dir.glob("*/*.pdf"))
-    jobs = [(pdf_path, args.tables_dir, args.extract_tables, registry) for pdf_path in pdf_paths]
+    jobs = [(pdf_path, args.tables_dir, args.extract_tables, registry, args.fast_parsing) for pdf_path in pdf_paths]
 
-    if args.workers == 1 or len(jobs) <= 1:
-        results = [parse_pdf_job(job) for job in jobs]
-    else:
-        with ProcessPoolExecutor(max_workers=args.workers) as executor:
-            results = list(executor.map(parse_pdf_job, jobs))
+    results = []
+    doc_count, sec_count, table_count = 0, 0, 0
+    try:
+        if args.workers == 1 or len(jobs) <= 1:
+            print(f"Parsing {len(jobs)} PDFs sequentially...")
+            results = [parse_pdf_job(job) for job in tqdm(jobs)]
+        else:
+            with ProcessPoolExecutor(max_workers=args.workers) as executor:
+                print(f"Parsing {len(jobs)} PDFs with {args.workers} workers...")
+                results = list(tqdm(executor.map(parse_pdf_job, jobs), total=len(jobs)))
 
-    for document, pdf_sections, tables in results:
-        if not document:
-            continue
-        documents.append(document)
-        sections.extend(pdf_sections)
-        table_count += len(tables)
+        print("\nProducing results to Kafka...")
+        for document, pdf_sections, tables in tqdm(results, desc="Producing to Kafka"):
+            if not document:
+                continue
+            producer.send(args.documents_topic, value=document)
+            doc_count += 1
+            for section in pdf_sections:
+                producer.send(args.sections_topic, value=section)
+            sec_count += len(pdf_sections)
+            table_count += len(tables)
+        
+        print("Flushing Kafka producer...")
+        producer.flush()
 
-    write_jsonl(documents, args.documents_output)
-    write_jsonl(sections, args.sections_output)
-    print(
-        f"Wrote {len(documents)} guideline documents, "
-        f"{len(sections)} sections, and {table_count} tables"
-    )
+    except KeyboardInterrupt:
+        print("\nShutting down...")
+    finally:
+        if 'producer' in locals():
+            producer.close()
+            print("Kafka producer closed.")
+
+    print("\n--- Processing Summary ---")
+    print(f"Total PDFs processed: {len(jobs)}")
+    print(f"Total documents produced to '{args.documents_topic}': {doc_count}")
+    print(f"Total sections produced to '{args.sections_topic}': {sec_count}")
+    print(f"Total tables saved to disk: {table_count}")
 
 
 if __name__ == "__main__":

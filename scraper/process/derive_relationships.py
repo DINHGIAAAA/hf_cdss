@@ -4,19 +4,8 @@ import json
 import re
 from pathlib import Path
 
-
-def read_jsonl(path: Path) -> list[dict]:
-    if not path.exists():
-        return []
-    with path.open(encoding="utf-8-sig") as handle:
-        return [json.loads(line) for line in handle if line.strip()]
-
-
-def write_jsonl(records: list[dict], path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8", newline="\n") as handle:
-        for record in records:
-            handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+from kafka import KafkaConsumer, KafkaProducer
+from kafka.errors import KafkaError
 
 
 def slug(value: str) -> str:
@@ -183,21 +172,56 @@ def relationships_from_rules(rules: list[dict]) -> list[dict]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Derive placeholder graph relationships from dataset claims and rules.")
-    parser.add_argument("--claims", default="artifacts/claims/claims.jsonl", type=Path)
-    parser.add_argument("--rules", default="artifacts/rules/rules.jsonl", type=Path)
-    parser.add_argument("--output", default="artifacts/relationships/relationships.jsonl", type=Path)
+    parser = argparse.ArgumentParser(description="A streaming service to derive graph relationships from claims and rules.")
+    parser.add_argument("--kafka-bootstrap-servers", default="localhost:9092")
+    parser.add_argument("--claims-topic", default="claims_created")
+    parser.add_argument("--rules-topic", default="rules_generated")
+    parser.add_argument("--producer-topic", default="relationships_derived")
+    parser.add_argument("--consumer-group-id", default="relationship_derivation_service")
     args = parser.parse_args()
 
-    relationships = relationships_from_claims(read_jsonl(args.claims))
-    relationships.extend(relationships_from_rules(read_jsonl(args.rules)))
+    print(f"Connecting to Kafka at {args.kafka_bootstrap_servers}...")
+    try:
+        consumer = KafkaConsumer(
+            args.claims_topic,
+            args.rules_topic,
+            bootstrap_servers=args.kafka_bootstrap_servers,
+            group_id=args.consumer_group_id,
+            auto_offset_reset='earliest',
+            value_deserializer=lambda m: json.loads(m.decode('utf-8'))
+        )
+        producer = KafkaProducer(
+            bootstrap_servers=args.kafka_bootstrap_servers,
+            value_serializer=lambda m: json.dumps(m, ensure_ascii=False).encode('utf-8')
+        )
+    except KafkaError as e:
+        print(f"\nFATAL: Could not connect to Kafka. Is it running? Details: {e}")
+        return
 
-    unique = {}
-    for rel in relationships:
-        unique[rel["relationship_id"]] = rel
+    print(f"Listening for messages on topics '{args.claims_topic}' and '{args.rules_topic}'... (Press Ctrl+C to stop)")
+    try:
+        for message in consumer:
+            rels = []
+            if message.topic == args.claims_topic:
+                claim = message.value
+                rels = relationships_from_claims([claim])
+                if rels:
+                    print(f"  -> Derived {len(rels)} relationships from claim '{claim.get('claim_id')}'")
+            elif message.topic == args.rules_topic:
+                rule = message.value
+                rels = relationships_from_rules([rule])
+                if rels:
+                    print(f"  -> Derived {len(rels)} relationships from rule '{rule.get('rule_id')}'")
 
-    write_jsonl(list(unique.values()), args.output)
-    print(f"Wrote {len(unique)} relationships to {args.output}")
+            for rel in rels:
+                producer.send(args.producer_topic, value=rel)
+    except KeyboardInterrupt:
+        print("\nShutting down...")
+    finally:
+        producer.flush()
+        producer.close()
+        consumer.close()
+        print("Kafka connections closed.")
 
 
 if __name__ == "__main__":

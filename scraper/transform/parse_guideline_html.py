@@ -5,6 +5,10 @@ import re
 from html.parser import HTMLParser
 from pathlib import Path
 
+from kafka import KafkaProducer
+from kafka.errors import KafkaError
+from tqdm import tqdm
+
 from scraper.transform.text_normalization import normalize_text
 
 
@@ -133,27 +137,47 @@ def _section_record(path: Path, metadata: dict, section: str, lines: list[str]) 
     }
 
 
-def write_jsonl(records: list[dict], output_path: Path) -> None:
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with output_path.open("w", encoding="utf-8", newline="\n") as handle:
-        for record in records:
-            handle.write(json.dumps(record, ensure_ascii=False) + "\n")
-
-
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Parse guideline HTML pages into section JSONL.")
+    parser = argparse.ArgumentParser(description="Parse guideline HTML pages and produce to Kafka.")
     parser.add_argument("--input-dir", default="raw/guidelines", type=Path)
     parser.add_argument("--registry", default="sources/sources.example.json", type=Path)
-    parser.add_argument("--sections-output", default="processed/sections/guideline_html_sections.jsonl", type=Path)
+    parser.add_argument("--kafka-bootstrap-servers", default="localhost:9092", help="Kafka bootstrap servers.")
+    parser.add_argument("--producer-topic", default="sections_parsed", help="Kafka topic to produce parsed sections to.")
     args = parser.parse_args()
 
-    registry = load_registry(args.registry)
-    sections = []
-    for path in sorted(args.input_dir.glob("**/*.html")):
-        sections.extend(parse_sections(path, registry))
+    print(f"Connecting to Kafka at {args.kafka_bootstrap_servers}...")
+    try:
+        producer = KafkaProducer(
+            bootstrap_servers=args.kafka_bootstrap_servers,
+            value_serializer=lambda m: json.dumps(m, ensure_ascii=False).encode('utf-8')
+        )
+    except KafkaError as e:
+        print(f"\nFATAL: Could not connect to Kafka. Is it running? Details: {e}")
+        return
 
-    write_jsonl(sections, args.sections_output)
-    print(f"Wrote {len(sections)} guideline HTML sections")
+    registry = load_registry(args.registry)
+    html_paths = sorted(args.input_dir.glob("**/*.html"))
+    total_sections = 0
+
+    print(f"Parsing {len(html_paths)} HTML files and producing to topic '{args.producer_topic}'...")
+    try:
+        for path in tqdm(html_paths, desc="Parsing HTML files"):
+            sections = parse_sections(path, registry)
+            for section in sections:
+                producer.send(args.producer_topic, value=section)
+            total_sections += len(sections)
+        
+        print("Flushing Kafka producer...")
+        producer.flush()
+    except KeyboardInterrupt:
+        print("\nShutting down...")
+    finally:
+        producer.close()
+        print("Kafka producer closed.")
+
+    print("\n--- Processing Summary ---")
+    print(f"Total HTML files processed: {len(html_paths)}")
+    print(f"Total sections produced to '{args.producer_topic}': {total_sections}")
 
 
 if __name__ == "__main__":
