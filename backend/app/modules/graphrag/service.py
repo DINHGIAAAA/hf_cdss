@@ -9,7 +9,7 @@ from typing import Any
 from app.core.config import settings
 from app.core.metrics import increment, observe
 from app.modules.citation_validation.service import source_link_for_chunk
-from app.modules.datastores.artifacts import sync_artifacts_from_processed_bucket 
+from app.modules.datastores.artifacts import sync_artifacts_from_processed_bucket
 from app.modules.datastores.chroma import retrieve_chroma
 from app.modules.datastores.common import CHUNKS_PATH, DATA_ROOT, RELATIONSHIPS_PATH
 from app.modules.datastores.neo4j import neo4j_driver as get_driver, retrieve_neo4j
@@ -48,7 +48,7 @@ CLINICAL_TERMS = {
 
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
-        return []
+        raise FileNotFoundError(f"Required artifact is missing: {path}")
 
     rows: list[dict[str, Any]] = []
     with path.open(encoding="utf-8-sig") as file:
@@ -61,15 +61,13 @@ def _read_jsonl(path: Path) -> list[dict[str, Any]]:
 
 @lru_cache(maxsize=1)
 def load_chunks() -> list[dict[str, Any]]:
-    if settings.artifact_storage == "s3" and not CHUNKS_PATH.exists():
-        sync_artifacts_from_processed_bucket(DATA_ROOT)
+    sync_artifacts_from_processed_bucket(DATA_ROOT)
     return _read_jsonl(CHUNKS_PATH)
 
 
 @lru_cache(maxsize=1)
 def load_relationships() -> list[dict[str, Any]]:
-    if settings.artifact_storage == "s3" and not RELATIONSHIPS_PATH.exists():
-        sync_artifacts_from_processed_bucket(DATA_ROOT)
+    sync_artifacts_from_processed_bucket(DATA_ROOT)
     return _read_jsonl(RELATIONSHIPS_PATH)
 
 

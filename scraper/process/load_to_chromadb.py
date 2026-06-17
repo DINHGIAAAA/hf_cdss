@@ -11,6 +11,7 @@ Key features:
 """
 import argparse
 import json
+import re
 import time
 
 import chromadb
@@ -20,7 +21,36 @@ from langchain_ollama.embeddings import OllamaEmbeddings
 from tqdm import tqdm
 
 # Cấu hình model cấp dự án
-from config.models import EMBEDDING_MODEL
+from scraper.models import (
+    CHROMA_COLLECTION,
+    CHROMA_INDEX_VERSION,
+    EMBEDDING_DIMENSIONS,
+    EMBEDDING_MODEL,
+    EMBEDDING_PROVIDER,
+)
+
+
+def slug(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", value.lower()).strip("_") or "default"
+
+
+def default_collection_name() -> str:
+    provider = slug(EMBEDDING_PROVIDER)
+    model = slug(EMBEDDING_MODEL)
+    return f"{CHROMA_COLLECTION}_{CHROMA_INDEX_VERSION}_{provider}_{model}_{EMBEDDING_DIMENSIONS}"
+
+
+def searchable_text(chunk: dict) -> str:
+    metadata = chunk.get("metadata", {}) or {}
+    return " ".join(
+        [
+            chunk.get("document_id", ""),
+            chunk.get("source_type", ""),
+            chunk.get("section", ""),
+            chunk.get("text", ""),
+            " ".join(str(value) for value in metadata.values() if isinstance(value, str)),
+        ]
+    )
 
 
 def process_batch(batch: list, collection: chromadb.Collection, embeddings_model: OllamaEmbeddings):
@@ -33,32 +63,34 @@ def process_batch(batch: list, collection: chromadb.Collection, embeddings_model
     # 1. Prepare data for ChromaDB and embedding model
     ids = [msg.value["chunk_id"] for msg in batch]
     documents = [msg.value["text"] for msg in batch]
+    searchable_documents = [searchable_text(msg.value) for msg in batch]
 
     # 2. Sanitize metadata for ChromaDB (only scalar values allowed)
     metadatas = []
     for msg in batch:
-        # Start with the original metadata
-        original_meta = msg.value.get("metadata", {})
+        chunk = msg.value
+        original_meta = chunk.get("metadata", {}) or {}
+        full_metadata = dict(original_meta)
+        if chunk.get("entities"):
+            full_metadata["entities"] = chunk.get("entities")
 
-        # Create a new dict for sanitized metadata
-        sanitized_meta = {}
-        # Create a dict for complex fields to be serialized
-        complex_meta = {}
+        sanitized_meta = {
+            "document_id": chunk.get("document_id", ""),
+            "source_type": chunk.get("source_type", ""),
+            "section": chunk.get("section") or "",
+            "metadata_json": json.dumps(full_metadata, ensure_ascii=False),
+        }
 
         for key, value in original_meta.items():
+            if key in {"document_id", "source_type", "section", "metadata_json"}:
+                continue
             if isinstance(value, (str, int, float, bool)):
                 sanitized_meta[key] = value
-            else:
-                complex_meta[key] = value
-
-        # Add serialized complex metadata into a single field
-        if complex_meta:
-            sanitized_meta["metadata_json"] = json.dumps(complex_meta)
 
         metadatas.append(sanitized_meta)
 
     # 3. Generate embeddings for the entire batch at once
-    embeddings = embeddings_model.embed_documents(documents)
+    embeddings = embeddings_model.embed_documents(searchable_documents)
 
     # 4. Upsert the batch to ChromaDB
     # `upsert` is idempotent: it adds new documents or updates existing ones.
@@ -78,8 +110,8 @@ def main():
     parser.add_argument("--consumer-group-id", default="chromadb_loader_service")
     # ChromaDB Args
     parser.add_argument("--chroma-host", default="localhost")
-    parser.add_argument("--chroma-port", default=8000, type=int)
-    parser.add_argument("--chroma-collection", default="clinical_evidence")
+    parser.add_argument("--chroma-port", default=8001, type=int)
+    parser.add_argument("--chroma-collection", default=default_collection_name())
     # Embedding Model Args
     parser.add_argument("--embedding-model", default=EMBEDDING_MODEL, help=f"Tên của model embedding để sử dụng trong Ollama. Mặc định: {EMBEDDING_MODEL}")
     parser.add_argument("--embedding-base-url", default="http://localhost:11434")
@@ -93,7 +125,10 @@ def main():
     try:
         embeddings_model = OllamaEmbeddings(model=args.embedding_model, base_url=args.embedding_base_url)
         chroma_client = chromadb.HttpClient(host=args.chroma_host, port=args.chroma_port)
-        collection = chroma_client.get_or_create_collection(name=args.chroma_collection)
+        collection = chroma_client.get_or_create_collection(
+            name=args.chroma_collection,
+            configuration={"hnsw": {"space": "cosine"}},
+        )
         print(f"Connected to ChromaDB. Collection '{args.chroma_collection}' has {collection.count()} documents.")
     except Exception as e:
         print(f"\nFATAL: Failed to initialize components. Check connections to Ollama/ChromaDB.")

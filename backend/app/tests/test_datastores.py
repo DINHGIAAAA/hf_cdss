@@ -1,5 +1,7 @@
 import math
 
+import pytest
+
 from app.core.config import settings
 from app.modules.datastores import artifacts
 from app.modules.datastores.common import hashing_embedding
@@ -47,4 +49,31 @@ def test_s3_artifact_sync_downloads_current_artifacts_to_runtime_cache(tmp_path,
     assert result["source_set"] == "current"
     assert (tmp_path / "artifacts/chunks/chunks.jsonl").exists()
     assert (tmp_path / "artifacts/current/manifest.json").exists()
+
+
+def test_artifact_sync_rejects_non_s3_storage(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(settings, "artifact_storage", "local")
+
+    with pytest.raises(RuntimeError, match="S3/LocalStack"):
+        artifacts.sync_artifacts_from_processed_bucket(tmp_path)
+
+
+def test_artifact_sync_fails_when_required_s3_artifact_is_missing(tmp_path, monkeypatch) -> None:
+    class FakeS3Client:
+        def download_file(self, bucket, key, target):
+            payloads = {
+                "heart_failure/artifacts/current/manifest.json": "{}",
+            }
+            if key not in payloads:
+                raise FileNotFoundError(key)
+            with open(target, "w", encoding="utf-8") as handle:
+                handle.write(payloads[key])
+
+    monkeypatch.setattr(settings, "artifact_storage", "s3")
+    monkeypatch.setattr(settings, "processed_bucket", "hf-cdss-processed")
+    monkeypatch.setattr(settings, "s3_prefix", "heart_failure")
+    monkeypatch.setattr(artifacts, "_s3_client", lambda: FakeS3Client())
+
+    with pytest.raises(RuntimeError, match="Required processed artifacts"):
+        artifacts.sync_artifacts_from_processed_bucket(tmp_path)
 

@@ -2,11 +2,12 @@ import hashlib
 import math
 import os
 import re
+import tempfile
 from pathlib import Path
 from typing import Any
 
 
-DEFAULT_DATA_ROOT = Path(__file__).resolve().parents[4] / "data" / "heart_failure"
+DEFAULT_DATA_ROOT = Path(tempfile.gettempdir()) / "hf_cdss" / "heart_failure"
 DATA_ROOT = Path(
     os.environ.get("HF_CDSS_ARTIFACT_CACHE_ROOT")
     or os.environ.get("HF_CDSS_DATA_ROOT")
@@ -19,7 +20,7 @@ RELATIONSHIPS_PATH = ARTIFACT_ROOT / "relationships" / "relationships.jsonl"
 
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
-        return []
+        raise FileNotFoundError(f"Required artifact is missing: {path}")
 
     import json
 

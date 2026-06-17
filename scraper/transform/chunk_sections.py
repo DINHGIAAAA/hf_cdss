@@ -68,7 +68,7 @@ def recursive_chunk_text(text: str, chunk_size: int, overlap: int) -> list[str]:
         chunk_overlap=overlap,
         length_function=token_estimate,
         separators=["\n\n", "\n", ". ", ", ", " ", ""],
-        keep_separator=False,
+        keep_separator=True,
     )
     # We use normalize_text here to preserve newline characters, which are
     # critical separators for the RecursiveCharacterTextSplitter.
@@ -147,13 +147,13 @@ def main() -> None:
         "--chunk-size",
         default=500,
         type=int,
-        help="Target chunk size (in words) for the recursive strategy.",
+        help="Target chunk size in embedding-model tokens for the recursive strategy.",
     )
     parser.add_argument(
         "--overlap",
         default=75,
         type=int,
-        help="Chunk overlap (in words) for the recursive strategy.",
+        help="Chunk overlap in embedding-model tokens for the recursive strategy.",
     )
     args = parser.parse_args()
 

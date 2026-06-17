@@ -23,7 +23,7 @@ from app.schemas.common import RouteCatalogResponse, RouteInfo
 
 configure_logging()
 
-SUCCESSFUL_BOOTSTRAP_STATUSES = {"ok", "skipped"}
+SUCCESSFUL_BOOTSTRAP_STATUSES = {"ok"}
 
 
 def custom_generate_unique_id(route: APIRoute) -> str:

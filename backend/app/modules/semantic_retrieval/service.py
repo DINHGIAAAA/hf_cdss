@@ -106,7 +106,16 @@ def rerank_evidence_chunks(query: str, chunks: list[EvidenceChunk], top_k: int) 
 
     reranked.sort(key=lambda item: item[0], reverse=True)
     return [
-        chunk.model_copy(update={"score": max(0.0, min(1.0, semantic_score))})
-        for _, semantic_score, chunk in reranked[:top_k]
+        chunk.model_copy(
+            update={
+                "score": max(0.0, min(1.0, combined_score)),
+                "metadata": {
+                    **(chunk.metadata or {}),
+                    "semantic_score": max(0.0, min(1.0, semantic_score)),
+                    "pre_rerank_score": chunk.score,
+                    "rerank_score": combined_score,
+                },
+            }
+        )
+        for combined_score, semantic_score, chunk in reranked[:top_k]
     ]
-
