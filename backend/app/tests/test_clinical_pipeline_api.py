@@ -1,9 +1,4 @@
-from fastapi.testclient import TestClient
-
-from app.main import app
-
-
-client = TestClient(app)
+from app.tests.conftest import api_path
 
 
 PATIENT = {
@@ -19,15 +14,15 @@ PATIENT = {
 }
 
 
-def test_normalize_api() -> None:
-    response = client.post("/normalize", json={"patient": PATIENT})
+def test_normalize_api(client) -> None:
+    response = client.post(api_path("/clinical/normalize"), json={"patient": PATIENT})
 
     assert response.status_code == 200
     assert response.json()["normalized_profile"]["hf_type"] == "HFrEF"
 
 
-def test_risks_api() -> None:
-    response = client.post("/risks", json={"patient": PATIENT})
+def test_risks_api(client) -> None:
+    response = client.post(api_path("/clinical/risks"), json={"patient": PATIENT})
 
     assert response.status_code == 200
     names = {risk["name"] for risk in response.json()["risk_flags"]}
@@ -35,11 +30,18 @@ def test_risks_api() -> None:
     assert "hyperkalemia" in names
 
 
-def test_constraints_api() -> None:
-    response = client.post("/constraints", json={"patient": PATIENT})
+def test_constraints_api(client) -> None:
+    response = client.post(api_path("/clinical/constraints"), json={"patient": PATIENT})
 
     assert response.status_code == 200
     constraints = response.json()["constraints"]
     assert any(item["target_drug_class"] == "MRA" and item["action"] == "avoid" for item in constraints)
     assert any(item["target_drug_class"] == "beta_blocker" for item in constraints)
     assert any(item["constraint_type"] == "hard" for item in constraints)
+
+
+def test_clinical_pipeline_legacy_aliases_still_work(client) -> None:
+    response = client.post(api_path("/normalize"), json={"patient": PATIENT})
+
+    assert response.status_code == 200
+    assert response.json()["normalized_profile"]["hf_type"] == "HFrEF"

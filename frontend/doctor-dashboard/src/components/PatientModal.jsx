@@ -96,6 +96,20 @@ export function PatientModal({ onCreate, onClose }) {
             placeholder="metoprolol, furosemide..."
             value={form.medications}
           />
+          <TextField
+            label="Allergies"
+            name="allergies"
+            onChange={update}
+            placeholder="penicillin, aspirin, no known drug allergies"
+            value={form.allergies}
+          />
+          <TextField
+            label="Red flags"
+            name="redFlags"
+            onChange={update}
+            placeholder="acute decompensation, chest pain, stable"
+            value={form.redFlags}
+          />
         </div>
 
         <button className="primary-action" disabled={!form.fullName.trim()} type="submit">

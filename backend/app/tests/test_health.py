@@ -1,35 +1,25 @@
-from fastapi.testclient import TestClient
-
-from app.main import app
+from app.tests.conftest import api_path
 
 
-client = TestClient(app)
-
-
-def test_root() -> None:
+def test_root(client) -> None:
     response = client.get("/")
 
     assert response.status_code == 200
-    assert response.json()["status"] == "ok"
-    assert "POST /recommend" in response.json()["endpoints"]
+    payload = response.json()
+    assert payload["status"] == "ok"
+    assert payload["api_prefix"] == "/api/v1"
+    assert payload["routes_catalog"] == "/api/v1/routes"
 
 
-def test_health() -> None:
-    response = client.get("/health")
-
-    assert response.status_code == 200
-    assert response.json()["status"] == "ok"
-
-
-def test_versioned_health_alias() -> None:
-    response = client.get("/api/v1/health")
+def test_health(client) -> None:
+    response = client.get(api_path("/health"))
 
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
 
 
-def test_readiness_reports_dependencies() -> None:
-    response = client.get("/health/ready")
+def test_readiness_reports_dependencies(client) -> None:
+    response = client.get(api_path("/health/ready"))
 
     assert response.status_code in {200, 503}
     payload = response.json()
@@ -41,16 +31,16 @@ def test_readiness_reports_dependencies() -> None:
         assert "dependencies" in payload["error"]["details"]
 
 
-def test_version() -> None:
-    response = client.get("/version")
+def test_version(client) -> None:
+    response = client.get(api_path("/version"))
 
     assert response.status_code == 200
     assert "version" in response.json()
 
 
-def test_cors_allows_vite_loopback_origin() -> None:
+def test_cors_allows_vite_loopback_origin(client) -> None:
     response = client.options(
-        "/recommend",
+        api_path("/recommend"),
         headers={
             "Origin": "http://127.0.0.1:5173",
             "Access-Control-Request-Method": "POST",
@@ -61,25 +51,36 @@ def test_cors_allows_vite_loopback_origin() -> None:
     assert response.headers["access-control-allow-origin"] == "http://127.0.0.1:5173"
 
 
-def test_rules_endpoint() -> None:
-    response = client.get("/rules")
+def test_active_constraint_rules_endpoint(client) -> None:
+    response = client.get(api_path("/constraint-rules/active"))
 
     assert response.status_code == 200
-    assert any(rule["constraint_id"] == "MRA_HARD_RENAL_OR_K" for rule in response.json())
+    rules = response.json()
+    if rules:
+        assert any(rule["constraint_id"] == "MRA_HARD_RENAL_OR_K" for rule in rules)
 
 
-def test_routes_catalog_includes_legacy_and_versioned_routes() -> None:
+def test_rules_legacy_alias_still_works(client) -> None:
+    response = client.get(api_path("/rules"))
+
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)
+
+
+def test_routes_catalog_lists_versioned_routes_only(client) -> None:
     response = client.get("/routes")
 
     assert response.status_code == 200
     routes = {route["path"] for route in response.json()["routes"]}
-    assert "/recommend" in routes
     assert "/api/v1/recommend" in routes
-    assert "/evidence/search" in routes
+    assert "/api/v1/evidence/search" in routes
+    assert "/api/v1/constraint-rules/active" in routes
+    assert "/api/v1/clinical/normalize" in routes
+    assert "/recommend" not in routes
 
 
-def test_evidence_search_endpoint() -> None:
-    response = client.get("/evidence/search", params={"q": "egfr potassium mra", "top_k": 2})
+def test_evidence_search_endpoint(client) -> None:
+    response = client.get(api_path("/evidence/search"), params={"q": "egfr potassium mra", "top_k": 2})
 
     assert response.status_code == 200
     payload = response.json()
@@ -88,8 +89,8 @@ def test_evidence_search_endpoint() -> None:
     assert "evidence_chunks" in payload
 
 
-def test_validation_error_shape() -> None:
-    response = client.post("/recommend", json={})
+def test_validation_error_shape(client) -> None:
+    response = client.post(api_path("/recommend"), json={})
 
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "validation_error"

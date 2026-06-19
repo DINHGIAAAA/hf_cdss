@@ -57,7 +57,9 @@
 }
 
 .chat-toggles--empty {
+  align-items: center;
   display: flex;
+  gap: 12px;
   inset: 0 0 auto;
   justify-content: space-between;
   padding: 14px 16px 0;

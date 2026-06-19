@@ -250,3 +250,41 @@
 .chat-header > p {
   display: none;
 }
+
+/* ── Language toggle ── */
+.language-toggle {
+  align-items: center;
+  background: #f3f6f8;
+  border: 1px solid #d4dde4;
+  border-radius: var(--radius);
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+}
+
+.language-toggle button {
+  background: transparent;
+  border: 0;
+  border-radius: calc(var(--radius-sm));
+  color: var(--color-text-2);
+  font-size: 12px;
+  font-weight: 600;
+  min-height: 28px;
+  min-width: 34px;
+  padding: 0 8px;
+}
+
+.language-toggle button.active {
+  background: var(--color-brand);
+  color: #fff;
+}
+
+.language-toggle--compact {
+  justify-content: center;
+  padding: 2px;
+}
+
+.language-toggle--compact button {
+  min-width: 28px;
+  padding: 0 6px;
+}

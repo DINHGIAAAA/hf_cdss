@@ -18,20 +18,20 @@ logger = logging.getLogger("app.access")
 PUBLIC_PATH_PREFIXES = (
     "/",
     "/api/v1/",
-    "/health",
-    "/api/v1/health",
-    "/version",
-    "/api/v1/version",
+    "/api/v1/auth",
+    "/api/auth",
     "/routes",
     "/api/v1/routes",
-    "/metrics",
-    "/api/v1/metrics",
     "/docs",
     "/redoc",
     "/openapi.json",
 )
 PROTECTED_PUBLIC_EXACT = {"/", "/api/v1/"}
-RATE_LIMIT_PATHS = ("/chat", "/api/v1/chat", "/llm/answer", "/api/v1/llm/answer")
+RATE_LIMIT_PATHS = (
+    "/api/v1/chat",
+    "/api/v1/chat/stream",
+    "/api/v1/llm/answer",
+)
 _rate_windows: dict[str, deque[float]] = defaultdict(deque)
 
 
@@ -50,10 +50,17 @@ def _api_keys() -> set[str]:
     return {key.strip() for key in settings.api_keys.split(",") if key.strip()}
 
 
+def _matches_public_prefix(path: str, prefix: str) -> bool:
+    if prefix == "/":
+        return path == "/"
+    normalized = prefix.rstrip("/")
+    return path == normalized or path.startswith(f"{normalized}/")
+
+
 def _requires_auth(path: str) -> bool:
     if path in PROTECTED_PUBLIC_EXACT:
         return False
-    return not any(path == prefix or path.startswith(f"{prefix}/") for prefix in PUBLIC_PATH_PREFIXES if prefix != "/")
+    return not any(_matches_public_prefix(path, prefix) for prefix in PUBLIC_PATH_PREFIXES)
 
 
 def _client_id(request: Request) -> str:

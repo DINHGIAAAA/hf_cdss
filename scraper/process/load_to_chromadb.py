@@ -17,6 +17,7 @@ import time
 import chromadb
 from kafka import KafkaConsumer, TopicPartition
 from kafka.errors import KafkaError
+from scraper.kafka_utils import connect_kafka_with_retry
 from langchain_ollama.embeddings import OllamaEmbeddings
 from tqdm import tqdm
 
@@ -102,6 +103,28 @@ def process_batch(batch: list, collection: chromadb.Collection, embeddings_model
     )
 
 
+def initialize_components(args):
+    last_error: Exception | None = None
+    for attempt in range(1, args.init_retries + 1):
+        try:
+            embeddings_model = OllamaEmbeddings(model=args.embedding_model, base_url=args.embedding_base_url)
+            chroma_client = chromadb.HttpClient(host=args.chroma_host, port=args.chroma_port)
+            collection = chroma_client.get_or_create_collection(
+                name=args.chroma_collection,
+                configuration={"hnsw": {"space": "cosine"}},
+            )
+            print(f"Connected to ChromaDB. Collection '{args.chroma_collection}' has {collection.count()} documents.")
+            return embeddings_model, collection
+        except Exception as exc:
+            last_error = exc
+            print(
+                f"  -> ChromaDB/Ollama not ready "
+                f"(attempt {attempt}/{args.init_retries}): {exc}"
+            )
+            time.sleep(args.init_retry_seconds)
+    raise RuntimeError(f"Failed to initialize ChromaDB/Ollama after {args.init_retries} attempts: {last_error}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Kafka to ChromaDB Loader Service.")
     # Kafka Args
@@ -118,18 +141,14 @@ def main():
     # Batching Args
     parser.add_argument("--batch-size", default=100, type=int)
     parser.add_argument("--batch-timeout-ms", default=5000, type=int, help="Max time to wait for a full batch.")
+    parser.add_argument("--init-retries", default=30, type=int, help="Number of startup retries for ChromaDB/Ollama.")
+    parser.add_argument("--init-retry-seconds", default=5, type=float, help="Seconds to wait between startup retries.")
     args = parser.parse_args()
 
     # 1. Initialize expensive components
     print("Initializing components...")
     try:
-        embeddings_model = OllamaEmbeddings(model=args.embedding_model, base_url=args.embedding_base_url)
-        chroma_client = chromadb.HttpClient(host=args.chroma_host, port=args.chroma_port)
-        collection = chroma_client.get_or_create_collection(
-            name=args.chroma_collection,
-            configuration={"hnsw": {"space": "cosine"}},
-        )
-        print(f"Connected to ChromaDB. Collection '{args.chroma_collection}' has {collection.count()} documents.")
+        embeddings_model, collection = initialize_components(args)
     except Exception as e:
         print(f"\nFATAL: Failed to initialize components. Check connections to Ollama/ChromaDB.")
         print(f"Details: {e}")
@@ -137,21 +156,19 @@ def main():
 
     # 2. Connect to Kafka
     print(f"Connecting to Kafka at {args.kafka_bootstrap_servers}...")
-    try:
-        # enable_auto_commit=False is crucial for manual offset management
-        consumer = KafkaConsumer(
+    def _connect():
+        c = KafkaConsumer(
             bootstrap_servers=args.kafka_bootstrap_servers,
-            group_id=args.consumer_group_id,
-            auto_offset_reset='earliest',
+            group_id=args.consumer_group_id, auto_offset_reset='earliest',
             enable_auto_commit=False,
             value_deserializer=lambda m: json.loads(m.decode('utf-8')),
             consumer_timeout_ms=args.batch_timeout_ms,
+            max_poll_interval_ms=900000,
         )
-        consumer.subscribe([args.consumer_topic])
-    except KafkaError as e:
-        print(f"\nFATAL: Could not connect to Kafka. Is it running?")
-        print(f"Details: {e}")
-        return
+        c.subscribe([args.consumer_topic])
+        return c
+        
+    consumer = connect_kafka_with_retry(_connect)
 
     # 3. Start the main processing loop
     print(f"Listening for messages on topic '{args.consumer_topic}'... (Press Ctrl+C to stop)")

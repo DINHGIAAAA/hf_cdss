@@ -1,23 +1,29 @@
-FROM node:20-alpine AS build
+FROM node:20-alpine AS builder
 
 WORKDIR /app
-COPY package*.json ./
-RUN npm ci
-COPY . .
 
-ARG VITE_API_BASE_URL=http://localhost:8000
-ARG VITE_API_KEY=
-ARG VITE_API_KEY_HEADER=x-api-key
+COPY doctor-dashboard/package*.json ./
+RUN npm install
+
+COPY shared ./shared
+COPY doctor-dashboard/ .
+
+ARG VITE_API_BASE_URL
+ARG VITE_API_KEY
+ARG VITE_API_KEY_HEADER
+ARG VITE_CHAT_LANGUAGE
+
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 ENV VITE_API_KEY=$VITE_API_KEY
 ENV VITE_API_KEY_HEADER=$VITE_API_KEY_HEADER
+ENV VITE_CHAT_LANGUAGE=$VITE_CHAT_LANGUAGE
 
 RUN npm run build
 
-FROM nginx:1.27-alpine
+FROM nginx:alpine
 
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=build /app/dist /usr/share/nginx/html
+COPY --from=builder /app/dist /usr/share/nginx/html
+COPY doctor-dashboard/nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]

@@ -38,6 +38,6 @@ class KGConstraintResponse(BaseModel):
 
 
 class KGInteractionResponse(BaseModel):
-    drug: str | None = None
+    drug: str
     interactions: list[GraphFact] = Field(default_factory=list)
 

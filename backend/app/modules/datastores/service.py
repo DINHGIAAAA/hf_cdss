@@ -14,8 +14,13 @@ logger = logging.getLogger(__name__)
 def bootstrap_datastores() -> dict[str, Any]:
     results: dict[str, Any] = {}
     print("[datastore-bootstrap] syncing artifacts from processed storage...", flush=True)
-    results["artifacts"] = sync_artifacts_from_processed_bucket(DATA_ROOT)
-    print(f"[datastore-bootstrap] artifacts: {results['artifacts']}", flush=True)
+    try:
+        results["artifacts"] = sync_artifacts_from_processed_bucket(DATA_ROOT)
+        print(f"[datastore-bootstrap] artifacts: {results['artifacts']}", flush=True)
+    except Exception as exc:
+        logger.warning("artifact sync unavailable: %s", exc)
+        results["artifacts"] = {"status": "unavailable", "storage": "s3", "detail": str(exc)}
+        print(f"[datastore-bootstrap] artifacts unavailable: {exc}", flush=True)
 
     for name, initializer in (
         ("postgres", initialize_postgres),

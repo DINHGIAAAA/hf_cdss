@@ -1,15 +1,10 @@
-from fastapi.testclient import TestClient
-
 from app.api.routes import health as health_routes
 from app.core.config import settings
 from app.core.middleware import _rate_windows
-from app.main import app
+from app.tests.conftest import api_path
 
 
-client = TestClient(app)
-
-
-def test_api_key_auth_protects_clinical_endpoints(monkeypatch) -> None:
+def test_api_key_auth_blocks_deprecated_unversioned_paths(monkeypatch, client) -> None:
     patient = {
         "case_id": "AUTH_CASE",
         "lvef": 30,
@@ -23,30 +18,28 @@ def test_api_key_auth_protects_clinical_endpoints(monkeypatch) -> None:
     }
     monkeypatch.setattr(settings, "api_keys", "secret-key")
 
-    public_response = client.get("/health")
     blocked_response = client.post("/recommend", json={"patient": patient}, headers={"user-agent": "curl/8"})
-    allowed_response = client.post(
-        "/recommend",
+    public_response = client.post(
+        api_path("/recommend"),
         json={"patient": patient},
-        headers={"x-api-key": "secret-key", "user-agent": "curl/8"},
+        headers={"user-agent": "curl/8"},
     )
 
-    assert public_response.status_code == 200
     assert blocked_response.status_code == 401
     assert blocked_response.json()["error"]["code"] == "unauthorized"
-    assert allowed_response.status_code == 200
+    assert public_response.status_code == 200
 
 
-def test_request_id_is_returned_on_success_and_errors() -> None:
-    success = client.get("/health", headers={"x-request-id": "req-test-1"})
-    failure = client.post("/recommend", json={}, headers={"x-request-id": "req-test-2"})
+def test_request_id_is_returned_on_success_and_errors(client) -> None:
+    success = client.get(api_path("/health"), headers={"x-request-id": "req-test-1"})
+    failure = client.post(api_path("/recommend"), json={}, headers={"x-request-id": "req-test-2"})
 
     assert success.headers["x-request-id"] == "req-test-1"
     assert failure.json()["error"]["details"]["request_id"] == "req-test-2"
 
 
-def test_validation_errors_do_not_echo_input_when_phi_logging_disabled(monkeypatch) -> None:
-    response = client.post("/recommend", json={"unexpected": "Hidden Name"})
+def test_validation_errors_do_not_echo_input_when_phi_logging_disabled(client) -> None:
+    response = client.post(api_path("/recommend"), json={"unexpected": "Hidden Name"})
 
     assert response.status_code == 422
     errors = response.json()["error"]["details"]["errors"]
@@ -54,26 +47,26 @@ def test_validation_errors_do_not_echo_input_when_phi_logging_disabled(monkeypat
     assert all("input" not in error for error in errors)
 
 
-def test_strict_readiness_returns_503_when_dependency_degraded(monkeypatch) -> None:
+def test_strict_readiness_returns_503_when_dependency_degraded(monkeypatch, client) -> None:
     monkeypatch.setattr(
         health_routes,
         "datastore_status",
         lambda: {"postgres": {"status": "ok"}, "artifacts": {"status": "unavailable", "missing": ["chunks"]}},
     )
 
-    response = client.get("/health/ready")
+    response = client.get(api_path("/health/ready"))
 
     assert response.status_code == 503
     assert response.json()["error"]["code"] == "http_503"
 
 
-def test_chat_rate_limit_can_throttle_expensive_endpoints(monkeypatch) -> None:
+def test_chat_rate_limit_can_throttle_expensive_endpoints(monkeypatch, client) -> None:
     _rate_windows.clear()
     monkeypatch.setattr(settings, "rate_limit_requests", 1)
     monkeypatch.setattr(settings, "rate_limit_window_seconds", 60)
 
-    first = client.post("/chat", json={"message": "EF 30, eGFR 60, K 4.4"})
-    second = client.post("/chat", json={"message": "SBP 118, HR 72"})
+    first = client.post(api_path("/chat"), json={"message": "EF 30, eGFR 60, K 4.4"})
+    second = client.post(api_path("/chat"), json={"message": "SBP 118, HR 72"})
 
     assert first.status_code == 200
     assert second.status_code == 429
@@ -81,10 +74,24 @@ def test_chat_rate_limit_can_throttle_expensive_endpoints(monkeypatch) -> None:
     _rate_windows.clear()
 
 
-def test_metrics_endpoint_exposes_prometheus_text() -> None:
-    client.get("/health")
+def test_chat_stream_rate_limit_can_throttle_expensive_endpoints(monkeypatch, client) -> None:
+    _rate_windows.clear()
+    monkeypatch.setattr(settings, "rate_limit_requests", 1)
+    monkeypatch.setattr(settings, "rate_limit_window_seconds", 60)
 
-    response = client.get("/metrics")
+    first = client.post(api_path("/chat/stream"), json={"message": "EF 30, eGFR 60, K 4.4"})
+    second = client.post(api_path("/chat/stream"), json={"message": "SBP 118, HR 72"})
+
+    assert first.status_code == 200
+    assert second.status_code == 429
+    assert second.json()["error"]["code"] == "rate_limited"
+    _rate_windows.clear()
+
+
+def test_metrics_endpoint_exposes_prometheus_text(client) -> None:
+    client.get(api_path("/health"))
+
+    response = client.get(api_path("/metrics"))
 
     assert response.status_code == 200
     assert "hf_cdss_http_requests_total" in response.text

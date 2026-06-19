@@ -2,7 +2,7 @@
   background: #101820;
   color: #f7fafc;
   display: grid;
-  grid-template-rows: auto auto 1fr auto;
+  grid-template-rows: auto auto 1fr auto auto;
   gap: 10px;
   height: 100%;
   overflow: hidden;
@@ -107,4 +107,37 @@
 .api-status.degraded {
   background: #4a3310;
   color: #ffd996;
+}
+
+.admin-link {
+  align-items: center;
+  border: 1px solid #344554;
+  border-radius: var(--radius);
+  color: #d7e0e7;
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  padding: 9px 10px;
+  text-decoration: none;
+  transition: background 0.12s;
+}
+
+.admin-link:hover {
+  background: #22303b;
+  color: #fff;
+}
+
+.conversation-sidebar .language-toggle {
+  background: #1f2a34;
+  border-color: #344554;
+  justify-content: center;
+}
+
+.conversation-sidebar .language-toggle button {
+  color: #d7e0e7;
+}
+
+.conversation-sidebar .language-toggle button.active {
+  background: var(--color-brand);
+  color: #fff;
 }

@@ -5,7 +5,11 @@ from datetime import datetime, timedelta
 
 from airflow import DAG
 from airflow.models import Param
-from airflow.operators.bash import BashOperator
+
+try:
+    from airflow.providers.standard.operators.bash import BashOperator
+except ImportError:
+    from airflow.operators.bash import BashOperator
 
 
 PROJECT_ROOT = os.environ.get("HF_CDSS_PROJECT_ROOT", "/opt/airflow/project")
@@ -23,7 +27,7 @@ PARSE_GUIDELINE_COMMAND = (
 
 
 def data_command(command: str) -> str:
-    return f"cd {DATA_ROOT} && PYTHONPATH={PROJECT_ROOT} {command}"
+    return f"mkdir -p {DATA_ROOT} && cd {DATA_ROOT} && PYTHONPATH={PROJECT_ROOT} {command}"
 
 
 def backend_command(command: str) -> str:
@@ -43,7 +47,7 @@ with DAG(
     description="Scrape clinical sources into S3 raw, rebuild Heart Failure KG artifacts, publish S3 processed, and reload datastores.",
     default_args=default_args,
     start_date=datetime(2026, 1, 1),
-    schedule_interval=None,
+        schedule=None,
     catchup=False,
     max_active_runs=1,
     tags=["hf-cdss", "graphrag", "ingestion"],
@@ -86,7 +90,7 @@ with DAG(
             "if [ '{{ params.skip_download }}' = 'True' ]; then "
             "echo 'Skipping download.'; "
             "else "
-            f"{data_command(PYTHON + ' -m scraper.acquisition.download_sources --registry {{{{ params.registry }}}} ')}"
+            f"{data_command(PYTHON + ' -m scraper.acquisition.download_sources --registry {{ params.registry }} ')}"
             "--storage s3 "
             "--s3-bucket ${HF_CDSS_RAW_BUCKET:-hf-cdss-raw} "
             "--s3-prefix ${HF_CDSS_S3_PREFIX:-heart_failure} "
@@ -99,7 +103,7 @@ with DAG(
     sync_sources_from_s3 = BashOperator(
         task_id="sync_sources_from_s3",
         bash_command=(
-            f"{data_command(PYTHON + ' -m scraper.acquisition.sync_sources_from_s3 --registry {{{{ params.registry }}}} ')}"
+            f"{data_command(PYTHON + ' -m scraper.acquisition.sync_sources_from_s3 --registry {{ params.registry }} ')}"
             "--bucket ${HF_CDSS_RAW_BUCKET:-hf-cdss-raw} "
             "--prefix ${HF_CDSS_S3_PREFIX:-heart_failure} "
             "--endpoint-url ${HF_CDSS_S3_ENDPOINT_URL:-http://localstack:4566}"
@@ -110,7 +114,7 @@ with DAG(
         task_id="parse_guideline_pdf",
         bash_command=(
             "if [ '{{ params.parse_guidelines }}' = 'True' ]; then "
-            f"{data_command(PARSE_GUIDELINE_COMMAND + ' --registry {{{{ params.registry }}}}')}; "
+            f"{data_command(PARSE_GUIDELINE_COMMAND + ' --registry {{ params.registry }}')}; "
             "else "
             "echo 'Skipping guideline PDF parsing; using existing processed sections.'; "
             "fi"
@@ -127,64 +131,23 @@ with DAG(
         ),
     )
 
-    extract_important_sections = BashOperator(
-        task_id="extract_important_sections",
-        bash_command=data_command(f"{PYTHON} -m scraper.transform.extract_important_sections"),
-    )
-
-    chunk_sections = BashOperator(
-        task_id="chunk_sections",
-        bash_command=data_command(f"{PYTHON} -m scraper.transform.chunk_sections"),
-    )
-
-    extract_entities = BashOperator(
-        task_id="extract_entities",
-        bash_command=data_command(f"{PYTHON} -m scraper.process.extract_entities"),
-    )
-
-    create_claims = BashOperator(
-        task_id="create_claims",
-        bash_command=data_command(f"{PYTHON} -m scraper.process.create_claims"),
-    )
-
-    generate_rules = BashOperator(
-        task_id="generate_rules",
-        bash_command=(
-            "if [ '{{ params.build_rules }}' = 'True' ]; then "
-            f"{data_command(PYTHON + ' -m scraper.process.generate_rules')}; "
-            "else "
-            "echo 'Skipping rule generation.'; "
-            "fi"
-        ),
-    )
-
-    classify_rules = BashOperator(
-        task_id="classify_rules",
-        bash_command=(
-            "if [ '{{ params.build_rules }}' = 'True' ]; then "
-            f"{data_command(PYTHON + ' -m scraper.process.classify_rules')}; "
-            "else "
-            "echo 'Skipping rule classification.'; "
-            "fi"
-        ),
-    )
-
-    derive_relationships = BashOperator(
-        task_id="derive_relationships",
-        bash_command=data_command(f"{PYTHON} -m scraper.process.derive_relationships"),
-    )
-
-    validate_kg_artifacts = BashOperator(
-        task_id="validate_kg_artifacts",
-        bash_command=data_command(f"{PYTHON} -m scraper.validation.validate_kg_artifacts --root ."),
-    )
-
-    promote_artifacts = BashOperator(
-        task_id="promote_artifacts",
+    publish_guidelines_to_kafka = BashOperator(
+        task_id="publish_guidelines_to_kafka",
         bash_command=data_command(
-            f"{PYTHON} -m scraper.store.promote_artifacts "
-            "--workspace . "
-            "--run-id \"{{{{ params.pipeline_run_id or run_id }}}}\""
+            f"{PYTHON} -m scraper.process.publish_to_kafka "
+            "--input-file processed/sections/guideline_sections.jsonl "
+            "--topic ${HF_CDSS_KAFKA_IMPORTANT_SECTIONS_TOPIC:-important_sections} "
+            "--kafka-bootstrap-servers ${HF_CDSS_KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}"
+        ),
+    )
+
+    publish_drug_labels_to_kafka = BashOperator(
+        task_id="publish_drug_labels_to_kafka",
+        bash_command=data_command(
+            f"{PYTHON} -m scraper.process.publish_to_kafka "
+            "--input-file processed/sections/drug_label_sections.jsonl "
+            "--topic ${HF_CDSS_KAFKA_IMPORTANT_SECTIONS_TOPIC:-important_sections} "
+            "--kafka-bootstrap-servers ${HF_CDSS_KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}"
         ),
     )
 
@@ -192,32 +155,23 @@ with DAG(
         task_id="sync_processed_to_s3",
         bash_command=data_command(
             f"{PYTHON} -m scraper.store.sync_processed_to_s3 "
-            "--bucket ${HF_CDSS_PROCESSED_BUCKET:-hf-cdss-processed} "
-            "--prefix ${HF_CDSS_S3_PREFIX:-heart_failure} "
-            "--endpoint-url ${HF_CDSS_S3_ENDPOINT_URL:-http://localstack:4566} "
+            "--bucket ${{HF_CDSS_PROCESSED_BUCKET:-hf-cdss-processed}} "
+            "--prefix ${{HF_CDSS_S3_PREFIX:-heart_failure}} "
+            "--endpoint-url ${{HF_CDSS_S3_ENDPOINT_URL:-http://localstack:4566}} "
             "--run-id \"{{{{ params.pipeline_run_id or run_id }}}}\""
         ),
     )
 
-    bootstrap_datastores = BashOperator(
-        task_id="bootstrap_datastores",
-        bash_command=backend_command(f"{PYTHON} -m app.scripts.bootstrap_datastores"),
+    cleanup_local_processed_files = BashOperator(
+        task_id="cleanup_local_processed_files",
+        bash_command=data_command("rm -f processed/sections/*.jsonl processed/documents/*.jsonl"),
     )
 
-    (
-        download_sources
-        >> sync_sources_from_s3
-        >> parse_guideline_pdf
-        >> parse_drug_label_xml
-        >> extract_important_sections
-        >> chunk_sections
-        >> extract_entities
-        >> create_claims
-        >> generate_rules
-        >> classify_rules
-        >> derive_relationships
-        >> validate_kg_artifacts
-        >> promote_artifacts
-        >> sync_processed_to_s3
-        >> bootstrap_datastores
-    )
+    # Airflow giờ đây chỉ làm nhiệm vụ Data Ingestion.
+    # Dữ liệu sau khi parse sẽ được đẩy vào Kafka và xử lý bởi các Docker services.
+    download_sources >> sync_sources_from_s3
+    sync_sources_from_s3 >> [parse_guideline_pdf, parse_drug_label_xml]
+    [parse_guideline_pdf, parse_drug_label_xml] >> sync_processed_to_s3
+    parse_guideline_pdf >> publish_guidelines_to_kafka
+    parse_drug_label_xml >> publish_drug_labels_to_kafka
+    [sync_processed_to_s3, publish_guidelines_to_kafka, publish_drug_labels_to_kafka] >> cleanup_local_processed_files

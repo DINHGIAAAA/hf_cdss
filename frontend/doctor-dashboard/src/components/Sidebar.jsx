@@ -1,7 +1,24 @@
-import { CheckCircle2, AlertTriangle, MessageSquareText, Plus } from "lucide-react";
+import { CheckCircle2, AlertTriangle, LayoutDashboard, MessageSquareText, Plus } from "lucide-react";
+import { Link } from "react-router-dom";
 import { patientSummary } from "../utils";
+import { LanguageToggle } from "./LanguageToggle";
+import { useAuth } from "../auth/AuthContext";
+import { isAdminUser } from "../auth/roles";
 
-export function Sidebar({ conversations, activeId, onSelect, onNew, health, open }) {
+export function Sidebar({
+  conversations,
+  activeId,
+  onSelect,
+  onNew,
+  health,
+  open,
+  language,
+  languages,
+  onLanguageChange,
+}) {
+  const { user } = useAuth();
+  const showAdminLink = isAdminUser(user);
+
   return (
     <aside className={`conversation-sidebar${open ? "" : " sidebar--collapsed"}`}>
       <div className="brand">
@@ -33,6 +50,20 @@ export function Sidebar({ conversations, activeId, onSelect, onNew, health, open
           );
         })}
       </nav>
+
+      {showAdminLink && (
+        <Link className="admin-link" title="Admin dashboard" to="/admin/rules">
+          <LayoutDashboard size={17} />
+          {open && "Admin dashboard"}
+        </Link>
+      )}
+
+      <LanguageToggle
+        compact={!open}
+        language={language}
+        languages={languages}
+        onChange={onLanguageChange}
+      />
 
       <div className={`api-status ${health}`} title={`API ${health}`}>
         {health === "ok" ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}

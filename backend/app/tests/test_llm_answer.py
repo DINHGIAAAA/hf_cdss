@@ -1,14 +1,9 @@
-from fastapi.testclient import TestClient
-
 from app.core.config import settings
-from app.main import app
 from app.modules.explanation import llm_service
+from app.tests.conftest import api_path
 
 
-client = TestClient(app)
-
-
-def test_llm_answer_falls_back_without_api_key() -> None:
+def test_llm_answer_falls_back_without_api_key(client) -> None:
     patient = {
         "case_id": "LLM_CASE",
         "lvef": 28,
@@ -20,11 +15,11 @@ def test_llm_answer_falls_back_without_api_key() -> None:
         "current_medications": ["metoprolol", "furosemide", "apixaban"],
         "allergies": [],
     }
-    recommendation = client.post("/recommend", json={"patient": patient}).json()
-    verification = client.post("/verify", json={"patient": patient, "recommendation": recommendation}).json()
+    recommendation = client.post(api_path("/recommend"), json={"patient": patient}).json()
+    verification = client.post(api_path("/verify"), json={"patient": patient, "recommendation": recommendation}).json()
 
     response = client.post(
-        "/llm/answer",
+        api_path("/llm/answer"),
         json={
             "user_input": "Patient has low blood pressure and bradycardia.",
             "patient": patient,
@@ -40,7 +35,7 @@ def test_llm_answer_falls_back_without_api_key() -> None:
     assert "structured CDSS output" in payload["safety_note"]
 
 
-def test_llm_answer_uses_cache_for_repeated_payload(monkeypatch) -> None:
+def test_llm_answer_uses_cache_for_repeated_payload(monkeypatch, client) -> None:
     patient = {
         "case_id": "LLM_CACHE_CASE",
         "lvef": 28,
@@ -52,8 +47,8 @@ def test_llm_answer_uses_cache_for_repeated_payload(monkeypatch) -> None:
         "current_medications": ["metoprolol", "furosemide", "apixaban"],
         "allergies": [],
     }
-    recommendation = client.post("/recommend", json={"patient": patient}).json()
-    verification = client.post("/verify", json={"patient": patient, "recommendation": recommendation}).json()
+    recommendation = client.post(api_path("/recommend"), json={"patient": patient}).json()
+    verification = client.post(api_path("/verify"), json={"patient": patient, "recommendation": recommendation}).json()
     body = {
         "user_input": "Patient has low blood pressure and bradycardia.",
         "patient": patient,
@@ -82,8 +77,8 @@ def test_llm_answer_uses_cache_for_repeated_payload(monkeypatch) -> None:
 
     monkeypatch.setattr(llm_service, "get_async_client", lambda *args, **kwargs: FakeClient())
 
-    first = client.post("/llm/answer", json=body)
-    second = client.post("/llm/answer", json=body)
+    first = client.post(api_path("/llm/answer"), json=body)
+    second = client.post(api_path("/llm/answer"), json=body)
 
     assert first.status_code == 200
     assert second.status_code == 200

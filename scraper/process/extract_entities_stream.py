@@ -7,9 +7,14 @@ import argparse
 import hashlib
 import json
 import re
+import time
+import warnings
 
 from kafka import KafkaConsumer, KafkaProducer
 from kafka.errors import KafkaError
+
+# Ẩn cảnh báo DeprecationWarning phiền phức của kafka-python
+warnings.filterwarnings("ignore", category=DeprecationWarning, module="kafka")
 
 
 # Re-using the same patterns from the batch script
@@ -109,20 +114,26 @@ def main() -> None:
     args = parser.parse_args()
 
     print(f"Connecting to Kafka at {args.kafka_bootstrap_servers}...")
-    try:
-        consumer = KafkaConsumer(
-            args.consumer_topic,
-            bootstrap_servers=args.kafka_bootstrap_servers,
-            group_id=args.consumer_group_id,
-            auto_offset_reset='earliest',
-            value_deserializer=lambda m: json.loads(m.decode('utf-8'))
-        )
-        producer = KafkaProducer(
-            bootstrap_servers=args.kafka_bootstrap_servers,
-            value_serializer=lambda m: json.dumps(m, ensure_ascii=False).encode('utf-8')
-        )
-    except KafkaError as e:
-        print(f"\nFATAL: Could not connect to Kafka. Is it running? Details: {e}")
+    for attempt in range(1, 13):
+        try:
+            consumer = KafkaConsumer(
+                args.consumer_topic,
+                bootstrap_servers=args.kafka_bootstrap_servers,
+                group_id=args.consumer_group_id,
+                auto_offset_reset='earliest',
+                value_deserializer=lambda m: json.loads(m.decode('utf-8'))
+            )
+            producer = KafkaProducer(
+                bootstrap_servers=args.kafka_bootstrap_servers,
+                value_serializer=lambda m: json.dumps(m, ensure_ascii=False).encode('utf-8')
+            )
+            print("✅ Đã kết nối thành công tới Kafka!")
+            break
+        except KafkaError as e:
+            print(f"  -> Lần thử {attempt}/12: Kafka chưa sẵn sàng. Thử lại sau 5s... (Lỗi: {e})")
+            time.sleep(5)
+    else:
+        print(f"\nFATAL: Không thể kết nối tới Kafka sau 12 lần thử. Exiting.")
         return
 
     print(f"Listening for messages on topic '{args.consumer_topic}'... (Press Ctrl+C to stop)")

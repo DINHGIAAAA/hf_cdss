@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "backend"
 
 from kafka import KafkaConsumer
 from kafka.errors import KafkaError
+from scraper.kafka_utils import connect_kafka_with_retry
 
 # Import conversion logic from the batch script.
 # We reuse this logic to maintain consistency.
@@ -91,19 +92,14 @@ def main() -> None:
     # which rely on environment variables (see app/core/config.py).
 
     print(f"Connecting to Kafka at {args.kafka_bootstrap_servers}...")
-    try:
-        consumer = KafkaConsumer(
-            args.consumer_topic,
-            bootstrap_servers=args.kafka_bootstrap_servers,
-            group_id=args.consumer_group_id,
-            auto_offset_reset='earliest',
+    def _connect():
+        return KafkaConsumer(
+            args.consumer_topic, bootstrap_servers=args.kafka_bootstrap_servers,
+            group_id=args.consumer_group_id, auto_offset_reset='earliest',
             # Auto-commit is fine here as processing is idempotent.
-            # If a message is re-processed, the content hash check will prevent duplicates.
             value_deserializer=lambda m: json.loads(m.decode('utf-8')),
         )
-    except KafkaError as e:
-        print(f"\nFATAL: Could not connect to Kafka. Is it running? Details: {e}")
-        return
+    consumer = connect_kafka_with_retry(_connect)
 
     print(f"Listening for messages on topic '{args.consumer_topic}'... (Press Ctrl+C to stop)")
     try:
@@ -127,7 +123,7 @@ if __name__ == "__main__":
     # This check ensures the script is run in a context where backend modules are accessible.
     try:
         from app.core.config import settings
-        print(f"Database host: {settings.POSTGRES_SERVER}")
+        print(f"Database connection: {settings.postgres_dsn}")
     except (ImportError, AttributeError):
         print("\nCould not import backend settings. Make sure the script is run from the project root, e.g.:")
         print("python -m scraper.process.sync_rules_to_postgres")

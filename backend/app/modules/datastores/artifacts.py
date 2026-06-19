@@ -38,12 +38,6 @@ def _download_key(client: Any, s3_path: str, target_path: str, root: Path) -> bo
 
 
 def sync_artifacts_from_processed_bucket(root: Path) -> dict[str, Any]:
-    if settings.artifact_storage != "s3":
-        raise RuntimeError(
-            f"Unsupported artifact storage '{settings.artifact_storage}'. "
-            "Artifacts must be loaded from S3/LocalStack."
-        )
-
     client = _s3_client()
     downloaded: list[str] = []
     missing: list[str] = []
@@ -81,25 +75,15 @@ def sync_artifacts_from_processed_bucket(root: Path) -> dict[str, Any]:
 
 
 def artifact_status(root: Path) -> dict[str, Any]:
-    if settings.artifact_storage != "s3":
-        return {
-            "status": "unavailable",
-            "storage": settings.artifact_storage,
-            "cache_root": str(root),
-            "source_set": "unsupported",
-            "missing": ["s3_artifact_storage"],
-            "detail": "Artifacts must be loaded from S3/LocalStack.",
-        }
-
     required_targets = [root / target_path for _, target_path in ARTIFACT_DOWNLOADS]
     missing = [str(path.relative_to(root)) for path in required_targets if not path.exists()]
     manifest_path = root / CURRENT_MANIFEST
-    if settings.artifact_storage == "s3" and not manifest_path.exists():
+    if not manifest_path.exists():
         missing.append(CURRENT_MANIFEST)
     status = "ok" if not missing else "unavailable"
     return {
         "status": status,
-        "storage": settings.artifact_storage,
+        "storage": "s3",
         "cache_root": str(root),
         "source_set": "current" if manifest_path.exists() else "unknown",
         "missing": missing,

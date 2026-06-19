@@ -2,6 +2,7 @@ import argparse
 import html
 import json
 import re
+import traceback
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -162,10 +163,15 @@ def main() -> None:
     print(f"Parsing {len(html_paths)} HTML files and producing to topic '{args.producer_topic}'...")
     try:
         for path in tqdm(html_paths, desc="Parsing HTML files"):
-            sections = parse_sections(path, registry)
-            for section in sections:
-                producer.send(args.producer_topic, value=section)
-            total_sections += len(sections)
+            try:
+                sections = parse_sections(path, registry)
+                for section in sections:
+                    producer.send(args.producer_topic, value=section)
+                total_sections += len(sections)
+            except Exception as e:
+                print(f"\n[ERROR] Lỗi khi parse file HTML: {path}")
+                print(f"Chi tiết: {e}")
+                traceback.print_exc()
         
         print("Flushing Kafka producer...")
         producer.flush()

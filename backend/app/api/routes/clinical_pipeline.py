@@ -11,7 +11,8 @@ from app.schemas.clinical_pipeline import (
 )
 
 
-router = APIRouter()
+router = APIRouter(prefix="/clinical")
+legacy_router = APIRouter()
 
 
 @router.post("/normalize", response_model=NormalizationResponse)
@@ -36,3 +37,29 @@ def constraints(payload: PatientPayload) -> ConstraintResponse:
         risk_flags=risk_flags,
         constraints=clinical_constraints,
     )
+
+
+legacy_router.add_api_route(
+    "/normalize",
+    normalize,
+    methods=["POST"],
+    response_model=NormalizationResponse,
+    deprecated=True,
+    summary="[Deprecated] Use POST /clinical/normalize",
+)
+legacy_router.add_api_route(
+    "/risks",
+    risks,
+    methods=["POST"],
+    response_model=RiskExtractionResponse,
+    deprecated=True,
+    summary="[Deprecated] Use POST /clinical/risks",
+)
+legacy_router.add_api_route(
+    "/constraints",
+    constraints,
+    methods=["POST"],
+    response_model=ConstraintResponse,
+    deprecated=True,
+    summary="[Deprecated] Use POST /clinical/constraints",
+)

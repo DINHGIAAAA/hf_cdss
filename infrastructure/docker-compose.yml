@@ -36,6 +36,10 @@ services:
     container_name: hf_cdss_backend
     ports:
       - "8000:8000"
+    volumes:
+      - ../backend:/app
+    # Ghi đè lệnh khởi động để thêm --reload giúp tự động cập nhật code
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     depends_on:
       ollama-pull:
         condition: service_completed_successfully
@@ -45,7 +49,9 @@ services:
         condition: service_healthy
       chromadb:
         condition: service_healthy
-      localstack:
+      localstack-init:
+        condition: service_completed_successfully
+      redis:
         condition: service_healthy
     environment:
       HF_CDSS_ENVIRONMENT: ${HF_CDSS_ENVIRONMENT:-docker}
@@ -97,7 +103,6 @@ services:
       HF_CDSS_VERIFICATION_CACHE_ENABLED: ${HF_CDSS_VERIFICATION_CACHE_ENABLED:-true}
       HF_CDSS_VERIFICATION_CACHE_TTL_SECONDS: ${HF_CDSS_VERIFICATION_CACHE_TTL_SECONDS:-300}
       HF_CDSS_VERIFICATION_CACHE_MAX_ENTRIES: ${HF_CDSS_VERIFICATION_CACHE_MAX_ENTRIES:-128}
-      HF_CDSS_ARTIFACT_STORAGE: ${HF_CDSS_ARTIFACT_STORAGE:-s3}
       HF_CDSS_ARTIFACT_CACHE_ROOT: ${HF_CDSS_ARTIFACT_CACHE_ROOT:-/tmp/hf_cdss/heart_failure}
       HF_CDSS_S3_ENDPOINT_URL: ${HF_CDSS_S3_ENDPOINT_URL:-http://localstack:4566}
       HF_CDSS_RAW_BUCKET: ${HF_CDSS_RAW_BUCKET:-hf-cdss-raw}
@@ -106,12 +111,18 @@ services:
       HF_CDSS_AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-test}
       HF_CDSS_AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-test}
       HF_CDSS_AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
+      HF_CDSS_REDIS_URL: ${HF_CDSS_REDIS_URL:-redis://redis:6379/0}
+      HF_CDSS_JWT_SECRET_KEY: ${HF_CDSS_JWT_SECRET_KEY:-hf-cdss-dev-jwt-secret-change-me}
+      HF_CDSS_JWT_ALGORITHM: ${HF_CDSS_JWT_ALGORITHM:-HS256}
+      HF_CDSS_JWT_ACCESS_TOKEN_EXPIRE_MINUTES: ${HF_CDSS_JWT_ACCESS_TOKEN_EXPIRE_MINUTES:-60}
+      HF_CDSS_AUTH_DEV_LOGIN_ENABLED: ${HF_CDSS_AUTH_DEV_LOGIN_ENABLED:-true}
+      HF_CDSS_AUTH_DEV_USERS_JSON: ${HF_CDSS_AUTH_DEV_USERS_JSON}
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health')"]
       interval: 10s
       timeout: 5s
-      retries: 5
-      start_period: 60s
+      retries: 15
+      start_period: 180s
     restart: unless-stopped
 
   airflow:
@@ -119,20 +130,7 @@ services:
       context: ./airflow
     container_name: hf_cdss_airflow
     profiles: ["airflow"]
-    command:
-      - bash
-      - -c
-      - >
-        airflow db migrate;
-        airflow users create
-        --username ${AIRFLOW_ADMIN_USER:-admin}
-        --password ${AIRFLOW_ADMIN_PASSWORD:-admin}
-        --firstname CDSS
-        --lastname Admin
-        --role Admin
-        --email ${AIRFLOW_ADMIN_EMAIL:-admin@example.com} || true;
-        airflow scheduler &
-        exec airflow webserver;
+    command: ["airflow", "standalone"]
     ports:
       - "${AIRFLOW_WEBSERVER_PORT:-8080}:8080"
     depends_on:
@@ -142,11 +140,11 @@ services:
         condition: service_healthy
       chromadb:
         condition: service_healthy
-      localstack:
-        condition: service_healthy
+      localstack-init:
+        condition: service_completed_successfully
     environment:
       AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
-      AIRFLOW__CORE__EXECUTOR: SequentialExecutor
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
       AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "false"
       AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
@@ -167,7 +165,6 @@ services:
       HF_CDSS_SEMANTIC_RERANK_CANDIDATES: ${HF_CDSS_SEMANTIC_RERANK_CANDIDATES:-24}
       HF_CDSS_SEMANTIC_RERANK_WEIGHT: ${HF_CDSS_SEMANTIC_RERANK_WEIGHT:-0.75}
       HF_CDSS_DATA_STORAGE: ${HF_CDSS_DATA_STORAGE:-s3}
-      HF_CDSS_ARTIFACT_STORAGE: ${HF_CDSS_ARTIFACT_STORAGE:-s3}
       HF_CDSS_S3_ENDPOINT_URL: ${HF_CDSS_S3_ENDPOINT_URL:-http://localstack:4566}
       HF_CDSS_RAW_BUCKET: ${HF_CDSS_RAW_BUCKET:-hf-cdss-raw}
       HF_CDSS_PROCESSED_BUCKET: ${HF_CDSS_PROCESSED_BUCKET:-hf-cdss-processed}
@@ -180,23 +177,58 @@ services:
       AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
       HF_CDSS_POSTGRES_POOL_MIN_SIZE: ${HF_CDSS_POSTGRES_POOL_MIN_SIZE:-1}
       HF_CDSS_POSTGRES_POOL_MAX_SIZE: ${HF_CDSS_POSTGRES_POOL_MAX_SIZE:-5}
+      HF_CDSS_KAFKA_BOOTSTRAP_SERVERS: ${HF_CDSS_KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
+      HF_CDSS_KAFKA_IMPORTANT_SECTIONS_TOPIC: ${HF_CDSS_KAFKA_IMPORTANT_SECTIONS_TOPIC:-important_sections}
     volumes:
-      - ../:/opt/airflow/project
       - ./airflow/dags:/opt/airflow/dags
       - ./airflow/logs:/opt/airflow/logs
       - ./airflow/plugins:/opt/airflow/plugins
+      # Mount code vào để các lệnh `python -m scraper...` có thể chạy
+      - ../backend:/opt/airflow/project/backend
+      - ../scraper:/opt/airflow/project/scraper
+      - ../data/heart_failure/sources:/opt/airflow/project/data/heart_failure/sources:ro
     restart: unless-stopped
 
   frontend:
     build:
-      context: ../frontend/doctor-dashboard
+      context: ../frontend
+      dockerfile: doctor-dashboard/Dockerfile
       args:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
         VITE_API_KEY: ${VITE_API_KEY:-${HF_CDSS_API_KEYS:-change-me}}
         VITE_API_KEY_HEADER: ${VITE_API_KEY_HEADER:-${HF_CDSS_API_KEY_HEADER:-x-api-key}}
+        VITE_CHAT_LANGUAGE: ${VITE_CHAT_LANGUAGE:-vi}
     container_name: hf_cdss_frontend
     ports:
       - "5173:80"
+    environment:
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+      VITE_API_KEY: ${VITE_API_KEY:-${HF_CDSS_API_KEYS:-change-me}}
+      VITE_API_KEY_HEADER: ${VITE_API_KEY_HEADER:-${HF_CDSS_API_KEY_HEADER:-x-api-key}}
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  admin-frontend:
+    profiles: ["legacy-admin"]
+    build:
+      context: ../frontend
+      dockerfile: admin/Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+        VITE_API_KEY: ${VITE_API_KEY:-${HF_CDSS_API_KEYS:-change-me}}
+        VITE_API_KEY_HEADER: ${VITE_API_KEY_HEADER:-${HF_CDSS_API_KEY_HEADER:-x-api-key}}
+        VITE_DOCTOR_DASHBOARD_URL: ${VITE_DOCTOR_DASHBOARD_URL:-http://localhost:5173}
+    container_name: hf_cdss_admin_frontend
+    ports:
+      - "5174:80"
     depends_on:
       backend:
         condition: service_healthy
@@ -284,55 +316,155 @@ services:
       start_period: 10s
     restart: unless-stopped
 
+  localstack-init:
+    image: amazon/aws-cli:2.15.0
+    container_name: hf_cdss_localstack_init
+    depends_on:
+      localstack:
+        condition: service_healthy
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        until aws --endpoint-url http://localstack:4566 s3 ls 2>/dev/null; do sleep 2; done
+        aws --endpoint-url http://localstack:4566 s3 mb "s3://$${HF_CDSS_RAW_BUCKET:-hf-cdss-raw}" || true
+        aws --endpoint-url http://localstack:4566 s3 mb "s3://$${HF_CDSS_PROCESSED_BUCKET:-hf-cdss-processed}" || true
+        echo "S3 buckets created successfully"
+    environment:
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-test}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-test}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
+
+  redis:
+    image: redis:7-alpine
+    container_name: hf_cdss_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --save 60 1 --loglevel warning
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # --- Kafka Infrastructure ---
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    container_name: hf_cdss_zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    restart: unless-stopped
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: hf_cdss_kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: hf_cdss_kafka_ui
+    depends_on:
+      - kafka
+    ports:
+      - "8090:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: "hf_cdss_cluster"
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: "kafka:29092"
+      KAFKA_CLUSTERS_0_ZOOKEEPER: "zookeeper:2181"
+    restart: unless-stopped
+
   # --- Consumer/Processor Services (Long-running) ---
+  scraper-base:
+    profiles: ["templates"]
+    build:
+      context: ../backend  # Dùng chung Dockerfile của backend để có sẵn các thư viện (langchain, kafka-python)
+    volumes:
+      # Mount code vào để các lệnh `python -m scraper...` có thể chạy
+      - ../backend:/app/backend
+      - ../scraper:/app/scraper
+    depends_on:
+      kafka:
+        condition: service_healthy
+
   filtering-service:
     extends: scraper-base
-    command: python -m scraper.transform.extract_important_sections --kafka-bootstrap-servers kafka:29092
+    command: python -m scraper.transform.extract_important_sections --kafka-bootstrap-servers ${HF_CDSS_KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
     restart: unless-stopped
 
   chunking-service:
     extends: scraper-base
-    command: python -m scraper.transform.chunk_sections --kafka-bootstrap-servers kafka:29092 --embedding-base-url http://ollama:11434
+    command: python -m scraper.transform.chunk_sections --kafka-bootstrap-servers ${HF_CDSS_KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
     restart: unless-stopped
 
   entity-extraction-service:
     extends: scraper-base
-    command: python -m scraper.process.extract_entities_stream --kafka-bootstrap-servers kafka:29092
+    command: python -m scraper.process.extract_entities_stream --kafka-bootstrap-servers ${HF_CDSS_KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
     restart: unless-stopped
+    deploy:
+      replicas: 3
 
   chromadb-loader:
     extends: scraper-base
-    command: python -m scraper.process.load_to_chromadb --kafka-bootstrap-servers kafka:29092 --chroma-host chromadb --embedding-base-url http://ollama:11434
+    command: python -m scraper.process.load_to_chromadb --kafka-bootstrap-servers ${HF_CDSS_KAFKA_BOOTSTRAP_SERVERS:-kafka:29092} --chroma-host chromadb --chroma-port 8000 --embedding-base-url http://ollama:11434
+    depends_on:
+      kafka:
+        condition: service_started
+      chromadb:
+        condition: service_healthy
+      ollama-pull:
+        condition: service_completed_successfully
+      entity-extraction-service:
+        condition: service_started
     restart: unless-stopped
 
   neo4j-loader:
     extends: scraper-base
-    command: python -m scraper.process.load_to_neo4j --kafka-bootstrap-servers kafka:29092 --neo4j-uri bolt://neo4j:7687 --neo4j-user ${NEO4J_USER:-neo4j} --neo4j-password ${NEO4J_PASSWORD:-password}
+    command: python -m scraper.process.load_to_neo4j --kafka-bootstrap-servers ${HF_CDSS_KAFKA_BOOTSTRAP_SERVERS:-kafka:29092} --neo4j-uri bolt://neo4j:7687 --neo4j-user ${NEO4J_USER:-neo4j} --neo4j-password ${NEO4J_PASSWORD:-password}
     restart: unless-stopped
 
   claim-creation-service:
     extends: scraper-base
-    command: python -m scraper.process.create_claims --kafka-bootstrap-servers kafka:29092
+    command: python -m scraper.process.create_claims --kafka-bootstrap-servers ${HF_CDSS_KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
     restart: unless-stopped
 
   rule-generation-service:
     extends: scraper-base
-    command: python -m scraper.process.generate_rules --kafka-bootstrap-servers kafka:29092
+    command: python -m scraper.process.generate_rules --kafka-bootstrap-servers ${HF_CDSS_KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
     restart: unless-stopped
 
   rule-classification-service:
     extends: scraper-base
-    command: python -m scraper.process.classify_rules --kafka-bootstrap-servers kafka:29092
+    command: python -m scraper.process.classify_rules --kafka-bootstrap-servers ${HF_CDSS_KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
     restart: unless-stopped
 
   relationship-derivation-service:
     extends: scraper-base
-    command: python -m scraper.process.derive_relationships --kafka-bootstrap-servers kafka:29092
+    command: python -m scraper.process.derive_relationships --kafka-bootstrap-servers ${HF_CDSS_KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
     restart: unless-stopped
 
   postgres-rule-sync-service:
     extends: scraper-base
-    command: python -m scraper.process.sync_rules_to_postgres --kafka-bootstrap-servers kafka:29092
+    command: python -m scraper.process.sync_rules_to_postgres --kafka-bootstrap-servers ${HF_CDSS_KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
     restart: unless-stopped
 
 volumes:
@@ -341,3 +473,4 @@ volumes:
   neo4j_data:
   chroma_data:
   localstack_data:
+  redis_data:

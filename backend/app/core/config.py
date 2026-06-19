@@ -19,6 +19,12 @@ class Settings(BaseSettings):
     llm_cache_enabled: bool = True
     llm_cache_ttl_seconds: int = 600
     llm_cache_max_entries: int = 128
+    redis_url: str = "redis://localhost:6379/0"
+    jwt_secret_key: str = "change-me-in-production"
+    jwt_algorithm: str = "HS256"
+    jwt_access_token_expire_minutes: int = 60
+    auth_dev_login_enabled: bool = False
+    auth_dev_users_json: str = ""
     clinical_intake_llm_enabled: bool = True
     clinical_intake_llm_timeout_seconds: float = 20.0
     clinical_intake_llm_max_tokens: int = 700

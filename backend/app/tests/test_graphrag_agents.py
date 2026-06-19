@@ -1,9 +1,4 @@
-from fastapi.testclient import TestClient
-
-from app.main import app
-
-
-client = TestClient(app)
+from app.tests.conftest import api_path
 
 
 HFREF_CASE = {
@@ -19,8 +14,8 @@ HFREF_CASE = {
 }
 
 
-def test_graphrag_context_returns_graph_and_evidence() -> None:
-    response = client.post("/graphrag/context", json={"patient": HFREF_CASE, "top_k": 4})
+def test_graphrag_context_returns_graph_and_evidence(client) -> None:
+    response = client.post(api_path("/graphrag/context"), json={"patient": HFREF_CASE, "top_k": 4})
 
     assert response.status_code == 200
     payload = response.json()
@@ -32,8 +27,8 @@ def test_graphrag_context_returns_graph_and_evidence() -> None:
     assert payload["retrieval_sources"] == ["local_relationships", "local_chunks"]
 
 
-def test_verify_runs_agent_verdicts() -> None:
-    response = client.post("/verify", json={"patient": HFREF_CASE})
+def test_verify_runs_agent_verdicts(client) -> None:
+    response = client.post(api_path("/verify"), json={"patient": HFREF_CASE})
 
     assert response.status_code == 200
     payload = response.json()

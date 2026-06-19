@@ -36,7 +36,7 @@ def kg_constraints(drug_class: str) -> KGConstraintResponse:
 
 @router.get("/kg/interactions", response_model=KGInteractionResponse)
 def kg_interactions(
-    drug: str | None = Query(default=None, min_length=2),
+    drug: str = Query(..., min_length=2, description="Drug name to look up interactions for."),
     top_k: int = Query(default=10, ge=1, le=20),
 ) -> KGInteractionResponse:
     return KGInteractionResponse(drug=drug, interactions=interactions_for_drug(drug, top_k))

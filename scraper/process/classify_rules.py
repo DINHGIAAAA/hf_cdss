@@ -4,6 +4,7 @@ from pathlib import Path
 
 from kafka import KafkaConsumer, KafkaProducer
 from kafka.errors import KafkaError
+from scraper.kafka_utils import connect_kafka_with_retry
 
 
 HARD_BLOCK_ACTIONS = {"contraindicated", "avoid", "not_recommended"}
@@ -38,21 +39,16 @@ def main() -> None:
     args = parser.parse_args()
 
     print(f"Connecting to Kafka at {args.kafka_bootstrap_servers}...")
-    try:
-        consumer = KafkaConsumer(
-            args.consumer_topic,
-            bootstrap_servers=args.kafka_bootstrap_servers,
-            group_id=args.consumer_group_id,
-            auto_offset_reset='earliest',
-            value_deserializer=lambda m: json.loads(m.decode('utf-8'))
+    def _connect():
+        return (
+            KafkaConsumer(
+                args.consumer_topic, bootstrap_servers=args.kafka_bootstrap_servers,
+                group_id=args.consumer_group_id, auto_offset_reset='earliest',
+                value_deserializer=lambda m: json.loads(m.decode('utf-8'))
+            ),
+            KafkaProducer(bootstrap_servers=args.kafka_bootstrap_servers, value_serializer=lambda m: json.dumps(m, ensure_ascii=False).encode('utf-8'))
         )
-        producer = KafkaProducer(
-            bootstrap_servers=args.kafka_bootstrap_servers,
-            value_serializer=lambda m: json.dumps(m, ensure_ascii=False).encode('utf-8')
-        )
-    except KafkaError as e:
-        print(f"\nFATAL: Could not connect to Kafka. Is it running? Details: {e}")
-        return
+    consumer, producer = connect_kafka_with_retry(_connect)
 
     print(f"Listening for messages on topic '{args.consumer_topic}'... (Press Ctrl+C to stop)")
     try:

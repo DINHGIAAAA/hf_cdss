@@ -1,6 +1,5 @@
 import hashlib
 import json
-import threading
 import time
 from collections.abc import AsyncIterator
 from typing import Any
@@ -10,11 +9,10 @@ from app.core.http_client import get_async_client
 from app.core.metrics import increment, observe
 from app.prompts.explanation import CLINICAL_EXPLANATION_SYSTEM_PROMPT
 from app.schemas.llm import LLMAnswerRequest, LLMAnswerResponse
+from app.api.routes.auth import redis_client
 
 
 SAFETY_NOTE = "LLM answer is constrained to explain structured CDSS output and must not replace physician review."
-_llm_answer_cache: dict[str, tuple[float, LLMAnswerResponse]] = {}
-_cache_lock = threading.Lock()
 
 
 def _compact_recommendation(payload: LLMAnswerRequest) -> dict[str, Any]:
@@ -77,37 +75,38 @@ def fallback_answer(payload: LLMAnswerRequest) -> str:
         f"SBP {payload.patient.systolic_bp} mmHg" if payload.patient.systolic_bp is not None else None,
         f"HR {payload.patient.heart_rate} bpm" if payload.patient.heart_rate is not None else None,
     ]
-    context = ", ".join(item for item in facts if item) or "du lieu lam sang da nhap"
+    context = ", ".join(item for item in facts if item) or "dữ liệu lâm sàng đã nhập"
     action_items = list(dict.fromkeys(item for rec in [*blocked, *caution, *consider] for item in rec.action_items))[:4]
     monitoring = list(dict.fromkeys(item for rec in [*blocked, *caution, *consider] for item in rec.monitoring))[:4]
 
-    lines = ["Ket luan:"]
+    lines = ["**Kết luận lâm sàng (Hệ thống an toàn):**"]
     if blocked:
-        lines.append(f"Can tranh hoac hoan {', '.join(item.drug_class for item in blocked)} cho den khi xu ly duoc yeu to an toan.")
+        lines.append(f"🔴 Cần tránh hoặc hoãn **{', '.join(item.drug_class for item in blocked)}** cho đến khi xử lý được yếu tố rủi ro.")
     if caution:
-        lines.append(f"Can than trong voi {', '.join(item.drug_class for item in caution)}; day khong phai la phe duyet tu dong.")
+        lines.append(f"🟡 Cần thận trọng với **{', '.join(item.drug_class for item in caution)}**; vui lòng kiểm tra kỹ chống chỉ định.")
     if consider:
-        lines.append(f"Co the can nhac {', '.join(item.drug_class for item in consider)} neu khong co chong chi dinh.")
+        lines.append(f"🟢 Có thể cân nhắc **{', '.join(item.drug_class for item in consider)}** nếu đủ điều kiện lâm sàng.")
 
-    lines.append("\nLy do:")
-    lines.append(f"Thong tin hien co: {context}.")
+    lines.append("\n**Lý do:**")
+    lines.append(f"- Thông tin hiện có: {context}.")
     if payload.recommendation.constraints:
-        lines.append("Canh bao chinh: " + "; ".join(constraint.reason for constraint in payload.recommendation.constraints[:3]))
+        lines.append("- Cảnh báo hệ thống: " + "; ".join(constraint.reason for constraint in payload.recommendation.constraints[:3]))
 
-    lines.append("\nCan lam tiep:")
+    lines.append("\n**Hành động tiếp theo:**")
     if action_items:
         lines.extend(f"- {item}" for item in action_items)
     else:
-        lines.append("- Doi chieu lai chan doan, thuoc hien dung, muc tieu dieu tri va chong chi dinh truoc khi quyet dinh.")
+        lines.append("- Đối chiếu lại chẩn đoán, thuốc hiện dùng, mục tiêu điều trị và chống chỉ định trước khi quyết định.")
     if missing:
-        lines.append(f"- Bo sung du lieu con thieu: {', '.join(missing)}.")
+        lines.append(f"- Bổ sung dữ liệu còn thiếu: {', '.join(missing)}.")
 
-    lines.append("\nTheo doi:")
+    lines.append("\n**Chỉ định theo dõi:**")
     if monitoring:
         lines.extend(f"- {item}" for item in monitoring)
     else:
-        lines.append("- Theo doi trieu chung, huyet ap, nhip tim, kali va chuc nang than sau moi thay doi dieu tri.")
-    lines.append("\nDay la ho tro quyet dinh lam sang; quyet dinh cuoi cung can duoc bac si dieu tri xac nhan.")
+        lines.append("- Theo dõi triệu chứng, huyết áp, nhịp tim, điện giải đồ và chức năng thận sau mỗi lần thay đổi liều.")
+
+    lines.append("\n_Lưu ý: Đây là dự phòng an toàn khi dịch vụ sinh giải thích AI đang bận. Quyết định cuối cùng luôn cần được bác sĩ xác nhận._")
     return "\n\n".join(lines)
 
 
@@ -178,28 +177,29 @@ def _cache_key(compact_payload: dict[str, Any]) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
-def _read_cache(key: str) -> LLMAnswerResponse | None:
+async def _read_cache(key: str) -> LLMAnswerResponse | None:
     if not settings.llm_cache_enabled:
         return None
-    with _cache_lock:
-        cached = _llm_answer_cache.get(key)
-        if not cached or cached[0] <= time.monotonic():
-            _llm_answer_cache.pop(key, None)
-            return None
-        return cached[1].model_copy(deep=True)
+    try:
+        cached_str = await redis_client.get(f"llm_cache:{key}")
+        if cached_str:
+            return LLMAnswerResponse.model_validate_json(cached_str)
+    except Exception as e:
+        print(f"Redis cache read error: {e}")
+    return None
 
 
-def _write_cache(key: str, response: LLMAnswerResponse) -> None:
+async def _write_cache(key: str, response: LLMAnswerResponse) -> None:
     if not settings.llm_cache_enabled:
         return
-    with _cache_lock:
-        if len(_llm_answer_cache) >= settings.llm_cache_max_entries:
-            oldest_key = min(_llm_answer_cache, key=lambda item: _llm_answer_cache[item][0])
-            _llm_answer_cache.pop(oldest_key, None)
-        _llm_answer_cache[key] = (
-            time.monotonic() + settings.llm_cache_ttl_seconds,
-            response.model_copy(deep=True),
+    try:
+        await redis_client.setex(
+            f"llm_cache:{key}", 
+            settings.llm_cache_ttl_seconds, 
+            response.model_dump_json()
         )
+    except Exception as e:
+        print(f"Redis cache write error: {e}")
 
 
 def _chunk_text(text: str, size: int = 28) -> list[str]:
@@ -245,7 +245,7 @@ async def stream_llm_answer(payload: LLMAnswerRequest) -> AsyncIterator[dict[str
         observe("hf_cdss_llm_latency", time.perf_counter() - started, {"model": response.model, "status": "missing_api_key"})
         return
 
-    cached = _read_cache(cache_key)
+    cached = await _read_cache(cache_key)
     if cached:
         for chunk in _chunk_text(cached.answer):
             yield {"type": "token", "content": chunk}
@@ -322,7 +322,7 @@ async def stream_llm_answer(payload: LLMAnswerRequest) -> AsyncIterator[dict[str
             for chunk in _chunk_text(response_model.answer):
                 yield {"type": "token", "content": chunk}
 
-    _write_cache(cache_key, response_model)
+    await _write_cache(cache_key, response_model)
     status = "ok" if response_model.used_llm else "error"
     increment("hf_cdss_llm_requests_total", {"model": response_model.model, "status": status})
     observe("hf_cdss_llm_latency", time.perf_counter() - started, {"model": response_model.model, "status": status})
@@ -340,7 +340,7 @@ async def build_llm_answer(payload: LLMAnswerRequest) -> LLMAnswerResponse:
 
     compact_payload = _compact_recommendation(payload)
     cache_key = _cache_key(compact_payload)
-    cached = _read_cache(cache_key)
+    cached = await _read_cache(cache_key)
     if cached:
         increment("hf_cdss_llm_requests_total", {"model": cached.model, "status": "cache_hit"})
         observe("hf_cdss_llm_latency", time.perf_counter() - started, {"model": cached.model, "status": "cache_hit"})
@@ -381,7 +381,7 @@ async def build_llm_answer(payload: LLMAnswerRequest) -> LLMAnswerResponse:
             answer = fallback_answer(payload)
     except Exception:
         fallback_response = _fallback_response(payload, "fallback_after_llm_error")
-        _write_cache(cache_key, fallback_response)
+        await _write_cache(cache_key, fallback_response)
         increment("hf_cdss_llm_requests_total", {"model": "fallback_after_llm_error", "status": "error"})
         observe(
             "hf_cdss_llm_latency",
@@ -397,7 +397,7 @@ async def build_llm_answer(payload: LLMAnswerRequest) -> LLMAnswerResponse:
         used_llm=bool(answer),
         safety_note=SAFETY_NOTE,
     )
-    _write_cache(cache_key, response)
+    await _write_cache(cache_key, response)
     status = "ok" if response.used_llm else "empty_response"
     increment("hf_cdss_llm_requests_total", {"model": response.model, "status": status})
     observe("hf_cdss_llm_latency", time.perf_counter() - started, {"model": response.model, "status": status})

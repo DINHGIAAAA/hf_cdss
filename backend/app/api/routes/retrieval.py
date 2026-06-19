@@ -8,7 +8,12 @@ from app.schemas.retrieval import RetrievalContextRequest, RetrievalContextRespo
 router = APIRouter()
 
 
-@router.get("/retrieval/search", response_model=EvidenceSearchResponse)
+@router.get(
+    "/retrieval/search",
+    response_model=EvidenceSearchResponse,
+    deprecated=True,
+    summary="[Deprecated] Use GET /evidence/search",
+)
 def retrieval_search(
     q: str = Query(..., min_length=2, description="Clinical retrieval query."),
     top_k: int = Query(default=6, ge=1, le=12),
@@ -30,4 +35,3 @@ def retrieval_context(payload: RetrievalContextRequest) -> RetrievalContextRespo
         ),
         retrieval_sources=result.retrieval_sources,
     )
-

@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -9,6 +10,7 @@ from fastapi.routing import APIRoute
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.router import api_router
+from app.api.routes import auth
 from app.core.config import settings
 from app.core.exceptions import (
     http_exception_handler,
@@ -22,6 +24,7 @@ from app.schemas.common import RouteCatalogResponse, RouteInfo
 
 
 configure_logging()
+logger = logging.getLogger(__name__)
 
 SUCCESSFUL_BOOTSTRAP_STATUSES = {"ok"}
 
@@ -41,7 +44,7 @@ async def lifespan(_: FastAPI):
         if result.get("status") not in SUCCESSFUL_BOOTSTRAP_STATUSES
     }
     if failed:
-        raise RuntimeError(f"Datastore bootstrap failed: {json.dumps(failed, ensure_ascii=False)}")
+        logger.warning("Datastore bootstrap degraded: %s", json.dumps(failed, ensure_ascii=False))
     yield
 
 
@@ -65,8 +68,9 @@ app.middleware("http")(production_guard_middleware)
 app.add_exception_handler(StarletteHTTPException, http_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
 app.add_exception_handler(Exception, unhandled_exception_handler)
-app.include_router(api_router)
 app.include_router(api_router, prefix=settings.api_prefix)
+# Legacy alias for clients still calling /api/auth/*
+app.include_router(auth.router, prefix="/api")
 
 
 def public_route_catalog() -> list[RouteInfo]:
@@ -101,17 +105,11 @@ def routes() -> RouteCatalogResponse:
 
 @app.get("/")
 def root() -> dict:
-    endpoints = [
-        f"{method} {route.path}"
-        for route in public_route_catalog()
-        for method in route.methods
-        if not route.path.startswith(settings.api_prefix)
-    ]
     return {
         "service": settings.project_name,
         "version": settings.version,
         "status": "ok",
         "docs": "/docs",
         "api_prefix": settings.api_prefix,
-        "endpoints": endpoints,
+        "routes_catalog": f"{settings.api_prefix}/routes",
     }

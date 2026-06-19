@@ -1,20 +1,16 @@
-from fastapi.testclient import TestClient
-
-from app.main import app
+from app.tests.conftest import api_path
 
 
-client = TestClient(app)
-
-
-def _post_recommend(patient: dict) -> dict:
-    response = client.post("/recommend", json={"patient": patient})
+def _post_recommend(client, patient: dict) -> dict:
+    response = client.post(api_path("/recommend"), json={"patient": patient})
 
     assert response.status_code == 200
     return response.json()
 
 
-def test_recommendation_returns_week3_constraint_aware_contract() -> None:
+def test_recommendation_returns_week3_constraint_aware_contract(client) -> None:
     payload = _post_recommend(
+        client,
         {
             "case_id": "CASE_TEST",
             "lvef": 30,
@@ -48,8 +44,9 @@ def test_recommendation_returns_week3_constraint_aware_contract() -> None:
     assert "clinical decision support" in payload["disclaimer"]
 
 
-def test_recommendation_clean_hfref_case_has_consider_statuses() -> None:
+def test_recommendation_clean_hfref_case_has_consider_statuses(client) -> None:
     payload = _post_recommend(
+        client,
         {
             "case_id": "CASE_CLEAN",
             "lvef": 32,
@@ -69,8 +66,9 @@ def test_recommendation_clean_hfref_case_has_consider_statuses() -> None:
     assert {item["status"] for item in payload["recommendations"]} == {"consider"}
 
 
-def test_recommendation_non_hfref_case_requires_review() -> None:
+def test_recommendation_non_hfref_case_requires_review(client) -> None:
     payload = _post_recommend(
+        client,
         {
             "case_id": "CASE_HFPEF",
             "lvef": 55,
@@ -89,8 +87,9 @@ def test_recommendation_non_hfref_case_requires_review() -> None:
     assert {item["status"] for item in payload["recommendations"]} == {"review"}
 
 
-def test_recommendation_missing_safety_data_uses_caution() -> None:
+def test_recommendation_missing_safety_data_uses_caution(client) -> None:
     payload = _post_recommend(
+        client,
         {
             "case_id": "CASE_MISSING_SAFETY",
             "lvef": 30,

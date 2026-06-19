@@ -162,7 +162,7 @@ def write_audit_event(case_id: str, event_type: str, payload: dict[str, Any]) ->
             "schema_version": settings.audit_schema_version,
             "request_id": current_request_id(),
             "environment": settings.environment,
-            "artifact_storage": settings.artifact_storage,
+            "artifact_storage": "s3",
             "artifact_cache_root": settings.artifact_cache_root,
         },
     )

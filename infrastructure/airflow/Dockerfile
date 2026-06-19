@@ -1,5 +1,14 @@
-FROM apache/airflow:2.9.3-python3.11
+FROM apache/airflow:3.2.0-python3.11
 
 COPY requirements.txt /requirements.txt
 RUN pip install --no-cache-dir -r /requirements.txt
-RUN python -m playwright install --with-deps chromium
+
+USER root
+RUN python -m playwright install-deps chromium && \
+    mkdir -p /opt/airflow/project/data/heart_failure/raw \
+             /opt/airflow/project/data/heart_failure/processed \
+             /opt/airflow/project/data/heart_failure/artifacts && \
+    chown -R airflow:root /opt/airflow/project
+
+USER airflow
+RUN python -m playwright install chromium

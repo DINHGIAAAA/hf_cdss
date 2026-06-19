@@ -1,9 +1,4 @@
-from fastapi.testclient import TestClient
-
-from app.main import app
-
-
-client = TestClient(app)
+from app.tests.conftest import api_path
 
 
 def _patient(overrides: dict) -> dict:
@@ -22,9 +17,9 @@ def _patient(overrides: dict) -> dict:
     return base
 
 
-def test_dose_check_flags_digoxin_and_mra_risk() -> None:
+def test_dose_check_flags_digoxin_and_mra_risk(client) -> None:
     response = client.post(
-        "/dose/check",
+        api_path("/dose/check"),
         json={
             "patient": _patient(
                 {
@@ -43,9 +38,9 @@ def test_dose_check_flags_digoxin_and_mra_risk() -> None:
     assert any(warning["severity"] == "critical" for warning in payload["warnings"])
 
 
-def test_interaction_check_flags_raas_and_bleeding_risks() -> None:
+def test_interaction_check_flags_raas_and_bleeding_risks(client) -> None:
     response = client.post(
-        "/interaction/check",
+        api_path("/interaction/check"),
         json={
             "patient": _patient(
                 {
@@ -68,9 +63,9 @@ def test_interaction_check_flags_raas_and_bleeding_risks() -> None:
     assert "interaction_anticoagulant_antiplatelet_bleeding" in warning_ids
 
 
-def test_recommendation_includes_week7_safety_warnings() -> None:
+def test_recommendation_includes_week7_safety_warnings(client) -> None:
     response = client.post(
-        "/recommend",
+        api_path("/recommend"),
         json={
             "patient": _patient(
                 {

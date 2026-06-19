@@ -1,6 +1,12 @@
 import { useEffect, useRef } from "react";
 import { Bot, ChevronLeft, ChevronRight, LoaderCircle, PanelLeft, PanelRight, Send, Upload, UserRound } from "lucide-react";
 import { patientSummary } from "../utils";
+import { LanguageToggle } from "./LanguageToggle";
+
+const COMPOSER_PLACEHOLDERS = {
+  vi: "Hỏi về triệu chứng, thuốc đang dùng, titration, chống chỉ định hoặc theo dõi... (Enter gửi, Shift+Enter xuống dòng)",
+  en: "Ask about symptoms, current medications, titration, contraindications, or monitoring... (Enter to send, Shift+Enter for newline)",
+};
 
 export function ChatMain({
   active,
@@ -14,6 +20,9 @@ export function ChatMain({
   panelOpen,
   onToggleSidebar,
   onTogglePanel,
+  language,
+  languages,
+  onLanguageChange,
 }) {
   const messagesRef = useRef(null);
   const summary = patientSummary(active?.draft?.patient || active?.patient);
@@ -32,6 +41,7 @@ export function ChatMain({
           <button className="toggle-btn" onClick={onToggleSidebar} title={sidebarOpen ? "Hide sidebar" : "Show sidebar"} type="button">
             {sidebarOpen ? <ChevronLeft size={16} /> : <PanelLeft size={16} />}
           </button>
+          <LanguageToggle language={language} languages={languages} onChange={onLanguageChange} />
           <button className="toggle-btn toggle-btn--right" onClick={onTogglePanel} title={panelOpen ? "Hide panel" : "Show panel"} type="button">
             {panelOpen ? <ChevronRight size={16} /> : <PanelRight size={16} />}
           </button>
@@ -65,6 +75,8 @@ export function ChatMain({
         </div>
 
         <div className="chat-header-actions">
+          <LanguageToggle language={language} languages={languages} onChange={onLanguageChange} />
+
           <label className="attach-button">
             <Upload size={16} />
             Attach
@@ -84,8 +96,8 @@ export function ChatMain({
       </header>
 
       <div className="messages" ref={messagesRef}>
-        {(active.messages || []).map((msg, i) => (
-          <article className={`message ${msg.role}`} key={`${msg.role}-${i}`}>
+        {(active.messages || []).map((msg) => (
+          <article className={`message ${msg.role}`} key={msg.id || `${msg.role}-${msg.content?.slice(0, 24)}`}>
             <div className="avatar">
               {msg.role === "assistant" ? <Bot size={16} /> : <UserRound size={16} />}
             </div>
@@ -112,7 +124,7 @@ export function ChatMain({
               onSubmit(e);
             }
           }}
-          placeholder="Ask about symptoms, current medications, titration, contraindications, or monitoring... (Enter to send, Shift+Enter for newline)"
+          placeholder={COMPOSER_PLACEHOLDERS[language] || COMPOSER_PLACEHOLDERS.en}
           value={chatInput}
         />
         <button disabled={loading || !chatInput.trim()} type="submit">

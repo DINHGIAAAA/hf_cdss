@@ -1,13 +1,8 @@
-from fastapi.testclient import TestClient
-
-from app.main import app
+from app.tests.conftest import api_path
 
 
-client = TestClient(app)
-
-
-def test_kg_drug_classes_returns_gdmt_classes() -> None:
-    response = client.get("/kg/drug-classes")
+def test_kg_drug_classes_returns_gdmt_classes(client) -> None:
+    response = client.get(api_path("/kg/drug-classes"))
 
     assert response.status_code == 200
     payload = response.json()
@@ -16,8 +11,8 @@ def test_kg_drug_classes_returns_gdmt_classes() -> None:
     assert all("constraint_count" in item for item in payload["drug_classes"])
 
 
-def test_kg_constraints_resolves_aliases() -> None:
-    response = client.get("/kg/constraints/mra")
+def test_kg_constraints_resolves_aliases(client) -> None:
+    response = client.get(api_path("/kg/constraints/mra"))
 
     assert response.status_code == 200
     payload = response.json()
@@ -25,8 +20,8 @@ def test_kg_constraints_resolves_aliases() -> None:
     assert "MRA_HARD_RENAL_OR_K" in constraint_ids
 
 
-def test_kg_recommendations_for_hfref_returns_core_classes() -> None:
-    response = client.get("/kg/recommendations/HFrEF")
+def test_kg_recommendations_for_hfref_returns_core_classes(client) -> None:
+    response = client.get(api_path("/kg/recommendations/HFrEF"))
 
     assert response.status_code == 200
     payload = response.json()
@@ -35,8 +30,8 @@ def test_kg_recommendations_for_hfref_returns_core_classes() -> None:
     assert {item["recommendation"] for item in recommendations} == {"guideline_directed"}
 
 
-def test_kg_interactions_returns_interaction_facts() -> None:
-    response = client.get("/kg/interactions", params={"drug": "dapagliflozin", "top_k": 5})
+def test_kg_interactions_returns_interaction_facts(client) -> None:
+    response = client.get(api_path("/kg/interactions"), params={"drug": "dapagliflozin", "top_k": 5})
 
     assert response.status_code == 200
     payload = response.json()
@@ -44,3 +39,9 @@ def test_kg_interactions_returns_interaction_facts() -> None:
     assert payload["interactions"]
     assert all("interaction" in item["metadata"].get("claim_type", "") for item in payload["interactions"])
 
+
+def test_kg_interactions_requires_drug_query(client) -> None:
+    response = client.get(api_path("/kg/interactions"))
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "validation_error"

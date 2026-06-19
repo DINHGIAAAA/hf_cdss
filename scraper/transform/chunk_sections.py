@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 import re
+import traceback
 from pathlib import Path 
 from functools import lru_cache, partial
 
@@ -19,9 +20,10 @@ except Exception as exc:
     print(f"WARNING: tokenizer unavailable, falling back to estimate: {exc}")
     _tokenizer = None
 
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from kafka import KafkaConsumer, KafkaProducer
 from kafka.errors import KafkaError
+from scraper.kafka_utils import connect_kafka_with_retry
 
 from scraper.transform.text_normalization import normalize_text
 
@@ -163,35 +165,33 @@ def main() -> None:
 
     # 2. Connect to Kafka
     print(f"Connecting to Kafka at {args.kafka_bootstrap_servers}...")
-    try:
-        consumer = KafkaConsumer(
-            args.consumer_topic,
-            bootstrap_servers=args.kafka_bootstrap_servers,
-            group_id=args.consumer_group_id,
-            auto_offset_reset='earliest',
-            value_deserializer=lambda m: json.loads(m.decode('utf-8'))
+    def _connect():
+        return (
+            KafkaConsumer(
+                args.consumer_topic, bootstrap_servers=args.kafka_bootstrap_servers,
+                group_id=args.consumer_group_id, auto_offset_reset='earliest',
+                value_deserializer=lambda m: json.loads(m.decode('utf-8'))
+            ),
+            KafkaProducer(bootstrap_servers=args.kafka_bootstrap_servers, value_serializer=lambda m: json.dumps(m).encode('utf-8'))
         )
-        producer = KafkaProducer(
-            bootstrap_servers=args.kafka_bootstrap_servers,
-            value_serializer=lambda m: json.dumps(m).encode('utf-8')
-        )
-    except KafkaError as e:
-        print(f"\nFATAL: Could not connect to Kafka. Is it running at {args.kafka_bootstrap_servers}?")
-        print(f"Details: {e}")
-        return
+    consumer, producer = connect_kafka_with_retry(_connect)
 
     # 3. Start the processing loop
     print(f"Listening for messages on topic '{args.consumer_topic}'... (Press Ctrl+C to stop)")
     try:
         for message in consumer:
-            record = message.value
-            document_id = record.get("document_id", "unknown_doc")
-            print(f"  -> Processing section from document: {document_id}")
-            chunks = make_chunks(record, splitter_func)
-            for chunk in chunks:
-                producer.send(args.producer_topic, value=chunk)
-            producer.flush()
-            print(f"     Produced {len(chunks)} chunks to topic '{args.producer_topic}'")
+            try:
+                record = message.value
+                document_id = record.get("document_id", "unknown_doc")
+                print(f"  -> Processing section from document: {document_id}")
+                chunks = make_chunks(record, splitter_func)
+                for chunk in chunks:
+                    producer.send(args.producer_topic, value=chunk)
+                producer.flush()
+                print(f"     Produced {len(chunks)} chunks to topic '{args.producer_topic}'")
+            except Exception as e:
+                print(f"\n[ERROR] Lỗi khi cắt nhỏ văn bản. Chi tiết: {e}")
+                traceback.print_exc()
     except KeyboardInterrupt:
         print("\nShutting down...")
     finally:
