@@ -5,15 +5,22 @@ import { PatientModal } from "../components/PatientModal";
 import { ChatMain } from "../components/ChatMain";
 import { ClinicalPanel } from "../components/ClinicalPanel";
 
-import { useConversations, useChat, useApiHealth, useLanguage } from "../hooks";
+import { useConversations, useChat, useApiHealth, useLanguage, useHorizontalResize } from "../hooks";
 import { readClinicalFiles } from "../utils";
 
 export function ChatPage() {
   const health = useApiHealth();
   const [showModal, setShowModal] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(() => localStorage.getItem("hf_sidebar") !== "0");
-  const [panelOpen, setPanelOpen] = useState(() => localStorage.getItem("hf_panel") !== "0");
   const { language, setLanguage, languages } = useLanguage();
+  const { width: panelWidth, isOpen: panelOpen, containerRef, onPointerDown } = useHorizontalResize({
+    collapseThreshold: 56,
+    edge: "right",
+    initial: 380,
+    max: 520,
+    min: 0,
+    storageKey: "hf_panel_width",
+  });
 
   const {
     conversations,
@@ -49,13 +56,9 @@ export function ChatPage() {
 
   return (
     <main
-      className={[
-        "app-shell",
-        sidebarOpen ? "" : "app-shell--sidebar-collapsed",
-        panelOpen ? "" : "app-shell--panel-collapsed",
-      ]
-        .filter(Boolean)
-        .join(" ")}
+      className={["app-shell", sidebarOpen ? "" : "app-shell--sidebar-collapsed"].filter(Boolean).join(" ")}
+      ref={containerRef}
+      style={{ "--panel-width": `${panelWidth}px` }}
     >
       {shouldShowModal && (
         <PatientModal
@@ -88,22 +91,27 @@ export function ChatPage() {
         onLanguageChange={setLanguage}
         streamStatus={streamStatus}
         sidebarOpen={sidebarOpen}
-        panelOpen={panelOpen}
         onToggleSidebar={() =>
           setSidebarOpen((v) => {
             localStorage.setItem("hf_sidebar", v ? "0" : "1");
             return !v;
           })
         }
-        onTogglePanel={() =>
-          setPanelOpen((v) => {
-            localStorage.setItem("hf_panel", v ? "0" : "1");
-            return !v;
-          })
-        }
         onFiles={handleFiles}
         onSubmit={submitChat}
         setChatInput={setChatInput}
+      />
+
+      <div
+        aria-label="Resize evidence panel"
+        aria-orientation="vertical"
+        aria-valuemax={520}
+        aria-valuemin={0}
+        aria-valuenow={Math.round(panelWidth)}
+        className="panel-resize-handle"
+        onPointerDown={onPointerDown}
+        role="separator"
+        tabIndex={0}
       />
 
       <ClinicalPanel active={active} error={error} open={panelOpen} />

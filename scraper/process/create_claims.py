@@ -182,14 +182,50 @@ def create_claim(record: dict, sentence: str, index: int) -> dict | None:
     return output
 
 
+def dedupe_claims(claims: list[dict]) -> list[dict]:
+    seen: set[str] = set()
+    unique: list[dict] = []
+    for claim in claims:
+        claim_key = claim.get("claim_id")
+        if claim_key in seen:
+            continue
+        seen.add(claim_key)
+        unique.append(claim)
+    return unique
+
+
+def claims_from_records(records: list[dict], max_claims_per_section: int) -> list[dict]:
+    claims: list[dict] = []
+    for record in records:
+        section_claims_count = 0
+        for index, sentence in enumerate(sentence_split(record.get("text", "")), start=1):
+            claim = create_claim(record, sentence, index)
+            if claim:
+                claims.append(claim)
+                section_claims_count += 1
+                if section_claims_count >= max_claims_per_section:
+                    break
+    return claims
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="A streaming service to create claims from important sections.")
+    parser = argparse.ArgumentParser(description="Create claims from important sections (batch file or Kafka).")
+    parser.add_argument("--input", default="processed/sections/important_sections.jsonl", type=Path)
+    parser.add_argument("--output", default="artifacts/claims/claims.jsonl", type=Path)
     parser.add_argument("--kafka-bootstrap-servers", default="localhost:9092")
     parser.add_argument("--consumer-topic", default="important_sections")
     parser.add_argument("--producer-topic", default="claims_created")
     parser.add_argument("--consumer-group-id", default="claim_creation_service")
     parser.add_argument("--max-claims-per-section", default=8, type=int)
+    parser.add_argument("--mode", choices=["auto", "file", "kafka"], default="auto")
     args = parser.parse_args()
+
+    use_file = args.mode == "file" or (args.mode == "auto" and args.input.exists())
+    if use_file:
+        claims = dedupe_claims(claims_from_records(read_jsonl(args.input), args.max_claims_per_section))
+        write_jsonl(claims, args.output)
+        print(f"Wrote {len(claims)} claims to {args.output}")
+        return
 
     print(f"Connecting to Kafka at {args.kafka_bootstrap_servers}...")
     try:

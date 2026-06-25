@@ -9,7 +9,7 @@ from app.core.http_client import get_async_client
 from app.core.metrics import increment, observe
 from app.prompts.explanation import CLINICAL_EXPLANATION_SYSTEM_PROMPT
 from app.schemas.llm import LLMAnswerRequest, LLMAnswerResponse
-from app.api.routes.auth import redis_client
+from app.core.redis_client import redis_client
 
 
 SAFETY_NOTE = "LLM answer is constrained to explain structured CDSS output and must not replace physician review."

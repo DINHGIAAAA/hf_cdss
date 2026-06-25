@@ -31,6 +31,7 @@ export function RulesPage() {
 
   const canApprove = isAuthenticated && hasRole("clinical_lead");
   const canAdmin = isAuthenticated && hasRole("admin");
+  const canRead = isAuthenticated && (canApprove || canAdmin);
 
   const loadRules = useCallback(async () => {
     setLoading(true);
@@ -148,7 +149,14 @@ export function RulesPage() {
               <p>Run the ingestion pipeline to generate draft constraint rules.</p>
             </div>
           ) : (
-            <table className="admin-table">
+            <table className="admin-table admin-table--rules">
+              <colgroup>
+                <col className="col-constraint" />
+                <col className="col-action" />
+                <col className="col-status" />
+                <col className="col-target" />
+                <col className="col-actions" />
+              </colgroup>
               <thead>
                 <tr>
                   <th>Constraint</th>
@@ -161,15 +169,17 @@ export function RulesPage() {
               <tbody>
                 {items.map((rule) => (
                   <tr className={selectedId === rule.id ? "selected" : ""} key={rule.id}>
-                    <td>
+                    <td className="cell-ellipsis" title={rule.constraint_id}>
                       <strong>{rule.constraint_id}</strong>
                       <small>v{rule.version}</small>
                     </td>
-                    <td>{rule.action}</td>
+                    <td className="cell-ellipsis" title={rule.action}>{rule.action}</td>
                     <td>
                       <span className={`badge ${statusClass(rule.status)}`}>{rule.status}</span>
                     </td>
-                    <td>{rule.target_drug_class || "—"}</td>
+                    <td className="cell-ellipsis" title={rule.target_drug_class || undefined}>
+                      {rule.target_drug_class || "—"}
+                    </td>
                     <td>
                       <button className="link-btn" onClick={() => openRule(rule.id)} type="button">
                         Review <ChevronRight size={14} />
@@ -187,6 +197,7 @@ export function RulesPage() {
             actionLoading={actionLoading}
             canAdmin={canAdmin}
             canApprove={canApprove}
+            canRead={canRead}
             onAction={handleAction}
             onClose={() => {
               setSelectedRule(null);

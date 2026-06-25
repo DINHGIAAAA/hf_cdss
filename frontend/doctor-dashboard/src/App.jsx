@@ -5,12 +5,14 @@ import { ProtectedRoute } from "./auth/ProtectedRoute";
 import { ADMIN_ROLES } from "./auth/roles";
 import { AdminLayout } from "./layouts/AdminLayout";
 import { ApiExplorerPage } from "./pages/ApiExplorerPage";
+import { AuditPage } from "./pages/AuditPage.jsx";
 import { ChatPage } from "./pages/ChatPage";
 import { EvidencePage } from "./pages/EvidencePage";
 import { HomePage } from "./pages/HomePage";
 import { LoginPage } from "./pages/LoginPage";
 import { RulesPage } from "./pages/RulesPage";
 import { SystemPage } from "./pages/SystemPage";
+import { UsersPage } from "./pages/UsersPage";
 
 import "./styles/base.css";
 import "./styles/layout.css";
@@ -42,6 +44,8 @@ function App() {
             <Route element={<RulesPage />} path="rules" />
             <Route element={<EvidencePage />} path="evidence" />
             <Route element={<SystemPage />} path="system" />
+            <Route element={<UsersPage />} path="users" />
+            <Route element={<AuditPage />} path="audit" />
             <Route element={<ApiExplorerPage />} path="api" />
           </Route>
 

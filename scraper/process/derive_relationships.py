@@ -171,14 +171,57 @@ def relationships_from_rules(rules: list[dict]) -> list[dict]:
     return rels
 
 
+def read_jsonl(path: Path) -> list[dict]:
+    with path.open(encoding="utf-8-sig") as handle:
+        return [json.loads(line) for line in handle if line.strip()]
+
+
+def write_jsonl(records: list[dict], path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="\n") as handle:
+        for record in records:
+            handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+
+def dedupe_relationships(relationships: list[dict]) -> list[dict]:
+    seen: set[str] = set()
+    unique: list[dict] = []
+    for rel in relationships:
+        rel_key = rel.get("relationship_id")
+        if rel_key in seen:
+            continue
+        seen.add(rel_key)
+        unique.append(rel)
+    return unique
+
+
+def derive_all_relationships(claims: list[dict], rules: list[dict]) -> list[dict]:
+    relationships = relationships_from_claims(claims)
+    relationships.extend(relationships_from_rules(rules))
+    return dedupe_relationships(relationships)
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="A streaming service to derive graph relationships from claims and rules.")
+    parser = argparse.ArgumentParser(description="Derive graph relationships (batch file or Kafka).")
+    parser.add_argument("--claims-input", default="artifacts/claims/claims.jsonl", type=Path)
+    parser.add_argument("--rules-input", default="artifacts/rules/rules.jsonl", type=Path)
+    parser.add_argument("--output", default="artifacts/relationships/relationships.jsonl", type=Path)
     parser.add_argument("--kafka-bootstrap-servers", default="localhost:9092")
     parser.add_argument("--claims-topic", default="claims_created")
     parser.add_argument("--rules-topic", default="rules_generated")
     parser.add_argument("--producer-topic", default="relationships_derived")
     parser.add_argument("--consumer-group-id", default="relationship_derivation_service")
+    parser.add_argument("--mode", choices=["auto", "file", "kafka"], default="auto")
     args = parser.parse_args()
+
+    use_file = args.mode == "file" or (
+        args.mode == "auto" and args.claims_input.exists() and args.rules_input.exists()
+    )
+    if use_file:
+        relationships = derive_all_relationships(read_jsonl(args.claims_input), read_jsonl(args.rules_input))
+        write_jsonl(relationships, args.output)
+        print(f"Wrote {len(relationships)} relationships to {args.output}")
+        return
 
     print(f"Connecting to Kafka at {args.kafka_bootstrap_servers}...")
     try:

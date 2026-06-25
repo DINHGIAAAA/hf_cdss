@@ -147,9 +147,15 @@
 .recommendation-card p,
 .evidence-card p {
   color: #34424c;
+  display: -webkit-box;
   font-size: 13px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
   line-height: 1.45;
   margin: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 /* ── Clinical block (action items, monitoring) ── */

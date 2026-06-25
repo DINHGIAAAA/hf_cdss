@@ -1,0 +1,12 @@
+{
+  "ngovinh": {
+    "id": "dr_vinh_ngo",
+    "roles": ["admin", "clinical_lead"],
+    "password_hash": "$2b$12$ocPkn2/8eRIuIKoIZsCGMetJyh5QEPISAJUCWGYWTJhiD/wq8HGKm"
+  },
+  "drtam": {
+    "id": "dr_tam_nguyen",
+    "roles": ["admin"],
+    "password_hash": "$2b$12$ocPkn2/8eRIuIKoIZsCGMetJyh5QEPISAJUCWGYWTJhiD/wq8HGKm"
+  }
+}

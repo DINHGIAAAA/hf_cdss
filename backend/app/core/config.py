@@ -1,3 +1,4 @@
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -23,8 +24,14 @@ class Settings(BaseSettings):
     jwt_secret_key: str = "change-me-in-production"
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_minutes: int = 60
-    auth_dev_login_enabled: bool = False
-    auth_dev_users_json: str = ""
+    auth_login_enabled: bool = Field(
+        default=True,
+        validation_alias=AliasChoices("auth_login_enabled", "auth_dev_login_enabled"),
+    )
+    auth_seed_users_json: str = Field(
+        default="",
+        validation_alias=AliasChoices("auth_seed_users_json", "auth_dev_users_json"),
+    )
     clinical_intake_llm_enabled: bool = True
     clinical_intake_llm_timeout_seconds: float = 20.0
     clinical_intake_llm_max_tokens: int = 700
@@ -56,6 +63,8 @@ class Settings(BaseSettings):
     audit_schema_version: str = "2026-06-12"
     rate_limit_requests: int = 60
     rate_limit_window_seconds: int = 60
+    auth_login_rate_limit_requests: int = 10
+    auth_login_rate_limit_window_seconds: int = 60
     postgres_pool_min_size: int = 1
     postgres_pool_max_size: int = 5
     verification_agent_mode: str = "hybrid"

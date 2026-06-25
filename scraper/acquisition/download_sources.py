@@ -79,11 +79,58 @@ def fetch_json(url: str, timeout: int) -> dict[str, Any]:
     return json.loads(download_bytes(url, timeout).decode("utf-8"))
 
 
+def looks_like_html(payload: bytes) -> bool:
+    head = payload[:8192].lstrip().lower()
+    return head.startswith(b"<!doctype html") or head.startswith(b"<html") or b"<body" in head[:4096]
+
+
+def html_target_path(target_path: str) -> str:
+    path = Path(target_path)
+    if path.suffix.lower() == ".html":
+        return str(path)
+    return str(path.with_suffix(".html"))
+
+
+def coerce_download_item(item: dict[str, str], payload: bytes, url: str) -> dict[str, str]:
+    """Accept HTML payloads for guideline sources that were registered as PDF."""
+    kind = item.get("kind", "source")
+    target_path = item["target_path"]
+    suffix = Path(target_path).suffix.lower()
+
+    if payload.startswith(b"%PDF"):
+        return {**item, "kind": "pdf"}
+    if looks_like_html(payload):
+        if kind in {"pdf", "source"} or suffix == ".pdf":
+            html_path = html_target_path(target_path)
+            print(f"Received HTML instead of PDF from {url}; saving as {html_path}")
+            return {**item, "kind": "html", "target_path": html_path}
+        if kind == "html" or suffix == ".html":
+            return {**item, "kind": "html"}
+    validate_payload(kind, target_path, payload, url)
+    return item
+
+
+def artifact_kind_for_source(source: dict[str, Any]) -> str:
+    explicit = source.get("artifact_kind")
+    if explicit:
+        return str(explicit)
+    source_type = str(source.get("source_type", ""))
+    if source_type == "guideline_html":
+        return "html"
+    if source_type == "guideline_pdf":
+        return "pdf"
+    if source_type == "drug_label_xml":
+        return "xml"
+    return "source"
+
+
 def validate_payload(kind: str, target_path: str, payload: bytes, url: str) -> None:
     suffix = Path(target_path).suffix.lower()
     head = payload[:64].lstrip().lower()
     if (kind == "pdf" or suffix == ".pdf") and not payload.startswith(b"%PDF"):
         raise RuntimeError(f"Expected PDF but received non-PDF payload from {url}")
+    if (kind == "html" or suffix == ".html") and not looks_like_html(payload):
+        raise RuntimeError(f"Expected HTML but received non-HTML payload from {url}")
     if (kind == "xml" or suffix == ".xml") and not (head.startswith(b"<?xml") or head.startswith(b"<")):
         raise RuntimeError(f"Expected XML but received non-XML payload from {url}")
 
@@ -195,7 +242,13 @@ def resolved_downloads(source: dict[str, Any], timeout: int) -> tuple[dict[str, 
                 }
             )
     elif strategy == "direct_url":
-        downloads.append({"kind": source.get("artifact_kind", "source"), "url": source["url"], "target_path": source["target_path"]})
+        downloads.append(
+            {
+                "kind": artifact_kind_for_source(source),
+                "url": source["url"],
+                "target_path": source["target_path"],
+            }
+        )
     else:
         raise ValueError(f"Unsupported download_strategy={strategy}")
     return resolved, downloads
@@ -259,6 +312,7 @@ def main() -> None:
     parser.add_argument("--s3-bucket", default=DEFAULT_BUCKET)
     parser.add_argument("--s3-prefix", default=DEFAULT_PREFIX)
     parser.add_argument("--s3-endpoint-url", default=DEFAULT_ENDPOINT_URL)
+    parser.add_argument("--allow-failures", action="store_true", help="Exit successfully even when some sources fail to download.")
     parser.add_argument("--timeout", default=60, type=int)
     args = parser.parse_args()
 
@@ -304,6 +358,7 @@ def main() -> None:
             artifacts = []
             for item in downloads:
                 payload = download_bytes(item["url"], args.timeout)
+                item = coerce_download_item(item, payload, item["url"])
                 validate_payload(item["kind"], item["target_path"], payload, item["url"])
                 item_key = s3_key(args.s3_prefix, item["target_path"])
                 item_sha = hashlib.sha256(payload).hexdigest()
@@ -341,13 +396,74 @@ def main() -> None:
                 )
             )
         except Exception as exc:
-            rows.append(manifest_row(resolved_source, target, "failed", str(exc), storage_uri=storage_uri))
+            detail = str(exc)
+            fallback_url = resolved_source.get("html_url")
+            if fallback_url:
+                try:
+                    payload = download_bytes(fallback_url, args.timeout)
+                    item = coerce_download_item(
+                        {
+                            "kind": artifact_kind_for_source(resolved_source),
+                            "url": fallback_url,
+                            "target_path": resolved_source["target_path"],
+                        },
+                        payload,
+                        fallback_url,
+                    )
+                    validate_payload(item["kind"], item["target_path"], payload, fallback_url)
+                    item_key = s3_key(args.s3_prefix, item["target_path"])
+                    item_sha = hashlib.sha256(payload).hexdigest()
+                    client.put_object(
+                        Bucket=args.s3_bucket,
+                        Key=item_key,
+                        Body=payload,
+                        Metadata={
+                            "source_id": str(resolved_source.get("source_id", "")),
+                            "publisher": str(resolved_source.get("publisher", "")),
+                            "source_url": fallback_url,
+                            "kind": item["kind"],
+                            "sha256": item_sha,
+                        },
+                    )
+                    artifacts = [
+                        {
+                            "kind": item["kind"],
+                            "url": fallback_url,
+                            "target_path": item["target_path"],
+                            "storage_uri": f"s3://{args.s3_bucket}/{item_key}",
+                            "bytes": len(payload),
+                            "sha256": item_sha,
+                        }
+                    ]
+                    rows.append(
+                        manifest_row(
+                            resolved_source,
+                            target,
+                            "downloaded",
+                            detail=f"Primary download failed ({detail}); saved HTML fallback.",
+                            storage_uri=f"s3://{args.s3_bucket}/{s3_key(args.s3_prefix, item['target_path'])}",
+                            byte_count=len(payload),
+                            sha256=item_sha,
+                            artifacts=artifacts,
+                        )
+                    )
+                    continue
+                except Exception as fallback_exc:
+                    detail = f"{detail}; html fallback failed: {fallback_exc}"
+            rows.append(manifest_row(resolved_source, target, "failed", detail, storage_uri=storage_uri))
 
     args.manifest.parent.mkdir(parents=True, exist_ok=True)
     args.manifest.write_text(json.dumps(rows, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     failed = [row for row in rows if row["status"] == "failed"]
+    succeeded = [row for row in rows if row["status"] in {"downloaded", "existing"}]
     print(f"Wrote {len(rows)} source manifest rows to {args.manifest}")
+    print(f"Download summary: {len(succeeded)} ok, {len(failed)} failed")
     if failed:
+        for row in failed:
+            print(f"  FAILED {row.get('source_id')}: {row.get('detail')}")
+        if args.allow_failures:
+            print(f"Continuing with --allow-failures ({len(succeeded)} sources available).")
+            return
         raise SystemExit(f"{len(failed)} download(s) failed; inspect {args.manifest}")
 
 

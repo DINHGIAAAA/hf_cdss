@@ -15,64 +15,26 @@ from typing import Any, Literal
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from app.core.jwt import JWTError, jwt
+from app.api.routes.admin.deps import (
+    AdminUser,
+    get_current_admin_user,
+    require_admin_reader,
+    require_role,
+)
 from app.modules.datastores.postgres import (
-    read_constraint_rules_by_status,
-    get_constraint_rule,
     approve_constraint_rule,
-    retire_constraint_rule,
-    unretire_constraint_rule,
+    get_constraint_rule,
     get_constraint_rule_versions,
-    rule_with_constraint_id_exists,
     read_constraint_rule_history,
+    read_constraint_rules_by_status,
+    retire_constraint_rule,
+    rule_with_constraint_id_exists,
+    unretire_constraint_rule,
 )
 from app.modules.constraint_builder.service import invalidate_constraint_cache
-from app.core.config import settings
-from app.api.routes.auth import redis_client, oauth2_scheme
 
 
 router = APIRouter(prefix="/constraints", tags=["admin", "constraints"])
-
-
-class AdminUser(BaseModel):
-    """Mô hình thông tin người dùng admin từ JWT Token."""
-    id: str
-    roles: list[str]
-
-async def get_current_admin_user(token: str = Depends(oauth2_scheme)) -> AdminUser:
-    """Dependency xác thực và giải mã JWT token."""
-    credentials_exception = HTTPException(
-        status_code=401,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    
-    is_blocked = await redis_client.get(f"blocklist:{token}")
-    if is_blocked:
-        raise HTTPException(status_code=401, detail="Token has been revoked (Logged out)")
-        
-    try:
-        payload = jwt.decode(
-            token,
-            settings.jwt_secret_key,
-            algorithms=[settings.jwt_algorithm],
-        )
-        user_id: str | None = payload.get("sub")
-        roles: list[str] = payload.get("roles", [])
-        
-        if user_id is None:
-            raise credentials_exception
-        return AdminUser(id=user_id, roles=roles)
-    except JWTError:
-        raise credentials_exception
-
-def require_role(required_role: str):
-    """Dependency factory để yêu cầu một vai trò cụ thể."""
-    async def role_checker(user: AdminUser = Depends(get_current_admin_user)) -> AdminUser:
-        if required_role not in user.roles:
-            raise HTTPException(status_code=403, detail=f"User does not have the required '{required_role}' role")
-        return user
-    return role_checker
 
 
 class ConstraintRuleResponse(BaseModel):
@@ -213,7 +175,7 @@ def _apply_rule_status_change(
 def list_constraint_rules(
     status: str | None = Query(None, description="Filter by status: draft, approved, retired"),
     limit: int = Query(100, ge=1, le=500),
-    current_user: AdminUser = Depends(require_role("clinical_lead")),
+    current_user: AdminUser = Depends(require_admin_reader),
 ) -> ConstraintRuleListResponse:
     """List constraint rules, optionally filtered by status."""
     if status:
@@ -243,7 +205,7 @@ def list_constraint_rules(
 @router.get("/by-cid/{constraint_id}", response_model=ConstraintRuleVersionListResponse)
 def get_constraint_rule_versions_endpoint(
     constraint_id: str,
-    current_user: AdminUser = Depends(require_role("clinical_lead")),
+    current_user: AdminUser = Depends(require_admin_reader),
 ) -> ConstraintRuleVersionListResponse:
     """Get all versions of a specific constraint rule by its constraint_id."""
     versions = get_constraint_rule_versions(constraint_id)
@@ -255,7 +217,7 @@ def get_constraint_rule_versions_endpoint(
 @router.get("/rules/{rule_id}", response_model=ConstraintRuleResponse)
 def get_constraint_rule_endpoint(
     rule_id: int,
-    current_user: AdminUser = Depends(require_role("clinical_lead")),
+    current_user: AdminUser = Depends(require_admin_reader),
 ) -> ConstraintRuleResponse:
     """Get details of a specific constraint rule."""
     rule = get_constraint_rule(rule_id)
@@ -308,7 +270,7 @@ def unretire_constraint_rule_endpoint(
 @router.get("/{constraint_id}/history", response_model=ConstraintRuleHistoryResponse)
 def get_constraint_rule_history_endpoint(
     constraint_id: str,
-    current_user: AdminUser = Depends(require_role("clinical_lead")),
+    current_user: AdminUser = Depends(require_admin_reader),
 ) -> ConstraintRuleHistoryResponse:
     """Get the status change history of a specific constraint rule."""
     # First, check if any version of the rule exists to provide a proper 404 error

@@ -2,15 +2,20 @@ import argparse
 import os
 import json
 import re
+import shutil
+import tempfile
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 import pdfplumber
-from kafka import KafkaProducer
-from kafka.errors import KafkaError
 from tqdm import tqdm
 
-from scraper.transform.text_normalization import normalize_text
+from scraper.transform.opendataloader_extract import (
+    convert_pdfs,
+    extract_with_opendataloader,
+    opendataloader_available,
+)
+from scraper.transform.text_normalization import append_flow_line, normalize_text, repair_pdf_flow_text
 
 
 HEADING_RE = re.compile(
@@ -110,9 +115,13 @@ def split_sections(pages: list[dict]) -> list[dict]:
     for page in pages:
         lines = [clean_text(line) for line in page["text"].splitlines() if clean_text(line)]
         for line in lines:
-            if is_heading(line):
+            forced_heading = line.startswith("# ")
+            if forced_heading:
+                line = line[2:].strip()
+
+            if forced_heading or is_heading(line):
                 if current and clean_text(current["text"]):
-                    current["text"] = clean_text(current["text"])
+                    current["text"] = repair_pdf_flow_text(current["text"])
                     sections.append(current)
                 current = {
                     "section": re.sub(r"^\d+(\.\d+)*\s+", "", line).upper(),
@@ -130,11 +139,11 @@ def split_sections(pages: list[dict]) -> list[dict]:
                     "page_end": page["page"],
                 }
 
-            current["text"] += line + "\n"
+            current["text"] = append_flow_line(current["text"], line)
             current["page_end"] = page["page"]
 
     if current and clean_text(current["text"]):
-        current["text"] = clean_text(current["text"])
+        current["text"] = repair_pdf_flow_text(current["text"])
         sections.append(current)
 
     # Filter out low-value sections like table of contents, references, etc.
@@ -150,16 +159,11 @@ def split_sections(pages: list[dict]) -> list[dict]:
     return filtered_sections
 
 
-def parse_pdf(
+def parse_pdf_with_pdfplumber(
     pdf_path: Path,
-    tables_dir: Path,
     extract_tables: bool,
-    registry: dict[str, dict] | None = None,
     fast_parsing: bool = False,
-) -> tuple[dict, list[dict], list[dict]]:
-    provenance = source_metadata(pdf_path, registry or {})
-    document_id = provenance["source_id"]
-    guideline_topic = (registry or {}).get(pdf_path.name, {}).get("topic") or pdf_path.parent.name
+) -> tuple[list[dict], list[dict]]:
     pages = []
     tables = []
 
@@ -169,63 +173,106 @@ def parse_pdf(
             found_tables_data = []
 
             if extract_tables:
-                # Define text-based strategy for fallback
                 text_table_settings = {
                     "vertical_strategy": "text",
                     "horizontal_strategy": "text",
                     "snap_x_tolerance": 6,
                 }
-                # Try default (line-based) strategy first
                 page_tables = page.find_tables()
 
-                # If no tables found, try the slow text-based strategy unless fast parsing is enabled
                 if not page_tables and not fast_parsing:
                     page_tables = page.find_tables(text_table_settings)
-                
+
                 found_tables_data = [t.extract() for t in page_tables]
 
-            # Get bounding boxes of found tables to exclude their text from main content
             table_bboxes = [t.bbox for t in page_tables]
 
             def not_within_bboxes(obj):
-                """Checks if an object's center is not within any of the given bounding boxes."""
                 def obj_in_bbox(obj, bbox):
                     v_mid = (obj["top"] + obj["bottom"]) / 2
                     h_mid = (obj["x0"] + obj["x1"]) / 2
                     x0, top, x1, bottom = bbox
                     return (h_mid >= x0) and (h_mid < x1) and (v_mid >= top) and (v_mid < bottom)
+
                 return not any(obj_in_bbox(obj, bbox) for bbox in table_bboxes)
 
-            # Filter page to exclude tables, then extract text
             page_to_extract = page.filter(not_within_bboxes) if extract_tables and table_bboxes else page
-            text = clean_text(page_to_extract.extract_text(layout=True) or "")
+            text = repair_pdf_flow_text(page_to_extract.extract_text(x_tolerance=2, y_tolerance=2) or "")
             pages.append({"page": index, "text": text})
 
             if extract_tables:
                 for table_index, table in enumerate(found_tables_data or [], start=1):
                     if not table:
                         continue
-                    table_record = {
-                        "document_id": document_id,
-                        "source_type": "guideline",
-                        "page": index,
-                        "table_index": table_index,
-                        "rows": table,
-                        "metadata": {
-                            **provenance,
-                            "guideline_topic": guideline_topic,
-                            "source_file": str(pdf_path),
+                    tables.append(
+                        {
                             "page": index,
-                            "section": f"TABLE {table_index}",
-                            "provenance": {
-                                "source_id": provenance["source_id"],
-                                "source_url": provenance.get("source_url"),
-                                "page": index,
-                                "table_index": table_index,
-                            },
-                        },
-                    }
-                    tables.append(table_record)
+                            "table_index": table_index,
+                            "rows": table,
+                        }
+                    )
+
+    return pages, tables
+
+
+def parse_pdf(
+    pdf_path: Path,
+    tables_dir: Path,
+    extract_tables: bool,
+    registry: dict[str, dict] | None = None,
+    fast_parsing: bool = False,
+    odl_cache_dir: Path | None = None,
+    use_opendataloader: bool = True,
+) -> tuple[dict, list[dict], list[dict]]:
+    provenance = source_metadata(pdf_path, registry or {})
+    document_id = provenance["source_id"]
+    guideline_topic = (registry or {}).get(pdf_path.name, {}).get("topic") or pdf_path.parent.name
+    pages: list[dict] = []
+    raw_tables: list[dict] = []
+    parser_engine = "pdfplumber"
+
+    if use_opendataloader and opendataloader_available():
+        try:
+            pages, raw_tables = extract_with_opendataloader(
+                pdf_path,
+                cache_dir=odl_cache_dir,
+                quiet=True,
+            )
+            parser_engine = "opendataloader"
+        except Exception as exc:
+            print(f"  -> OpenDataLoader failed for {pdf_path.name}, falling back to pdfplumber: {exc}")
+
+    if not pages:
+        pages, raw_tables = parse_pdf_with_pdfplumber(
+            pdf_path,
+            extract_tables=extract_tables,
+            fast_parsing=fast_parsing,
+        )
+
+    tables = []
+    if extract_tables:
+        for table in raw_tables:
+            table_record = {
+                "document_id": document_id,
+                "source_type": "guideline",
+                "page": table["page"],
+                "table_index": table["table_index"],
+                "rows": table["rows"],
+                "metadata": {
+                    **provenance,
+                    "guideline_topic": guideline_topic,
+                    "source_file": str(pdf_path),
+                    "page": table["page"],
+                    "section": f"TABLE {table['table_index']}",
+                    "provenance": {
+                        "source_id": provenance["source_id"],
+                        "source_url": provenance.get("source_url"),
+                        "page": table["page"],
+                        "table_index": table["table_index"],
+                    },
+                },
+            }
+            tables.append(table_record)
 
     document = {
         "document_id": document_id,
@@ -236,6 +283,7 @@ def parse_pdf(
             "guideline_topic": guideline_topic,
             "source_file": str(pdf_path),
             "page_count": len(pages),
+            "parser_engine": parser_engine,
             "provenance": {
                 "source_id": provenance["source_id"],
                 "source_url": provenance.get("source_url"),
@@ -288,7 +336,7 @@ def write_jsonl(records: list[dict], output_path: Path) -> None:
             handle.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
-def parse_pdf_job(args: tuple[Path, Path, bool, dict, bool]) -> tuple[dict, list[dict], list[dict]]:
+def parse_pdf_job(args: tuple[Path, Path, bool, dict, bool, Path | None, bool]) -> tuple[dict, list[dict], list[dict]]:
     pdf_path = args[0]
     with pdf_path.open("rb") as handle:
         if handle.read(4) != b"%PDF":
@@ -304,8 +352,14 @@ def main() -> None:
     parser.add_argument("--tables-dir", default="processed/tables", type=Path)
     parser.add_argument("--extract-tables", action="store_true")
     parser.add_argument("--fast-parsing", action="store_true", help="Use faster, less accurate parsing settings (e.g., disable text-based table finding).")
+    parser.add_argument(
+        "--pdf-parser",
+        default="opendataloader",
+        choices=["opendataloader", "pdfplumber"],
+        help="PDF extraction engine. OpenDataLoader requires Java 11+.",
+    )
     # Output mode arguments
-    parser.add_argument("--output-mode", default="kafka", choices=["kafka", "file"], help="Output mode: send to Kafka or write to files.")
+    parser.add_argument("--output-mode", default="file", choices=["kafka", "file"], help="Output mode: send to Kafka or write to files.")
     parser.add_argument("--documents-output", default="processed/documents/guideline_documents.jsonl", type=Path)
     parser.add_argument("--sections-output", default="processed/sections/guideline_sections.jsonl", type=Path)
     # Kafka arguments
@@ -322,23 +376,50 @@ def main() -> None:
 
     producer = None
     if args.output_mode == "kafka":
+        from kafka import KafkaProducer
+        from kafka.errors import KafkaError
+
         print(f"Connecting to Kafka at {args.kafka_bootstrap_servers}...")
         try:
             producer = KafkaProducer(
                 bootstrap_servers=args.kafka_bootstrap_servers,
-                value_serializer=lambda m: json.dumps(m, ensure_ascii=False).encode('utf-8')
+                value_serializer=lambda m: json.dumps(m, ensure_ascii=False).encode("utf-8"),
             )
-        except KafkaError as e:
-            print(f"\nFATAL: Could not connect to Kafka. Is it running? Details: {e}")
+        except KafkaError as exc:
+            print(f"\nFATAL: Could not connect to Kafka. Is it running? Details: {exc}")
             return
 
     registry = load_registry(args.registry)
     pdf_paths = sorted(args.input_dir.glob("*/*.pdf"))
-    jobs = [(pdf_path, args.tables_dir, args.extract_tables, registry, args.fast_parsing) for pdf_path in pdf_paths]
+    use_opendataloader = args.pdf_parser == "opendataloader"
+    odl_cache_dir: Path | None = None
 
-    results = []
-    doc_count, sec_count, table_count = 0, 0, 0
+    if use_opendataloader and opendataloader_available() and pdf_paths:
+        odl_cache_dir = Path(tempfile.mkdtemp(prefix="odl_batch_"))
+        print(f"Converting {len(pdf_paths)} PDFs with OpenDataLoader (batch JVM)...")
+        convert_pdfs(pdf_paths, odl_cache_dir, quiet=True)
+    elif use_opendataloader and not opendataloader_available():
+        print("OpenDataLoader unavailable (Java or package missing); using pdfplumber fallback.")
+        use_opendataloader = False
+
+    jobs = [
+        (
+            pdf_path,
+            args.tables_dir,
+            args.extract_tables,
+            registry,
+            args.fast_parsing,
+            odl_cache_dir,
+            use_opendataloader,
+        )
+        for pdf_path in pdf_paths
+    ]
+
     try:
+        results = []
+        documents: list[dict] = []
+        sections: list[dict] = []
+        doc_count, sec_count, table_count = 0, 0, 0
         if args.workers == 1 or len(jobs) <= 1:
             print(f"Parsing {len(jobs)} PDFs sequentially...")
             results = [parse_pdf_job(job) for job in tqdm(jobs)]
@@ -347,31 +428,52 @@ def main() -> None:
                 print(f"Parsing {len(jobs)} PDFs with {args.workers} workers...")
                 results = list(tqdm(executor.map(parse_pdf_job, jobs), total=len(jobs)))
 
-        print("\nProducing results to Kafka...")
-        for document, pdf_sections, tables in tqdm(results, desc="Producing to Kafka"):
+        for document, pdf_sections, tables in results:
             if not document:
                 continue
-            producer.send(args.documents_topic, value=document)
-            doc_count += 1
-            for section in pdf_sections:
+            documents.append(document)
+            sections.extend(pdf_sections)
+            if tables:
+                args.tables_dir.mkdir(parents=True, exist_ok=True)
+                table_path = args.tables_dir / f"{document['document_id']}_tables.jsonl"
+                write_jsonl(tables, table_path)
+                table_count += len(tables)
+
+        if args.output_mode == "file":
+            write_jsonl(documents, args.documents_output)
+            write_jsonl(sections, args.sections_output)
+            doc_count = len(documents)
+            sec_count = len(sections)
+            print(f"\nWrote {doc_count} documents to '{args.documents_output}'")
+            print(f"Wrote {sec_count} sections to '{args.sections_output}'")
+        else:
+            print("\nProducing results to Kafka...")
+            for document in tqdm(documents, desc="Producing documents"):
+                producer.send(args.documents_topic, value=document)
+            for section in tqdm(sections, desc="Producing sections"):
                 producer.send(args.sections_topic, value=section)
-            sec_count += len(pdf_sections)
-            table_count += len(tables)
-        
-        print("Flushing Kafka producer...")
-        producer.flush()
+            doc_count = len(documents)
+            sec_count = len(sections)
+            print("Flushing Kafka producer...")
+            producer.flush()
 
     except KeyboardInterrupt:
         print("\nShutting down...")
     finally:
-        if 'producer' in locals():
+        if odl_cache_dir is not None:
+            shutil.rmtree(odl_cache_dir, ignore_errors=True)
+        if producer is not None:
             producer.close()
             print("Kafka producer closed.")
 
     print("\n--- Processing Summary ---")
     print(f"Total PDFs processed: {len(jobs)}")
-    print(f"Total documents produced to '{args.documents_topic}': {doc_count}")
-    print(f"Total sections produced to '{args.sections_topic}': {sec_count}")
+    if args.output_mode == "kafka":
+        print(f"Total documents produced to '{args.documents_topic}': {doc_count}")
+        print(f"Total sections produced to '{args.sections_topic}': {sec_count}")
+    else:
+        print(f"Total documents written: {doc_count}")
+        print(f"Total sections written: {sec_count}")
     print(f"Total tables saved to disk: {table_count}")
 
 

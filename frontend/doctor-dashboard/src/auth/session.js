@@ -19,8 +19,20 @@ export function parseAuthSession(token) {
 
   return {
     id: payload.sub,
+    username: payload.username || payload.preferred_username || null,
+    display_name: payload.display_name || payload.name || null,
     roles: payload.roles || [],
     expiresAt,
+  };
+}
+
+export function mapAuthUser(me) {
+  if (!me?.id) return null;
+  return {
+    id: me.id,
+    username: me.username,
+    display_name: me.display_name ?? null,
+    roles: me.roles || [],
   };
 }
 

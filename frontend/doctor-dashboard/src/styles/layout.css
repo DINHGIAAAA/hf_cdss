@@ -3,7 +3,7 @@
   --panel-width: 380px;
   background: var(--color-surface);
   display: grid;
-  grid-template-columns: var(--sidebar-width) minmax(0, 1fr) var(--panel-width);
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr) 8px var(--panel-width);
   height: 100vh;
   overflow: hidden;
   transition: grid-template-columns 0.22s ease;
@@ -15,6 +15,26 @@
 
 .app-shell--panel-collapsed {
   --panel-width: 0px;
+}
+
+.panel-resize-handle {
+  background: var(--color-border-light);
+  cursor: col-resize;
+  touch-action: none;
+  transition: background-color 180ms ease, box-shadow 180ms ease;
+  width: 8px;
+}
+
+.panel-resize-handle:hover,
+.panel-resize-handle:focus-visible {
+  background: var(--color-brand-soft);
+  box-shadow: inset 0 0 0 1px var(--color-brand);
+  outline: none;
+}
+
+.clinical-panel {
+  min-width: 0;
+  overflow: hidden;
 }
 
 .conversation-sidebar.sidebar--collapsed {
@@ -52,7 +72,7 @@
 }
 
 .toggle-btn:hover {
-  background: #f0f4f7;
+  background: #ccfbf1;
   color: var(--color-text);
 }
 
@@ -79,6 +99,10 @@
 
   .app-shell.app-shell--sidebar-collapsed {
     --sidebar-width: 0px;
+  }
+
+  .panel-resize-handle {
+    display: none;
   }
 
   .clinical-panel {

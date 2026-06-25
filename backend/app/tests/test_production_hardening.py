@@ -1,10 +1,13 @@
+from datetime import datetime, timedelta, timezone
+
 from app.api.routes import health as health_routes
 from app.core.config import settings
+from app.core.jwt import jwt
 from app.core.middleware import _rate_windows
-from app.tests.conftest import api_path
+from app.tests.conftest import TEST_API_KEY, api_path
 
 
-def test_api_key_auth_blocks_deprecated_unversioned_paths(monkeypatch, client) -> None:
+def test_api_key_auth_blocks_deprecated_unversioned_paths(unauthenticated_client) -> None:
     patient = {
         "case_id": "AUTH_CASE",
         "lvef": 30,
@@ -16,18 +19,28 @@ def test_api_key_auth_blocks_deprecated_unversioned_paths(monkeypatch, client) -
         "current_medications": [],
         "allergies": [],
     }
-    monkeypatch.setattr(settings, "api_keys", "secret-key")
 
-    blocked_response = client.post("/recommend", json={"patient": patient}, headers={"user-agent": "curl/8"})
-    public_response = client.post(
-        api_path("/recommend"),
+    blocked_response = unauthenticated_client.post(
+        "/recommend",
         json={"patient": patient},
         headers={"user-agent": "curl/8"},
+    )
+    public_response = unauthenticated_client.post(
+        api_path("/recommend"),
+        json={"patient": patient},
+        headers={"user-agent": "curl/8", settings.api_key_header: TEST_API_KEY},
     )
 
     assert blocked_response.status_code == 401
     assert blocked_response.json()["error"]["code"] == "unauthorized"
     assert public_response.status_code == 200
+
+
+def test_versioned_routes_require_api_key_or_jwt(unauthenticated_client) -> None:
+    response = unauthenticated_client.post(api_path("/recommend"), json={})
+
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "unauthorized"
 
 
 def test_request_id_is_returned_on_success_and_errors(client) -> None:
@@ -88,11 +101,33 @@ def test_chat_stream_rate_limit_can_throttle_expensive_endpoints(monkeypatch, cl
     _rate_windows.clear()
 
 
-def test_metrics_endpoint_exposes_prometheus_text(client) -> None:
-    client.get(api_path("/health"))
+def test_metrics_endpoint_exposes_prometheus_text(unauthenticated_client) -> None:
+    unauthenticated_client.get(
+        api_path("/health"),
+        headers={settings.api_key_header: TEST_API_KEY},
+    )
 
-    response = client.get(api_path("/metrics"))
+    response = unauthenticated_client.get(
+        api_path("/metrics"),
+        headers={settings.api_key_header: TEST_API_KEY},
+    )
 
     assert response.status_code == 200
     assert "hf_cdss_http_requests_total" in response.text
     assert "hf_cdss_http_request_duration_seconds_count" in response.text
+
+
+def test_bearer_jwt_allows_access_without_api_key(monkeypatch, unauthenticated_client) -> None:
+    expire = datetime.now(timezone.utc) + timedelta(hours=1)
+    token = jwt.encode(
+        {"sub": "service", "roles": [], "exp": expire},
+        settings.jwt_secret_key,
+        algorithm=settings.jwt_algorithm,
+    )
+
+    response = unauthenticated_client.get(
+        api_path("/health"),
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200

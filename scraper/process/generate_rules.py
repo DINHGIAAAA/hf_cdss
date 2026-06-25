@@ -171,13 +171,32 @@ def generate_rule(claim: dict) -> dict | None:
     }
 
 
+def rules_from_claims(claims: list[dict]) -> list[dict]:
+    rules: list[dict] = []
+    for claim in claims:
+        rule = generate_rule(claim)
+        if rule:
+            rules.append(rule)
+    return rules
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="A streaming service to generate rules from claims.")
+    parser = argparse.ArgumentParser(description="Generate rules from claims (batch file or Kafka).")
+    parser.add_argument("--input", default="artifacts/claims/claims.jsonl", type=Path)
+    parser.add_argument("--output", default="artifacts/rules/rules.jsonl", type=Path)
     parser.add_argument("--kafka-bootstrap-servers", default="localhost:9092")
     parser.add_argument("--consumer-topic", default="claims_created")
     parser.add_argument("--producer-topic", default="rules_generated")
     parser.add_argument("--consumer-group-id", default="rule_generation_service")
+    parser.add_argument("--mode", choices=["auto", "file", "kafka"], default="auto")
     args = parser.parse_args()
+
+    use_file = args.mode == "file" or (args.mode == "auto" and args.input.exists())
+    if use_file:
+        rules = rules_from_claims(read_jsonl(args.input))
+        write_jsonl(rules, args.output)
+        print(f"Wrote {len(rules)} rules to {args.output}")
+        return
 
     print(f"Connecting to Kafka at {args.kafka_bootstrap_servers}...")
     try:

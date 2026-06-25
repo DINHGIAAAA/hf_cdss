@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 
 from app.core.config import settings
+from app.modules.datastores.bootstrap import bootstrap_is_complete, bootstrap_status
 from app.modules.datastores.service import datastore_status
 from app.schemas.common import DependencyHealthResponse, HealthResponse, VersionResponse
 
@@ -30,7 +31,12 @@ def version() -> VersionResponse:
 
 @router.get("/health/dependencies", response_model=DependencyHealthResponse)
 def dependency_health() -> DependencyHealthResponse:
-    dependencies = datastore_status()
+    bootstrap = bootstrap_status()
+    if not bootstrap_is_complete():
+        dependencies = {"bootstrap": bootstrap}
+        response = DependencyHealthResponse(status="starting", dependencies=dependencies)
+        raise HTTPException(status_code=503, detail=response.model_dump())
+    dependencies = {"bootstrap": bootstrap, **datastore_status()}
     status = "ok" if all(item["status"] == "ok" for item in dependencies.values()) else "degraded"
     response = DependencyHealthResponse(
         status=status,

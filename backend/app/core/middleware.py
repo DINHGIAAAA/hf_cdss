@@ -8,6 +8,7 @@ from collections.abc import Awaitable, Callable
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
+from app.core.auth_credentials import is_authorized_request
 from app.core.config import settings
 from app.core.metrics import increment, observe
 from app.core.request_context import request_id_var
@@ -15,24 +16,38 @@ from app.schemas.common import ErrorDetail, ErrorResponse
 
 
 logger = logging.getLogger("app.access")
-PUBLIC_PATH_PREFIXES = (
+
+API_PREFIX = settings.api_prefix.rstrip("/")
+
+PUBLIC_PATH_EXACT = {
     "/",
-    "/api/v1/",
-    "/api/v1/auth",
-    "/api/auth",
     "/routes",
-    "/api/v1/routes",
+    f"{API_PREFIX}/routes",
+}
+
+PUBLIC_PATH_PREFIXES = (
     "/docs",
     "/redoc",
     "/openapi.json",
+    f"{API_PREFIX}/health",
+    f"{API_PREFIX}/version",
+    f"{API_PREFIX}/metrics",
+    f"{API_PREFIX}/auth/login",
+    "/api/auth/login",
 )
-PROTECTED_PUBLIC_EXACT = {"/", "/api/v1/"}
+
 RATE_LIMIT_PATHS = (
-    "/api/v1/chat",
-    "/api/v1/chat/stream",
-    "/api/v1/llm/answer",
+    f"{API_PREFIX}/chat",
+    f"{API_PREFIX}/chat/stream",
+    f"{API_PREFIX}/llm/answer",
+)
+
+LOGIN_RATE_LIMIT_PATHS = (
+    f"{API_PREFIX}/auth/login",
+    "/api/auth/login",
 )
 _rate_windows: dict[str, deque[float]] = defaultdict(deque)
+_login_rate_windows: dict[str, deque[float]] = defaultdict(deque)
 
 
 def _error(status_code: int, code: str, message: str, request_id: str | None = None) -> JSONResponse:
@@ -46,21 +61,19 @@ def _error(status_code: int, code: str, message: str, request_id: str | None = N
     return JSONResponse(status_code=status_code, content=payload.model_dump())
 
 
-def _api_keys() -> set[str]:
-    return {key.strip() for key in settings.api_keys.split(",") if key.strip()}
-
-
 def _matches_public_prefix(path: str, prefix: str) -> bool:
-    if prefix == "/":
-        return path == "/"
     normalized = prefix.rstrip("/")
     return path == normalized or path.startswith(f"{normalized}/")
 
 
+def _is_public_path(path: str) -> bool:
+    if path in PUBLIC_PATH_EXACT:
+        return True
+    return any(_matches_public_prefix(path, prefix) for prefix in PUBLIC_PATH_PREFIXES)
+
+
 def _requires_auth(path: str) -> bool:
-    if path in PROTECTED_PUBLIC_EXACT:
-        return False
-    return not any(_matches_public_prefix(path, prefix) for prefix in PUBLIC_PATH_PREFIXES)
+    return not _is_public_path(path)
 
 
 def _client_id(request: Request) -> str:
@@ -92,6 +105,23 @@ def _is_rate_limited(request: Request) -> bool:
     return False
 
 
+def _is_login_rate_limited(request: Request) -> bool:
+    if not any(request.url.path == path or request.url.path.startswith(f"{path}/") for path in LOGIN_RATE_LIMIT_PATHS):
+        return False
+
+    now = time.monotonic()
+    window = max(1, settings.auth_login_rate_limit_window_seconds)
+    limit = max(1, settings.auth_login_rate_limit_requests)
+    key = f"{_client_id(request)}:{request.url.path}"
+    entries = _login_rate_windows[key]
+    while entries and now - entries[0] > window:
+        entries.popleft()
+    if len(entries) >= limit:
+        return True
+    entries.append(now)
+    return False
+
+
 async def production_guard_middleware(
     request: Request,
     call_next: Callable[[Request], Awaitable],
@@ -108,12 +138,18 @@ async def production_guard_middleware(
             return _error(413, "request_too_large", "Request body is too large.", request_id)
 
         if request.method != "OPTIONS" and _requires_auth(request.url.path):
-            expected_keys = _api_keys()
-            supplied_key = request.headers.get(settings.api_key_header)
-            is_pytest_client = request.headers.get("user-agent") == "testclient"
-            if not is_pytest_client and (not expected_keys or supplied_key not in expected_keys):
+            if not await is_authorized_request(request):
                 status_code = 401
-                return _error(401, "unauthorized", "A valid API key is required.", request_id)
+                return _error(
+                    401,
+                    "unauthorized",
+                    "A valid API key or Bearer token is required.",
+                    request_id,
+                )
+
+        if _is_login_rate_limited(request):
+            status_code = 429
+            return _error(429, "rate_limited", "Too many login attempts. Please retry later.", request_id)
 
         if _is_rate_limited(request):
             status_code = 429

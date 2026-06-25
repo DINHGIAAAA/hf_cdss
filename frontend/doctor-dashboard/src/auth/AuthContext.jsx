@@ -1,8 +1,14 @@
-import { createContext, useCallback, useContext, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
-import { getAuthToken, login as apiLogin, logout as apiLogout, setAuthToken } from "@shared/api/client.js";
+import {
+  fetchCurrentUser,
+  getAuthToken,
+  login as apiLogin,
+  logout as apiLogout,
+  setAuthToken,
+} from "@shared/api/client.js";
 
-import { parseAuthSession } from "./session";
+import { mapAuthUser, parseAuthSession } from "./session";
 
 const AuthContext = createContext(null);
 
@@ -22,13 +28,42 @@ export function AuthProvider({ children }) {
 
   const login = useCallback(async (username, password) => {
     const data = await apiLogin(username, password);
-    const nextUser = parseAuthSession(data.access_token);
-    if (!nextUser) {
-      setAuthToken(null);
-      throw new Error("Invalid session token");
-    }
+    const me = await fetchCurrentUser();
+    const nextUser = mapAuthUser(me);
     setSession({ token: data.access_token, user: nextUser });
     return data;
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function refreshSession() {
+      const token = getAuthToken();
+      if (!token || !parseAuthSession(token)) {
+        if (!cancelled) {
+          setAuthToken(null);
+          setSession({ token: null, user: null });
+        }
+        return;
+      }
+
+      try {
+        const me = await fetchCurrentUser();
+        if (!cancelled) {
+          setSession({ token, user: mapAuthUser(me) });
+        }
+      } catch {
+        if (!cancelled) {
+          setAuthToken(null);
+          setSession({ token: null, user: null });
+        }
+      }
+    }
+
+    refreshSession();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const logout = useCallback(async () => {

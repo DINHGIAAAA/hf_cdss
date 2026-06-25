@@ -1,6 +1,6 @@
-import { apiGet, apiPatch, apiPost, login, logout, API_BASE_URL } from "@shared/api/client.js";
+import { apiGet, apiPatch, apiPost, fetchCurrentUser, login, logout, API_BASE_URL } from "@shared/api/client.js";
 
-export { login, logout, API_BASE_URL };
+export { fetchCurrentUser, login, logout, API_BASE_URL };
 
 export const adminApi = {
   listRules: (status) => apiGet(status ? `/admin/constraints?status=${status}` : "/admin/constraints"),
@@ -11,6 +11,10 @@ export const adminApi = {
   approve: (ruleId) => apiPatch(`/admin/constraints/rules/${ruleId}`, { status: "approved" }),
   retire: (ruleId) => apiPatch(`/admin/constraints/rules/${ruleId}`, { status: "retired" }),
   unretire: (ruleId) => apiPatch(`/admin/constraints/rules/${ruleId}`, { status: "approved" }),
+  listUsers: () => apiGet("/admin/users"),
+  createUser: (payload) => apiPost("/admin/users", payload),
+  updateUser: (userId, payload) => apiPatch(`/admin/users/${encodeURIComponent(userId)}`, payload),
+  auditByCase: (caseId, limit = 50) => apiGet(`/admin/audit/cases/${encodeURIComponent(caseId)}?limit=${limit}`),
 };
 
 export const evidenceApi = {

@@ -4,8 +4,6 @@ import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-from kafka import KafkaProducer
-from kafka.errors import KafkaError
 from tqdm import tqdm
 
 from scraper.transform.text_normalization import normalize_inline_text
@@ -162,39 +160,61 @@ def parse_xml(xml_path: Path, raw_dir: Path, manifest: dict, registry: dict | No
     return records
 
 
+def write_jsonl(records: list[dict], output_path: Path) -> None:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with output_path.open("w", encoding="utf-8", newline="\n") as handle:
+        for record in records:
+            handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Parse DailyMed SPL XML labels and produce to Kafka.")
+    parser = argparse.ArgumentParser(description="Parse DailyMed SPL XML labels to JSONL or Kafka.")
     parser.add_argument("--input-dir", default="raw/drug_labels", type=Path)
     parser.add_argument("--manifest", default="artifacts/manifests/download_manifest.json", type=Path)
     parser.add_argument("--registry", default="sources/sources.example.json", type=Path)
+    parser.add_argument(
+        "--output",
+        default=None,
+        type=Path,
+        help="Write parsed sections to this JSONL file. If omitted, produce to Kafka.",
+    )
     parser.add_argument("--kafka-bootstrap-servers", default="localhost:9092", help="Kafka bootstrap servers.")
     parser.add_argument("--producer-topic", default="sections_parsed", help="Kafka topic to produce parsed sections to.")
     args = parser.parse_args()
+
+    manifest = load_manifest(args.manifest)
+    registry = load_registry(args.registry)
+    xml_paths = sorted(args.input_dir.glob("*/*_label.xml"))
+    records: list[dict] = []
+
+    print(f"Parsing {len(xml_paths)} XML files...")
+    for xml_path in tqdm(xml_paths, desc="Parsing XML files"):
+        records.extend(parse_xml(xml_path, args.input_dir, manifest, registry))
+
+    if args.output is not None:
+        write_jsonl(records, args.output)
+        print("\n--- Processing Summary ---")
+        print(f"Total XML files processed: {len(xml_paths)}")
+        print(f"Total sections written to '{args.output}': {len(records)}")
+        return
+
+    from kafka import KafkaProducer
+    from kafka.errors import KafkaError
 
     print(f"Connecting to Kafka at {args.kafka_bootstrap_servers}...")
     try:
         producer = KafkaProducer(
             bootstrap_servers=args.kafka_bootstrap_servers,
-            value_serializer=lambda m: json.dumps(m, ensure_ascii=False).encode('utf-8')
+            value_serializer=lambda m: json.dumps(m, ensure_ascii=False).encode("utf-8"),
         )
-    except KafkaError as e:
-        print(f"\nFATAL: Could not connect to Kafka. Is it running? Details: {e}")
+    except KafkaError as exc:
+        print(f"\nFATAL: Could not connect to Kafka. Is it running? Details: {exc}")
         return
 
-    manifest = load_manifest(args.manifest)
-    registry = load_registry(args.registry)
-    xml_paths = sorted(args.input_dir.glob("*/*_label.xml"))
-    total_records = 0
-
-    print(f"Parsing {len(xml_paths)} XML files and producing to topic '{args.producer_topic}'...")
+    print(f"Producing {len(records)} sections to topic '{args.producer_topic}'...")
     try:
-        for xml_path in tqdm(xml_paths, desc="Parsing XML files"):
-            records = parse_xml(xml_path, args.input_dir, manifest, registry)
-            for record in records:
-                producer.send(args.producer_topic, value=record)
-            total_records += len(records)
-        
-        print("Flushing Kafka producer...")
+        for record in records:
+            producer.send(args.producer_topic, value=record)
         producer.flush()
     except KeyboardInterrupt:
         print("\nShutting down...")
@@ -204,7 +224,7 @@ def main() -> None:
 
     print("\n--- Processing Summary ---")
     print(f"Total XML files processed: {len(xml_paths)}")
-    print(f"Total sections produced to '{args.producer_topic}': {total_records}")
+    print(f"Total sections produced to '{args.producer_topic}': {len(records)}")
 
 
 if __name__ == "__main__":

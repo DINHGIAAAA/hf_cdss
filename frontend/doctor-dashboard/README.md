@@ -28,4 +28,4 @@ Open http://127.0.0.1:5173
 
 ## Dev login
 
-Configure backend `HF_CDSS_AUTH_DEV_USERS_JSON`. Example: `ngovinh` / `password123` (admin + clinical_lead).
+Configure backend `HF_CDSS_AUTH_SEED_USERS_JSON` for first-time bootstrap. Example: `ngovinh` / `password123` (admin + clinical_lead).

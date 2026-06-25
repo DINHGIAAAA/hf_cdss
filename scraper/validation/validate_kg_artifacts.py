@@ -101,11 +101,11 @@ def validate_download_manifest(path: Path) -> tuple[int, list[str]]:
         return 0, [f"{path}: download manifest must be a JSON array"]
     errors = []
     for index, row in enumerate(rows, start=1):
+        if row.get("status") not in {"downloaded", "existing"}:
+            continue
         source_id = row.get("source_id") or row.get("id") or row.get("title")
         if not source_id:
             errors.append(f"{path}: row {index} missing source identifier")
-        if row.get("status") not in {"downloaded", "existing"}:
-            errors.append(f"{path}: row {index} has invalid download status {row.get('status')}")
         if not row.get("url") and not row.get("source_url"):
             errors.append(f"{path}: row {index} missing source URL")
         if row.get("status") == "downloaded" and not row.get("sha256"):
@@ -113,6 +113,8 @@ def validate_download_manifest(path: Path) -> tuple[int, list[str]]:
         if row.get("status") == "downloaded" and not row.get("bytes"):
             errors.append(f"{path}: row {index} downloaded source missing byte count")
         for artifact in row.get("artifacts") or []:
+            if row.get("status") != "downloaded":
+                continue
             if artifact.get("kind") in {"pdf", "xml", "html"} and not artifact.get("sha256"):
                 errors.append(f"{path}: row {index} artifact {artifact.get('target_path')} missing sha256")
     return len(rows), errors

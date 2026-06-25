@@ -20,5 +20,6 @@ transformers
 python-jose[cryptography]
 redis
 python-multipart>=0.0.9
+bcrypt>=4.0.0
 
 

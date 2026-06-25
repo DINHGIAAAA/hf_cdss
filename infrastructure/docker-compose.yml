@@ -115,8 +115,8 @@ services:
       HF_CDSS_JWT_SECRET_KEY: ${HF_CDSS_JWT_SECRET_KEY:-hf-cdss-dev-jwt-secret-change-me}
       HF_CDSS_JWT_ALGORITHM: ${HF_CDSS_JWT_ALGORITHM:-HS256}
       HF_CDSS_JWT_ACCESS_TOKEN_EXPIRE_MINUTES: ${HF_CDSS_JWT_ACCESS_TOKEN_EXPIRE_MINUTES:-60}
-      HF_CDSS_AUTH_DEV_LOGIN_ENABLED: ${HF_CDSS_AUTH_DEV_LOGIN_ENABLED:-true}
-      HF_CDSS_AUTH_DEV_USERS_JSON: ${HF_CDSS_AUTH_DEV_USERS_JSON}
+      HF_CDSS_AUTH_LOGIN_ENABLED: ${HF_CDSS_AUTH_LOGIN_ENABLED:-${HF_CDSS_AUTH_DEV_LOGIN_ENABLED:-true}}
+      HF_CDSS_AUTH_SEED_USERS_JSON: ${HF_CDSS_AUTH_SEED_USERS_JSON:-${HF_CDSS_AUTH_DEV_USERS_JSON:-}}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health')"]
       interval: 10s
@@ -136,10 +136,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      neo4j:
-        condition: service_healthy
-      chromadb:
-        condition: service_healthy
       localstack-init:
         condition: service_completed_successfully
     environment:
@@ -147,6 +143,11 @@ services:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
       AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "false"
+      AIRFLOW__CORE__PARALLELISM: "8"
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER:-hf_cdss}:${POSTGRES_PASSWORD:-hf_cdss}@postgres:5432/airflow
+      AIRFLOW__DATABASE__SQL_ALCHEMY_POOL_SIZE: "10"
+      AIRFLOW__DATABASE__SQL_ALCHEMY_MAX_OVERFLOW: "20"
+      AIRFLOW__DATABASE__SQL_ALCHEMY_POOL_PRE_PING: "true"
       AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
       AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_WEBSERVER_SECRET_KEY:-hf_cdss_airflow_dev_secret}
       HF_CDSS_PROJECT_ROOT: /opt/airflow/project
@@ -187,6 +188,12 @@ services:
       - ../backend:/opt/airflow/project/backend
       - ../scraper:/opt/airflow/project/scraper
       - ../data/heart_failure/sources:/opt/airflow/project/data/heart_failure/sources:ro
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8080/', timeout=5)\""]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
     restart: unless-stopped
 
   frontend:

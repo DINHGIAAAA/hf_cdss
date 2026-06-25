@@ -81,13 +81,68 @@ def mark_record(record: dict, matched_topics: list[str]) -> dict:
     return output
 
 
+def filter_important_sections(records: list[dict]) -> list[dict]:
+    important: list[dict] = []
+    for record in records:
+        if record.get("source_type") == "drug_label":
+            matches = drug_matches(record)
+        elif record.get("source_type") == "guideline":
+            matches = guideline_matches(record)
+        else:
+            matches = []
+        if matches:
+            important.append(mark_record(record, matches))
+    return important
+
+
+def dedupe_sections(records: list[dict]) -> list[dict]:
+    seen: set[tuple] = set()
+    unique: list[dict] = []
+    for record in records:
+        key = (
+            record.get("document_id"),
+            record.get("section"),
+            (record.get("text") or "")[:500],
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(record)
+    return unique
+
+
+def collect_section_files(sections_dir: Path) -> list[Path]:
+    candidates = [
+        sections_dir / "guideline_sections.jsonl",
+        sections_dir / "guideline_html_sections.jsonl",
+        sections_dir / "drug_label_sections.jsonl",
+    ]
+    return [path for path in candidates if path.exists()]
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="A streaming service to filter important sections from Kafka.")
+    parser = argparse.ArgumentParser(description="Filter important clinical sections (batch file or Kafka).")
+    parser.add_argument("--sections-dir", default="processed/sections", type=Path)
+    parser.add_argument("--output", default="processed/sections/important_sections.jsonl", type=Path)
     parser.add_argument("--kafka-bootstrap-servers", default="localhost:9092", help="Kafka bootstrap servers.")
     parser.add_argument("--consumer-topic", default="sections_parsed", help="Kafka topic to consume parsed sections from.")
     parser.add_argument("--producer-topic", default="important_sections", help="Kafka topic to produce important sections to.")
     parser.add_argument("--consumer-group-id", default="filtering_service", help="Kafka consumer group ID.")
+    parser.add_argument("--mode", choices=["auto", "file", "kafka"], default="auto")
     args = parser.parse_args()
+
+    use_file = args.mode == "file" or (
+        args.mode == "auto" and any(collect_section_files(args.sections_dir))
+    )
+    if use_file:
+        records: list[dict] = []
+        for path in collect_section_files(args.sections_dir):
+            records.extend(read_jsonl(path))
+        records = dedupe_sections(records)
+        important = filter_important_sections(records)
+        write_jsonl(important, args.output)
+        print(f"Wrote {len(important)} important sections to {args.output}")
+        return
 
     print(f"Connecting to Kafka at {args.kafka_bootstrap_servers}...")
     try:

@@ -98,6 +98,24 @@ def initialize_postgres() -> dict[str, Any]:
             )
             cursor.execute(
                 """
+                CREATE TABLE IF NOT EXISTS users (
+                    id TEXT PRIMARY KEY,
+                    username TEXT NOT NULL UNIQUE,
+                    display_name TEXT,
+                    password_hash TEXT NOT NULL,
+                    roles TEXT[] NOT NULL DEFAULT '{}',
+                    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_users_username_active "
+                "ON users (username) WHERE is_active = TRUE"
+            )
+            cursor.execute(
+                """
                 CREATE TABLE IF NOT EXISTS constraint_rules (
                     id BIGSERIAL PRIMARY KEY,
                     constraint_id TEXT NOT NULL,
@@ -122,6 +140,10 @@ def initialize_postgres() -> dict[str, Any]:
                 """
             )
             cursor.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_constraint_rules_id_version "
+                "ON constraint_rules (constraint_id, version)"
+            )
+            cursor.execute(
                 """
                 CREATE TABLE IF NOT EXISTS constraint_rule_history (
                     history_id BIGSERIAL PRIMARY KEY,
@@ -130,11 +152,7 @@ def initialize_postgres() -> dict[str, Any]:
                     status_to TEXT NOT NULL,
                     changed_by TEXT NOT NULL,
                     changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                    reason TEXT,
-                    CONSTRAINT fk_constraint_rule
-                        FOREIGN KEY(constraint_id) 
-                        REFERENCES constraint_rules(constraint_id)
-                        ON DELETE CASCADE
+                    reason TEXT
                 )
                 """
             )
@@ -150,7 +168,24 @@ def initialize_postgres() -> dict[str, Any]:
                 "CREATE INDEX IF NOT EXISTS idx_constraint_rule_history_constraint "
                 "ON constraint_rule_history (constraint_id, changed_at DESC)"
             )
-    return {"status": "ok", "tables": ["cdss_audit_events", "chat_conversations", "chat_messages", "chat_patient_drafts", "constraint_rules", "constraint_rule_history"]}
+        connection.commit()
+
+    from app.modules.datastores.users import seed_default_users
+
+    seed_result = seed_default_users()
+    return {
+        "status": "ok",
+        "tables": [
+            "cdss_audit_events",
+            "chat_conversations",
+            "chat_messages",
+            "chat_patient_drafts",
+            "users",
+            "constraint_rules",
+            "constraint_rule_history",
+        ],
+        "users_seed": seed_result,
+    }
 
 
 def write_audit_event(case_id: str, event_type: str, payload: dict[str, Any]) -> bool:
@@ -190,11 +225,14 @@ def postgres_status() -> dict[str, Any]:
                 conversation_count = cursor.fetchone()[0]
                 cursor.execute("SELECT COUNT(*) FROM chat_messages")
                 message_count = cursor.fetchone()[0]
+                cursor.execute("SELECT COUNT(*) FROM users")
+                user_count = cursor.fetchone()[0]
         return {
             "status": "ok",
             "audit_events": audit_count,
             "chat_conversations": conversation_count,
             "chat_messages": message_count,
+            "users": user_count,
         }
     except Exception as exc:
         return {"status": "unavailable", "detail": str(exc)}

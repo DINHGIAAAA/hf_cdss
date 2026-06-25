@@ -25,7 +25,7 @@ from kafka import KafkaConsumer, KafkaProducer
 from kafka.errors import KafkaError
 from scraper.kafka_utils import connect_kafka_with_retry
 
-from scraper.transform.text_normalization import normalize_text
+from scraper.transform.text_normalization import normalize_text, repair_pdf_flow_text
 
 
 def read_jsonl(path: Path) -> list[dict]:
@@ -74,7 +74,7 @@ def recursive_chunk_text(text: str, chunk_size: int, overlap: int) -> list[str]:
     )
     # We use normalize_text here to preserve newline characters, which are
     # critical separators for the RecursiveCharacterTextSplitter.
-    return text_splitter.split_text(normalize_text(text))
+    return text_splitter.split_text(repair_pdf_flow_text(text))
 
 
 def make_chunks(record: dict, text_splitter_func: callable) -> list[dict]:
@@ -137,14 +137,27 @@ def make_chunks(record: dict, text_splitter_func: callable) -> list[dict]:
     return chunks
 
 
+def dedupe_chunks(chunks: list[dict]) -> list[dict]:
+    seen: set[str] = set()
+    unique: list[dict] = []
+    for chunk in chunks:
+        chunk_key = chunk.get("chunk_id")
+        if chunk_key in seen:
+            continue
+        seen.add(chunk_key)
+        unique.append(chunk)
+    return unique
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="A streaming service to chunk important sections from Kafka.")
-    # Kafka arguments
+    parser = argparse.ArgumentParser(description="Chunk important sections (batch file or Kafka).")
+    parser.add_argument("--input", default="processed/sections/important_sections.jsonl", type=Path)
+    parser.add_argument("--output", default="artifacts/chunks/chunks.jsonl", type=Path)
     parser.add_argument("--kafka-bootstrap-servers", default="localhost:9092", help="Kafka bootstrap servers.")
     parser.add_argument("--consumer-topic", default="important_sections", help="Kafka topic to consume sections from.")
     parser.add_argument("--producer-topic", default="chunks_to_index", help="Kafka topic to produce chunks to.")
     parser.add_argument("--consumer-group-id", default="chunking_service", help="Kafka consumer group ID.")
-    # Chunking arguments
+    parser.add_argument("--mode", choices=["auto", "file", "kafka"], default="auto")
     parser.add_argument(
         "--chunk-size",
         default=500,
@@ -159,9 +172,18 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    # 1. Configure the chunking function
     print(f"Using 'recursive' chunking strategy with chunk size {args.chunk_size} and overlap {args.overlap}.")
     splitter_func = partial(recursive_chunk_text, chunk_size=args.chunk_size, overlap=args.overlap)
+
+    use_file = args.mode == "file" or (args.mode == "auto" and args.input.exists())
+    if use_file:
+        chunks: list[dict] = []
+        for record in read_jsonl(args.input):
+            chunks.extend(make_chunks(record, splitter_func))
+        chunks = dedupe_chunks(chunks)
+        write_jsonl(chunks, args.output)
+        print(f"Wrote {len(chunks)} chunks to {args.output}")
+        return
 
     # 2. Connect to Kafka
     print(f"Connecting to Kafka at {args.kafka_bootstrap_servers}...")

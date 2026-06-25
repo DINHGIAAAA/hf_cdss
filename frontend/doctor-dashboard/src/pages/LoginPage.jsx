@@ -82,7 +82,8 @@ export function LoginPage() {
         </form>
 
         <p className="login-hint">
-          Dev accounts are configured via <code>HF_CDSS_AUTH_DEV_USERS_JSON</code>.
+          Accounts are stored in PostgreSQL. Initial users can be seeded via{" "}
+          <code>HF_CDSS_AUTH_SEED_USERS_JSON</code> on first bootstrap.
         </p>
 
         <p className="login-hint login-hint--inline">

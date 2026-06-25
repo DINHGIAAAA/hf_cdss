@@ -4,7 +4,11 @@ COPY requirements.txt /requirements.txt
 RUN pip install --no-cache-dir -r /requirements.txt
 
 USER root
-RUN python -m playwright install-deps chromium && \
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends openjdk-17-jre-headless && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* && \
+    python -m playwright install-deps chromium && \
     mkdir -p /opt/airflow/project/data/heart_failure/raw \
              /opt/airflow/project/data/heart_failure/processed \
              /opt/airflow/project/data/heart_failure/artifacts && \

@@ -9,25 +9,28 @@ function statusClass(status) {
   return "danger";
 }
 
-export function RuleDetail({ rule, onClose, onAction, actionLoading, canApprove, canAdmin }) {
+export function RuleDetail({ rule, onClose, onAction, actionLoading, canApprove, canAdmin, canRead }) {
   const [history, setHistory] = useState([]);
   const [historyError, setHistoryError] = useState("");
 
   useEffect(() => {
-    if (!canAdmin || !rule?.constraint_id) return;
+    if (!canRead || !rule?.constraint_id) return;
     adminApi
       .getHistory(rule.constraint_id)
       .then((data) => setHistory(data.items || []))
       .catch((err) => setHistoryError(err.message));
-  }, [rule?.constraint_id, canAdmin]);
+  }, [rule?.constraint_id, canRead]);
 
   if (!rule) return null;
+
+  const showApprove = rule.status === "draft";
+  const approveDisabled = showApprove && !canApprove;
 
   return (
     <aside aria-label="Rule details" className="admin-detail-panel">
       <header className="admin-detail-header">
-        <div>
-          <h2>{rule.constraint_id}</h2>
+        <div className="admin-clip">
+          <h2 title={rule.constraint_id}>{rule.constraint_id}</h2>
           <p>
             v{rule.version} · <span className={`badge ${statusClass(rule.status)}`}>{rule.status}</span>
           </p>
@@ -66,7 +69,7 @@ export function RuleDetail({ rule, onClose, onAction, actionLoading, canApprove,
           </section>
         )}
 
-        {canAdmin && (
+        {canRead && (
           <section>
             <h3>
               <History size={16} /> History
@@ -91,7 +94,7 @@ export function RuleDetail({ rule, onClose, onAction, actionLoading, canApprove,
       </div>
 
       <footer className="admin-detail-actions">
-        {rule.status === "draft" && canApprove && (
+        {showApprove && canApprove && (
           <button
             className="primary-action"
             disabled={actionLoading}
@@ -99,6 +102,16 @@ export function RuleDetail({ rule, onClose, onAction, actionLoading, canApprove,
             type="button"
           >
             <CheckCircle2 size={16} /> Approve
+          </button>
+        )}
+        {approveDisabled && (
+          <button
+            className="primary-action"
+            disabled
+            title="Only clinical_lead can approve draft rules"
+            type="button"
+          >
+            <CheckCircle2 size={16} /> Approve (clinical_lead required)
           </button>
         )}
         {rule.status === "approved" && canAdmin && (

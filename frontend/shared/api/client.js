@@ -101,6 +101,10 @@ export async function login(username, password) {
   return data;
 }
 
+export async function fetchCurrentUser() {
+  return apiGet("/auth/me");
+}
+
 export async function logout() {
   try {
     await apiPost("/auth/logout");

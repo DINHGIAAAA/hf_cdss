@@ -1,5 +1,3 @@
-import asyncio
-import json
 import logging
 from contextlib import asynccontextmanager
 
@@ -19,14 +17,16 @@ from app.core.exceptions import (
 )
 from app.core.logging import configure_logging
 from app.core.middleware import production_guard_middleware
-from app.modules.datastores.service import bootstrap_datastores
+from app.core.security_startup import validate_security_configuration
+from app.modules.datastores.bootstrap import (
+    shutdown_background_bootstrap,
+    start_background_bootstrap,
+)
 from app.schemas.common import RouteCatalogResponse, RouteInfo
 
 
 configure_logging()
 logger = logging.getLogger(__name__)
-
-SUCCESSFUL_BOOTSTRAP_STATUSES = {"ok"}
 
 
 def custom_generate_unique_id(route: APIRoute) -> str:
@@ -37,15 +37,10 @@ def custom_generate_unique_id(route: APIRoute) -> str:
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    results = await asyncio.to_thread(bootstrap_datastores)
-    failed = {
-        name: result
-        for name, result in results.items()
-        if result.get("status") not in SUCCESSFUL_BOOTSTRAP_STATUSES
-    }
-    if failed:
-        logger.warning("Datastore bootstrap degraded: %s", json.dumps(failed, ensure_ascii=False))
+    validate_security_configuration()
+    await start_background_bootstrap()
     yield
+    await shutdown_background_bootstrap()
 
 
 app = FastAPI(

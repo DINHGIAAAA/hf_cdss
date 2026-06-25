@@ -116,7 +116,12 @@ export function SystemPage() {
           <section className="admin-section">
             <h2>Route catalog</h2>
             <div className="route-table-wrap">
-              <table className="admin-table compact">
+              <table className="admin-table compact admin-table--routes">
+                <colgroup>
+                  <col className="col-path" />
+                  <col className="col-methods" />
+                  <col className="col-tags" />
+                </colgroup>
                 <thead>
                   <tr>
                     <th>Path</th>
@@ -127,9 +132,11 @@ export function SystemPage() {
                 <tbody>
                   {(routes?.routes || []).map((route) => (
                     <tr key={`${route.path}-${route.methods?.join(",")}`}>
-                      <td><code>{route.path}</code></td>
-                      <td>{(route.methods || []).join(", ")}</td>
-                      <td>{(route.tags || []).join(", ")}</td>
+                      <td className="cell-wrap"><code>{route.path}</code></td>
+                      <td className="cell-ellipsis">{(route.methods || []).join(", ")}</td>
+                      <td className="cell-ellipsis" title={(route.tags || []).join(", ")}>
+                        {(route.tags || []).join(", ")}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
