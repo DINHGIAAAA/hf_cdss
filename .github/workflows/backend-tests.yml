@@ -89,6 +89,9 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Install test dependencies
+        run: pip install "pytest>=8.2.0"
+
       - name: Run intake fine-tune converter tests
         env:
           PYTHONPATH: ${{ github.workspace }}
