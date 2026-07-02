@@ -157,6 +157,7 @@ def _patch_session_dependencies() -> None:
     def read_patient_draft(conversation_id: str):
         return _CHAT_DRAFTS.get(conversation_id)
 
+    import app.api.routes.health as health_routes
     import app.core.token_service as token_service
     import app.modules.chat.service as chat_service
     import app.modules.constraint_builder.service as constraint_service
@@ -175,6 +176,7 @@ def _patch_session_dependencies() -> None:
     postgres_module.read_approved_constraint_rules = lambda: rules
     constraint_service.read_approved_constraint_rules = lambda: rules
     datastore_service.datastore_status = fake_datastore_status
+    health_routes.datastore_status = fake_datastore_status
     users_module.get_user_by_id = fake_get_user_by_id
     token_service.get_user_by_id = fake_get_user_by_id
 

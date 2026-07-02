@@ -4,6 +4,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from collections.abc import Iterable
+
 from fastapi.routing import APIRoute
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -68,25 +70,75 @@ app.include_router(api_router, prefix=settings.api_prefix)
 app.include_router(auth.router, prefix="/api")
 
 
+def _iter_api_routes(routes_list) -> Iterable[APIRoute]:
+    for route in routes_list:
+        if isinstance(route, APIRoute):
+            yield route
+            continue
+        nested = getattr(route, "routes", None)
+        if nested:
+            yield from _iter_api_routes(nested)
+        nested_app = getattr(route, "app", None)
+        if nested_app is not None and nested_app is not route:
+            nested_routes = getattr(nested_app, "routes", None)
+            if nested_routes:
+                yield from _iter_api_routes(nested_routes)
+
+
+def _catalog_from_openapi() -> list[RouteInfo]:
+    hidden_paths = {"/", "/routes", f"{settings.api_prefix}/routes"}
+    hidden_prefixes = ("/docs", "/redoc", "/openapi.json")
+    catalog: dict[str, RouteInfo] = {}
+
+    for path, path_item in app.openapi().get("paths", {}).items():
+        if path in hidden_paths:
+            continue
+        if any(path.startswith(prefix) for prefix in hidden_prefixes):
+            continue
+
+        methods: list[str] = []
+        operation: dict | None = None
+        for method, details in path_item.items():
+            if method.upper() in {"HEAD", "OPTIONS"} or not isinstance(details, dict):
+                continue
+            methods.append(method.upper())
+            operation = operation or details
+
+        if not methods:
+            continue
+
+        catalog[path] = RouteInfo(
+            path=path,
+            methods=sorted(methods),
+            name=(operation or {}).get("operationId", ""),
+            tags=list((operation or {}).get("tags") or []),
+        )
+
+    return sorted(catalog.values(), key=lambda item: (item.path, item.methods))
+
+
 def public_route_catalog() -> list[RouteInfo]:
     routes: list[RouteInfo] = []
+    hidden_paths = {"/", "/routes", f"{settings.api_prefix}/routes"}
     hidden_prefixes = ("/docs", "/redoc", "/openapi.json")
-    for route in app.routes:
-        if not isinstance(route, APIRoute):
-            continue
-        if route.path in {"/", "/routes", f"{settings.api_prefix}/routes"}:
+    for route in _iter_api_routes(app.routes):
+        if route.path in hidden_paths:
             continue
         if any(route.path.startswith(prefix) for prefix in hidden_prefixes):
             continue
         routes.append(
             RouteInfo(
                 path=route.path,
-                methods=sorted(method for method in route.methods if method not in {"HEAD", "OPTIONS"}),
-                name=route.name,
-                tags=list(route.tags),
+                methods=sorted(method for method in (route.methods or []) if method not in {"HEAD", "OPTIONS"}),
+                name=route.name or "",
+                tags=list(route.tags or []),
             )
         )
-    return sorted(routes, key=lambda item: (item.path, item.methods))
+
+    if routes:
+        return sorted(routes, key=lambda item: (item.path, item.methods))
+
+    return _catalog_from_openapi()
 
 
 @app.get("/routes", response_model=RouteCatalogResponse, tags=["system"])

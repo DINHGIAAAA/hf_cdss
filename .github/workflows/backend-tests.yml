@@ -37,7 +37,7 @@ jobs:
 
       - name: Run backend tests
         env:
-          PYTHONPATH: ${{ github.workspace }}
+          PYTHONPATH: ${{ github.workspace }}/backend
           HF_CDSS_ENVIRONMENT: test
           HF_CDSS_API_KEYS: test-api-key
         run: pytest app/tests -q --durations=10
