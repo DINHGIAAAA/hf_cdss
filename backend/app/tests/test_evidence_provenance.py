@@ -15,7 +15,7 @@ def test_normalize_evidence_text_repairs_common_mojibake() -> None:
 def test_local_evidence_retrieval_preserves_provenance_metadata(monkeypatch) -> None:
     monkeypatch.setattr(
         graphrag_service,
-        "load_chunks",
+        "load_published_chunks",
         lambda: [
             {
                 "chunk_id": "chunk_1",

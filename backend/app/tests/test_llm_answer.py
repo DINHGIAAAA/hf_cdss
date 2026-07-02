@@ -60,7 +60,8 @@ def test_llm_answer_uses_cache_for_repeated_payload(monkeypatch, client) -> None
     monkeypatch.setattr(settings, "llm_base_url", "http://llm.test/v1")
     monkeypatch.setattr(settings, "llm_model", "cache-test-model")
     monkeypatch.setattr(settings, "llm_cache_enabled", True)
-    llm_service._llm_answer_cache.clear()
+    if hasattr(llm_service.redis_client, "_values"):
+        llm_service.redis_client._values.clear()
     calls = {"count": 0}
 
     class FakeResponse:

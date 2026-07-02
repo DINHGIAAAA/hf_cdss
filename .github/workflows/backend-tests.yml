@@ -38,9 +38,6 @@ jobs:
       - name: Run backend tests
         env:
           PYTHONPATH: ${{ github.workspace }}
-        run: pytest app/tests -q
-
-      - name: Run semantic ingestion tests
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-        run: pytest app/tests/test_semantic_ingestion.py app/tests/test_semantic_retrieval.py -q
+          HF_CDSS_ENVIRONMENT: test
+          HF_CDSS_API_KEYS: test-api-key
+        run: pytest app/tests -q --durations=10
