@@ -79,20 +79,22 @@ def fallback_answer(payload: LLMAnswerRequest) -> str:
     action_items = list(dict.fromkeys(item for rec in [*blocked, *caution, *consider] for item in rec.action_items))[:4]
     monitoring = list(dict.fromkeys(item for rec in [*blocked, *caution, *consider] for item in rec.monitoring))[:4]
 
-    lines = ["**Kết luận lâm sàng (Hệ thống an toàn):**"]
+    lines = ["**Kết luận**"]
     if blocked:
         lines.append(f"🔴 Cần tránh hoặc hoãn **{', '.join(item.drug_class for item in blocked)}** cho đến khi xử lý được yếu tố rủi ro.")
     if caution:
         lines.append(f"🟡 Cần thận trọng với **{', '.join(item.drug_class for item in caution)}**; vui lòng kiểm tra kỹ chống chỉ định.")
     if consider:
         lines.append(f"🟢 Có thể cân nhắc **{', '.join(item.drug_class for item in consider)}** nếu đủ điều kiện lâm sàng.")
+    if not blocked and not caution and not consider:
+        lines.append("Không có khuyến nghị thuốc mới nổi bật từ đầu ra CDSS có cấu trúc.")
 
-    lines.append("\n**Lý do:**")
+    lines.append("\n**Lý do**")
     lines.append(f"- Thông tin hiện có: {context}.")
     if payload.recommendation.constraints:
         lines.append("- Cảnh báo hệ thống: " + "; ".join(constraint.reason for constraint in payload.recommendation.constraints[:3]))
 
-    lines.append("\n**Hành động tiếp theo:**")
+    lines.append("\n**Cần làm tiếp**")
     if action_items:
         lines.extend(f"- {item}" for item in action_items)
     else:
@@ -100,7 +102,7 @@ def fallback_answer(payload: LLMAnswerRequest) -> str:
     if missing:
         lines.append(f"- Bổ sung dữ liệu còn thiếu: {', '.join(missing)}.")
 
-    lines.append("\n**Chỉ định theo dõi:**")
+    lines.append("\n**Theo dõi**")
     if monitoring:
         lines.extend(f"- {item}" for item in monitoring)
     else:

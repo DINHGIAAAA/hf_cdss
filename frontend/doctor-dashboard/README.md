@@ -28,4 +28,4 @@ Open http://127.0.0.1:5173
 
 ## Dev login
 
-On first bootstrap, set backend `HF_CDSS_AUTH_SEED_USERS_JSON` or copy `backend/app/data/seed_users.example.json` to `seed_users.json` (gitignored). Example dev users: `admin` / `secret`, `clinical_lead` / `secret`.
+On first bootstrap, set backend `HF_CDSS_AUTH_SEED_USERS_JSON` or copy `backend/app/data/seed_users.example.json` to `seed_users.json` (gitignored). Example dev users: `admin` / `password123`, `clinical_lead` / `password123` (bcrypt cost 12).

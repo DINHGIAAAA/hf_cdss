@@ -1,4 +1,8 @@
-"""Resolve brand names and free-text medication mentions to canonical pipeline drug IDs."""
+"""Resolve brand names and free-text medication mentions to canonical pipeline drug IDs.
+
+Alias catalog is loaded from drug_aliases.json and cached in-process. After updating that file,
+call invalidate_drug_catalog_cache() or restart the backend worker.
+"""
 
 from __future__ import annotations
 
@@ -22,6 +26,14 @@ def _aliases_path() -> Path:
 
 
 ALIASES_PATH = _aliases_path()
+
+
+def invalidate_drug_catalog_cache() -> None:
+    """Clear cached alias catalog after drug_aliases.json changes (requires reload on running process)."""
+    load_drug_catalog.cache_clear()
+    _alias_index.cache_clear()
+    global ALIASES_PATH
+    ALIASES_PATH = _aliases_path()
 
 
 def _normalize_token(value: str) -> str:

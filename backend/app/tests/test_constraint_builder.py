@@ -1,15 +1,42 @@
-from datetime import datetime, timedelta
+import json
+from pathlib import Path
 
 import pytest
 
 from app.modules.clinical_normalization.service import normalize_patient
 from app.modules.constraint_builder import service as constraint_service
-from app.modules.constraint_builder.service import build_constraints, load_constraint_rules
+from app.modules.constraint_builder.service import build_constraints, expire_constraint_cache, load_constraint_rules
 from app.modules.risk_extraction.service import extract_risks
 from app.schemas.patient import PatientProfile
 
+_CONSTRAINTS_FIXTURE = Path(__file__).resolve().parents[1] / "modules" / "constraint_builder" / "rules" / "constraints_v1.json"
 
-def _constraints(patient: PatientProfile) -> set[tuple[str, str]]:
+
+def _rules_fixture() -> list[dict]:
+    payload = json.loads(_CONSTRAINTS_FIXTURE.read_text(encoding="utf-8"))
+    rules: list[dict] = []
+    for index, rule in enumerate(payload, start=1):
+        rules.append(
+            {
+                "id": index,
+                "constraint_id": rule["constraint_id"],
+                "version": 1,
+                "target_drug_class": rule.get("target_drug_class"),
+                "action": rule.get("action"),
+                "reason": rule.get("reason", ""),
+                "risk_names": list(rule.get("risk_names") or []),
+                "severity_any": list(rule.get("severity_any") or []),
+                "evidence_ref": rule.get("evidence_ref"),
+                "clinical_sources": list(rule.get("clinical_sources") or []),
+                "metadata": {"constraint_type": rule.get("constraint_type", "soft")},
+            }
+        )
+    return rules
+
+
+def _constraints(patient: PatientProfile, monkeypatch: pytest.MonkeyPatch | None = None) -> set[tuple[str, str]]:
+    if monkeypatch is not None:
+        monkeypatch.setattr(constraint_service, "load_constraint_rules", lambda: _rules_fixture())
     profile = normalize_patient(patient)
     risks = extract_risks(profile)
     return {(constraint.target_drug_class, constraint.action) for constraint in build_constraints(profile, risks)}
@@ -44,7 +71,7 @@ def test_load_constraint_rules_uses_ttl_cache(monkeypatch) -> None:
     assert first == second
     assert calls["count"] == 1
 
-    constraint_service._CACHE_TIMESTAMP = datetime.now() - timedelta(seconds=constraint_service._CACHE_TTL_SECONDS + 1)
+    expire_constraint_cache()
     third = load_constraint_rules()
 
     assert third == first
@@ -64,7 +91,7 @@ def test_load_constraint_rules_serves_stale_cache_on_db_error(monkeypatch) -> No
         raise RuntimeError("db down")
 
     monkeypatch.setattr(constraint_service, "read_approved_constraint_rules", boom)
-    constraint_service._CACHE_TIMESTAMP = datetime.now() - timedelta(seconds=constraint_service._CACHE_TTL_SECONDS + 1)
+    expire_constraint_cache()
 
     rules = load_constraint_rules()
 
@@ -85,33 +112,37 @@ def test_load_constraint_rules_falls_back_to_minimum_hard_rules(monkeypatch) -> 
     assert all(rule.get("action") == "avoid" or rule.get("metadata", {}).get("constraint_type") == "hard" for rule in rules)
 
 
-def test_mra_hard_constraint_for_high_renal_or_potassium_risk() -> None:
+def test_mra_hard_constraint_for_high_renal_or_potassium_risk(monkeypatch) -> None:
     constraints = _constraints(
-        PatientProfile(case_id="CONS_001", lvef=30, egfr=25, potassium=4.8)
+        PatientProfile(case_id="CONS_001", lvef=30, egfr=25, potassium=4.8),
+        monkeypatch,
     )
 
     assert ("MRA", "avoid") in constraints
 
 
-def test_raasi_caution_for_low_bp_or_hyperkalemia() -> None:
+def test_raasi_caution_for_low_bp_or_hyperkalemia(monkeypatch) -> None:
     constraints = _constraints(
-        PatientProfile(case_id="CONS_002", lvef=30, egfr=80, potassium=5.2, systolic_bp=96)
+        PatientProfile(case_id="CONS_002", lvef=30, egfr=80, potassium=5.2, systolic_bp=96),
+        monkeypatch,
     )
 
     assert ("ARNI/ACEi/ARB", "caution") in constraints
 
 
-def test_beta_blocker_caution_for_bradycardia() -> None:
+def test_beta_blocker_caution_for_bradycardia(monkeypatch) -> None:
     constraints = _constraints(
-        PatientProfile(case_id="CONS_003", lvef=30, heart_rate=55)
+        PatientProfile(case_id="CONS_003", lvef=30, heart_rate=55),
+        monkeypatch,
     )
 
     assert ("beta_blocker", "caution") in constraints
 
 
-def test_no_constraints_for_clean_case() -> None:
+def test_no_constraints_for_clean_case(monkeypatch) -> None:
     constraints = _constraints(
-        PatientProfile(case_id="CONS_004", lvef=30, egfr=75, potassium=4.2, systolic_bp=118, heart_rate=72)
+        PatientProfile(case_id="CONS_004", lvef=30, egfr=75, potassium=4.2, systolic_bp=118, heart_rate=72),
+        monkeypatch,
     )
 
     assert constraints == set()

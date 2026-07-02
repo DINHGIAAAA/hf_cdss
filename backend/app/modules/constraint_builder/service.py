@@ -38,9 +38,16 @@ def invalidate_constraint_cache() -> None:
     _cached_rules = None
 
 
+def expire_constraint_cache() -> None:
+    """Mark the TTL cache as expired while keeping the last loaded rules (tests/dev hooks)."""
+    global _CACHE_TIMESTAMP
+    if _CACHE_TIMESTAMP is not None:
+        _CACHE_TIMESTAMP = datetime.now() - timedelta(seconds=_CACHE_TTL_SECONDS + 1)
+
+
 @lru_cache(maxsize=1)
 def _minimum_safety_rules() -> list[dict[str, Any]]:
-    """Hard safety rules used only when the database is unavailable and cache is empty."""
+    """Hard safety rules bundled in the backend image (see rules/constraints_v1.json)."""
     if not _MINIMUM_RULES_PATH.is_file():
         return []
 
