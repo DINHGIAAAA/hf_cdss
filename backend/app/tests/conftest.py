@@ -7,6 +7,9 @@ from fastapi.testclient import TestClient
 
 os.environ.setdefault("HF_CDSS_ENVIRONMENT", "test")
 os.environ.setdefault("HF_CDSS_API_KEYS", "test-api-key")
+os.environ.setdefault("HF_CDSS_LLM_BASE_URL", "http://127.0.0.1:9/v1")
+os.environ.setdefault("HF_CDSS_LLM_TIMEOUT_SECONDS", "1")
+os.environ.setdefault("HF_CDSS_CLINICAL_INTAKE_LLM_TIMEOUT_SECONDS", "1")
 
 from app.core.config import settings
 from app.main import app
@@ -200,8 +203,19 @@ def _fast_test_environment() -> None:
 def _configure_test_auth(monkeypatch) -> None:
     monkeypatch.setattr(settings, "api_keys", TEST_API_KEY)
     monkeypatch.setattr(settings, "environment", "test")
-    monkeypatch.setattr(settings, "clinical_intake_llm_enabled", False)
     _patch_session_dependencies()
+
+
+@pytest.fixture(autouse=True)
+def _stub_clinical_intake_llm(request, monkeypatch) -> None:
+    if "test_clinical_intake_extraction.py" in str(request.fspath):
+        return
+    if "test_clinical_intake_semantic.py" in str(request.fspath):
+        return
+    monkeypatch.setattr(
+        "app.modules.clinical_intake_extraction.service._call_llm_extractor",
+        lambda message: None,
+    )
 
 
 @pytest.fixture(autouse=True)

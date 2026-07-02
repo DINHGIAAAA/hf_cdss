@@ -6,6 +6,7 @@ from typing import Any
 
 from app.core.config import settings
 from app.core.http_client import get_async_client
+from app.core.llm_runtime import chat_completions_url, llm_auth_headers, llm_chat_completions_enabled
 from app.core.metrics import increment, observe
 from app.prompts.explanation import CLINICAL_EXPLANATION_SYSTEM_PROMPT
 from app.schemas.llm import LLMAnswerRequest, LLMAnswerResponse
@@ -19,6 +20,9 @@ def _compact_recommendation(payload: LLMAnswerRequest) -> dict[str, Any]:
     verification = payload.verification
     return {
         "user_input": payload.user_input,
+        "conversation_context": payload.conversation_context,
+        "clinical_state": payload.clinical_state,
+        "response_language": payload.language,
         "patient": {
             "lvef": payload.patient.lvef,
             "egfr": payload.patient.egfr,
@@ -79,50 +83,59 @@ def fallback_answer(payload: LLMAnswerRequest) -> str:
     action_items = list(dict.fromkeys(item for rec in [*blocked, *caution, *consider] for item in rec.action_items))[:4]
     monitoring = list(dict.fromkeys(item for rec in [*blocked, *caution, *consider] for item in rec.monitoring))[:4]
 
-    lines = ["**Kết luận**"]
+    warnings = list(dict.fromkeys(item for rec in [*blocked, *caution, *consider] for item in rec.warnings))[:4]
+
+    lines = ["Kết luận"]
     if blocked:
-        lines.append(f"🔴 Cần tránh hoặc hoãn **{', '.join(item.drug_class for item in blocked)}** cho đến khi xử lý được yếu tố rủi ro.")
+        lines.append(
+            f"Cần tránh hoặc hoãn {', '.join(item.drug_class for item in blocked)} cho đến khi xử lý được yếu tố rủi ro."
+        )
     if caution:
-        lines.append(f"🟡 Cần thận trọng với **{', '.join(item.drug_class for item in caution)}**; vui lòng kiểm tra kỹ chống chỉ định.")
+        lines.append(
+            f"Cần thận trọng với {', '.join(item.drug_class for item in caution)}; vui lòng kiểm tra kỹ chống chỉ định."
+        )
     if consider:
-        lines.append(f"🟢 Có thể cân nhắc **{', '.join(item.drug_class for item in consider)}** nếu đủ điều kiện lâm sàng.")
+        lines.append(
+            f"Có thể cân nhắc {', '.join(item.drug_class for item in consider)} nếu đủ điều kiện lâm sàng."
+        )
     if not blocked and not caution and not consider:
         lines.append("Không có khuyến nghị thuốc mới nổi bật từ đầu ra CDSS có cấu trúc.")
 
-    lines.append("\n**Lý do**")
+    lines.append("\nThuốc và liều gợi ý")
+    if blocked or caution or consider:
+        for item in [*blocked, *caution, *consider]:
+            lines.append(f"- {item.drug_class}: {item.rationale or item.status}")
+    else:
+        lines.append("- Chưa có nhóm thuốc mới được CDSS đề xuất từ dữ liệu hiện tại.")
+
+    lines.append("\nBằng chứng và lý do")
     lines.append(f"- Thông tin hiện có: {context}.")
     if payload.recommendation.constraints:
-        lines.append("- Cảnh báo hệ thống: " + "; ".join(constraint.reason for constraint in payload.recommendation.constraints[:3]))
+        lines.append(
+            "- Cảnh báo hệ thống: "
+            + "; ".join(constraint.reason for constraint in payload.recommendation.constraints[:3])
+        )
 
-    lines.append("\n**Cần làm tiếp**")
+    lines.append("\nCách tính/kiểm tra liều")
     if action_items:
         lines.extend(f"- {item}" for item in action_items)
     else:
-        lines.append("- Đối chiếu lại chẩn đoán, thuốc hiện dùng, mục tiêu điều trị và chống chỉ định trước khi quyết định.")
+        lines.append("- Đối chiếu liều hiện tại, mục tiêu điều trị và chống chỉ định trước khi thay đổi.")
     if missing:
         lines.append(f"- Bổ sung dữ liệu còn thiếu: {', '.join(missing)}.")
 
-    lines.append("\n**Theo dõi**")
+    lines.append("\nTheo dõi và cảnh báo")
     if monitoring:
         lines.extend(f"- {item}" for item in monitoring)
-    else:
+    if warnings:
+        lines.extend(f"- {item}" for item in warnings)
+    if not monitoring and not warnings:
         lines.append("- Theo dõi triệu chứng, huyết áp, nhịp tim, điện giải đồ và chức năng thận sau mỗi lần thay đổi liều.")
 
-    lines.append("\n_Lưu ý: Đây là dự phòng an toàn khi dịch vụ sinh giải thích AI đang bận. Quyết định cuối cùng luôn cần được bác sĩ xác nhận._")
+    lines.append(
+        "\nLưu ý: Đây là dự phòng an toàn khi dịch vụ sinh giải thích AI đang bận. Quyết định cuối cùng luôn cần được bác sĩ xác nhận."
+    )
     return "\n\n".join(lines)
-
-
-def _extract_response_text(data: dict[str, Any]) -> str:
-    if isinstance(data.get("output_text"), str):
-        return data["output_text"].strip()
-
-    parts: list[str] = []
-    for item in data.get("output", []):
-        for content in item.get("content", []):
-            text = content.get("text")
-            if isinstance(text, str):
-                parts.append(text)
-    return "\n".join(parts).strip()
 
 
 def _extract_chat_completion_text(data: dict[str, Any]) -> str:
@@ -135,12 +148,9 @@ def _extract_chat_completion_text(data: dict[str, Any]) -> str:
     return content.strip() if isinstance(content, str) else ""
 
 
-def _finish_reason(data: dict[str, Any], api_type: str) -> str | None:
-    if api_type == "chat_completions":
-        choices = data.get("choices", [])
-        return choices[0].get("finish_reason") if choices else None
-    incomplete = data.get("incomplete_details") or {}
-    return incomplete.get("reason") or data.get("status")
+def _finish_reason(data: dict[str, Any]) -> str | None:
+    choices = data.get("choices", [])
+    return choices[0].get("finish_reason") if choices else None
 
 
 def _looks_truncated(answer: str, finish_reason: str | None) -> bool:
@@ -150,13 +160,6 @@ def _looks_truncated(answer: str, finish_reason: str | None) -> bool:
     if not stripped:
         return True
     return stripped[-1] not in ".!?:;\n"
-
-
-def _auth_headers() -> dict[str, str]:
-    headers = {"Content-Type": "application/json"}
-    if settings.openai_api_key:
-        headers["Authorization"] = f"Bearer {settings.openai_api_key}"
-    return headers
 
 
 def _stable(value: Any) -> Any:
@@ -233,12 +236,10 @@ def _fallback_response(payload: LLMAnswerRequest, model: str) -> LLMAnswerRespon
 
 async def stream_llm_answer(payload: LLMAnswerRequest) -> AsyncIterator[dict[str, Any]]:
     started = time.perf_counter()
-    api_type = settings.llm_api_type.lower().strip()
-    requires_api_key = api_type == "responses" and "api.openai.com" in settings.llm_base_url
     compact_payload = _compact_recommendation(payload)
     cache_key = _cache_key(compact_payload)
 
-    if requires_api_key and not settings.openai_api_key:
+    if not llm_chat_completions_enabled():
         response = _fallback_response(payload, "fallback")
         for chunk in _chunk_text(response.answer):
             yield {"type": "token", "content": chunk}
@@ -256,13 +257,6 @@ async def stream_llm_answer(payload: LLMAnswerRequest) -> AsyncIterator[dict[str
         observe("hf_cdss_llm_latency", time.perf_counter() - started, {"model": cached.model, "status": "cache_hit"})
         return
 
-    if api_type != "chat_completions":
-        response = await build_llm_answer(payload)
-        for chunk in _chunk_text(response.answer):
-            yield {"type": "token", "content": chunk}
-        yield {"type": "final", "llm_answer": response}
-        return
-
     parts: list[str] = []
     finish_reason: str | None = None
     emitted_token = False
@@ -270,8 +264,8 @@ async def stream_llm_answer(payload: LLMAnswerRequest) -> AsyncIterator[dict[str
         client = get_async_client("llm_answer_stream", settings.llm_timeout_seconds)
         async with client.stream(
             "POST",
-            f"{settings.llm_base_url.rstrip('/')}/chat/completions",
-            headers=_auth_headers(),
+            chat_completions_url(),
+            headers=llm_auth_headers(),
             json={
                 "model": settings.llm_model,
                 "messages": [
@@ -333,9 +327,7 @@ async def stream_llm_answer(payload: LLMAnswerRequest) -> AsyncIterator[dict[str
 
 async def build_llm_answer(payload: LLMAnswerRequest) -> LLMAnswerResponse:
     started = time.perf_counter()
-    api_type = settings.llm_api_type.lower().strip()
-    requires_api_key = api_type == "responses" and "api.openai.com" in settings.llm_base_url
-    if requires_api_key and not settings.openai_api_key:
+    if not llm_chat_completions_enabled():
         increment("hf_cdss_llm_requests_total", {"model": "fallback", "status": "missing_api_key"})
         observe("hf_cdss_llm_latency", time.perf_counter() - started, {"model": "fallback", "status": "missing_api_key"})
         return _fallback_response(payload, "fallback")
@@ -350,36 +342,23 @@ async def build_llm_answer(payload: LLMAnswerRequest) -> LLMAnswerResponse:
 
     try:
         client = get_async_client("llm_answer", settings.llm_timeout_seconds)
-        if api_type == "chat_completions":
-            response = await client.post(
-                f"{settings.llm_base_url.rstrip('/')}/chat/completions",
-                headers=_auth_headers(),
-                json={
-                    "model": settings.llm_model,
-                    "messages": [
-                        {"role": "system", "content": CLINICAL_EXPLANATION_SYSTEM_PROMPT},
-                        {"role": "user", "content": json.dumps(compact_payload, ensure_ascii=False)},
-                    ],
-                    "temperature": 0.2,
-                    "max_tokens": 420,
-                },
-            )
-        else:
-            response = await client.post(
-                f"{settings.llm_base_url.rstrip('/')}/responses",
-                headers=_auth_headers(),
-                json={
-                    "model": settings.llm_model,
-                    "instructions": CLINICAL_EXPLANATION_SYSTEM_PROMPT,
-                    "input": json.dumps(compact_payload, ensure_ascii=False),
-                    "max_output_tokens": 420,
-                    "text": {"verbosity": "medium"},
-                },
-            )
+        response = await client.post(
+            chat_completions_url(),
+            headers=llm_auth_headers(),
+            json={
+                "model": settings.llm_model,
+                "messages": [
+                    {"role": "system", "content": CLINICAL_EXPLANATION_SYSTEM_PROMPT},
+                    {"role": "user", "content": json.dumps(compact_payload, ensure_ascii=False)},
+                ],
+                "temperature": 0.2,
+                "max_tokens": 420,
+            },
+        )
         response.raise_for_status()
         data = response.json()
-        answer = _extract_chat_completion_text(data) if api_type == "chat_completions" else _extract_response_text(data)
-        if _looks_truncated(answer, _finish_reason(data, api_type)):
+        answer = _extract_chat_completion_text(data)
+        if _looks_truncated(answer, _finish_reason(data)):
             answer = fallback_answer(payload)
     except Exception:
         fallback_response = _fallback_response(payload, "fallback_after_llm_error")

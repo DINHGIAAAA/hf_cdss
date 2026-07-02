@@ -1,4 +1,6 @@
-from pydantic import BaseModel
+from typing import Any
+
+from pydantic import BaseModel, Field
 
 from app.schemas.graphrag import VerificationResponse
 from app.schemas.patient import PatientProfile
@@ -11,6 +13,8 @@ class LLMAnswerRequest(BaseModel):
     recommendation: RecommendationResponse
     verification: VerificationResponse | None = None
     language: str = "vi"
+    conversation_context: str | None = None
+    clinical_state: dict[str, Any] | None = Field(default=None)
 
 
 class LLMAnswerResponse(BaseModel):

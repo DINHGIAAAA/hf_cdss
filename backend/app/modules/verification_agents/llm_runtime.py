@@ -5,6 +5,7 @@ from typing import Any
 
 from app.core.http_client import get_async_client
 from app.core.config import settings
+from app.core.llm_runtime import chat_completions_url, llm_auth_headers, llm_chat_completions_enabled
 from app.prompts.verification_agents import AGENT_PROMPTS
 from app.schemas.graphrag import AgentResult
 from app.modules.verification_agents.tools import AgentTool, execute_tool
@@ -19,10 +20,7 @@ def _agent_model() -> str:
 
 
 def _headers() -> dict[str, str]:
-    headers = {"Content-Type": "application/json"}
-    if settings.openai_api_key:
-        headers["Authorization"] = f"Bearer {settings.openai_api_key}"
-    return headers
+    return llm_auth_headers()
 
 
 def _parse_result(agent_name: str, content: str, tools_used: list[str]) -> AgentResult:
@@ -49,8 +47,8 @@ async def run_llm_agent(
     case_payload: dict[str, Any],
     tools: list[AgentTool],
 ) -> AgentResult:
-    if settings.llm_api_type.lower().strip() != "chat_completions":
-        raise RuntimeError("Verification tool-calling currently requires chat_completions API type")
+    if not llm_chat_completions_enabled():
+        raise RuntimeError("Verification agents require an Ollama chat_completions endpoint")
 
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": AGENT_PROMPTS[agent_name]},
@@ -76,7 +74,7 @@ async def run_llm_agent(
     client = get_async_client("verification_agent", settings.verification_agent_timeout_seconds)
     for _ in range(max(1, settings.verification_agent_max_iterations)):
         response = await client.post(
-            f"{settings.llm_base_url.rstrip('/')}/chat/completions",
+            chat_completions_url(),
             headers=_headers(),
             json={
                 "model": _agent_model(),
@@ -117,7 +115,7 @@ async def run_llm_agent(
             }
         )
         response = await client.post(
-            f"{settings.llm_base_url.rstrip('/')}/chat/completions",
+            chat_completions_url(),
             headers=_headers(),
             json={
                 "model": _agent_model(),

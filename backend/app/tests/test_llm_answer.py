@@ -1,9 +1,11 @@
 from app.core.config import settings
 from app.modules.explanation import llm_service
+from app.modules.explanation.llm_service import _compact_recommendation
+from app.schemas.llm import LLMAnswerRequest
 from app.tests.conftest import api_path
 
 
-def test_llm_answer_falls_back_without_api_key(client) -> None:
+def test_llm_answer_falls_back_when_ollama_unavailable(client) -> None:
     patient = {
         "case_id": "LLM_CASE",
         "lvef": 28,
@@ -86,3 +88,34 @@ def test_llm_answer_uses_cache_for_repeated_payload(monkeypatch, client) -> None
     assert first.json()["answer"] == "Cached clinical explanation."
     assert second.json()["answer"] == "Cached clinical explanation."
     assert calls["count"] == 1
+
+
+def test_compact_recommendation_includes_conversation_context(client) -> None:
+    patient = {
+        "case_id": "CTX_CASE",
+        "lvef": 28,
+        "egfr": 48,
+        "potassium": 4.9,
+        "systolic_bp": 88,
+        "heart_rate": 54,
+        "comorbidities": ["Atrial fibrillation"],
+        "current_medications": ["metoprolol"],
+        "allergies": ["NKDA"],
+    }
+    recommendation = client.post(api_path("/recommend"), json={"patient": patient}).json()
+    verification = client.post(api_path("/verify"), json={"patient": patient, "recommendation": recommendation}).json()
+
+    compact = _compact_recommendation(
+        LLMAnswerRequest(
+            user_input="Co tang lieu duoc khong?",
+            conversation_context="[Previous] EF 30 eGFR 55\n[Current] Co tang lieu duoc khong?",
+            clinical_state={"intent": "dose_adjustment", "hf_type": "HFrEF"},
+            patient=patient,
+            recommendation=recommendation,
+            verification=verification,
+        )
+    )
+
+    assert compact["conversation_context"].startswith("[Previous]")
+    assert compact["clinical_state"]["intent"] == "dose_adjustment"
+    assert compact["response_language"] == "vi"

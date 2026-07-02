@@ -8,6 +8,14 @@ from typing import Any
 try:
     from jose import JWTError, jwt
 except ModuleNotFoundError:
+    import warnings
+
+    warnings.warn(
+        "python-jose is not installed; using fallback JWT implementation — not for production",
+        RuntimeWarning,
+        stacklevel=2,
+    )
+
     class JWTError(Exception):
         """Fallback JWT error used when python-jose is unavailable."""
 
@@ -56,6 +64,9 @@ except ModuleNotFoundError:
             exp = payload.get("exp")
             if exp is not None and datetime.now(timezone.utc).timestamp() > float(exp):
                 raise JWTError("JWT token has expired")
+            nbf = payload.get("nbf")
+            if nbf is not None and datetime.now(timezone.utc).timestamp() < float(nbf):
+                raise JWTError("JWT token not yet valid")
             return payload
 
     jwt = _FallbackJWT()

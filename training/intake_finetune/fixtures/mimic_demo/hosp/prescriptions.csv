@@ -1,0 +1,3 @@
+subject_id,hadm_id,pharmacy_id,poe_id,poe_seq,starttime,stoptime,drug_type,drug,formulary_drug_cd,gsn,ndc,prod_strength,form_rx,dose_val_rx,dose_unit_rx,form_val_disp,form_unit_disp,doses_per_24_hrs,route
+10000032,22595853,1,1,1,2180-05-06 22:30:00,2180-05-07 17:00:00,MAIN,furosemide,FURO40,1234,1234-5678-90,40mg,TAB,40,mg,1,TAB,1,PO
+10000032,22595853,2,2,1,2180-05-06 22:30:00,2180-05-07 17:00:00,MAIN,metoprolol succinate,METO25,2345,2345-6789-01,25mg,TAB,25,mg,1,TAB,2,PO

@@ -1,3 +1,4 @@
+from app.core.config import settings
 from app.modules.chat import service as chat_service
 from app.tests.conftest import api_path
 
@@ -158,3 +159,30 @@ def test_chat_history_can_be_read_from_persistent_store(monkeypatch, client) -> 
     payload = history.json()
     assert len(payload["messages"]) == 2
     assert payload["patient_draft"]["patient"]["heart_failure_profile"]["lvef"]["value"] == 30
+
+
+def test_chat_merges_prior_turn_clinical_facts(client, monkeypatch) -> None:
+    monkeypatch.setattr(settings, "clinical_intake_semantic_enabled", False)
+    monkeypatch.setattr(settings, "clinical_intake_history_enabled", True)
+
+    first = client.post(api_path("/chat"), json={"message": "EF 30 eGFR 55 K 4.8 BP 110/70 HR 68."})
+    conversation_id = first.json()["conversation_id"]
+
+    second = client.post(
+        api_path("/chat"),
+        json={
+            "conversation_id": conversation_id,
+            "message": (
+                "Benh nhan on dinh, dang dung metoprolol va dapagliflozin. "
+                "NKDA. Co the bat dau MRA khong?"
+            ),
+        },
+    )
+
+    assert second.status_code == 200
+    patient = second.json()["patient_draft"]["patient"]
+    assert patient["heart_failure_profile"]["lvef"]["value"] == 30
+    assert patient["labs"]["egfr"]["value"] == 55
+    assert patient["labs"]["potassium"]["value"] == 4.8
+    assert patient["vitals"]["systolic_bp"]["value"] == 110
+    assert patient["vitals"]["heart_rate"]["value"] == 68

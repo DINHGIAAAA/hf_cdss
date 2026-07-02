@@ -85,15 +85,29 @@ def _iter_api_routes(routes_list) -> Iterable[APIRoute]:
                 yield from _iter_api_routes(nested_routes)
 
 
+def _public_catalog_hidden_prefixes() -> tuple[str, ...]:
+    return (
+        "/docs",
+        "/redoc",
+        "/openapi.json",
+        f"{settings.api_prefix}/admin",
+        f"{settings.api_prefix}/auth",
+        "/api/auth",
+    )
+
+
+def _is_hidden_public_route(path: str, hidden_paths: set[str]) -> bool:
+    if path in hidden_paths:
+        return True
+    return any(path.startswith(prefix) for prefix in _public_catalog_hidden_prefixes())
+
+
 def _catalog_from_openapi() -> list[RouteInfo]:
     hidden_paths = {"/", "/routes", f"{settings.api_prefix}/routes"}
-    hidden_prefixes = ("/docs", "/redoc", "/openapi.json")
     catalog: dict[str, RouteInfo] = {}
 
     for path, path_item in app.openapi().get("paths", {}).items():
-        if path in hidden_paths:
-            continue
-        if any(path.startswith(prefix) for prefix in hidden_prefixes):
+        if _is_hidden_public_route(path, hidden_paths):
             continue
 
         methods: list[str] = []
@@ -120,11 +134,8 @@ def _catalog_from_openapi() -> list[RouteInfo]:
 def public_route_catalog() -> list[RouteInfo]:
     routes: list[RouteInfo] = []
     hidden_paths = {"/", "/routes", f"{settings.api_prefix}/routes"}
-    hidden_prefixes = ("/docs", "/redoc", "/openapi.json")
     for route in _iter_api_routes(app.routes):
-        if route.path in hidden_paths:
-            continue
-        if any(route.path.startswith(prefix) for prefix in hidden_prefixes):
+        if _is_hidden_public_route(route.path, hidden_paths):
             continue
         routes.append(
             RouteInfo(

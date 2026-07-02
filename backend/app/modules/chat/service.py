@@ -151,6 +151,23 @@ def _merge_named(existing: list[Any], incoming: list[Any], attr: str) -> list[An
     return list(by_name.values())
 
 
+def _prior_user_messages(conversation_id: str) -> list[str]:
+    messages = _messages.get(conversation_id, [])
+    if not messages:
+        try:
+            messages = [ChatMessage.model_validate(row) for row in read_chat_messages(conversation_id)]
+        except Exception:
+            messages = []
+    user_messages = [message.content for message in messages if message.role == "user"]
+    return user_messages[:-1] if user_messages else []
+
+
+def _conversation_context_for_llm(current_message: str, conversation_id: str) -> str:
+    from app.modules.clinical_intake_extraction.semantic import aggregate_conversation_context
+
+    return aggregate_conversation_context(current_message, _prior_user_messages(conversation_id))
+
+
 async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
     conversation_id = request.conversation_id or str(uuid.uuid4())
     yield _sse("status", {"step": "received", "conversation_id": conversation_id})
@@ -162,7 +179,12 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
     extraction_message = "\n".join(value for value in [request.message, attachment_context] if value)
 
     yield _sse("status", {"step": "extracting_patient"})
-    extracted_patient = await asyncio.to_thread(extract_patient_from_message, extraction_message, conversation_id)
+    extracted_patient = await asyncio.to_thread(
+        extract_patient_from_message,
+        extraction_message,
+        conversation_id,
+        conversation_history=_prior_user_messages(conversation_id),
+    )
     merged = _merge_patient(base_patient, extracted_patient)
     if request.patient:
         merged = _merge_patient(merged, request.patient)
@@ -231,6 +253,8 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
     yield _sse("status", {"step": "generating_answer"})
     llm_request = LLMAnswerRequest(
         user_input=request.message,
+        conversation_context=_conversation_context_for_llm(request.message, conversation_id),
+        clinical_state=clinical_state,
         patient=merged,
         recommendation=recommendation,
         verification=verification,
@@ -292,7 +316,12 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
     base_patient = current.patient if current else _new_patient(conversation_id)
     attachment_context = _attachment_context(request)
     extraction_message = "\n".join(value for value in [request.message, attachment_context] if value)
-    extracted_patient = await asyncio.to_thread(extract_patient_from_message, extraction_message, conversation_id)
+    extracted_patient = await asyncio.to_thread(
+        extract_patient_from_message,
+        extraction_message,
+        conversation_id,
+        conversation_history=_prior_user_messages(conversation_id),
+    )
     merged = _merge_patient(base_patient, extracted_patient)
     if request.patient:
         merged = _merge_patient(merged, request.patient)
@@ -348,6 +377,8 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
     llm_answer = await build_llm_answer(
         LLMAnswerRequest(
             user_input=request.message,
+            conversation_context=_conversation_context_for_llm(request.message, conversation_id),
+            clinical_state=clinical_state,
             patient=merged,
             recommendation=recommendation,
             verification=verification,

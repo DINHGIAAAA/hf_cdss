@@ -23,3 +23,7 @@ infrastructure/airflow/logs/
 
 # Local auth seed file (use seed_users.example.json or HF_CDSS_AUTH_SEED_USERS_JSON).
 backend/app/data/seed_users.json
+
+training/data/
+training/output/
+.venv-train/

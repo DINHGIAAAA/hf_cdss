@@ -1,15 +1,15 @@
 {
-  "_note": "Dev-only example. Copy to seed_users.json (gitignored). Use bcrypt cost 12 — see backend/app/data/README.md.",
+  "_note": "Dev-only example. Copy to seed_users.json (gitignored). Each user must have a unique password_hash — see backend/app/data/README.md.",
   "admin": {
     "id": "dr_admin",
     "roles": ["admin"],
-    "password_hash": "$2b$12$ocPkn2/8eRIuIKoIZsCGMetJyh5QEPISAJUCWGYWTJhiD/wq8HGKm",
+    "password_hash": "$2b$12$53wxETnw2wk7rV28GszfIOffODyMGOjcIIOrtDlqlhKpfZ5dBKe7W",
     "display_name": "Admin User"
   },
   "clinical_lead": {
     "id": "dr_lead",
     "roles": ["clinical_lead"],
-    "password_hash": "$2b$12$ocPkn2/8eRIuIKoIZsCGMetJyh5QEPISAJUCWGYWTJhiD/wq8HGKm",
+    "password_hash": "$2b$12$G8AadYPrXNn5ffLTW97nxuBT0x6rHRxw8Xaso2ZWRuJLCcXubYc9i",
     "display_name": "Clinical Lead"
   }
 }

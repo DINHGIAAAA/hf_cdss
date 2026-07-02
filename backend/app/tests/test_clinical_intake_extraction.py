@@ -53,8 +53,29 @@ def test_extracts_brands_and_acute_red_flags() -> None:
     assert any(flag.name == "active_bleeding" and flag.status == "present" for flag in patient.red_flags)
 
 
+def test_skips_llm_intake_when_required_fields_are_complete(monkeypatch) -> None:
+    calls: list[str] = []
+
+    monkeypatch.setattr(
+        service,
+        "_call_llm_extractor",
+        lambda message: calls.append(message) or None,
+    )
+
+    extract_patient_from_message(
+        (
+            "Benh nhan nam 64 tuoi suy tim EF con 32%, muc loc cau than 78, "
+            "kali mau 4.4, huyet ap 118/74 va mach 74 lan/phut. "
+            "Tang huyet ap, dang dung metoprolol 25 mg bid va dapagliflozin 10mg daily. "
+            "Di ung voi lisinopril gay ho. Khong co dau hieu cap cuu."
+        ),
+        "SKIP_LLM_INTAKE",
+    )
+
+    assert calls == []
+
+
 def test_llm_extractor_enriches_patient_identity_and_structured_fields(monkeypatch) -> None:
-    monkeypatch.setattr(settings, "clinical_intake_llm_enabled", True)
     monkeypatch.setattr(settings, "llm_api_type", "chat_completions")
     monkeypatch.setattr(settings, "llm_base_url", "http://llm.test/v1")
     monkeypatch.setattr(settings, "llm_model", "test-model")

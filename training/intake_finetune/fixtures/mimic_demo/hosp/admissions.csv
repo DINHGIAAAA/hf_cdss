@@ -1,0 +1,2 @@
+subject_id,hadm_id,admittime,dischtime,deathtime,admission_type,admit_provider_id,admission_location,discharge_location,insurance,language,marital_status,race,edregtime,edouttime,hospital_expire_flag
+10000032,22595853,2180-05-06 22:23:00,2180-05-07 17:15:00,,URGENT,P03RDH,TRANSFER FROM HOSPITAL,HOME,Medicaid,ENGLISH,SINGLE,WHITE,2180-05-06 19:17:00,2180-05-06 20:18:00,0

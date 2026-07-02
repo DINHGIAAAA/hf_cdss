@@ -7,6 +7,8 @@ import httpx
 
 from app.modules.drug_normalization.service import medications_catalog_for_intake
 from app.core.config import settings
+from app.core.llm_runtime import chat_completions_url, llm_auth_headers, llm_chat_completions_enabled
+from app.prompts.clinical_intake import CLINICAL_INTAKE_SYSTEM_PROMPT
 from app.schemas.patient import (
     AllergyStatement,
     CareContext,
@@ -57,32 +59,6 @@ NO_RED_FLAG_TERMS = (
 )
 
 NEGATION_PREFIXES = ("no", "not", "not on", "without", "denies", "khong", "khong co", "chua ghi nhan")
-
-LLM_SYSTEM_PROMPT = """You extract structured heart-failure patient intake from clinical text.
-Return JSON only. Do not invent missing values. Use null for unknown scalar values and [] for unknown lists.
-Prefer explicit values from the text over inference.
-Schema:
-{
-  "full_name": string|null,
-  "age": number|null,
-  "sex": "male"|"female"|null,
-  "weight_kg": number|null,
-  "systolic_bp": number|null,
-  "diastolic_bp": number|null,
-  "heart_rate": number|null,
-  "lvef": number|null,
-  "hf_type": string|null,
-  "nyha_class": string|null,
-  "egfr": number|null,
-  "creatinine": number|null,
-  "potassium": number|null,
-  "conditions": [string],
-  "medications": [{"name": string, "dose_value": number|null, "dose_unit": string|null, "frequency": string|null}],
-  "allergies": [string],
-  "red_flags": [{"name": string, "status": "present"|"absent"}],
-  "chief_complaint": string|null
-}
-"""
 
 
 def normalize_text(text: str) -> str:
@@ -318,67 +294,31 @@ def _extract_json_object(text: str) -> dict[str, Any] | None:
         return None
 
 
-def _llm_enabled() -> bool:
-    if not settings.clinical_intake_llm_enabled:
-        return False
-    api_type = settings.llm_api_type.lower().strip()
-    if api_type == "responses" and "api.openai.com" in settings.llm_base_url and not settings.openai_api_key:
-        return False
-    return True
-
-
-def _auth_headers() -> dict[str, str]:
-    headers = {"Content-Type": "application/json"}
-    if settings.openai_api_key:
-        headers["Authorization"] = f"Bearer {settings.openai_api_key}"
-    return headers
+def _llm_extractor_available() -> bool:
+    return llm_chat_completions_enabled()
 
 
 def _call_llm_extractor(message: str) -> dict[str, Any] | None:
-    if not _llm_enabled():
+    if not _llm_extractor_available():
         return None
-    api_type = settings.llm_api_type.lower().strip()
     try:
         with httpx.Client(timeout=settings.clinical_intake_llm_timeout_seconds) as client:
-            if api_type == "chat_completions":
-                response = client.post(
-                    f"{settings.llm_base_url.rstrip('/')}/chat/completions",
-                    headers=_auth_headers(),
-                    json={
-                        "model": settings.llm_model,
-                        "messages": [
-                            {"role": "system", "content": LLM_SYSTEM_PROMPT},
-                            {"role": "user", "content": message[:12000]},
-                        ],
-                        "temperature": 0,
-                        "max_tokens": settings.clinical_intake_llm_max_tokens,
-                    },
-                )
-                response.raise_for_status()
-                choices = response.json().get("choices", [])
-                content = choices[0].get("message", {}).get("content", "") if choices else ""
-            else:
-                response = client.post(
-                    f"{settings.llm_base_url.rstrip('/')}/responses",
-                    headers=_auth_headers(),
-                    json={
-                        "model": settings.llm_model,
-                        "instructions": LLM_SYSTEM_PROMPT,
-                        "input": message[:12000],
-                        "max_output_tokens": settings.clinical_intake_llm_max_tokens,
-                        "text": {"format": {"type": "json_object"}},
-                    },
-                )
-                response.raise_for_status()
-                payload = response.json()
-                content = payload.get("output_text", "")
-                if not content:
-                    parts = []
-                    for item in payload.get("output", []):
-                        for block in item.get("content", []):
-                            if isinstance(block.get("text"), str):
-                                parts.append(block["text"])
-                    content = "\n".join(parts)
+            response = client.post(
+                chat_completions_url(),
+                headers=llm_auth_headers(),
+                json={
+                    "model": settings.llm_model,
+                    "messages": [
+                        {"role": "system", "content": CLINICAL_INTAKE_SYSTEM_PROMPT},
+                        {"role": "user", "content": message[:12000]},
+                    ],
+                    "temperature": 0,
+                    "max_tokens": settings.clinical_intake_llm_max_tokens,
+                },
+            )
+            response.raise_for_status()
+            choices = response.json().get("choices", [])
+            content = choices[0].get("message", {}).get("content", "") if choices else ""
         return _extract_json_object(content)
     except Exception:
         return None
@@ -477,6 +417,18 @@ def _prefer(existing: Any, incoming: Any) -> Any:
     return incoming if incoming not in (None, [], "") else existing
 
 
+def _has_clinical_value(value: ClinicalValue | None) -> bool:
+    return value is not None and value.value is not None
+
+
+def _prefer_measured(regex_value: ClinicalValue | None, llm_value: ClinicalValue | None) -> ClinicalValue | None:
+    if _has_clinical_value(regex_value):
+        return regex_value
+    if _has_clinical_value(llm_value):
+        return llm_value
+    return regex_value
+
+
 def _merge_named(existing: list[Any], incoming: list[Any], attr: str) -> list[Any]:
     by_name = {str(getattr(item, attr)).lower(): item for item in existing}
     for item in incoming:
@@ -496,19 +448,25 @@ def _merge_extractions(regex_patient: PatientProfile, llm_patient: PatientProfil
     )
     patient.demographics.age = _prefer(patient.demographics.age, llm_patient.demographics.age)
     patient.demographics.sex = _prefer(patient.demographics.sex, llm_patient.demographics.sex)
-    patient.vitals.weight_kg = _prefer(patient.vitals.weight_kg, llm_patient.vitals.weight_kg)
-    patient.vitals.systolic_bp = _prefer(patient.vitals.systolic_bp, llm_patient.vitals.systolic_bp)
-    patient.vitals.diastolic_bp = _prefer(patient.vitals.diastolic_bp, llm_patient.vitals.diastolic_bp)
-    patient.vitals.heart_rate = _prefer(patient.vitals.heart_rate, llm_patient.vitals.heart_rate)
-    patient.heart_failure_profile.lvef = _prefer(patient.heart_failure_profile.lvef, llm_patient.heart_failure_profile.lvef)
-    patient.heart_failure_profile.hf_type = _prefer(patient.heart_failure_profile.hf_type, llm_patient.heart_failure_profile.hf_type)
+    patient.vitals.weight_kg = _prefer_measured(patient.vitals.weight_kg, llm_patient.vitals.weight_kg)
+    patient.vitals.systolic_bp = _prefer_measured(patient.vitals.systolic_bp, llm_patient.vitals.systolic_bp)
+    patient.vitals.diastolic_bp = _prefer_measured(patient.vitals.diastolic_bp, llm_patient.vitals.diastolic_bp)
+    patient.vitals.heart_rate = _prefer_measured(patient.vitals.heart_rate, llm_patient.vitals.heart_rate)
+    patient.heart_failure_profile.lvef = _prefer_measured(
+        patient.heart_failure_profile.lvef,
+        llm_patient.heart_failure_profile.lvef,
+    )
+    patient.heart_failure_profile.hf_type = _prefer(
+        patient.heart_failure_profile.hf_type,
+        llm_patient.heart_failure_profile.hf_type,
+    )
     patient.heart_failure_profile.nyha_class = _prefer(
         patient.heart_failure_profile.nyha_class,
         llm_patient.heart_failure_profile.nyha_class,
     )
-    patient.labs.egfr = _prefer(patient.labs.egfr, llm_patient.labs.egfr)
-    patient.labs.creatinine = _prefer(patient.labs.creatinine, llm_patient.labs.creatinine)
-    patient.labs.potassium = _prefer(patient.labs.potassium, llm_patient.labs.potassium)
+    patient.labs.egfr = _prefer_measured(patient.labs.egfr, llm_patient.labs.egfr)
+    patient.labs.creatinine = _prefer_measured(patient.labs.creatinine, llm_patient.labs.creatinine)
+    patient.labs.potassium = _prefer_measured(patient.labs.potassium, llm_patient.labs.potassium)
     patient.chief_complaint = _prefer(patient.chief_complaint, llm_patient.chief_complaint)
     patient.conditions = _merge_named(patient.conditions, llm_patient.conditions, "name")
     patient.medications = _merge_named(patient.medications, llm_patient.medications, "name")
@@ -517,8 +475,26 @@ def _merge_extractions(regex_patient: PatientProfile, llm_patient: PatientProfil
     return patient
 
 
-def extract_patient_from_message(message: str, conversation_id: str) -> PatientProfile:
-    regex_patient = _regex_extract_patient_from_message(message, conversation_id)
-    llm_data = _call_llm_extractor(message)
-    llm_patient = _patient_from_llm_data(llm_data, conversation_id, message) if llm_data else None
-    return _merge_extractions(regex_patient, llm_patient)
+def _intake_fields_complete(patient: PatientProfile) -> bool:
+    from app.modules.missing_fields.service import check_missing_fields
+
+    return check_missing_fields(patient).status == "complete"
+
+
+def extract_patient_from_message(
+    message: str,
+    conversation_id: str,
+    *,
+    conversation_history: list[str] | None = None,
+) -> PatientProfile:
+    from app.modules.clinical_intake_extraction.semantic import aggregate_conversation_context, semantic_extract_patient
+
+    aggregated_message = aggregate_conversation_context(message, conversation_history or [])
+    regex_patient = _regex_extract_patient_from_message(aggregated_message, conversation_id)
+    semantic_patient = semantic_extract_patient(aggregated_message, conversation_id)
+    merged = _merge_extractions(regex_patient, semantic_patient)
+    if _intake_fields_complete(merged):
+        return merged
+    llm_data = _call_llm_extractor(aggregated_message)
+    llm_patient = _patient_from_llm_data(llm_data, conversation_id, aggregated_message) if llm_data else None
+    return _merge_extractions(merged, llm_patient)

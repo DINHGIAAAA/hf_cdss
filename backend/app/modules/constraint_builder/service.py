@@ -32,14 +32,22 @@ def _should_refresh_cache() -> bool:
 
 
 def invalidate_constraint_cache() -> None:
-    """Invalidate the constraint cache (call after DB updates)."""
+    """Drop cached rules entirely.
+
+    Use after admin writes so the next load must hit Postgres. On DB failure there is
+    no in-memory stale snapshot to serve (only the bundled minimum-safety fallback).
+    """
     global _CACHE_TIMESTAMP, _cached_rules
     _CACHE_TIMESTAMP = None
     _cached_rules = None
 
 
 def expire_constraint_cache() -> None:
-    """Mark the TTL cache as expired while keeping the last loaded rules (tests/dev hooks)."""
+    """Force the TTL window to elapse while keeping the last loaded rules in memory.
+
+    Use in tests to verify refresh behaviour. If Postgres fails on the next load,
+    ``load_constraint_rules`` may still serve the previous snapshot as stale cache.
+    """
     global _CACHE_TIMESTAMP
     if _CACHE_TIMESTAMP is not None:
         _CACHE_TIMESTAMP = datetime.now() - timedelta(seconds=_CACHE_TTL_SECONDS + 1)

@@ -1,2 +1,1 @@
-"""Centralized prompts used by LLM-backed application services."""
-"""Centralized prompts used by LLM-backed services."""
+"""Centralized English system prompts for LLM-backed application services."""

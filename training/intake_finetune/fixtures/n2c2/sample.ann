@@ -1,0 +1,10 @@
+T1	Drug 32 39	aspirin
+T2	Strength 40 45	81 mg
+T3	Frequency 46 51	daily
+T4	Drug 55 64	metoprolol
+T5	Strength 65 70	25 mg
+T6	Frequency 71 74	bid
+R1	Strength-Drug Arg1:T2 Arg2:T1
+R2	Frequency-Drug Arg1:T3 Arg2:T1
+R3	Strength-Drug Arg1:T5 Arg2:T4
+R4	Frequency-Drug Arg1:T6 Arg2:T4

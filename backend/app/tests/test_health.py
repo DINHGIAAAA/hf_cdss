@@ -94,7 +94,8 @@ def test_routes_catalog_lists_versioned_routes_only(client) -> None:
     routes = {route["path"] for route in response.json()["routes"]}
     assert "/api/v1/recommend" in routes
     assert "/api/v1/evidence/search" in routes
-    assert "/api/v1/admin/constraints/active" in routes
+    assert "/api/v1/admin/constraints/active" not in routes
+    assert "/api/v1/auth/login" not in routes
     assert "/api/v1/clinical/normalize" in routes
     assert "/recommend" not in routes
 

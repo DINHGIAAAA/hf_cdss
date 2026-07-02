@@ -13,10 +13,10 @@ class Settings(BaseSettings):
     api_key_header: str = "x-api-key"
     max_request_body_bytes: int = 1_000_000
     openai_api_key: str | None = None
-    llm_base_url: str = "https://api.openai.com/v1"
-    llm_model: str = "gpt-4o-mini"
-    llm_api_type: str = "responses"
-    llm_timeout_seconds: float = 20.0
+    llm_base_url: str = "http://localhost:11434/v1"
+    llm_model: str = "qwen2.5:7b"
+    llm_api_type: str = "chat_completions"
+    llm_timeout_seconds: float = 90.0
     llm_cache_enabled: bool = True
     llm_cache_ttl_seconds: int = 600
     llm_cache_max_entries: int = 128
@@ -35,9 +35,13 @@ class Settings(BaseSettings):
         default="",
         validation_alias=AliasChoices("auth_seed_users_json", "auth_dev_users_json"),
     )
-    clinical_intake_llm_enabled: bool = True
-    clinical_intake_llm_timeout_seconds: float = 20.0
+    clinical_intake_llm_timeout_seconds: float = 90.0
     clinical_intake_llm_max_tokens: int = 700
+    clinical_intake_semantic_enabled: bool = True
+    clinical_intake_semantic_threshold: float = 0.52
+    clinical_intake_history_enabled: bool = True
+    clinical_intake_history_max_messages: int = 12
+    clinical_intake_history_relevance_threshold: float = 0.38
     postgres_dsn: str = "postgresql://hf_cdss:hf_cdss@localhost:55432/hf_cdss"
     neo4j_uri: str = "bolt://localhost:7687"
     neo4j_user: str = "neo4j"
