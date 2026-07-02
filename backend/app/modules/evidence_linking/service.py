@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import re
+from functools import lru_cache
 
 from app.modules.citation_validation.service import source_link_for_chunk
 from app.modules.graphrag.service import load_chunks
@@ -19,11 +19,13 @@ def _is_chunk_id(value: str | None) -> bool:
     return "__" in value or value.startswith("chunk_")
 
 
+@lru_cache(maxsize=1)
+def _chunk_index() -> dict[str, dict]:
+    return {chunk["chunk_id"]: chunk for chunk in load_chunks() if chunk.get("chunk_id")}
+
+
 def chunk_by_id(chunk_id: str) -> dict | None:
-    for chunk in load_chunks():
-        if chunk.get("chunk_id") == chunk_id:
-            return chunk
-    return None
+    return _chunk_index().get(chunk_id)
 
 
 def evidence_chunk_from_record(record: dict) -> EvidenceChunk:

@@ -12,6 +12,7 @@ from app.modules.datastores.postgres import postgres_pool
 logger = logging.getLogger(__name__)
 
 DEFAULT_SEED_FILE = Path(__file__).resolve().parents[2] / "data" / "seed_users.json"
+EXAMPLE_SEED_FILE = Path(__file__).resolve().parents[2] / "data" / "seed_users.example.json"
 
 
 def get_user_by_username(username: str) -> dict[str, Any] | None:
@@ -180,7 +181,14 @@ def seed_default_users() -> dict[str, Any]:
             return {"status": "skipped", "reason": "production_requires_explicit_seed_env", "seeded": 0}
         if DEFAULT_SEED_FILE.is_file():
             seed_json = DEFAULT_SEED_FILE.read_text(encoding="utf-8")
-            source = "file"
+            source = "local_file"
+        elif EXAMPLE_SEED_FILE.is_file() and settings.environment != "production":
+            logger.warning(
+                "Using seed_users.example.json for local bootstrap. "
+                "Copy to backend/app/data/seed_users.json or set HF_CDSS_AUTH_SEED_USERS_JSON."
+            )
+            seed_json = EXAMPLE_SEED_FILE.read_text(encoding="utf-8")
+            source = "example_file"
 
     if not seed_json:
         return {"status": "skipped", "reason": "no_seed_configured", "seeded": 0}

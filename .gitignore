@@ -20,3 +20,6 @@ data/heart_failure/artifacts/
 design-system/
 
 infrastructure/airflow/logs/
+
+# Local auth seed file (use seed_users.example.json or HF_CDSS_AUTH_SEED_USERS_JSON).
+backend/app/data/seed_users.json

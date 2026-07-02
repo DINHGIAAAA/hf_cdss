@@ -111,7 +111,7 @@ services:
       HF_CDSS_AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-test}
       HF_CDSS_AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-test}
       HF_CDSS_AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
-      HF_CDSS_REDIS_URL: ${HF_CDSS_REDIS_URL:-redis://redis:6379/0}
+      HF_CDSS_REDIS_URL: ${HF_CDSS_REDIS_URL:-redis://:${REDIS_PASSWORD:-change-me}@redis:6379/0}
       HF_CDSS_JWT_SECRET_KEY: ${HF_CDSS_JWT_SECRET_KEY:-hf-cdss-dev-jwt-secret-change-me}
       HF_CDSS_JWT_ALGORITHM: ${HF_CDSS_JWT_ALGORITHM:-HS256}
       HF_CDSS_JWT_ACCESS_TOKEN_EXPIRE_MINUTES: ${HF_CDSS_JWT_ACCESS_TOKEN_EXPIRE_MINUTES:-60}
@@ -343,9 +343,9 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
-    command: redis-server --save 60 1 --loglevel warning
+    command: redis-server --save 60 1 --loglevel warning --requirepass ${REDIS_PASSWORD:-change-me}
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-change-me}", "ping"]
       interval: 10s
       timeout: 5s
       retries: 3

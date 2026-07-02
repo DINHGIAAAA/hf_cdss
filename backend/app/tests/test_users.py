@@ -89,5 +89,5 @@ def test_seed_default_users_uses_file_when_env_empty(monkeypatch) -> None:
     result = users_module.seed_default_users()
 
     assert result["seeded"] == 2
-    assert result["source"] == "file"
+    assert result["source"] == "local_file"
     assert calls == ['{"demo":{}}']

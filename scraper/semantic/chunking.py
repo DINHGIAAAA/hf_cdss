@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from functools import lru_cache
 from typing import Callable
@@ -9,6 +10,9 @@ from typing import Callable
 from scraper.semantic import config
 from scraper.semantic.embeddings import cosine_similarity, embed_texts
 from scraper.transform.text_normalization import repair_pdf_flow_text
+
+
+logger = logging.getLogger(__name__)
 
 
 def paragraph_blocks(text: str) -> list[str]:
@@ -56,7 +60,8 @@ def _semantic_breakpoints(blocks: list[str]) -> list[int]:
 
     try:
         vectors = embed_texts(blocks)
-    except Exception:
+    except Exception as exc:
+        logger.warning("Semantic chunk breakpoints unavailable, using structure-only chunking: %s", exc)
         return []
 
     breakpoints: list[int] = []

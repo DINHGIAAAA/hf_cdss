@@ -8,8 +8,20 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-DATA_ROOT = Path(__file__).resolve().parents[4] / "data" / "heart_failure"
-ALIASES_PATH = DATA_ROOT / "config" / "drug_aliases.json"
+from app.modules.datastores.common import DATA_ROOT
+
+_REPO_DATA_ROOT = Path(__file__).resolve().parents[4] / "data" / "heart_failure"
+
+
+def _aliases_path() -> Path:
+    preferred = DATA_ROOT / "config" / "drug_aliases.json"
+    if preferred.is_file():
+        return preferred
+    repo_fallback = _REPO_DATA_ROOT / "config" / "drug_aliases.json"
+    return repo_fallback
+
+
+ALIASES_PATH = _aliases_path()
 
 
 def _normalize_token(value: str) -> str:
