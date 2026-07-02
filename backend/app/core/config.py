@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     jwt_secret_key: str = "change-me-in-production"
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_minutes: int = 60
+    jwt_cookie_name: str = "hf_cdss_session"
+    jwt_cookie_secure: bool = False
+    jwt_cookie_samesite: str = "lax"
     auth_login_enabled: bool = Field(
         default=True,
         validation_alias=AliasChoices("auth_login_enabled", "auth_dev_login_enabled"),

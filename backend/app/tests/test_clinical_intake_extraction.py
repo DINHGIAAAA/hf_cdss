@@ -21,8 +21,8 @@ def test_extracts_vietnamese_vitals_labs_medications_and_allergy() -> None:
     assert patient.systolic_bp == 118
     assert patient.heart_rate == 74
     assert "Hypertension" in patient.comorbidities
-    assert {"metoprolol", "dapagliflozin"} <= set(patient.current_medications)
-    metoprolol = next(item for item in patient.medications if item.name == "metoprolol")
+    assert {"metoprolol succinate", "dapagliflozin"} <= set(patient.current_medications)
+    metoprolol = next(item for item in patient.medications if item.name == "metoprolol succinate")
     assert metoprolol.dose_value == 25
     assert metoprolol.dose_unit == "mg"
     assert metoprolol.frequency == "bid"

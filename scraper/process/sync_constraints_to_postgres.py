@@ -7,6 +7,7 @@ This script:
 4. If the rule has changed, it inserts a new, incremented version with 'draft' status.
 5. If the rule is unchanged, it is skipped.
 """
+import argparse
 import hashlib
 import json
 from pathlib import Path
@@ -95,7 +96,16 @@ def extract_severity_from_claim(claim: dict) -> list[str]:
 
 def convert_rule_to_constraint(rule: dict) -> dict[str, Any]:
     """Convert a generated rule to constraint_rules table format."""
-    drug = rule.get("drug")
+    from scraper.paths import data_root
+    from scraper.process.drug_normalization import resolve_pipeline_drug_id
+    from scraper.process.evidence_linking import (
+        chunk_evidence_ref,
+        chunk_source_locator,
+        read_jsonl as read_chunks_jsonl,
+        resolve_chunk_for_rule,
+    )
+
+    drug = resolve_pipeline_drug_id(rule.get("drug")) or rule.get("drug")
     claim_type = rule.get("claim_type", "")
     condition = rule.get("condition", {})
     
@@ -131,7 +141,17 @@ def convert_rule_to_constraint(rule: dict) -> dict[str, Any]:
     
     # Generate constraint ID
     constraint_id = rule.get("rule_id", f"{drug}_{claim_type}_{rule.get('action', 'unknown')}")
-    
+
+    chunks = read_chunks_jsonl(data_root() / "artifacts/chunks/chunks.jsonl")
+    linked_chunk = resolve_chunk_for_rule(rule, chunks)
+    evidence_ref = chunk_evidence_ref(linked_chunk) if linked_chunk else f"rule:{rule.get('rule_id', '')}"
+    source_locator = chunk_source_locator(linked_chunk) if linked_chunk else None
+    claim_id = None
+    for source_ref in rule.get("source_refs") or []:
+        if isinstance(source_ref, dict) and source_ref.get("claim_id"):
+            claim_id = source_ref.get("claim_id")
+            break
+
     constraint_data = {
         "constraint_id": constraint_id,
         "target_drug_class": drug,
@@ -139,13 +159,15 @@ def convert_rule_to_constraint(rule: dict) -> dict[str, Any]:
         "reason": rule.get("reason", ""),
         "risk_names": list(set(risk_names)),  # Deduplicate
         "severity_any": severity_any,
-        "evidence_ref": f"rule:{rule.get('rule_id', '')}",
+        "evidence_ref": evidence_ref,
         "clinical_sources": [
             {
                 "source_id": src.get("claim_id"),
                 "source_type": src.get("source_type", "unknown"),
                 "title": f"{src.get('source_type')} evidence",
                 "confidence": src.get("confidence", 0.8),
+                "chunk_id": evidence_ref if linked_chunk else None,
+                "source_locator": source_locator,
             }
             for src in rule.get("source_refs", [])
         ],
@@ -154,6 +176,9 @@ def convert_rule_to_constraint(rule: dict) -> dict[str, Any]:
             "original_rule_id": rule.get("rule_id"),
             "claim_type": claim_type,
             "condition": condition,
+            "chunk_id": evidence_ref if linked_chunk else None,
+            "source_locator": source_locator,
+            "claim_id": claim_id,
         },
     }
 
@@ -166,6 +191,8 @@ def convert_rule_to_constraint(rule: dict) -> dict[str, Any]:
 def sync_pipeline_rules(db_functions: Any, rules_path: Path) -> dict[str, int]:
     """Convert and sync pipeline-generated rules to database, handling versioning."""
     rules = read_jsonl(rules_path)
+    if any(rule.get("safety_tier") for rule in rules):
+        rules = [rule for rule in rules if rule.get("safety_tier") == "usable_rules"]
     
     new_versions_created = 0
     skipped_unchanged = 0
@@ -212,8 +239,24 @@ def sync_pipeline_rules(db_functions: Any, rules_path: Path) -> dict[str, int]:
     return {"new_versions_created": new_versions_created, "skipped_unchanged": skipped_unchanged, "errors": errors}
 
 
-def sync_constraints_to_postgres() -> dict[str, Any]:
-    """Main sync function - call from backend initialization."""
+def resolve_rules_path(rules_path: Path | None = None) -> Path:
+    from scraper.paths import data_root
+
+    root = data_root()
+    if rules_path is not None:
+        return rules_path if rules_path.is_absolute() else root / rules_path
+
+    for candidate in (
+        root / "artifacts/rules/rules_classified.jsonl",
+        root / "artifacts/rules/rules.jsonl",
+    ):
+        if candidate.exists():
+            return candidate
+    return root / "artifacts/rules/rules_classified.jsonl"
+
+
+def sync_constraints_to_postgres(rules_path: Path | None = None) -> dict[str, Any]:
+    """Sync validated pipeline rules into PostgreSQL as draft constraint versions."""
     # Import here to avoid circular dependencies
     from app.modules.datastores.postgres import (
         insert_constraint_rule,
@@ -231,26 +274,36 @@ def sync_constraints_to_postgres() -> dict[str, Any]:
             return get_latest_constraint_rule_version(constraint_id)
     
     db = DbFunctions()
-    
-    # Paths (adjust as needed for your setup)
-    rules_path = Path(__file__).parent.parent.parent / "data" / "heart_failure" / "artifacts" / "rules" / "rules.jsonl"
-    
+
+    resolved_rules_path = resolve_rules_path(rules_path)
     result = {
         "status": "ok",
+        "rules_path": str(resolved_rules_path),
         "synced": {},
     }
-    
-    # Sync pipeline rules
-    print("Syncing pipeline-generated rules...")
-    result["synced"] = sync_pipeline_rules(db, rules_path)
+
+    print(f"Syncing pipeline-generated rules from {resolved_rules_path}...")
+    result["synced"] = sync_pipeline_rules(db, resolved_rules_path)
     print(f"Synced: {result['synced']}")
-    
+
     return result
 
 
 if __name__ == "__main__":
     import sys
-    sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
-    
-    result = sync_constraints_to_postgres()
+
+    from scraper.paths import project_root
+
+    sys.path.insert(0, str(project_root()))
+
+    parser = argparse.ArgumentParser(description="Sync classified pipeline rules into PostgreSQL.")
+    parser.add_argument(
+        "--rules",
+        default=None,
+        type=Path,
+        help="Rules JSONL path relative to data/heart_failure (default: rules_classified.jsonl).",
+    )
+    cli_args = parser.parse_args()
+
+    result = sync_constraints_to_postgres(cli_args.rules)
     print(json.dumps(result, indent=2))

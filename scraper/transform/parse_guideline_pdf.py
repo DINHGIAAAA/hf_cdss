@@ -346,7 +346,7 @@ def parse_pdf_job(args: tuple[Path, Path, bool, dict, bool, Path | None, bool]) 
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Parse guideline PDFs and produce documents and sections to Kafka topics.")
+    parser = argparse.ArgumentParser(description="Parse guideline PDFs and produce documents and sections.")
     parser.add_argument("--input-dir", default="raw/guidelines", type=Path)
     parser.add_argument("--registry", default="sources/sources.example.json", type=Path)
     parser.add_argument("--tables-dir", default="processed/tables", type=Path)
@@ -358,14 +358,8 @@ def main() -> None:
         choices=["opendataloader", "pdfplumber"],
         help="PDF extraction engine. OpenDataLoader requires Java 11+.",
     )
-    # Output mode arguments
-    parser.add_argument("--output-mode", default="file", choices=["kafka", "file"], help="Output mode: send to Kafka or write to files.")
     parser.add_argument("--documents-output", default="processed/documents/guideline_documents.jsonl", type=Path)
     parser.add_argument("--sections-output", default="processed/sections/guideline_sections.jsonl", type=Path)
-    # Kafka arguments
-    parser.add_argument("--kafka-bootstrap-servers", default="localhost:9092", help="Kafka bootstrap servers.")
-    parser.add_argument("--sections-topic", default="sections_parsed", help="Kafka topic to produce parsed sections to.")
-    parser.add_argument("--documents-topic", default="guideline_documents", help="Kafka topic to produce document metadata to.")
     parser.add_argument(
         "--workers",
         default=max((os.cpu_count() or 2) - 1, 1),
@@ -373,21 +367,6 @@ def main() -> None:
         help="Number of PDFs to parse in parallel. Use 1 for deterministic single-process parsing.",
     )
     args = parser.parse_args()
-
-    producer = None
-    if args.output_mode == "kafka":
-        from kafka import KafkaProducer
-        from kafka.errors import KafkaError
-
-        print(f"Connecting to Kafka at {args.kafka_bootstrap_servers}...")
-        try:
-            producer = KafkaProducer(
-                bootstrap_servers=args.kafka_bootstrap_servers,
-                value_serializer=lambda m: json.dumps(m, ensure_ascii=False).encode("utf-8"),
-            )
-        except KafkaError as exc:
-            print(f"\nFATAL: Could not connect to Kafka. Is it running? Details: {exc}")
-            return
 
     registry = load_registry(args.registry)
     pdf_paths = sorted(args.input_dir.glob("*/*.pdf"))
@@ -415,11 +394,10 @@ def main() -> None:
         for pdf_path in pdf_paths
     ]
 
+    documents: list[dict] = []
+    sections: list[dict] = []
+    doc_count, sec_count, table_count = 0, 0, 0
     try:
-        results = []
-        documents: list[dict] = []
-        sections: list[dict] = []
-        doc_count, sec_count, table_count = 0, 0, 0
         if args.workers == 1 or len(jobs) <= 1:
             print(f"Parsing {len(jobs)} PDFs sequentially...")
             results = [parse_pdf_job(job) for job in tqdm(jobs)]
@@ -439,41 +417,23 @@ def main() -> None:
                 write_jsonl(tables, table_path)
                 table_count += len(tables)
 
-        if args.output_mode == "file":
-            write_jsonl(documents, args.documents_output)
-            write_jsonl(sections, args.sections_output)
-            doc_count = len(documents)
-            sec_count = len(sections)
-            print(f"\nWrote {doc_count} documents to '{args.documents_output}'")
-            print(f"Wrote {sec_count} sections to '{args.sections_output}'")
-        else:
-            print("\nProducing results to Kafka...")
-            for document in tqdm(documents, desc="Producing documents"):
-                producer.send(args.documents_topic, value=document)
-            for section in tqdm(sections, desc="Producing sections"):
-                producer.send(args.sections_topic, value=section)
-            doc_count = len(documents)
-            sec_count = len(sections)
-            print("Flushing Kafka producer...")
-            producer.flush()
+        write_jsonl(documents, args.documents_output)
+        write_jsonl(sections, args.sections_output)
+        doc_count = len(documents)
+        sec_count = len(sections)
+        print(f"\nWrote {doc_count} documents to '{args.documents_output}'")
+        print(f"Wrote {sec_count} sections to '{args.sections_output}'")
 
     except KeyboardInterrupt:
         print("\nShutting down...")
     finally:
         if odl_cache_dir is not None:
             shutil.rmtree(odl_cache_dir, ignore_errors=True)
-        if producer is not None:
-            producer.close()
-            print("Kafka producer closed.")
 
     print("\n--- Processing Summary ---")
     print(f"Total PDFs processed: {len(jobs)}")
-    if args.output_mode == "kafka":
-        print(f"Total documents produced to '{args.documents_topic}': {doc_count}")
-        print(f"Total sections produced to '{args.sections_topic}': {sec_count}")
-    else:
-        print(f"Total documents written: {doc_count}")
-        print(f"Total sections written: {sec_count}")
+    print(f"Total documents written: {doc_count}")
+    print(f"Total sections written: {sec_count}")
     print(f"Total tables saved to disk: {table_count}")
 
 

@@ -61,6 +61,8 @@ def test_validation_errors_do_not_echo_input_when_phi_logging_disabled(client) -
 
 
 def test_strict_readiness_returns_503_when_dependency_degraded(monkeypatch, client) -> None:
+    monkeypatch.setattr(health_routes, "bootstrap_is_complete", lambda: True)
+    monkeypatch.setattr(health_routes, "bootstrap_status", lambda: {"status": "ok"})
     monkeypatch.setattr(
         health_routes,
         "datastore_status",

@@ -16,7 +16,9 @@ function EvidenceCard({ chunk }) {
       </div>
       <p>{(chunk.text || "").replace(/\s+/g, " ").slice(0, 280)}</p>
       <div className="evidence-foot">
+        {chunk.chunk_id && <span>Chunk {chunk.chunk_id}</span>}
         {chunk.page && <span>Page {chunk.page}</span>}
+        {chunk.metadata?.source_locator && <span>{chunk.metadata.source_locator}</span>}
         {chunk.metadata?.publisher && <span>{chunk.metadata.publisher}</span>}
         {link && (
           <a href={link} rel="noreferrer" target="_blank">
@@ -30,7 +32,9 @@ function EvidenceCard({ chunk }) {
 
 // ─── Recommendation Card ──────────────────────────────────────────────────────
 
-function RecommendationCard({ item }) {
+function RecommendationCard({ item, evidenceChunks = [] }) {
+  const linkedChunks = evidenceChunks.filter((chunk) => item.evidence?.includes(chunk.chunk_id));
+
   return (
     <article className="recommendation-card">
       <div className="recommendation-title">
@@ -38,6 +42,18 @@ function RecommendationCard({ item }) {
         <span className={statusClass(item.status)}>{titleCase(item.status)}</span>
       </div>
       <p>{item.rationale}</p>
+      {linkedChunks.length > 0 && (
+        <div className="clinical-block">
+          <b>Linked evidence</b>
+          <ul>
+            {linkedChunks.slice(0, 2).map((chunk) => (
+              <li key={chunk.chunk_id}>
+                {titleCase(chunk.document_id)} — {chunk.section || chunk.source_type}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {item.action_items?.length > 0 && (
         <div className="clinical-block">
           <b>Next clinical step</b>
@@ -137,7 +153,11 @@ export function ClinicalPanel({ active, error, open }) {
               </div>
               <div className="recommendation-list">
                 {active.recommendation.recommendations.map((item) => (
-                  <RecommendationCard item={item} key={item.drug_class} />
+                  <RecommendationCard
+                    evidenceChunks={active.verification?.context?.evidence_chunks || []}
+                    item={item}
+                    key={item.drug_class}
+                  />
                 ))}
               </div>
             </section>

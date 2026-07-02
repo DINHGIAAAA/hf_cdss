@@ -1,46 +1,60 @@
-import { createContext, useCallback, useContext, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
-import { getAuthToken, login as apiLogin, logout as apiLogout, setAuthToken } from "@shared/api/client.js";
+import { fetchCurrentUser, login as apiLogin, logout as apiLogout } from "@shared/api/client.js";
 
 const AuthContext = createContext(null);
 
-function decodeJwtPayload(token) {
-  try {
-    const payload = token.split(".")[1];
-    const json = atob(payload.replace(/-/g, "+").replace(/_/g, "/"));
-    return JSON.parse(json);
-  } catch {
-    return null;
-  }
+function mapAuthUser(me) {
+  if (!me?.id) return null;
+  return {
+    id: me.id,
+    username: me.username,
+    roles: me.roles || [],
+  };
 }
 
 export function AuthProvider({ children }) {
-  const [token, setToken] = useState(() => getAuthToken());
+  const [user, setUser] = useState(null);
+  const [bootstrapping, setBootstrapping] = useState(true);
 
-  const user = useMemo(() => {
-    if (!token) return null;
-    const payload = decodeJwtPayload(token);
-    if (!payload?.sub) return null;
-    return {
-      id: payload.sub,
-      roles: payload.roles || [],
+  useEffect(() => {
+    let cancelled = false;
+
+    async function bootstrap() {
+      try {
+        const me = await fetchCurrentUser();
+        if (!cancelled) setUser(mapAuthUser(me));
+      } catch {
+        if (!cancelled) setUser(null);
+      } finally {
+        if (!cancelled) setBootstrapping(false);
+      }
+    }
+
+    bootstrap();
+    return () => {
+      cancelled = true;
     };
-  }, [token]);
+  }, []);
 
   const login = useCallback(async (username, password) => {
-    const data = await apiLogin(username, password);
-    setToken(data.access_token);
-    return data;
+    await apiLogin(username, password);
+    const me = await fetchCurrentUser();
+    const nextUser = mapAuthUser(me);
+    setUser(nextUser);
+    return { user: nextUser };
   }, []);
 
   const logout = useCallback(async () => {
-    await apiLogout();
-    setToken(null);
+    try {
+      await apiLogout();
+    } finally {
+      setUser(null);
+    }
   }, []);
 
   const clearSession = useCallback(() => {
-    setAuthToken(null);
-    setToken(null);
+    setUser(null);
   }, []);
 
   const hasRole = useCallback(
@@ -50,15 +64,15 @@ export function AuthProvider({ children }) {
 
   const value = useMemo(
     () => ({
-      token,
       user,
-      isAuthenticated: Boolean(token && user),
+      bootstrapping,
+      isAuthenticated: Boolean(user),
       login,
       logout,
       clearSession,
       hasRole,
     }),
-    [token, user, login, logout, clearSession, hasRole],
+    [user, bootstrapping, login, logout, clearSession, hasRole],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

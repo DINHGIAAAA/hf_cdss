@@ -1,16 +1,17 @@
 {
-  "version": 2,
-  "notes": "Curated official web sources for Heart Failure CDSS ingestion. Raw files are downloaded from publisher/DailyMed URLs into S3; local data files are not used as source input.",
+  "version": 3,
+  "notes": "Curated official sources for Heart Failure CDSS ingestion, including HF core guidelines and comorbidity guidelines that affect GDMT, safety checks, and evidence retrieval.",
   "sources": [
     {
       "source_id": "aha_acc_hfsa_2022_hf_guideline",
       "title": "2022 AHA/ACC/HFSA Guideline for the Management of Heart Failure",
-      "source_type": "guideline_pdf",
+      "source_type": "guideline_html",
       "download_strategy": "direct_url",
       "publisher": "AHA/ACC/HFSA",
       "topic": "heart_failure",
+      "artifact_kind": "html",
       "url": "https://professional.heart.org/-/media/832EA0F4B8C84F3F9C35D6E90B3E4B8E.ashx",
-      "target_path": "raw/guidelines/heart_failure/2022 AHA_ACC_HFSA Guideline for the Management of Heart Failure.pdf",
+      "target_path": "raw/guidelines/heart_failure/2022 AHA_ACC_HFSA Guideline for the Management of Heart Failure.html",
       "license_note": "Official publisher material. Verify terms before redistribution."
     },
     {
@@ -49,23 +50,25 @@
     {
       "source_id": "ada_2024_comprehensive_medical_evaluation",
       "title": "ADA Standards of Care in Diabetes 2024: Comprehensive Medical Evaluation and Assessment of Comorbidities",
-      "source_type": "guideline_pdf",
+      "source_type": "guideline_html",
       "download_strategy": "direct_url",
       "publisher": "American Diabetes Association",
       "topic": "diabetes",
-      "url": "https://diabetesjournals.org/care/article-pdf/47/Supplement_1/S52/740383/dc24s004.pdf",
-      "target_path": "raw/guidelines/diabetes/Comprehensive Medical.pdf",
+      "artifact_kind": "html",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10725809/",
+      "target_path": "raw/guidelines/diabetes/ada_2024_comprehensive_medical_evaluation.html",
       "license_note": "Official publisher material. Verify terms before redistribution."
     },
     {
       "source_id": "ada_2024_pharmacologic_treatment",
       "title": "ADA Standards of Care in Diabetes 2024: Pharmacologic Approaches to Glycemic Treatment",
-      "source_type": "guideline_pdf",
+      "source_type": "guideline_html",
       "download_strategy": "direct_url",
       "publisher": "American Diabetes Association",
       "topic": "diabetes",
-      "url": "https://diabetesjournals.org/care/article-pdf/47/Supplement_1/S158/759373/dc24s009.pdf",
-      "target_path": "raw/guidelines/diabetes/ada_2024_pharmacologic_treatment.pdf",
+      "artifact_kind": "html",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10725810/",
+      "target_path": "raw/guidelines/diabetes/ada_2024_pharmacologic_treatment.html",
       "license_note": "Official publisher material. Verify terms before redistribution."
     },
     {
@@ -93,6 +96,87 @@
       "license_note": "Official publisher material. Verify terms before redistribution."
     },
     {
+      "source_id": "ada_2024_obesity_management",
+      "title": "ADA Standards of Care in Diabetes 2024: Obesity and Weight Management",
+      "source_type": "guideline_html",
+      "download_strategy": "direct_url",
+      "publisher": "American Diabetes Association",
+      "topic": "diabetes",
+      "artifact_kind": "html",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10725806/",
+      "target_path": "raw/guidelines/diabetes/ada_2024_obesity_management.html",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "ada_2024_glycemic_goals",
+      "title": "ADA Standards of Care in Diabetes 2024: Glycemic Goals and Hypoglycemia",
+      "source_type": "guideline_html",
+      "download_strategy": "direct_url",
+      "publisher": "American Diabetes Association",
+      "topic": "diabetes",
+      "artifact_kind": "html",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10725808/",
+      "target_path": "raw/guidelines/diabetes/ada_2024_glycemic_goals.html",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "ada_2024_older_adults",
+      "title": "ADA Standards of Care in Diabetes 2024: Older Adults",
+      "source_type": "guideline_html",
+      "download_strategy": "direct_url",
+      "publisher": "American Diabetes Association",
+      "topic": "diabetes",
+      "artifact_kind": "html",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10725804/",
+      "target_path": "raw/guidelines/diabetes/ada_2024_older_adults.html",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "ada_kdigo_2022_diabetes_ckd_consensus",
+      "title": "ADA and KDIGO Consensus Report on Diabetes Management in Chronic Kidney Disease",
+      "source_type": "guideline_pdf",
+      "download_strategy": "direct_url",
+      "publisher": "ADA/KDIGO",
+      "topic": "ckd",
+      "url": "https://kdigo.org/wp-content/uploads/2023/04/Diabetes-Management-in-Chronic-Kidney-Disease-Consensus-Report-by-the-ADA-and-KDIGO.pdf",
+      "target_path": "raw/guidelines/ckd/ADA-KDIGO-2022-Diabetes-CKD-Consensus.pdf",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "acc_aha_2017_hypertension_guideline",
+      "title": "2017 ACC/AHA Guideline for the Prevention, Detection, Evaluation, and Management of High Blood Pressure in Adults",
+      "source_type": "guideline_pdf",
+      "download_strategy": "direct_url",
+      "publisher": "ACC/AHA",
+      "topic": "hypertension",
+      "url": "https://www.michigan.gov/-/media/Project/Websites/mdhhs/Folder3/Folder51/Folder2/Folder151/Folder1/Folder251/Hypertension_Guidelinesfull.pdf?rev=e35a615ce61a4d03b599e750f6fc8ce3",
+      "target_path": "raw/guidelines/hypertension/2017 ACC AHA Hypertension Guideline.pdf",
+      "license_note": "Official publisher material hosted on a public health mirror. Verify terms before redistribution."
+    },
+    {
+      "source_id": "acc_aha_accp_hrs_2023_af_guideline",
+      "title": "2023 ACC/AHA/ACCP/HRS Guideline for the Diagnosis and Management of Atrial Fibrillation",
+      "source_type": "guideline_html",
+      "download_strategy": "direct_url",
+      "publisher": "ACC/AHA/ACCP/HRS",
+      "topic": "atrial_fibrillation",
+      "artifact_kind": "html",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC11104284/",
+      "target_path": "raw/guidelines/atrial_fibrillation/2023 ACC AHA ACCP HRS Atrial Fibrillation Guideline.html",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "esc_2024_af_guideline",
+      "title": "2024 ESC Guidelines for the Management of Atrial Fibrillation",
+      "source_type": "guideline_pdf",
+      "download_strategy": "direct_url",
+      "publisher": "European Society of Cardiology",
+      "topic": "atrial_fibrillation",
+      "url": "https://www.swiss-ablation.com/downloadbereich/dateien/2024ESC-compressed.pdf",
+      "target_path": "raw/guidelines/atrial_fibrillation/2024 ESC Atrial Fibrillation Guidelines.pdf",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
       "source_id": "dapagliflozin_dailymed_label",
       "title": "Dapagliflozin DailyMed SPL",
       "source_type": "drug_label_xml",
@@ -101,8 +185,13 @@
       "topic": "drug_label",
       "slug": "dapagliflozin",
       "query": "DAPAGLIFLOZIN",
-      "required_terms": ["DAPAGLIFLOZIN", "TABLET"],
-      "excluded_terms": [" AND "],
+      "required_terms": [
+        "DAPAGLIFLOZIN",
+        "TABLET"
+      ],
+      "excluded_terms": [
+        " AND "
+      ],
       "target_path": "raw/drug_labels/dapagliflozin/dapagliflozin_label.xml",
       "companion_pdf_target_path": "raw/drug_labels/dapagliflozin/dapagliflozin_label.pdf",
       "license_note": "DailyMed public drug label data."
@@ -116,8 +205,13 @@
       "topic": "drug_label",
       "slug": "empagliflozin",
       "query": "EMPAGLIFLOZIN",
-      "required_terms": ["EMPAGLIFLOZIN", "TABLET"],
-      "excluded_terms": [" AND "],
+      "required_terms": [
+        "EMPAGLIFLOZIN",
+        "TABLET"
+      ],
+      "excluded_terms": [
+        " AND "
+      ],
       "target_path": "raw/drug_labels/empagliflozin/empagliflozin_label.xml",
       "companion_pdf_target_path": "raw/drug_labels/empagliflozin/empagliflozin_label.pdf",
       "license_note": "DailyMed public drug label data."
@@ -131,8 +225,14 @@
       "topic": "drug_label",
       "slug": "spironolactone",
       "query": "SPIRONOLACTONE",
-      "required_terms": ["SPIRONOLACTONE", "TABLET"],
-      "excluded_terms": [" AND ", "HYDROCHLOROTHIAZIDE"],
+      "required_terms": [
+        "SPIRONOLACTONE",
+        "TABLET"
+      ],
+      "excluded_terms": [
+        " AND ",
+        "HYDROCHLOROTHIAZIDE"
+      ],
       "target_path": "raw/drug_labels/spironolactone/spironolactone_label.xml",
       "companion_pdf_target_path": "raw/drug_labels/spironolactone/spironolactone_label.pdf",
       "license_note": "DailyMed public drug label data."
@@ -146,8 +246,13 @@
       "topic": "drug_label",
       "slug": "eplerenone",
       "query": "EPLERENONE",
-      "required_terms": ["EPLERENONE", "TABLET"],
-      "excluded_terms": [" AND "],
+      "required_terms": [
+        "EPLERENONE",
+        "TABLET"
+      ],
+      "excluded_terms": [
+        " AND "
+      ],
       "target_path": "raw/drug_labels/eplerenone/eplerenone_label.xml",
       "companion_pdf_target_path": "raw/drug_labels/eplerenone/eplerenone_label.pdf",
       "license_note": "DailyMed public drug label data."
@@ -161,7 +266,11 @@
       "topic": "drug_label",
       "slug": "sacubitril_and_valsartan",
       "query": "SACUBITRIL AND VALSARTAN",
-      "required_terms": ["SACUBITRIL", "VALSARTAN", "TABLET"],
+      "required_terms": [
+        "SACUBITRIL",
+        "VALSARTAN",
+        "TABLET"
+      ],
       "excluded_terms": [],
       "target_path": "raw/drug_labels/sacubitril_and_valsartan/sacubitril_and_valsartan_label.xml",
       "companion_pdf_target_path": "raw/drug_labels/sacubitril_and_valsartan/sacubitril_and_valsartan_label.pdf",
@@ -176,8 +285,14 @@
       "topic": "drug_label",
       "slug": "enalapril_maleate",
       "query": "ENALAPRIL MALEATE",
-      "required_terms": ["ENALAPRIL", "MALEATE", "TABLET"],
-      "excluded_terms": [" AND "],
+      "required_terms": [
+        "ENALAPRIL",
+        "MALEATE",
+        "TABLET"
+      ],
+      "excluded_terms": [
+        " AND "
+      ],
       "target_path": "raw/drug_labels/enalapril_maleate/enalapril_maleate_label.xml",
       "companion_pdf_target_path": "raw/drug_labels/enalapril_maleate/enalapril_maleate_label.pdf",
       "license_note": "DailyMed public drug label data."
@@ -191,8 +306,16 @@
       "topic": "drug_label",
       "slug": "valsartan",
       "query": "VALSARTAN",
-      "required_terms": ["VALSARTAN", "TABLET"],
-      "excluded_terms": [" AND ", "SACUBITRIL", "AMLODIPINE", "HYDROCHLOROTHIAZIDE"],
+      "required_terms": [
+        "VALSARTAN",
+        "TABLET"
+      ],
+      "excluded_terms": [
+        " AND ",
+        "SACUBITRIL",
+        "AMLODIPINE",
+        "HYDROCHLOROTHIAZIDE"
+      ],
       "target_path": "raw/drug_labels/valsartan/valsartan_label.xml",
       "companion_pdf_target_path": "raw/drug_labels/valsartan/valsartan_label.pdf",
       "license_note": "DailyMed public drug label data."
@@ -206,8 +329,13 @@
       "topic": "drug_label",
       "slug": "carvedilol",
       "query": "CARVEDILOL",
-      "required_terms": ["CARVEDILOL", "TABLET"],
-      "excluded_terms": [" AND "],
+      "required_terms": [
+        "CARVEDILOL",
+        "TABLET"
+      ],
+      "excluded_terms": [
+        " AND "
+      ],
       "target_path": "raw/drug_labels/carvedilol/carvedilol_label.xml",
       "companion_pdf_target_path": "raw/drug_labels/carvedilol/carvedilol_label.pdf",
       "license_note": "DailyMed public drug label data."
@@ -221,8 +349,15 @@
       "topic": "drug_label",
       "slug": "bisoprolol_fumarate",
       "query": "BISOPROLOL FUMARATE",
-      "required_terms": ["BISOPROLOL", "FUMARATE", "TABLET"],
-      "excluded_terms": [" AND ", "HYDROCHLOROTHIAZIDE"],
+      "required_terms": [
+        "BISOPROLOL",
+        "FUMARATE",
+        "TABLET"
+      ],
+      "excluded_terms": [
+        " AND ",
+        "HYDROCHLOROTHIAZIDE"
+      ],
       "target_path": "raw/drug_labels/bisoprolol_fumarate/bisoprolol_fumarate_label.xml",
       "companion_pdf_target_path": "raw/drug_labels/bisoprolol_fumarate/bisoprolol_fumarate_label.pdf",
       "license_note": "DailyMed public drug label data."
@@ -236,8 +371,15 @@
       "topic": "drug_label",
       "slug": "metoprolol_succinate",
       "query": "METOPROLOL SUCCINATE",
-      "required_terms": ["METOPROLOL", "SUCCINATE", "EXTENDED", "RELEASE"],
-      "excluded_terms": [" AND "],
+      "required_terms": [
+        "METOPROLOL",
+        "SUCCINATE",
+        "EXTENDED",
+        "RELEASE"
+      ],
+      "excluded_terms": [
+        " AND "
+      ],
       "target_path": "raw/drug_labels/metoprolol_succinate/metoprolol_succinate_label.xml",
       "companion_pdf_target_path": "raw/drug_labels/metoprolol_succinate/metoprolol_succinate_label.pdf",
       "license_note": "DailyMed public drug label data."
@@ -251,8 +393,15 @@
       "topic": "drug_label",
       "slug": "furosemide",
       "query": "FUROSEMIDE",
-      "required_terms": ["FUROSEMIDE", "TABLET"],
-      "excluded_terms": [" AND ", "ANIMAL", "ZYVET"],
+      "required_terms": [
+        "FUROSEMIDE",
+        "TABLET"
+      ],
+      "excluded_terms": [
+        " AND ",
+        "ANIMAL",
+        "ZYVET"
+      ],
       "target_path": "raw/drug_labels/furosemide/furosemide_label.xml",
       "companion_pdf_target_path": "raw/drug_labels/furosemide/furosemide_label.pdf",
       "license_note": "DailyMed public drug label data."
@@ -266,8 +415,13 @@
       "topic": "drug_label",
       "slug": "ivabradine",
       "query": "IVABRADINE",
-      "required_terms": ["IVABRADINE", "TABLET"],
-      "excluded_terms": [" AND "],
+      "required_terms": [
+        "IVABRADINE",
+        "TABLET"
+      ],
+      "excluded_terms": [
+        " AND "
+      ],
       "target_path": "raw/drug_labels/ivabradine/ivabradine_label.xml",
       "companion_pdf_target_path": "raw/drug_labels/ivabradine/ivabradine_label.pdf",
       "license_note": "DailyMed public drug label data."
@@ -281,8 +435,13 @@
       "topic": "drug_label",
       "slug": "digoxin",
       "query": "DIGOXIN",
-      "required_terms": ["DIGOXIN", "TABLET"],
-      "excluded_terms": [" AND "],
+      "required_terms": [
+        "DIGOXIN",
+        "TABLET"
+      ],
+      "excluded_terms": [
+        " AND "
+      ],
       "target_path": "raw/drug_labels/digoxin/digoxin_label.xml",
       "companion_pdf_target_path": "raw/drug_labels/digoxin/digoxin_label.pdf",
       "license_note": "DailyMed public drug label data."
@@ -296,8 +455,13 @@
       "topic": "drug_label",
       "slug": "apixaban",
       "query": "APIXABAN",
-      "required_terms": ["APIXABAN", "TABLET"],
-      "excluded_terms": [" AND "],
+      "required_terms": [
+        "APIXABAN",
+        "TABLET"
+      ],
+      "excluded_terms": [
+        " AND "
+      ],
       "target_path": "raw/drug_labels/apixaban/apixaban_label.xml",
       "companion_pdf_target_path": "raw/drug_labels/apixaban/apixaban_label.pdf",
       "license_note": "DailyMed public drug label data."
@@ -311,8 +475,14 @@
       "topic": "drug_label",
       "slug": "warfarin_sodium",
       "query": "WARFARIN SODIUM",
-      "required_terms": ["WARFARIN", "SODIUM", "TABLET"],
-      "excluded_terms": [" AND "],
+      "required_terms": [
+        "WARFARIN",
+        "SODIUM",
+        "TABLET"
+      ],
+      "excluded_terms": [
+        " AND "
+      ],
       "target_path": "raw/drug_labels/warfarin_sodium/warfarin_sodium_label.xml",
       "companion_pdf_target_path": "raw/drug_labels/warfarin_sodium/warfarin_sodium_label.pdf",
       "license_note": "DailyMed public drug label data."
@@ -326,8 +496,13 @@
       "topic": "drug_label",
       "slug": "torsemide",
       "query": "TORSEMIDE",
-      "required_terms": ["TORSEMIDE", "TABLET"],
-      "excluded_terms": [" AND "],
+      "required_terms": [
+        "TORSEMIDE",
+        "TABLET"
+      ],
+      "excluded_terms": [
+        " AND "
+      ],
       "target_path": "raw/drug_labels/torsemide/torsemide_label.xml",
       "companion_pdf_target_path": "raw/drug_labels/torsemide/torsemide_label.pdf",
       "license_note": "DailyMed public drug label data."
@@ -341,8 +516,13 @@
       "topic": "drug_label",
       "slug": "bumetanide",
       "query": "BUMETANIDE",
-      "required_terms": ["BUMETANIDE", "TABLET"],
-      "excluded_terms": [" AND "],
+      "required_terms": [
+        "BUMETANIDE",
+        "TABLET"
+      ],
+      "excluded_terms": [
+        " AND "
+      ],
       "target_path": "raw/drug_labels/bumetanide/bumetanide_label.xml",
       "companion_pdf_target_path": "raw/drug_labels/bumetanide/bumetanide_label.pdf",
       "license_note": "DailyMed public drug label data."
@@ -356,8 +536,15 @@
       "topic": "drug_label",
       "slug": "hydralazine_hydrochloride",
       "query": "HYDRALAZINE HYDROCHLORIDE",
-      "required_terms": ["HYDRALAZINE", "HYDROCHLORIDE", "TABLET"],
-      "excluded_terms": [" AND ", "ISOSORBIDE"],
+      "required_terms": [
+        "HYDRALAZINE",
+        "HYDROCHLORIDE",
+        "TABLET"
+      ],
+      "excluded_terms": [
+        " AND ",
+        "ISOSORBIDE"
+      ],
       "target_path": "raw/drug_labels/hydralazine_hydrochloride/hydralazine_hydrochloride_label.xml",
       "companion_pdf_target_path": "raw/drug_labels/hydralazine_hydrochloride/hydralazine_hydrochloride_label.pdf",
       "license_note": "DailyMed public drug label data."
@@ -371,8 +558,15 @@
       "topic": "drug_label",
       "slug": "isosorbide_dinitrate",
       "query": "ISOSORBIDE DINITRATE",
-      "required_terms": ["ISOSORBIDE", "DINITRATE", "TABLET"],
-      "excluded_terms": [" AND ", "HYDRALAZINE"],
+      "required_terms": [
+        "ISOSORBIDE",
+        "DINITRATE",
+        "TABLET"
+      ],
+      "excluded_terms": [
+        " AND ",
+        "HYDRALAZINE"
+      ],
       "target_path": "raw/drug_labels/isosorbide_dinitrate/isosorbide_dinitrate_label.xml",
       "companion_pdf_target_path": "raw/drug_labels/isosorbide_dinitrate/isosorbide_dinitrate_label.pdf",
       "license_note": "DailyMed public drug label data."
@@ -386,8 +580,16 @@
       "topic": "drug_label",
       "slug": "losartan_potassium",
       "query": "LOSARTAN POTASSIUM",
-      "required_terms": ["LOSARTAN", "POTASSIUM", "TABLET"],
-      "excluded_terms": [" AND ", "HYDROCHLOROTHIAZIDE", "AMLODIPINE"],
+      "required_terms": [
+        "LOSARTAN",
+        "POTASSIUM",
+        "TABLET"
+      ],
+      "excluded_terms": [
+        " AND ",
+        "HYDROCHLOROTHIAZIDE",
+        "AMLODIPINE"
+      ],
       "target_path": "raw/drug_labels/losartan_potassium/losartan_potassium_label.xml",
       "companion_pdf_target_path": "raw/drug_labels/losartan_potassium/losartan_potassium_label.pdf",
       "license_note": "DailyMed public drug label data."
@@ -401,8 +603,15 @@
       "topic": "drug_label",
       "slug": "candesartan_cilexetil",
       "query": "CANDESARTAN CILEXETIL",
-      "required_terms": ["CANDESARTAN", "CILEXETIL", "TABLET"],
-      "excluded_terms": [" AND ", "HYDROCHLOROTHIAZIDE"],
+      "required_terms": [
+        "CANDESARTAN",
+        "CILEXETIL",
+        "TABLET"
+      ],
+      "excluded_terms": [
+        " AND ",
+        "HYDROCHLOROTHIAZIDE"
+      ],
       "target_path": "raw/drug_labels/candesartan_cilexetil/candesartan_cilexetil_label.xml",
       "companion_pdf_target_path": "raw/drug_labels/candesartan_cilexetil/candesartan_cilexetil_label.pdf",
       "license_note": "DailyMed public drug label data."
@@ -416,8 +625,13 @@
       "topic": "drug_label",
       "slug": "finerenone",
       "query": "FINERENONE",
-      "required_terms": ["FINERENONE", "TABLET"],
-      "excluded_terms": [" AND "],
+      "required_terms": [
+        "FINERENONE",
+        "TABLET"
+      ],
+      "excluded_terms": [
+        " AND "
+      ],
       "target_path": "raw/drug_labels/finerenone/finerenone_label.xml",
       "companion_pdf_target_path": "raw/drug_labels/finerenone/finerenone_label.pdf",
       "license_note": "DailyMed public drug label data."
@@ -431,8 +645,13 @@
       "topic": "drug_label",
       "slug": "patiromer",
       "query": "PATIROMER",
-      "required_terms": ["PATIROMER", "POWDER"],
-      "excluded_terms": [" AND "],
+      "required_terms": [
+        "PATIROMER",
+        "POWDER"
+      ],
+      "excluded_terms": [
+        " AND "
+      ],
       "target_path": "raw/drug_labels/patiromer/patiromer_label.xml",
       "companion_pdf_target_path": "raw/drug_labels/patiromer/patiromer_label.pdf",
       "license_note": "DailyMed public drug label data."
@@ -446,11 +665,241 @@
       "topic": "drug_label",
       "slug": "sodium_zirconium_cyclosilicate",
       "query": "SODIUM ZIRCONIUM CYCLOSILICATE",
-      "required_terms": ["SODIUM", "ZIRCONIUM", "CYCLOSILICATE", "POWDER"],
-      "excluded_terms": [" AND "],
+      "required_terms": [
+        "SODIUM",
+        "ZIRCONIUM",
+        "CYCLOSILICATE",
+        "POWDER"
+      ],
+      "excluded_terms": [
+        " AND "
+      ],
       "target_path": "raw/drug_labels/sodium_zirconium_cyclosilicate/sodium_zirconium_cyclosilicate_label.xml",
       "companion_pdf_target_path": "raw/drug_labels/sodium_zirconium_cyclosilicate/sodium_zirconium_cyclosilicate_label.pdf",
       "license_note": "DailyMed public drug label data."
+    },
+    {
+      "source_id": "ada_2024_population_health",
+      "title": "ADA Standards of Care in Diabetes 2024: Improving Care and Promoting Health in Populations",
+      "source_type": "guideline_html",
+      "download_strategy": "direct_url",
+      "publisher": "American Diabetes Association",
+      "topic": "diabetes",
+      "artifact_kind": "html",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10725798/",
+      "target_path": "raw/guidelines/diabetes/ada_2024_population_health.html",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "ada_2024_diagnosis_classification",
+      "title": "ADA Standards of Care in Diabetes 2024: Diagnosis and Classification of Diabetes",
+      "source_type": "guideline_html",
+      "download_strategy": "direct_url",
+      "publisher": "American Diabetes Association",
+      "topic": "diabetes",
+      "artifact_kind": "html",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10725812/",
+      "target_path": "raw/guidelines/diabetes/ada_2024_diagnosis_classification.html",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "ada_2024_prevention_delay",
+      "title": "ADA Standards of Care in Diabetes 2024: Prevention or Delay of Diabetes and Associated Comorbidities",
+      "source_type": "guideline_html",
+      "download_strategy": "direct_url",
+      "publisher": "American Diabetes Association",
+      "topic": "diabetes",
+      "artifact_kind": "html",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10725807/",
+      "target_path": "raw/guidelines/diabetes/ada_2024_prevention_delay.html",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "ada_2024_health_behaviors",
+      "title": "ADA Standards of Care in Diabetes 2024: Facilitating Positive Health Behaviors and Well-being",
+      "source_type": "guideline_html",
+      "download_strategy": "direct_url",
+      "publisher": "American Diabetes Association",
+      "topic": "diabetes",
+      "artifact_kind": "html",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10725816/",
+      "target_path": "raw/guidelines/diabetes/ada_2024_health_behaviors.html",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "ada_2024_diabetes_technology",
+      "title": "ADA Standards of Care in Diabetes 2024: Diabetes Technology",
+      "source_type": "guideline_html",
+      "download_strategy": "direct_url",
+      "publisher": "American Diabetes Association",
+      "topic": "diabetes",
+      "artifact_kind": "html",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10725813/",
+      "target_path": "raw/guidelines/diabetes/ada_2024_diabetes_technology.html",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "ada_2024_retinopathy_neuropathy",
+      "title": "ADA Standards of Care in Diabetes 2024: Retinopathy, Neuropathy, and Foot Care",
+      "source_type": "guideline_html",
+      "download_strategy": "direct_url",
+      "publisher": "American Diabetes Association",
+      "topic": "diabetes",
+      "artifact_kind": "html",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10725803/",
+      "target_path": "raw/guidelines/diabetes/ada_2024_retinopathy_neuropathy.html",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "ada_2024_pregnancy",
+      "title": "ADA Standards of Care in Diabetes 2024: Management of Diabetes in Pregnancy",
+      "source_type": "guideline_html",
+      "download_strategy": "direct_url",
+      "publisher": "American Diabetes Association",
+      "topic": "diabetes",
+      "artifact_kind": "html",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10725801/",
+      "target_path": "raw/guidelines/diabetes/ada_2024_pregnancy.html",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "ada_2024_hospital_care",
+      "title": "ADA Standards of Care in Diabetes 2024: Diabetes Care in the Hospital",
+      "source_type": "guideline_html",
+      "download_strategy": "direct_url",
+      "publisher": "American Diabetes Association",
+      "topic": "diabetes",
+      "artifact_kind": "html",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10725815/",
+      "target_path": "raw/guidelines/diabetes/ada_2024_hospital_care.html",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "ada_2024_children_adolescents",
+      "title": "ADA Standards of Care in Diabetes 2024: Children and Adolescents",
+      "source_type": "guideline_html",
+      "download_strategy": "direct_url",
+      "publisher": "American Diabetes Association",
+      "topic": "diabetes",
+      "artifact_kind": "html",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10725814/",
+      "target_path": "raw/guidelines/diabetes/ada_2024_children_adolescents.html",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "ada_2024_diabetes_advocacy",
+      "title": "ADA Standards of Care in Diabetes 2024: Diabetes Advocacy",
+      "source_type": "guideline_html",
+      "download_strategy": "direct_url",
+      "publisher": "American Diabetes Association",
+      "topic": "diabetes",
+      "artifact_kind": "html",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10725796/",
+      "target_path": "raw/guidelines/diabetes/ada_2024_diabetes_advocacy.html",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "acc_aha_2018_cholesterol_guideline",
+      "title": "2018 AHA/ACC Guideline on the Management of Blood Cholesterol",
+      "source_type": "guideline_html",
+      "download_strategy": "direct_url",
+      "publisher": "ACC/AHA",
+      "topic": "dyslipidemia",
+      "artifact_kind": "html",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7403606/",
+      "target_path": "raw/guidelines/dyslipidemia/2018 ACC AHA Cholesterol Guideline.html",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "acc_aha_2019_primary_prevention_guideline",
+      "title": "2019 ACC/AHA Guideline on the Primary Prevention of Cardiovascular Disease",
+      "source_type": "guideline_html",
+      "download_strategy": "direct_url",
+      "publisher": "ACC/AHA",
+      "topic": "ascvd_prevention",
+      "artifact_kind": "html",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7685565/",
+      "target_path": "raw/guidelines/ascvd_prevention/2019 ACC AHA Primary Prevention Guideline.html",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "acc_aha_2020_valvular_heart_disease_guideline",
+      "title": "2020 ACC/AHA Guideline for the Management of Patients With Valvular Heart Disease",
+      "source_type": "guideline_pdf",
+      "download_strategy": "direct_url",
+      "publisher": "ACC/AHA",
+      "topic": "valvular_heart_disease",
+      "url": "https://sochicar.cl/wp-content/uploads/2022/12/j.jacc_.2020.11.018.pdf",
+      "target_path": "raw/guidelines/valvular_heart_disease/2020 ACC AHA Valvular Heart Disease Guideline.pdf",
+      "license_note": "Official publisher material hosted on a public mirror. Verify terms before redistribution."
+    },
+    {
+      "source_id": "acc_aha_2020_hcm_guideline",
+      "title": "2020 AHA/ACC Guideline for the Diagnosis and Treatment of Patients With Hypertrophic Cardiomyopathy",
+      "source_type": "guideline_pdf",
+      "download_strategy": "direct_url",
+      "publisher": "ACC/AHA",
+      "topic": "cardiomyopathy",
+      "url": "https://sochicar.cl/wp-content/uploads/2022/12/j.jacc_.2020.08.045.pdf",
+      "target_path": "raw/guidelines/cardiomyopathy/2020 ACC AHA Hypertrophic Cardiomyopathy Guideline.pdf",
+      "license_note": "Official publisher material hosted on a public mirror. Verify terms before redistribution."
+    },
+    {
+      "source_id": "esc_2021_cvd_prevention_guideline",
+      "title": "2021 ESC Guidelines on Cardiovascular Disease Prevention in Clinical Practice",
+      "source_type": "guideline_pdf",
+      "download_strategy": "direct_url",
+      "publisher": "European Society of Cardiology",
+      "topic": "ascvd_prevention",
+      "url": "https://eas-society.org/wp-content/uploads/2022/05/2021-Prevention-Guidelines.pdf",
+      "target_path": "raw/guidelines/ascvd_prevention/2021 ESC CVD Prevention Guidelines.pdf",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "esc_2022_pulmonary_hypertension_guideline",
+      "title": "2022 ESC/ERS Guidelines for the Diagnosis and Treatment of Pulmonary Hypertension",
+      "source_type": "guideline_pdf",
+      "download_strategy": "direct_url",
+      "publisher": "ESC/ERS",
+      "topic": "pulmonary_hypertension",
+      "url": "https://pure.rug.nl/ws/files/258895003/ehac237.pdf",
+      "target_path": "raw/guidelines/pulmonary_hypertension/2022 ESC ERS Pulmonary Hypertension Guidelines.pdf",
+      "license_note": "Official publisher material hosted on an institutional repository. Verify terms before redistribution."
+    },
+    {
+      "source_id": "gold_2024_copd_guideline",
+      "title": "GOLD 2024 Global Strategy for Prevention, Diagnosis and Management of COPD",
+      "source_type": "guideline_pdf",
+      "download_strategy": "direct_url",
+      "publisher": "GOLD",
+      "topic": "copd",
+      "url": "https://goldcopd.org/wp-content/uploads/2024/02/GOLD-2024_v1.2-11Jan24_WMV.pdf",
+      "target_path": "raw/guidelines/copd/GOLD 2024 COPD Report.pdf",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "aasm_2017_osa_diagnostic_guideline",
+      "title": "AASM Clinical Practice Guideline for Diagnostic Testing for Adult Obstructive Sleep Apnea",
+      "source_type": "guideline_html",
+      "download_strategy": "direct_url",
+      "publisher": "American Academy of Sleep Medicine",
+      "topic": "sleep_apnea",
+      "artifact_kind": "html",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5337595/",
+      "target_path": "raw/guidelines/sleep_apnea/AASM 2017 OSA Diagnostic Guideline.html",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "acc_aha_2024_pad_guideline",
+      "title": "2024 ACC/AHA Guideline for the Management of Lower Extremity Peripheral Artery Disease",
+      "source_type": "guideline_html",
+      "download_strategy": "direct_url",
+      "publisher": "ACC/AHA",
+      "topic": "peripheral_artery_disease",
+      "artifact_kind": "html",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12782132/",
+      "target_path": "raw/guidelines/peripheral_artery_disease/2024 ACC AHA PAD Guideline.html",
+      "license_note": "Official publisher material. Verify terms before redistribution."
     }
   ]
 }

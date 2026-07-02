@@ -54,9 +54,21 @@ def test_seed_default_users_skips_when_users_exist(monkeypatch) -> None:
     assert result["seeded"] == 0
 
 
+def test_seed_default_users_skips_file_in_production_without_env(monkeypatch) -> None:
+    monkeypatch.setattr(users_module, "count_users", lambda: 0)
+    monkeypatch.setattr(settings, "auth_seed_users_json", "")
+    monkeypatch.setattr(settings, "environment", "production")
+
+    result = users_module.seed_default_users()
+
+    assert result["status"] == "skipped"
+    assert result["reason"] == "production_requires_explicit_seed_env"
+
+
 def test_seed_default_users_uses_file_when_env_empty(monkeypatch) -> None:
     monkeypatch.setattr(users_module, "count_users", lambda: 0)
     monkeypatch.setattr(settings, "auth_seed_users_json", "")
+    monkeypatch.setattr(settings, "environment", "development")
 
     calls: list[str] = []
 

@@ -1,38 +1,27 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000";
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 const API_PREFIX = "/api/v1";
-const API_KEY = import.meta.env.VITE_API_KEY ?? "";
-const API_KEY_HEADER = import.meta.env.VITE_API_KEY_HEADER ?? "x-api-key";
-const AUTH_TOKEN_KEY = "hf_cdss_auth_token";
 
-export function getAuthToken() {
-  return localStorage.getItem(AUTH_TOKEN_KEY);
-}
-
-export function setAuthToken(token) {
-  if (token) {
-    localStorage.setItem(AUTH_TOKEN_KEY, token);
-  } else {
-    localStorage.removeItem(AUTH_TOKEN_KEY);
-  }
+function withCredentials(options = {}) {
+  return { credentials: "include", ...options };
 }
 
 export function apiUrl(path) {
   const normalized = path.startsWith("/") ? path : `/${path}`;
   if (normalized.startsWith("/api/auth")) {
-    return `${API_BASE_URL}${normalized}`;
+    return API_BASE_URL ? `${API_BASE_URL}${normalized}` : normalized;
   }
   if (normalized.startsWith("/api/v1")) {
-    return `${API_BASE_URL}${normalized}`;
+    return API_BASE_URL ? `${API_BASE_URL}${normalized}` : normalized;
   }
-  return `${API_BASE_URL}${API_PREFIX}${normalized}`;
+  if (normalized === "/routes" || normalized.startsWith("/routes?")) {
+    return API_BASE_URL ? `${API_BASE_URL}${normalized}` : normalized;
+  }
+  const prefixed = `${API_PREFIX}${normalized}`;
+  return API_BASE_URL ? `${API_BASE_URL}${prefixed}` : prefixed;
 }
 
 export function apiHeaders(extra = {}) {
-  const headers = { ...extra };
-  if (API_KEY) headers[API_KEY_HEADER] = API_KEY;
-  const token = getAuthToken();
-  if (token) headers.Authorization = `Bearer ${token}`;
-  return headers;
+  return { ...extra };
 }
 
 async function parseResponse(response) {
@@ -57,37 +46,48 @@ async function parseResponse(response) {
 }
 
 export async function apiGet(path, options = {}) {
-  const headers = apiHeaders();
-  const response = await fetch(apiUrl(path), { method: "GET", headers });
+  const { signal, ...rest } = options;
+  const response = await fetch(apiUrl(path), {
+    method: "GET",
+    headers: apiHeaders(),
+    signal,
+    ...withCredentials(rest),
+  });
   return parseResponse(response);
 }
 
 export async function apiPost(path, body, options = {}) {
-  const headers = apiHeaders({ "Content-Type": "application/json" });
+  const { signal, ...rest } = options;
   const response = await fetch(apiUrl(path), {
     method: "POST",
-    headers,
+    headers: apiHeaders({ "Content-Type": "application/json" }),
     body: body === undefined ? undefined : JSON.stringify(body),
+    signal,
+    ...withCredentials(rest),
   });
   return parseResponse(response);
 }
 
-export async function apiPatch(path, body) {
-  const headers = apiHeaders({ "Content-Type": "application/json" });
+export async function apiPatch(path, body, options = {}) {
+  const { signal, ...rest } = options;
   const response = await fetch(apiUrl(path), {
     method: "PATCH",
-    headers,
+    headers: apiHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(body),
+    signal,
+    ...withCredentials(rest),
   });
   return parseResponse(response);
 }
 
-export async function apiPostForm(path, formData) {
-  const headers = apiHeaders();
+export async function apiPostForm(path, formData, options = {}) {
+  const { signal, ...rest } = options;
   const response = await fetch(apiUrl(path), {
     method: "POST",
-    headers,
+    headers: apiHeaders(),
     body: formData,
+    signal,
+    ...withCredentials(rest),
   });
   return parseResponse(response);
 }
@@ -96,9 +96,7 @@ export async function login(username, password) {
   const form = new URLSearchParams();
   form.set("username", username);
   form.set("password", password);
-  const data = await apiPostForm("/auth/login", form);
-  setAuthToken(data.access_token);
-  return data;
+  return apiPostForm("/auth/login", form);
 }
 
 export async function fetchCurrentUser() {
@@ -106,11 +104,7 @@ export async function fetchCurrentUser() {
 }
 
 export async function logout() {
-  try {
-    await apiPost("/auth/logout");
-  } finally {
-    setAuthToken(null);
-  }
+  await apiPost("/auth/logout");
 }
 
-export { API_BASE_URL, API_PREFIX, API_KEY, API_KEY_HEADER };
+export { API_BASE_URL, API_PREFIX };

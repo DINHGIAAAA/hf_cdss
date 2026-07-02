@@ -4,6 +4,8 @@ import { ChevronRight, LoaderCircle, RefreshCw } from "lucide-react";
 import { adminApi } from "../api/index.js";
 import { useAuth } from "../auth/AuthContext";
 import { RuleDetail } from "../components/RuleDetail.jsx";
+import { RuleVisibilityBadge } from "../components/RuleVisibilityBadge.jsx";
+import { ruleVisibilityMeta, tabVisibilityBanner } from "../utils/ruleVisibility.js";
 
 const STATUS_TABS = [
   { id: "all", label: "All" },
@@ -32,6 +34,7 @@ export function RulesPage() {
   const canApprove = isAuthenticated && hasRole("clinical_lead");
   const canAdmin = isAuthenticated && hasRole("admin");
   const canRead = isAuthenticated && (canApprove || canAdmin);
+  const tabBanner = tabVisibilityBanner(tab);
 
   const loadRules = useCallback(async () => {
     setLoading(true);
@@ -107,14 +110,17 @@ export function RulesPage() {
         <div className="stat-card">
           <span>Draft</span>
           <strong>{data?.draft_count ?? "—"}</strong>
+          <small className="stat-hint">Admin only</small>
         </div>
         <div className="stat-card">
           <span>Approved</span>
           <strong>{data?.approved_count ?? "—"}</strong>
+          <small className="stat-hint">Live in chat</small>
         </div>
         <div className="stat-card">
           <span>Retired</span>
           <strong>{data?.retired_count ?? "—"}</strong>
+          <small className="stat-hint">Not in chat</small>
         </div>
       </div>
 
@@ -131,6 +137,11 @@ export function RulesPage() {
             {item.label}
           </button>
         ))}
+      </div>
+
+      <div className={`admin-banner rule-visibility-banner ${tabBanner.tone}`} role="status">
+        <strong>{tabBanner.title}</strong>
+        <span>{tabBanner.message}</span>
       </div>
 
       {toast && <p className="admin-toast" role="status">{toast}</p>}
@@ -154,6 +165,7 @@ export function RulesPage() {
                 <col className="col-constraint" />
                 <col className="col-action" />
                 <col className="col-status" />
+                <col className="col-visibility" />
                 <col className="col-target" />
                 <col className="col-actions" />
               </colgroup>
@@ -162,31 +174,38 @@ export function RulesPage() {
                   <th>Constraint</th>
                   <th>Action</th>
                   <th>Status</th>
+                  <th>Visibility</th>
                   <th>Drug class</th>
                   <th />
                 </tr>
               </thead>
               <tbody>
-                {items.map((rule) => (
-                  <tr className={selectedId === rule.id ? "selected" : ""} key={rule.id}>
-                    <td className="cell-ellipsis" title={rule.constraint_id}>
-                      <strong>{rule.constraint_id}</strong>
-                      <small>v{rule.version}</small>
-                    </td>
-                    <td className="cell-ellipsis" title={rule.action}>{rule.action}</td>
-                    <td>
-                      <span className={`badge ${statusClass(rule.status)}`}>{rule.status}</span>
-                    </td>
-                    <td className="cell-ellipsis" title={rule.target_drug_class || undefined}>
-                      {rule.target_drug_class || "—"}
-                    </td>
-                    <td>
-                      <button className="link-btn" onClick={() => openRule(rule.id)} type="button">
-                        Review <ChevronRight size={14} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {items.map((rule) => {
+                  const visibility = ruleVisibilityMeta(rule.status);
+                  return (
+                    <tr className={selectedId === rule.id ? "selected" : ""} key={rule.id}>
+                      <td className="cell-ellipsis" title={rule.constraint_id}>
+                        <strong>{rule.constraint_id}</strong>
+                        <small>v{rule.version}</small>
+                      </td>
+                      <td className="cell-ellipsis" title={rule.action}>{rule.action}</td>
+                      <td>
+                        <span className={`badge ${statusClass(rule.status)}`}>{rule.status}</span>
+                      </td>
+                      <td>
+                        <RuleVisibilityBadge status={rule.status} title={visibility.hint} />
+                      </td>
+                      <td className="cell-ellipsis" title={rule.target_drug_class || undefined}>
+                        {rule.target_drug_class || "—"}
+                      </td>
+                      <td>
+                        <button className="link-btn" onClick={() => openRule(rule.id)} type="button">
+                          Review <ChevronRight size={14} />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}

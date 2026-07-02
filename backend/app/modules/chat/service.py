@@ -15,6 +15,7 @@ from app.modules.datastores.postgres import (
     write_audit_event,
 )
 from app.modules.explanation.llm_service import build_llm_answer, stream_llm_answer
+from app.modules.evidence_linking.service import enrich_recommendation_evidence
 from app.modules.missing_fields.service import build_missing_fields_prompt, check_missing_fields
 from app.modules.reasoning.service import build_recommendation
 from app.modules.verification_agents.service import verify_recommendation
@@ -218,11 +219,12 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
 
     yield _sse("status", {"step": "building_recommendation"})
     recommendation = build_recommendation(RecommendationRequest(patient=merged))
-    tool_outputs.append({"tool": "recommendation", "result": recommendation.model_dump(mode="json")})
-    yield _sse("recommendation_ready", recommendation.model_dump(mode="json"))
 
     yield _sse("status", {"step": "verifying_evidence"})
     verification = await verify_recommendation(VerificationRequest(patient=merged, recommendation=recommendation))
+    recommendation = enrich_recommendation_evidence(recommendation, verification.citation_validation)
+    tool_outputs.append({"tool": "recommendation", "result": recommendation.model_dump(mode="json")})
+    yield _sse("recommendation_ready", recommendation.model_dump(mode="json"))
     tool_outputs.append({"tool": "verification", "result": verification.model_dump(mode="json")})
     yield _sse("verification_ready", verification.model_dump(mode="json"))
 
@@ -342,6 +344,7 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
 
     recommendation = build_recommendation(RecommendationRequest(patient=merged))
     verification = await verify_recommendation(VerificationRequest(patient=merged, recommendation=recommendation))
+    recommendation = enrich_recommendation_evidence(recommendation, verification.citation_validation)
     llm_answer = await build_llm_answer(
         LLMAnswerRequest(
             user_input=request.message,

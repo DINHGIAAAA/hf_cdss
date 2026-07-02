@@ -19,6 +19,7 @@ from app.api.routes.admin.deps import (
     AdminUser,
     get_current_admin_user,
     require_admin_reader,
+    require_catalog_reader,
     require_role,
 )
 from app.modules.datastores.postgres import (
@@ -31,7 +32,7 @@ from app.modules.datastores.postgres import (
     rule_with_constraint_id_exists,
     unretire_constraint_rule,
 )
-from app.modules.constraint_builder.service import invalidate_constraint_cache
+from app.modules.constraint_builder.service import invalidate_constraint_cache, load_constraint_rules
 
 
 router = APIRouter(prefix="/constraints", tags=["admin", "constraints"])
@@ -200,6 +201,14 @@ def list_constraint_rules(
         approved_count=approved_count,
         retired_count=retired_count,
     )
+
+
+@router.get("/active")
+def list_active_constraint_rules(
+    _current_user: AdminUser | None = Depends(require_catalog_reader),
+) -> list[dict[str, Any]]:
+    """Published constraint rules used by the CDSS runtime (admin or service API key)."""
+    return load_constraint_rules()
 
 
 @router.get("/by-cid/{constraint_id}", response_model=ConstraintRuleVersionListResponse)

@@ -52,6 +52,7 @@ class EvidenceSearchResponse(BaseModel):
     graph_facts: list[GraphFact] = Field(default_factory=list)
     evidence_chunks: list[EvidenceChunk] = Field(default_factory=list)
     retrieval_sources: list[str] = Field(default_factory=list)
+    source_set: str = "current"
 
 
 class AgentResult(BaseModel):

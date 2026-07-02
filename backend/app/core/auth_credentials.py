@@ -20,6 +20,15 @@ def bearer_token(request: Request) -> str | None:
     return token or None
 
 
+def access_token_from_request(request: Request, bearer: str | None = None) -> str | None:
+    cookie_token = request.cookies.get(settings.jwt_cookie_name)
+    if cookie_token:
+        return cookie_token
+    if bearer:
+        return bearer
+    return bearer_token(request)
+
+
 def has_valid_api_key(request: Request) -> bool:
     keys = api_keys()
     if not keys:
@@ -29,7 +38,7 @@ def has_valid_api_key(request: Request) -> bool:
 
 
 async def has_valid_bearer_jwt(request: Request) -> bool:
-    token = bearer_token(request)
+    token = access_token_from_request(request)
     if not token:
         return False
     try:

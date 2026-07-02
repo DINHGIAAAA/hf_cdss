@@ -162,6 +162,15 @@ def _warnings_for_class(warnings: list[MedicationSafetyWarning], drug_class: str
     return [warning for warning in warnings if warning.target in targets]
 
 
+def _evidence_refs_for_class(constraints: list[Constraint]) -> list[str]:
+    refs: list[str] = []
+    for constraint in constraints:
+        ref = constraint.evidence_ref
+        if ref and not ref.startswith(("week3_", "rule:")):
+            refs.append(ref)
+    return list(dict.fromkeys(refs))
+
+
 def _recommendation_for_class(
     profile: NormalizedPatientProfile,
     constraints: list[Constraint],
@@ -200,10 +209,7 @@ def _recommendation_for_class(
         clinical_reasoning=clinical_reasoning,
         action_items=action_items,
         monitoring=monitoring,
-        evidence=[
-            "week3_pipeline:patient_profile",
-            "week3_pipeline:constraint_rules_v1",
-        ],
+        evidence=_evidence_refs_for_class(relevant_constraints),
         warnings=[constraint.reason for constraint in relevant_constraints]
         + [warning.message for warning in relevant_warnings],
         constraint_ids=[constraint.constraint_id for constraint in relevant_constraints],

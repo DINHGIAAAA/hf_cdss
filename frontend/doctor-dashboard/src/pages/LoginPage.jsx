@@ -3,7 +3,7 @@ import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { LoaderCircle, LogIn, MessageSquareText, Shield } from "lucide-react";
 
 import { useAuth } from "../auth/AuthContext";
-import { resolvePostLoginPath, userFromAccessToken } from "../auth/roles";
+import { resolvePostLoginPath } from "../auth/roles";
 
 export function LoginPage() {
   const { isAuthenticated, user, login } = useAuth();
@@ -26,7 +26,7 @@ export function LoginPage() {
     setError("");
     try {
       const data = await login(username.trim(), password);
-      const nextUser = userFromAccessToken(data.access_token);
+      const nextUser = data.user || user;
       navigate(resolvePostLoginPath(nextUser, location.state?.from), { replace: true });
     } catch (err) {
       setError(err.message || "Login failed");

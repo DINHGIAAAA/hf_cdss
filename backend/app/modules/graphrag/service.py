@@ -23,6 +23,7 @@ from app.schemas.graphrag import (
     GraphRAGContextRequest,
     GraphRAGContextResponse,
 )
+from app.modules.drug_normalization.service import expand_drug_search_terms
 from app.schemas.patient import PatientProfile
 
 
@@ -61,13 +62,37 @@ def _read_jsonl(path: Path) -> list[dict[str, Any]]:
 
 @lru_cache(maxsize=1)
 def load_chunks() -> list[dict[str, Any]]:
+    return load_published_chunks()
+
+
+@lru_cache(maxsize=1)
+def load_published_chunks() -> list[dict[str, Any]]:
     sync_artifacts_from_processed_bucket(DATA_ROOT)
     return _read_jsonl(CHUNKS_PATH)
 
 
 @lru_cache(maxsize=1)
+def load_staging_chunks() -> list[dict[str, Any]]:
+    if not CHUNKS_PATH.exists():
+        return []
+    return _read_jsonl(CHUNKS_PATH)
+
+
+@lru_cache(maxsize=1)
 def load_relationships() -> list[dict[str, Any]]:
+    return load_published_relationships()
+
+
+@lru_cache(maxsize=1)
+def load_published_relationships() -> list[dict[str, Any]]:
     sync_artifacts_from_processed_bucket(DATA_ROOT)
+    return _read_jsonl(RELATIONSHIPS_PATH)
+
+
+@lru_cache(maxsize=1)
+def load_staging_relationships() -> list[dict[str, Any]]:
+    if not RELATIONSHIPS_PATH.exists():
+        return []
     return _read_jsonl(RELATIONSHIPS_PATH)
 
 
@@ -99,6 +124,7 @@ def query_terms_for_patient(patient: PatientProfile, query: str | None = None) -
     )
 
     for medication in patient.current_medications:
+        _add_terms(terms, expand_drug_search_terms(medication))
         med = medication.lower()
         for class_terms in DRUG_CLASS_TERMS.values():
             if any(term in med for term in class_terms):
@@ -133,9 +159,10 @@ def _score_text(text: str, terms: list[str]) -> float:
     return score
 
 
-def retrieve_evidence_chunks(terms: list[str], top_k: int) -> list[EvidenceChunk]:
+def retrieve_evidence_chunks(terms: list[str], top_k: int, *, published: bool = True) -> list[EvidenceChunk]:
+    chunk_rows = load_published_chunks() if published else load_staging_chunks()
     scored: list[tuple[float, dict[str, Any]]] = []
-    for chunk in load_chunks():
+    for chunk in chunk_rows:
         text = " ".join(
             [
                 chunk.get("document_id", ""),
@@ -253,9 +280,10 @@ def retrieve_dynamic_graph_facts(chunks: list[EvidenceChunk], top_k: int = 5) ->
     return dynamic_facts[:top_k]
 
 
-def retrieve_graph_facts(terms: list[str], top_k: int) -> list[GraphFact]:
+def retrieve_graph_facts(terms: list[str], top_k: int, *, published: bool = True) -> list[GraphFact]:
+    relationship_rows = load_published_relationships() if published else load_staging_relationships()
     scored: list[tuple[float, dict[str, Any]]] = []
-    for relationship in load_relationships():
+    for relationship in relationship_rows:
         metadata = relationship.get("metadata", {})
         text = " ".join(
             [
@@ -348,23 +376,25 @@ def build_graphrag_context(request: GraphRAGContextRequest) -> GraphRAGContextRe
     return response
 
 
-def search_evidence(query: str, top_k: int = 6) -> EvidenceSearchResponse:
+def search_evidence(query: str, top_k: int = 6, *, published: bool = True) -> EvidenceSearchResponse:
     started = time.perf_counter()
     terms = sorted(set(_tokenize(query)))
     top_k = max(1, min(top_k, 12))
-    graph_facts = retrieve_graph_facts(terms, top_k) if terms else []
-    evidence_chunks = retrieve_evidence_chunks(terms, top_k) if terms else []
+    source_set = "current" if published else "staging"
+    graph_facts = retrieve_graph_facts(terms, top_k, published=published) if terms else []
+    evidence_chunks = retrieve_evidence_chunks(terms, top_k, published=published) if terms else []
     retrieval_sources = []
     if graph_facts:
-        retrieval_sources.append("local_relationships")
+        retrieval_sources.append(f"{'published' if published else 'staging'}_relationships")
     if evidence_chunks:
-        retrieval_sources.append("local_chunks")
+        retrieval_sources.append(f"{'published' if published else 'staging'}_chunks")
     response = EvidenceSearchResponse(
         query=query,
         query_terms=terms,
         graph_facts=graph_facts,
         evidence_chunks=evidence_chunks,
         retrieval_sources=retrieval_sources,
+        source_set=source_set,
     )
     observe(
         "hf_cdss_retrieval_latency",

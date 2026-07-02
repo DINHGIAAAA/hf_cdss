@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { CheckCircle2, History, RotateCcw, ShieldOff, XCircle } from "lucide-react";
 
 import { adminApi } from "../api/index.js";
+import { RuleVisibilityBadge } from "./RuleVisibilityBadge.jsx";
+import { ruleVisibilityMeta } from "../utils/ruleVisibility.js";
 
 function statusClass(status) {
   if (status === "approved") return "success";
@@ -25,6 +27,7 @@ export function RuleDetail({ rule, onClose, onAction, actionLoading, canApprove,
 
   const showApprove = rule.status === "draft";
   const approveDisabled = showApprove && !canApprove;
+  const visibility = ruleVisibilityMeta(rule.status);
 
   return (
     <aside aria-label="Rule details" className="admin-detail-panel">
@@ -39,6 +42,11 @@ export function RuleDetail({ rule, onClose, onAction, actionLoading, canApprove,
           <XCircle size={18} />
         </button>
       </header>
+
+      <div className={`admin-banner rule-visibility-banner ${visibility.tone}`} role="status">
+        <RuleVisibilityBadge compact status={rule.status} />
+        <span>{visibility.hint}</span>
+      </div>
 
       <div className="admin-detail-body">
         <dl className="detail-grid">

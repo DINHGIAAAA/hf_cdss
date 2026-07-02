@@ -1,3 +1,4 @@
+from app.modules.drug_normalization.service import display_name_for_drug, resolve_pipeline_drug_id
 from app.schemas.clinical_pipeline import NormalizedPatientProfile
 from app.schemas.patient import PatientProfile
 
@@ -78,7 +79,10 @@ def normalize_patient(patient: PatientProfile) -> NormalizedPatientProfile:
         hr_status=classify_hr_status(patient.heart_rate),
         has_polypharmacy=detect_polypharmacy(patient.current_medications),
         normalized_comorbidities=[_normalize_term(item) for item in patient.comorbidities],
-        normalized_current_medications=[_normalize_term(item) for item in patient.current_medications],
+        normalized_current_medications=[
+            display_name_for_drug(resolve_pipeline_drug_id(item)) or _normalize_term(item)
+            for item in patient.current_medications
+        ],
         normalized_allergies=[_normalize_term(item) for item in patient.allergies],
         observations={
             "age": patient.age,

@@ -38,6 +38,7 @@ class Constraint(BaseModel):
     reason: str
     constraint_type: str | None = None
     evidence_ref: str | None = None
+    source_locator: str | None = None
 
 
 class Evidence(BaseModel):

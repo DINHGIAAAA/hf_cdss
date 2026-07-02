@@ -2,6 +2,9 @@ from typing import Any
 from functools import lru_cache
 from datetime import datetime, timedelta
 
+from app.modules.drug_normalization.service import format_constraint_target
+from app.modules.evidence_linking.service import hydrate_constraint
+
 from app.modules.datastores.postgres import (
     read_approved_constraint_rules,
 )
@@ -81,15 +84,18 @@ def build_constraints(
         constraint_id = rule.get("constraint_id")
         
         constraints.append(
-            Constraint(
-                constraint_id=f"{profile.case_id}:{constraint_id}",
-                case_id=profile.case_id,
-                target_drug_class=rule.get("target_drug_class"),
-                action=rule.get("action"),
-                reason=rule.get("reason"),
-                # constraint_type is not in the constraint_rules table
-                constraint_type=rule.get("metadata", {}).get("constraint_type", "soft"),
-                evidence_ref=rule.get("evidence_ref"),
+            hydrate_constraint(
+                Constraint(
+                    constraint_id=f"{profile.case_id}:{constraint_id}",
+                    case_id=profile.case_id,
+                    target_drug_class=format_constraint_target(rule.get("target_drug_class"))
+                    or rule.get("target_drug_class"),
+                    action=rule.get("action"),
+                    reason=rule.get("reason"),
+                    constraint_type=rule.get("metadata", {}).get("constraint_type", "soft"),
+                    evidence_ref=rule.get("evidence_ref"),
+                ),
+                rule.get("metadata") or {},
             )
         )
 

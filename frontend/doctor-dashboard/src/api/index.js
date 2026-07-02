@@ -1,4 +1,4 @@
-import { apiGet, apiPatch, apiPost, fetchCurrentUser, login, logout, API_BASE_URL } from "@shared/api/client.js";
+import { apiGet, apiPatch, apiPost, fetchCurrentUser, login, logout, API_BASE_URL, apiUrl } from "@shared/api/client.js";
 
 export { fetchCurrentUser, login, logout, API_BASE_URL };
 
@@ -15,11 +15,17 @@ export const adminApi = {
   createUser: (payload) => apiPost("/admin/users", payload),
   updateUser: (userId, payload) => apiPatch(`/admin/users/${encodeURIComponent(userId)}`, payload),
   auditByCase: (caseId, limit = 50) => apiGet(`/admin/audit/cases/${encodeURIComponent(caseId)}?limit=${limit}`),
+  searchEvidence: (q, topK = 10, { staging = true, signal } = {}) =>
+    apiGet(
+      `/admin/evidence/search?q=${encodeURIComponent(q)}&top_k=${topK}&staging=${staging ? "true" : "false"}`,
+      { signal },
+    ),
+  activeRules: () => apiGet("/admin/constraints/active"),
 };
 
 export const evidenceApi = {
-  search: (q, topK = 8) => apiGet(`/evidence/search?q=${encodeURIComponent(q)}&top_k=${topK}`),
-  activeRules: () => apiGet("/constraint-rules/active"),
+  search: (q, topK = 8, options = {}) =>
+    apiGet(`/evidence/search?q=${encodeURIComponent(q)}&top_k=${topK}`, options),
 };
 
 export const systemApi = {
@@ -27,7 +33,11 @@ export const systemApi = {
   readiness: () => apiGet("/health/ready").catch((err) => ({ status: "degraded", error: err.message })),
   dependencies: () => apiGet("/health/dependencies").catch((err) => ({ status: "degraded", error: err.message })),
   version: () => apiGet("/version"),
-  routes: () => fetch(`${API_BASE_URL}/routes`).then((r) => r.json()),
+  routes: () =>
+    fetch(apiUrl("/routes"), { credentials: "include" }).then((r) => {
+      if (!r.ok) throw new Error(`Request failed (${r.status})`);
+      return r.json();
+    }),
 };
 
 export const kgApi = {

@@ -143,7 +143,7 @@ async def production_guard_middleware(
                 return _error(
                     401,
                     "unauthorized",
-                    "A valid API key or Bearer token is required.",
+                    "A valid API key or authenticated session is required.",
                     request_id,
                 )
 

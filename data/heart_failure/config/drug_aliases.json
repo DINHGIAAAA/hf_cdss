@@ -1,0 +1,110 @@
+{
+  "metformin": {
+    "pipeline_id": "metformin",
+    "gdmt_class": null,
+    "display_name": "metformin",
+    "aliases": ["metformin", "glucophage"]
+  },
+  "empagliflozin": {
+    "pipeline_id": "empagliflozin",
+    "gdmt_class": "SGLT2i",
+    "display_name": "empagliflozin",
+    "aliases": ["empagliflozin", "jardiance"]
+  },
+  "dapagliflozin": {
+    "pipeline_id": "dapagliflozin",
+    "gdmt_class": "SGLT2i",
+    "display_name": "dapagliflozin",
+    "aliases": ["dapagliflozin", "farxiga", "forxiga"]
+  },
+  "sacubitril_and_valsartan": {
+    "pipeline_id": "sacubitril_and_valsartan",
+    "gdmt_class": "ARNI",
+    "display_name": "sacubitril/valsartan",
+    "aliases": ["sacubitril/valsartan", "sacubitril valsartan", "sacubitril and valsartan", "entresto"]
+  },
+  "spironolactone": {
+    "pipeline_id": "spironolactone",
+    "gdmt_class": "MRA",
+    "display_name": "spironolactone",
+    "aliases": ["spironolactone", "aldactone"]
+  },
+  "eplerenone": {
+    "pipeline_id": "eplerenone",
+    "gdmt_class": "MRA",
+    "display_name": "eplerenone",
+    "aliases": ["eplerenone", "inspra"]
+  },
+  "finerenone": {
+    "pipeline_id": "finerenone",
+    "gdmt_class": "MRA",
+    "display_name": "finerenone",
+    "aliases": ["finerenone", "kerendia"]
+  },
+  "metoprolol_succinate": {
+    "pipeline_id": "metoprolol_succinate",
+    "gdmt_class": "beta_blocker",
+    "display_name": "metoprolol succinate",
+    "aliases": ["metoprolol succinate", "metoprolol", "toprol", "toprol-xl"]
+  },
+  "bisoprolol_fumarate": {
+    "pipeline_id": "bisoprolol_fumarate",
+    "gdmt_class": "beta_blocker",
+    "display_name": "bisoprolol",
+    "aliases": ["bisoprolol", "bisoprolol fumarate", "zebeta"]
+  },
+  "carvedilol": {
+    "pipeline_id": "carvedilol",
+    "gdmt_class": "beta_blocker",
+    "display_name": "carvedilol",
+    "aliases": ["carvedilol", "coreg"]
+  },
+  "enalapril_maleate": {
+    "pipeline_id": "enalapril_maleate",
+    "gdmt_class": "ACEi",
+    "display_name": "enalapril",
+    "aliases": ["enalapril", "enalapril maleate", "vasotec"]
+  },
+  "lisinopril": {
+    "pipeline_id": "lisinopril",
+    "gdmt_class": "ACEi",
+    "display_name": "lisinopril",
+    "aliases": ["lisinopril", "zestril", "prinivil"]
+  },
+  "losartan_potassium": {
+    "pipeline_id": "losartan_potassium",
+    "gdmt_class": "ARB",
+    "display_name": "losartan",
+    "aliases": ["losartan", "losartan potassium", "cozaar"]
+  },
+  "valsartan": {
+    "pipeline_id": "valsartan",
+    "gdmt_class": "ARB",
+    "display_name": "valsartan",
+    "aliases": ["valsartan", "diovan"]
+  },
+  "candesartan_cilexetil": {
+    "pipeline_id": "candesartan_cilexetil",
+    "gdmt_class": "ARB",
+    "display_name": "candesartan",
+    "aliases": ["candesartan", "candesartan cilexetil", "atacand"]
+  },
+  "furosemide": {
+    "pipeline_id": "furosemide",
+    "gdmt_class": "loop_diuretic",
+    "display_name": "furosemide",
+    "aliases": ["furosemide", "lasix"]
+  },
+  "apixaban": {
+    "pipeline_id": "apixaban",
+    "gdmt_class": "anticoagulant",
+    "display_name": "apixaban",
+    "aliases": ["apixaban", "eliquis"]
+  },
+  "warfarin_sodium": {
+    "pipeline_id": "warfarin_sodium",
+    "gdmt_class": "anticoagulant",
+    "display_name": "warfarin",
+    "aliases": ["warfarin", "warfarin sodium", "coumadin"]
+  }
+}

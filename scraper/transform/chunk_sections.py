@@ -3,28 +3,23 @@ import hashlib
 import json
 import os
 import re
-import traceback
-from pathlib import Path 
+from pathlib import Path
 from functools import lru_cache, partial
 
 # Cấu hình model cấp dự án
 from scraper.models import EMBEDDING_TOKENIZER
 
-# LangChain is used for more semantic text splitting.
-# Ensure it's installed: pip install langchain kafka-python
 try:
     from transformers import AutoTokenizer
-    # Sử dụng tokenizer tương ứng với model embedding để đếm token chính xác.
+
     _tokenizer = AutoTokenizer.from_pretrained(EMBEDDING_TOKENIZER)
 except Exception as exc:
     print(f"WARNING: tokenizer unavailable, falling back to estimate: {exc}")
     _tokenizer = None
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from kafka import KafkaConsumer, KafkaProducer
-from kafka.errors import KafkaError
-from scraper.kafka_utils import connect_kafka_with_retry
 
+from scraper.semantic.chunking import structure_semantic_chunk_text
 from scraper.transform.text_normalization import normalize_text, repair_pdf_flow_text
 
 
@@ -75,6 +70,22 @@ def recursive_chunk_text(text: str, chunk_size: int, overlap: int) -> list[str]:
     # We use normalize_text here to preserve newline characters, which are
     # critical separators for the RecursiveCharacterTextSplitter.
     return text_splitter.split_text(repair_pdf_flow_text(text))
+
+
+def chunk_section_text(text: str, chunk_size: int, overlap: int) -> list[str]:
+    """Structure-aware chunking with semantic breakpoints; resilient split on hard failures."""
+    try:
+        chunks = structure_semantic_chunk_text(
+            text,
+            chunk_size=chunk_size,
+            overlap=overlap,
+            token_estimate=token_estimate,
+        )
+        if chunks:
+            return chunks
+    except Exception as exc:
+        print(f"WARNING: semantic chunking failed, using character split: {exc}")
+    return recursive_chunk_text(text, chunk_size, overlap)
 
 
 def make_chunks(record: dict, text_splitter_func: callable) -> list[dict]:
@@ -150,14 +161,9 @@ def dedupe_chunks(chunks: list[dict]) -> list[dict]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Chunk important sections (batch file or Kafka).")
+    parser = argparse.ArgumentParser(description="Chunk important sections into retrieval-ready artifacts.")
     parser.add_argument("--input", default="processed/sections/important_sections.jsonl", type=Path)
     parser.add_argument("--output", default="artifacts/chunks/chunks.jsonl", type=Path)
-    parser.add_argument("--kafka-bootstrap-servers", default="localhost:9092", help="Kafka bootstrap servers.")
-    parser.add_argument("--consumer-topic", default="important_sections", help="Kafka topic to consume sections from.")
-    parser.add_argument("--producer-topic", default="chunks_to_index", help="Kafka topic to produce chunks to.")
-    parser.add_argument("--consumer-group-id", default="chunking_service", help="Kafka consumer group ID.")
-    parser.add_argument("--mode", choices=["auto", "file", "kafka"], default="auto")
     parser.add_argument(
         "--chunk-size",
         default=500,
@@ -168,58 +174,23 @@ def main() -> None:
         "--overlap",
         default=75,
         type=int,
-        help="Chunk overlap in embedding-model tokens for the recursive strategy.",
+        help="Chunk overlap in embedding-model tokens.",
     )
     args = parser.parse_args()
 
-    print(f"Using 'recursive' chunking strategy with chunk size {args.chunk_size} and overlap {args.overlap}.")
-    splitter_func = partial(recursive_chunk_text, chunk_size=args.chunk_size, overlap=args.overlap)
+    print(f"Chunking with structure-aware semantic strategy (size={args.chunk_size}, overlap={args.overlap}).")
+    splitter_func = partial(chunk_section_text, chunk_size=args.chunk_size, overlap=args.overlap)
 
-    use_file = args.mode == "file" or (args.mode == "auto" and args.input.exists())
-    if use_file:
-        chunks: list[dict] = []
-        for record in read_jsonl(args.input):
-            chunks.extend(make_chunks(record, splitter_func))
-        chunks = dedupe_chunks(chunks)
-        write_jsonl(chunks, args.output)
-        print(f"Wrote {len(chunks)} chunks to {args.output}")
-        return
+    chunks: list[dict] = []
+    for record in read_jsonl(args.input):
+        chunks.extend(make_chunks(record, splitter_func))
+    chunks = dedupe_chunks(chunks)
 
-    # 2. Connect to Kafka
-    print(f"Connecting to Kafka at {args.kafka_bootstrap_servers}...")
-    def _connect():
-        return (
-            KafkaConsumer(
-                args.consumer_topic, bootstrap_servers=args.kafka_bootstrap_servers,
-                group_id=args.consumer_group_id, auto_offset_reset='earliest',
-                value_deserializer=lambda m: json.loads(m.decode('utf-8'))
-            ),
-            KafkaProducer(bootstrap_servers=args.kafka_bootstrap_servers, value_serializer=lambda m: json.dumps(m).encode('utf-8'))
-        )
-    consumer, producer = connect_kafka_with_retry(_connect)
+    from scraper.semantic.dedup import dedupe_chunks as dedupe_chunks_by_embedding
 
-    # 3. Start the processing loop
-    print(f"Listening for messages on topic '{args.consumer_topic}'... (Press Ctrl+C to stop)")
-    try:
-        for message in consumer:
-            try:
-                record = message.value
-                document_id = record.get("document_id", "unknown_doc")
-                print(f"  -> Processing section from document: {document_id}")
-                chunks = make_chunks(record, splitter_func)
-                for chunk in chunks:
-                    producer.send(args.producer_topic, value=chunk)
-                producer.flush()
-                print(f"     Produced {len(chunks)} chunks to topic '{args.producer_topic}'")
-            except Exception as e:
-                print(f"\n[ERROR] Lỗi khi cắt nhỏ văn bản. Chi tiết: {e}")
-                traceback.print_exc()
-    except KeyboardInterrupt:
-        print("\nShutting down...")
-    finally:
-        consumer.close()
-        producer.close()
-        print("Kafka connections closed.")
+    chunks = dedupe_chunks_by_embedding(chunks)
+    write_jsonl(chunks, args.output)
+    print(f"Wrote {len(chunks)} chunks to {args.output}")
 
 
 if __name__ == "__main__":

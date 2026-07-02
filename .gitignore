@@ -16,3 +16,7 @@ data/heart_failure/raw/
 data/heart_failure/processed/
 data/heart_failure/artifacts/
 
+.cursor/
+design-system/
+
+infrastructure/airflow/logs/

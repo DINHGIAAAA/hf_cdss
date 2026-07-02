@@ -7,6 +7,7 @@ import time
 
 from app.core.config import settings
 from app.modules.citation_validation.service import validate_citations
+from app.modules.evidence_linking.service import attach_linked_evidence
 from app.modules.graphrag.service import build_graphrag_context
 from app.modules.reasoning.service import build_recommendation
 from app.modules.verification_agents.llm_runtime import run_llm_agent
@@ -397,12 +398,15 @@ async def verify_recommendation(request: VerificationRequest) -> VerificationRes
         final_result = final_fallback
     agent_results.append(final_result)
 
+    citation_validation = validate_citations(response, context)
+    enriched_response, prioritized_context = attach_linked_evidence(response, context, citation_validation)
+
     result = VerificationResponse(
         case_id=request.patient.case_id,
-        context=context,
+        context=prioritized_context,
         agent_results=agent_results,
         final_verdict=agent_results[-1].verdict,
-        citation_validation=validate_citations(response, context),
+        citation_validation=citation_validation,
     )
     _write_cache(cache_key, result)
     return result

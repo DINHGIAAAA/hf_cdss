@@ -4,9 +4,6 @@ import json
 import re
 from pathlib import Path
 
-from kafka import KafkaConsumer, KafkaProducer
-from kafka.errors import KafkaError
-
 
 CLAIM_PATTERNS = {
     "contraindication": (
@@ -103,18 +100,33 @@ def sentence_split(text: str) -> list[str]:
     text = re.sub(r"\s+", " ", text or "").strip()
     if not text:
         return []
-    sentences = re.split(r"(?<=[.!?])\s+(?=[A-Z0-9])", text)
-    return [sentence.strip() for sentence in sentences if len(sentence.strip()) >= 40]
+    sentences = re.split(r"(?<=[.!?])\s+(?=[A-Z0-9(])", text)
+    return [sentence.strip() for sentence in sentences if len(sentence.strip()) >= 20]
 
 
 def classify_claim(sentence: str, source_type: str) -> str | None:
     haystack = sentence.lower()
+    ranked: list[tuple[int, str]] = []
+    priority = {
+        "contraindication": 0,
+        "renal_constraint": 1,
+        "usage_constraint": 2,
+        "hyperkalemia_risk": 3,
+        "drug_interaction": 4,
+        "population_constraint": 5,
+        "dose_recommendation": 6,
+        "adverse_reaction": 7,
+        "guideline_recommendation": 8,
+    }
     for claim_type, terms in CLAIM_PATTERNS.items():
         if claim_type == "guideline_recommendation" and source_type != "guideline":
             continue
         if any(term in haystack for term in terms):
-            return claim_type
-    return None
+            ranked.append((priority.get(claim_type, 99), claim_type))
+    if not ranked:
+        return None
+    ranked.sort(key=lambda item: item[0])
+    return ranked[0][1]
 
 
 def confidence(sentence: str, claim_type: str, source_type: str) -> float:
@@ -135,7 +147,7 @@ def claim_id(record: dict, sentence: str, index: int) -> str:
     return f"claim_{digest}"
 
 
-def create_claim(record: dict, sentence: str, index: int) -> dict | None:
+def create_claim_regex(record: dict, sentence: str, index: int) -> dict | None:
     claim_type = classify_claim(sentence, record.get("source_type", ""))
     if claim_type is None:
         return None
@@ -150,6 +162,7 @@ def create_claim(record: dict, sentence: str, index: int) -> dict | None:
         "source_section": record.get("section"),
         "evidence": sentence,
         "confidence": confidence(sentence, claim_type, record.get("source_type", "")),
+        "conditions": {},
         "metadata": {
             "source_id": metadata.get("source_id") or record.get("document_id"),
             "source": metadata.get("source"),
@@ -160,16 +173,15 @@ def create_claim(record: dict, sentence: str, index: int) -> dict | None:
             "license_note": metadata.get("license_note"),
             "source_file": metadata.get("source_file"),
             "matched_important_topics": metadata.get("matched_important_topics", []),
+            "extraction_method": "regex",
         },
     }
 
     if record.get("source_type") == "drug_label":
-        # Only assign drug if explicitly found; don't use document_id as fallback
         drug = metadata.get("drug")
         if drug:
             output["drug"] = drug
         else:
-            # No drug found - mark as general monitoring
             output["drug"] = None
             output["claim_type"] = "general_monitoring"
         output["metadata"]["published_date"] = metadata.get("published_date")
@@ -182,7 +194,7 @@ def create_claim(record: dict, sentence: str, index: int) -> dict | None:
     return output
 
 
-def dedupe_claims(claims: list[dict]) -> list[dict]:
+def dedupe_claims_by_id(claims: list[dict]) -> list[dict]:
     seen: set[str] = set()
     unique: list[dict] = []
     for claim in claims:
@@ -195,76 +207,42 @@ def dedupe_claims(claims: list[dict]) -> list[dict]:
 
 
 def claims_from_records(records: list[dict], max_claims_per_section: int) -> list[dict]:
-    claims: list[dict] = []
+    from scraper.semantic.claim_extraction import extract_claims_batch
+    from scraper.semantic.dedup import dedupe_claims
+
+    claims = dedupe_claims(extract_claims_batch(records))
+
+    llm_evidence = {claim.get("evidence", "").lower().strip() for claim in claims}
     for record in records:
-        section_claims_count = 0
+        section_claims_count = sum(
+            1
+            for claim in claims
+            if claim.get("document_id") == record.get("document_id")
+            and claim.get("source_section") == record.get("section")
+        )
         for index, sentence in enumerate(sentence_split(record.get("text", "")), start=1):
-            claim = create_claim(record, sentence, index)
+            if sentence.lower().strip() in llm_evidence:
+                continue
+            claim = create_claim_regex(record, sentence, index)
             if claim:
                 claims.append(claim)
                 section_claims_count += 1
-                if section_claims_count >= max_claims_per_section:
-                    break
-    return claims
+            if section_claims_count >= max_claims_per_section:
+                break
+
+    return dedupe_claims(dedupe_claims_by_id(claims))
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Create claims from important sections (batch file or Kafka).")
+    parser = argparse.ArgumentParser(description="Create claims from important sections.")
     parser.add_argument("--input", default="processed/sections/important_sections.jsonl", type=Path)
     parser.add_argument("--output", default="artifacts/claims/claims.jsonl", type=Path)
-    parser.add_argument("--kafka-bootstrap-servers", default="localhost:9092")
-    parser.add_argument("--consumer-topic", default="important_sections")
-    parser.add_argument("--producer-topic", default="claims_created")
-    parser.add_argument("--consumer-group-id", default="claim_creation_service")
-    parser.add_argument("--max-claims-per-section", default=8, type=int)
-    parser.add_argument("--mode", choices=["auto", "file", "kafka"], default="auto")
+    parser.add_argument("--max-claims-per-section", default=40, type=int)
     args = parser.parse_args()
 
-    use_file = args.mode == "file" or (args.mode == "auto" and args.input.exists())
-    if use_file:
-        claims = dedupe_claims(claims_from_records(read_jsonl(args.input), args.max_claims_per_section))
-        write_jsonl(claims, args.output)
-        print(f"Wrote {len(claims)} claims to {args.output}")
-        return
-
-    print(f"Connecting to Kafka at {args.kafka_bootstrap_servers}...")
-    try:
-        consumer = KafkaConsumer(
-            args.consumer_topic,
-            bootstrap_servers=args.kafka_bootstrap_servers,
-            group_id=args.consumer_group_id,
-            auto_offset_reset='earliest',
-            value_deserializer=lambda m: json.loads(m.decode('utf-8'))
-        )
-        producer = KafkaProducer(
-            bootstrap_servers=args.kafka_bootstrap_servers,
-            value_serializer=lambda m: json.dumps(m, ensure_ascii=False).encode('utf-8')
-        )
-    except KafkaError as e:
-        print(f"\nFATAL: Could not connect to Kafka. Is it running? Details: {e}")
-        return
-
-    print(f"Listening for messages on topic '{args.consumer_topic}'... (Press Ctrl+C to stop)")
-    try:
-        for message in consumer:
-            record = message.value
-            section_claims_count = 0
-            for index, sentence in enumerate(sentence_split(record.get("text", "")), start=1):
-                claim = create_claim(record, sentence, index)
-                if claim:
-                    producer.send(args.producer_topic, value=claim)
-                    section_claims_count += 1
-                    if section_claims_count >= args.max_claims_per_section:
-                        break
-            if section_claims_count > 0:
-                print(f"  -> Created {section_claims_count} claims from section in '{record.get('document_id')}', forwarding to '{args.producer_topic}'")
-    except KeyboardInterrupt:
-        print("\nShutting down...")
-    finally:
-        producer.flush()
-        producer.close()
-        consumer.close()
-        print("Kafka connections closed.")
+    claims = claims_from_records(read_jsonl(args.input), args.max_claims_per_section)
+    write_jsonl(claims, args.output)
+    print(f"Wrote {len(claims)} claims to {args.output}")
 
 
 if __name__ == "__main__":

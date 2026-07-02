@@ -11,11 +11,11 @@ export const adminApi = {
   approve: (ruleId) => apiPatch(`/admin/constraints/rules/${ruleId}`, { status: "approved" }),
   retire: (ruleId) => apiPatch(`/admin/constraints/rules/${ruleId}`, { status: "retired" }),
   unretire: (ruleId) => apiPatch(`/admin/constraints/rules/${ruleId}`, { status: "approved" }),
+  activeRules: () => apiGet("/admin/constraints/active"),
 };
 
 export const evidenceApi = {
   search: (q, topK = 8) => apiGet(`/evidence/search?q=${encodeURIComponent(q)}&top_k=${topK}`),
-  activeRules: () => apiGet("/constraint-rules/active"),
 };
 
 export const systemApi = {

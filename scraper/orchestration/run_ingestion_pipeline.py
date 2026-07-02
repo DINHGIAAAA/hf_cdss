@@ -187,6 +187,19 @@ def main() -> None:
         args.dry_run,
     )
 
+    if not args.skip_rules:
+        run_step(
+            "sync_constraints_to_postgres",
+            [
+                python,
+                "-m",
+                "scraper.process.sync_constraints_to_postgres",
+                "--rules",
+                "artifacts/rules/rules_classified.jsonl",
+            ],
+            args.dry_run,
+        )
+
     print("\nPipeline complete. Rebuild datastore indexes with:")
     print("docker compose -f infrastructure\\docker-compose.yml up -d --build datastore-init backend")
 

@@ -1,6 +1,7 @@
 import json
 
 from app.core.config import settings
+from app.core.middleware import _login_rate_windows
 from app.core.passwords import verify_password
 from app.tests.conftest import TEST_API_KEY, api_path
 
@@ -58,24 +59,74 @@ def _enable_db_auth(monkeypatch) -> None:
         _authenticate_test_user,
     )
     monkeypatch.setattr(
-        "app.api.routes.auth.get_user_by_id",
+        "app.core.token_service.get_user_by_id",
         lambda user_id: _get_test_user_by_id(user_id),
     )
 
 
 def _login(client, username: str) -> str:
+    _login_rate_windows.clear()
     response = client.post(
         api_path("/auth/login"),
         data={"username": username, "password": "secret"},
     )
     assert response.status_code == 200
-    return response.json()["access_token"]
+    token = response.cookies.get(settings.jwt_cookie_name)
+    assert token
+    return token
 
 
 def test_admin_constraints_require_jwt(client) -> None:
     response = client.get(api_path("/admin/constraints"))
 
     assert response.status_code == 401
+
+
+def test_auth_me_with_session_cookie(monkeypatch, client) -> None:
+    _enable_db_auth(monkeypatch)
+    _login(client, "lead")
+
+    response = client.get(api_path("/auth/me"))
+
+    assert response.status_code == 200
+    assert response.json()["username"] == "lead"
+
+
+def test_admin_evidence_requires_admin_role(monkeypatch, client) -> None:
+    _enable_db_auth(monkeypatch)
+    token = _login(client, "viewer")
+
+    response = client.get(
+        api_path("/admin/evidence/search?q=heart&top_k=3"),
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 403
+
+
+def test_admin_active_rules_reject_viewer(monkeypatch, unauthenticated_client) -> None:
+    _enable_db_auth(monkeypatch)
+    token = _login(unauthenticated_client, "viewer")
+
+    response = unauthenticated_client.get(
+        api_path("/admin/constraints/active"),
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 403
+
+
+def test_admin_active_rules_allow_clinical_lead(monkeypatch, client) -> None:
+    _enable_db_auth(monkeypatch)
+    token = _login(client, "lead")
+
+    response = client.get(
+        api_path("/admin/constraints/active"),
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)
 
 
 def test_admin_constraints_reject_missing_role(monkeypatch, client) -> None:
@@ -156,6 +207,8 @@ def test_auth_login_available_at_versioned_path(monkeypatch, unauthenticated_cli
 
     assert response.status_code == 200
     assert response.json()["token_type"] == "bearer"
+    assert response.json()["expires_in"] > 0
+    assert settings.jwt_cookie_name in response.cookies
 
 
 def test_auth_login_legacy_alias_still_works(monkeypatch, unauthenticated_client) -> None:
@@ -167,7 +220,8 @@ def test_auth_login_legacy_alias_still_works(monkeypatch, unauthenticated_client
     )
 
     assert response.status_code == 200
-    assert response.json()["access_token"]
+    assert response.json()["expires_in"] > 0
+    assert settings.jwt_cookie_name in response.cookies
 
 
 def test_auth_login_disabled_when_flag_off(monkeypatch, unauthenticated_client) -> None:

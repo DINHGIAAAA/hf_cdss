@@ -26,6 +26,7 @@ def test_readiness_reports_dependencies(client) -> None:
     if response.status_code == 200:
         assert payload["status"] == "ok"
         assert "dependencies" in payload
+        assert payload["dependencies"]["bootstrap"]["status"] == "ok"
     else:
         assert payload["error"]["code"] == "http_503"
         assert "dependencies" in payload["error"]["details"]
@@ -52,7 +53,7 @@ def test_cors_allows_vite_loopback_origin(client) -> None:
 
 
 def test_active_constraint_rules_endpoint(client) -> None:
-    response = client.get(api_path("/constraint-rules/active"))
+    response = client.get(api_path("/admin/constraints/active"))
 
     assert response.status_code == 200
     rules = response.json()
@@ -60,11 +61,30 @@ def test_active_constraint_rules_endpoint(client) -> None:
         assert any(rule["constraint_id"] == "MRA_HARD_RENAL_OR_K" for rule in rules)
 
 
-def test_rules_legacy_alias_still_works(client) -> None:
+def test_active_constraint_rules_hidden_from_public_path(client) -> None:
+    response = client.get(api_path("/constraint-rules/active"))
+
+    assert response.status_code == 404
+
+
+def test_active_constraint_rules_reject_non_admin_jwt(monkeypatch, unauthenticated_client) -> None:
+    from app.tests.test_admin_routes import _enable_db_auth, _login
+
+    _enable_db_auth(monkeypatch)
+    token = _login(unauthenticated_client, "viewer")
+
+    response = unauthenticated_client.get(
+        api_path("/admin/constraints/active"),
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 403
+
+
+def test_rules_legacy_alias_removed(client) -> None:
     response = client.get(api_path("/rules"))
 
-    assert response.status_code == 200
-    assert isinstance(response.json(), list)
+    assert response.status_code == 404
 
 
 def test_routes_catalog_lists_versioned_routes_only(client) -> None:
@@ -74,7 +94,7 @@ def test_routes_catalog_lists_versioned_routes_only(client) -> None:
     routes = {route["path"] for route in response.json()["routes"]}
     assert "/api/v1/recommend" in routes
     assert "/api/v1/evidence/search" in routes
-    assert "/api/v1/constraint-rules/active" in routes
+    assert "/api/v1/admin/constraints/active" in routes
     assert "/api/v1/clinical/normalize" in routes
     assert "/recommend" not in routes
 

@@ -3,9 +3,6 @@ import json
 import re
 from pathlib import Path
 
-from kafka import KafkaConsumer, KafkaProducer
-from kafka.errors import KafkaError
-
 from scraper.transform.text_normalization import normalize_inline_text
 
 
@@ -81,20 +78,6 @@ def mark_record(record: dict, matched_topics: list[str]) -> dict:
     return output
 
 
-def filter_important_sections(records: list[dict]) -> list[dict]:
-    important: list[dict] = []
-    for record in records:
-        if record.get("source_type") == "drug_label":
-            matches = drug_matches(record)
-        elif record.get("source_type") == "guideline":
-            matches = guideline_matches(record)
-        else:
-            matches = []
-        if matches:
-            important.append(mark_record(record, matches))
-    return important
-
-
 def dedupe_sections(records: list[dict]) -> list[dict]:
     seen: set[tuple] = set()
     unique: list[dict] = []
@@ -121,68 +104,21 @@ def collect_section_files(sections_dir: Path) -> list[Path]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Filter important clinical sections (batch file or Kafka).")
+    parser = argparse.ArgumentParser(description="Filter important clinical sections from parsed guideline and label sections.")
     parser.add_argument("--sections-dir", default="processed/sections", type=Path)
     parser.add_argument("--output", default="processed/sections/important_sections.jsonl", type=Path)
-    parser.add_argument("--kafka-bootstrap-servers", default="localhost:9092", help="Kafka bootstrap servers.")
-    parser.add_argument("--consumer-topic", default="sections_parsed", help="Kafka topic to consume parsed sections from.")
-    parser.add_argument("--producer-topic", default="important_sections", help="Kafka topic to produce important sections to.")
-    parser.add_argument("--consumer-group-id", default="filtering_service", help="Kafka consumer group ID.")
-    parser.add_argument("--mode", choices=["auto", "file", "kafka"], default="auto")
     args = parser.parse_args()
 
-    use_file = args.mode == "file" or (
-        args.mode == "auto" and any(collect_section_files(args.sections_dir))
-    )
-    if use_file:
-        records: list[dict] = []
-        for path in collect_section_files(args.sections_dir):
-            records.extend(read_jsonl(path))
-        records = dedupe_sections(records)
-        important = filter_important_sections(records)
-        write_jsonl(important, args.output)
-        print(f"Wrote {len(important)} important sections to {args.output}")
-        return
+    records: list[dict] = []
+    for path in collect_section_files(args.sections_dir):
+        records.extend(read_jsonl(path))
+    records = dedupe_sections(records)
 
-    print(f"Connecting to Kafka at {args.kafka_bootstrap_servers}...")
-    try:
-        consumer = KafkaConsumer(
-            args.consumer_topic,
-            bootstrap_servers=args.kafka_bootstrap_servers,
-            group_id=args.consumer_group_id,
-            auto_offset_reset='earliest',
-            value_deserializer=lambda m: json.loads(m.decode('utf-8'))
-        )
-        producer = KafkaProducer(
-            bootstrap_servers=args.kafka_bootstrap_servers,
-            value_serializer=lambda m: json.dumps(m, ensure_ascii=False).encode('utf-8')
-        )
-    except KafkaError as e:
-        print(f"\nFATAL: Could not connect to Kafka. Is it running? Details: {e}")
-        return
+    from scraper.semantic.section_filter import filter_important_sections
 
-    print(f"Listening for messages on topic '{args.consumer_topic}'... (Press Ctrl+C to stop)")
-    try:
-        for message in consumer:
-            record = message.value
-            if record.get("source_type") == "drug_label":
-                matches = drug_matches(record)
-            elif record.get("source_type") == "guideline":
-                matches = guideline_matches(record)
-            else:
-                matches = []
-            
-            if matches:
-                important_record = mark_record(record, matches)
-                producer.send(args.producer_topic, value=important_record)
-                print(f"  -> Found important section in '{record.get('document_id')}', forwarding to '{args.producer_topic}'")
-    except KeyboardInterrupt:
-        print("\nShutting down...")
-    finally:
-        producer.flush()
-        producer.close()
-        consumer.close()
-        print("Kafka connections closed.")
+    important = filter_important_sections(records)
+    write_jsonl(important, args.output)
+    print(f"Wrote {len(important)} important sections to {args.output}")
 
 
 if __name__ == "__main__":

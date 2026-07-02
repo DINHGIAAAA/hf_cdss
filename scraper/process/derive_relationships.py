@@ -4,9 +4,6 @@ import json
 import re
 from pathlib import Path
 
-from kafka import KafkaConsumer, KafkaProducer
-from kafka.errors import KafkaError
-
 
 def slug(value: str) -> str:
     value = re.sub(r"[^a-zA-Z0-9]+", "_", value or "").strip("_").lower()
@@ -202,69 +199,22 @@ def derive_all_relationships(claims: list[dict], rules: list[dict]) -> list[dict
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Derive graph relationships (batch file or Kafka).")
+    parser = argparse.ArgumentParser(description="Derive graph relationships from claims and rules.")
     parser.add_argument("--claims-input", default="artifacts/claims/claims.jsonl", type=Path)
-    parser.add_argument("--rules-input", default="artifacts/rules/rules.jsonl", type=Path)
+    parser.add_argument("--rules-input", default="artifacts/rules/rules_classified.jsonl", type=Path)
+    parser.add_argument(
+        "--rules-fallback",
+        default="artifacts/rules/rules.jsonl",
+        type=Path,
+        help="Fallback rules file when classified rules are missing.",
+    )
     parser.add_argument("--output", default="artifacts/relationships/relationships.jsonl", type=Path)
-    parser.add_argument("--kafka-bootstrap-servers", default="localhost:9092")
-    parser.add_argument("--claims-topic", default="claims_created")
-    parser.add_argument("--rules-topic", default="rules_generated")
-    parser.add_argument("--producer-topic", default="relationships_derived")
-    parser.add_argument("--consumer-group-id", default="relationship_derivation_service")
-    parser.add_argument("--mode", choices=["auto", "file", "kafka"], default="auto")
     args = parser.parse_args()
 
-    use_file = args.mode == "file" or (
-        args.mode == "auto" and args.claims_input.exists() and args.rules_input.exists()
-    )
-    if use_file:
-        relationships = derive_all_relationships(read_jsonl(args.claims_input), read_jsonl(args.rules_input))
-        write_jsonl(relationships, args.output)
-        print(f"Wrote {len(relationships)} relationships to {args.output}")
-        return
-
-    print(f"Connecting to Kafka at {args.kafka_bootstrap_servers}...")
-    try:
-        consumer = KafkaConsumer(
-            args.claims_topic,
-            args.rules_topic,
-            bootstrap_servers=args.kafka_bootstrap_servers,
-            group_id=args.consumer_group_id,
-            auto_offset_reset='earliest',
-            value_deserializer=lambda m: json.loads(m.decode('utf-8'))
-        )
-        producer = KafkaProducer(
-            bootstrap_servers=args.kafka_bootstrap_servers,
-            value_serializer=lambda m: json.dumps(m, ensure_ascii=False).encode('utf-8')
-        )
-    except KafkaError as e:
-        print(f"\nFATAL: Could not connect to Kafka. Is it running? Details: {e}")
-        return
-
-    print(f"Listening for messages on topics '{args.claims_topic}' and '{args.rules_topic}'... (Press Ctrl+C to stop)")
-    try:
-        for message in consumer:
-            rels = []
-            if message.topic == args.claims_topic:
-                claim = message.value
-                rels = relationships_from_claims([claim])
-                if rels:
-                    print(f"  -> Derived {len(rels)} relationships from claim '{claim.get('claim_id')}'")
-            elif message.topic == args.rules_topic:
-                rule = message.value
-                rels = relationships_from_rules([rule])
-                if rels:
-                    print(f"  -> Derived {len(rels)} relationships from rule '{rule.get('rule_id')}'")
-
-            for rel in rels:
-                producer.send(args.producer_topic, value=rel)
-    except KeyboardInterrupt:
-        print("\nShutting down...")
-    finally:
-        producer.flush()
-        producer.close()
-        consumer.close()
-        print("Kafka connections closed.")
+    rules_path = args.rules_input if args.rules_input.exists() else args.rules_fallback
+    relationships = derive_all_relationships(read_jsonl(args.claims_input), read_jsonl(rules_path))
+    write_jsonl(relationships, args.output)
+    print(f"Wrote {len(relationships)} relationships to {args.output}")
 
 
 if __name__ == "__main__":

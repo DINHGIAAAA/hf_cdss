@@ -1,14 +1,14 @@
 import { useState } from "react";
 import { LoaderCircle, Play, Search } from "lucide-react";
 
-import { auditApi, evidenceApi, kgApi, retrievalApi } from "../api/index.js";
+import { auditApi, adminApi, kgApi, retrievalApi } from "../api/index.js";
 
 const TOOLS = [
   {
     id: "rules",
     label: "Active rules",
-    description: "GET /api/v1/constraint-rules/active — constraint rules used by the CDSS engine.",
-    run: () => evidenceApi.activeRules(),
+    description: "GET /api/v1/admin/constraints/active — published rules used by the CDSS engine (admin only).",
+    run: () => adminApi.activeRules(),
   },
   {
     id: "drug-classes",

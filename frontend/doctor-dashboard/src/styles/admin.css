@@ -379,10 +379,11 @@
   word-break: break-all;
 }
 
-.admin-table--rules col.col-constraint { width: 32%; }
-.admin-table--rules col.col-action { width: 18%; }
-.admin-table--rules col.col-status { width: 12%; }
-.admin-table--rules col.col-target { width: 22%; }
+.admin-table--rules col.col-constraint { width: 26%; }
+.admin-table--rules col.col-action { width: 14%; }
+.admin-table--rules col.col-status { width: 10%; }
+.admin-table--rules col.col-visibility { width: 16%; }
+.admin-table--rules col.col-target { width: 18%; }
 .admin-table--rules col.col-actions { width: 16%; }
 
 .admin-table--audit col.col-time { width: 16%; }
@@ -619,6 +620,79 @@
   overflow-wrap: anywhere;
 }
 
+.rule-visibility-banner {
+  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+
+.rule-visibility-banner.success,
+.rule-visibility-banner.published {
+  background: var(--color-success-bg);
+  color: var(--color-success);
+}
+
+.rule-visibility-banner.draft,
+.rule-visibility-banner.warning {
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+}
+
+.rule-visibility-banner.retired,
+.rule-visibility-banner.danger {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
+.rule-visibility-banner.info {
+  background: var(--color-brand-soft);
+  color: var(--color-text-2);
+}
+
+.visibility-badge {
+  border-radius: 999px;
+  display: inline-flex;
+  flex-direction: column;
+  font-size: 0.75rem;
+  font-weight: 600;
+  gap: 1px;
+  line-height: 1.2;
+  max-width: 100%;
+  padding: 4px 10px;
+  white-space: nowrap;
+}
+
+.visibility-badge small {
+  font-size: 0.65rem;
+  font-weight: 500;
+  opacity: 0.9;
+}
+
+.visibility-badge--published {
+  background: var(--color-success-bg);
+  color: var(--color-success);
+}
+
+.visibility-badge--draft {
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+}
+
+.visibility-badge--retired {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
+.stat-hint {
+  color: var(--color-text-muted);
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 500;
+  margin-top: 4px;
+}
+
 .table-actions {
   display: flex;
   flex-wrap: wrap;
@@ -653,6 +727,21 @@
   flex: 1;
   min-width: 0;
   outline: none;
+}
+
+.evidence-staging-toggle {
+  align-items: center;
+  color: var(--color-text-muted);
+  display: inline-flex;
+  font-size: 0.875rem;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.search-bar-status {
+  color: var(--color-text-muted);
+  display: inline-flex;
+  flex-shrink: 0;
 }
 
 .evidence-layout {

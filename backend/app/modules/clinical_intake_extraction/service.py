@@ -5,6 +5,7 @@ from typing import Any
 
 import httpx
 
+from app.modules.drug_normalization.service import medications_catalog_for_intake
 from app.core.config import settings
 from app.schemas.patient import (
     AllergyStatement,
@@ -24,40 +25,7 @@ from app.schemas.patient import (
 )
 
 
-MEDICATIONS: dict[str, tuple[str, tuple[str, ...]]] = {
-    "spironolactone": ("MRA", ("spironolactone", "aldactone")),
-    "eplerenone": ("MRA", ("eplerenone",)),
-    "finerenone": ("MRA", ("finerenone",)),
-    "metoprolol": ("beta_blocker", ("metoprolol", "metoprolol succinate", "toprol")),
-    "bisoprolol": ("beta_blocker", ("bisoprolol",)),
-    "carvedilol": ("beta_blocker", ("carvedilol",)),
-    "lisinopril": ("ACEi", ("lisinopril",)),
-    "enalapril": ("ACEi", ("enalapril",)),
-    "losartan": ("ARB", ("losartan",)),
-    "valsartan": ("ARB", ("valsartan",)),
-    "candesartan": ("ARB", ("candesartan",)),
-    "sacubitril/valsartan": ("ARNI", ("sacubitril/valsartan", "sacubitril valsartan", "entresto")),
-    "dapagliflozin": ("SGLT2i", ("dapagliflozin", "farxiga")),
-    "empagliflozin": ("SGLT2i", ("empagliflozin", "jardiance")),
-    "furosemide": ("loop_diuretic", ("furosemide", "lasix")),
-    "torsemide": ("loop_diuretic", ("torsemide",)),
-    "bumetanide": ("loop_diuretic", ("bumetanide",)),
-    "ivabradine": ("heart_rate_agent", ("ivabradine", "corlanor")),
-    "digoxin": ("cardiac_glycoside", ("digoxin",)),
-    "apixaban": ("anticoagulant", ("apixaban", "eliquis")),
-    "warfarin": ("anticoagulant", ("warfarin",)),
-    "aspirin": ("antiplatelet", ("aspirin",)),
-    "clopidogrel": ("antiplatelet", ("clopidogrel",)),
-    "amlodipine": ("calcium_channel_blocker", ("amlodipine",)),
-    "atorvastatin": ("statin", ("atorvastatin",)),
-    "hydralazine": ("vasodilator", ("hydralazine",)),
-    "isosorbide dinitrate": ("nitrate", ("isosorbide dinitrate",)),
-    "patiromer": ("potassium_binder", ("patiromer",)),
-    "sodium zirconium cyclosilicate": (
-        "potassium_binder",
-        ("sodium zirconium cyclosilicate", "lokelma"),
-    ),
-}
+MEDICATIONS: dict[str, tuple[str, tuple[str, ...]]] = medications_catalog_for_intake()
 
 CONDITIONS: dict[str, tuple[str, ...]] = {
     "CKD": ("ckd", "chronic kidney", "suy than", "benh than man", "than man"),
