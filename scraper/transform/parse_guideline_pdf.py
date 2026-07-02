@@ -7,7 +7,6 @@ import tempfile
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
-import pdfplumber
 from tqdm import tqdm
 
 from scraper.transform.opendataloader_extract import (
@@ -164,6 +163,8 @@ def parse_pdf_with_pdfplumber(
     extract_tables: bool,
     fast_parsing: bool = False,
 ) -> tuple[list[dict], list[dict]]:
+    import pdfplumber
+
     pages = []
     tables = []
 
