@@ -56,3 +56,20 @@ export const DOSE_CATALOG = {
     { key: "q", label: "Search ID", placeholder: "dose rule id" },
   ],
 };
+
+export const INTERACTION_CATALOG = {
+  id: "interaction-rules",
+  label: "Interaction rules",
+  bulkLabel: "interaction rules",
+  listKey: "listInteractionRules",
+  bulkKey: "bulkApproveInteractionRules",
+  diffKey: "getInteractionRuleDiff",
+  versionsKey: "getInteractionRuleVersions",
+  logicalIdField: "interaction_rule_id",
+  filters: [
+    { key: "severity", label: "Severity", placeholder: "e.g. high" },
+    { key: "target", label: "Target", placeholder: "e.g. RAASi_MRA" },
+    { key: "safety_tier", label: "Safety tier", type: "select", options: SAFETY_TIER_OPTIONS },
+    { key: "q", label: "Search ID", placeholder: "interaction rule id" },
+  ],
+};

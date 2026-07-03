@@ -5,6 +5,12 @@ import { auditApi, adminApi, kgApi, retrievalApi } from "../api/index.js";
 
 const TOOLS = [
   {
+    id: "interaction-rules",
+    label: "Active interaction rules",
+    description: "GET /api/v1/admin/interaction-rules/active — approved rules used by the interaction checker.",
+    run: () => adminApi.activeInteractionRules(),
+  },
+  {
     id: "dose-rules",
     label: "Active dose rules",
     description: "GET /api/v1/admin/dose-rules/active — approved rules used by the dose calculator.",

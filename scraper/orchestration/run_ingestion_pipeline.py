@@ -162,6 +162,12 @@ def main() -> None:
                 ),
                 ("generate_dose_rules", [python, "-m", "scraper.process.generate_dose_rules"]),
                 ("classify_dose_rules", [python, "-m", "scraper.process.classify_dose_rules"]),
+                (
+                    "extract_structured_interaction_claims",
+                    [python, "-m", "scraper.process.extract_structured_interaction_claims"],
+                ),
+                ("generate_interaction_rules", [python, "-m", "scraper.process.generate_interaction_rules"]),
+                ("classify_interaction_rules", [python, "-m", "scraper.process.classify_interaction_rules"]),
             ]
         )
     steps.extend(
@@ -213,6 +219,17 @@ def main() -> None:
                 "scraper.process.sync_dose_rules_to_postgres",
                 "--rules",
                 "artifacts/dose_rules/dose_rules_classified.jsonl",
+            ],
+            args.dry_run,
+        )
+        run_step(
+            "sync_interaction_rules_to_postgres",
+            [
+                python,
+                "-m",
+                "scraper.process.sync_interaction_rules_to_postgres",
+                "--rules",
+                "artifacts/interaction_rules/interaction_rules_classified.jsonl",
             ],
             args.dry_run,
         )

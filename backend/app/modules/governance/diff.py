@@ -75,6 +75,18 @@ DOSE_DIFF_FIELDS = [
     "metadata",
 ]
 
+INTERACTION_DIFF_FIELDS = [
+    "drug_set_a",
+    "drug_set_b",
+    "severity",
+    "target",
+    "rule_body",
+    "evidence_ref",
+    "safety_tier",
+    "clinical_sources",
+    "metadata",
+]
+
 
 def constraint_diff_payload(rule: dict[str, Any]) -> dict[str, Any]:
     return {field: rule.get(field) for field in CONSTRAINT_DIFF_FIELDS}
@@ -82,3 +94,7 @@ def constraint_diff_payload(rule: dict[str, Any]) -> dict[str, Any]:
 
 def dose_diff_payload(rule: dict[str, Any]) -> dict[str, Any]:
     return {field: rule.get(field) for field in DOSE_DIFF_FIELDS}
+
+
+def interaction_diff_payload(rule: dict[str, Any]) -> dict[str, Any]:
+    return {field: rule.get(field) for field in INTERACTION_DIFF_FIELDS}

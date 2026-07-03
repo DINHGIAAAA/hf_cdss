@@ -4,6 +4,7 @@ import {
   BookOpen,
   FileSearch,
   LayoutDashboard,
+  Link2,
   LogOut,
   MessageSquareText,
   Network,
@@ -18,6 +19,7 @@ const DOCTOR_DASHBOARD_URL = import.meta.env.VITE_DOCTOR_DASHBOARD_URL ?? "http:
 const NAV_ITEMS = [
   { to: "/rules", label: "Constraints", icon: ShieldCheck },
   { to: "/dose-rules", label: "Dose rules", icon: Pill },
+  { to: "/interaction-rules", label: "Interactions", icon: Link2 },
   { to: "/evidence", label: "Evidence", icon: FileSearch },
   { to: "/system", label: "System", icon: Activity },
   { to: "/api", label: "API Explorer", icon: Network },

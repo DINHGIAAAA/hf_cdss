@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.modules.datastores.interaction_rules_postgres import (
+    approve_interaction_rule,
+    list_draft_interaction_rule_ids,
+)
 from app.modules.datastores.postgres import (
     approve_constraint_rule,
     approve_dose_rule,
@@ -75,4 +79,38 @@ def bulk_approve_dose_rules(
         "skipped": [],
         "total_requested": len(ids),
         "message": f"Approved {len(approved)} of {len(ids)} draft dose rules.",
+    }
+
+
+def bulk_approve_interaction_rules(
+    admin_user_id: str,
+    *,
+    rule_ids: list[int] | None = None,
+    severity: str | None = None,
+    target: str | None = None,
+    safety_tier: str | None = None,
+    q: str | None = None,
+    limit: int = 100,
+) -> dict[str, Any]:
+    ids = list_draft_interaction_rule_ids(
+        rule_ids=rule_ids,
+        severity=severity,
+        target=target,
+        safety_tier=safety_tier,
+        q=q,
+        limit=limit,
+    )
+    approved: list[int] = []
+    failed: list[dict[str, Any]] = []
+    for rule_id in ids:
+        if approve_interaction_rule(rule_id, admin_user_id):
+            approved.append(rule_id)
+        else:
+            failed.append({"id": rule_id, "error": "Approve failed or rule is not draft"})
+    return {
+        "approved": approved,
+        "failed": failed,
+        "skipped": [],
+        "total_requested": len(ids),
+        "message": f"Approved {len(approved)} of {len(ids)} draft interaction rules.",
     }

@@ -1,19 +1,8 @@
 from app.schemas.medication_safety import MedicationSafetyWarning
 from app.schemas.patient import PatientProfile
 
-
-ACEI = {"lisinopril", "enalapril", "ramipril", "captopril"}
-ARB = {"losartan", "valsartan", "candesartan"}
-ARNI = {"sacubitril/valsartan", "entresto"}
-MRA = {"spironolactone", "eplerenone", "finerenone"}
-RAASI = ACEI | ARB | ARNI
-NSAID = {"ibuprofen", "naproxen", "diclofenac", "celecoxib"}
-ANTICOAGULANT = {"apixaban", "rivaroxaban", "warfarin", "dabigatran", "edoxaban"}
-ANTIPLATELET = {"aspirin", "clopidogrel", "ticagrelor", "prasugrel"}
-
-
-def _medication_set(patient: PatientProfile) -> set[str]:
-    return {medication.strip().lower() for medication in patient.current_medications if medication.strip()}
+from app.modules.interaction_checking.matcher import pair_matches, patient_medications
+from app.modules.interaction_checking.rule_loader import load_executable_interaction_rules
 
 
 def _warning(
@@ -39,64 +28,60 @@ def _warning(
     )
 
 
+def _apply_escalation(base_severity: str, rule_body: dict, patient: PatientProfile) -> str:
+    severity = base_severity
+    for item in rule_body.get("escalation") or []:
+        field = item.get("field")
+        operator = item.get("operator")
+        threshold = item.get("value")
+        candidate = item.get("severity") or severity
+        value = getattr(patient, field, None)
+        if value is None or threshold is None:
+            continue
+        try:
+            numeric_value = float(value)
+            numeric_threshold = float(threshold)
+        except (TypeError, ValueError):
+            continue
+        matched = (
+            (operator == "gte" and numeric_value >= numeric_threshold)
+            or (operator == "gt" and numeric_value > numeric_threshold)
+            or (operator == "lte" and numeric_value <= numeric_threshold)
+            or (operator == "lt" and numeric_value < numeric_threshold)
+        )
+        if matched:
+            severity = candidate
+    return severity
+
+
 def check_interactions(patient: PatientProfile) -> list[MedicationSafetyWarning]:
-    medications = _medication_set(patient)
+    medications = patient_medications(patient.current_medications)
     warnings: list[MedicationSafetyWarning] = []
 
-    if medications.intersection(ACEI) and medications.intersection(ARB):
-        warnings.append(
-            _warning(
-                patient,
-                "interaction_acei_arb_combination",
-                "high",
-                "RAAS_combination",
-                "ACE inhibitor and ARB combination should generally be avoided because it increases renal and hyperkalemia risk.",
-                "week7_interaction_rule:ACEI_ARB_AVOID_COMBINATION",
-                sorted(medications.intersection(ACEI | ARB)),
-                {"egfr": patient.egfr, "potassium": patient.potassium},
-            )
-        )
+    for rule in load_executable_interaction_rules():
+        set_a = rule.get("drug_set_a") or []
+        set_b = rule.get("drug_set_b") or []
+        if not pair_matches(medications, set_a, set_b):
+            continue
 
-    if medications.intersection(RAASI) and medications.intersection(MRA):
-        severity = "high" if patient.potassium is not None and patient.potassium >= 5.0 else "moderate"
+        body = rule.get("rule_body") or {}
+        severity = _apply_escalation(str(rule.get("severity") or "moderate"), body, patient)
+        target = body.get("target") or rule.get("target") or "general"
+        message = body.get("message") or "Potential drug interaction detected."
+        warning_id = f"interaction_{rule.get('interaction_rule_id') or rule.get('id')}"
+        evidence_ref = rule.get("evidence_ref") or f"interaction_rule:{rule.get('interaction_rule_id')}"
+
+        related = sorted(medications)
         warnings.append(
             _warning(
                 patient,
-                "interaction_raasi_mra_hyperkalemia_monitoring",
+                warning_id,
                 severity,
-                "RAASi_MRA",
-                "RAAS-inhibiting therapy combined with an MRA requires potassium and renal function monitoring.",
-                "week7_interaction_rule:RAASI_MRA_K_RENAL_MONITORING",
-                sorted(medications.intersection(RAASI | MRA)),
+                target,
+                message,
+                evidence_ref,
+                related,
                 {"egfr": patient.egfr, "potassium": patient.potassium},
-            )
-        )
-
-    if medications.intersection(RAASI) and medications.intersection(NSAID):
-        warnings.append(
-            _warning(
-                patient,
-                "interaction_raasi_nsaid_renal_risk",
-                "moderate",
-                "RAASi_NSAID",
-                "RAAS-inhibiting therapy with an NSAID may increase renal safety risk and should be reviewed.",
-                "week7_interaction_rule:RAASI_NSAID_RENAL_REVIEW",
-                sorted(medications.intersection(RAASI | NSAID)),
-                {"egfr": patient.egfr},
-            )
-        )
-
-    if medications.intersection(ANTICOAGULANT) and medications.intersection(ANTIPLATELET):
-        warnings.append(
-            _warning(
-                patient,
-                "interaction_anticoagulant_antiplatelet_bleeding",
-                "moderate",
-                "bleeding_risk",
-                "Concurrent anticoagulant and antiplatelet therapy increases bleeding risk and should be reviewed.",
-                "week7_interaction_rule:ANTICOAG_ANTIPLATELET_BLEEDING_REVIEW",
-                sorted(medications.intersection(ANTICOAGULANT | ANTIPLATELET)),
-                {},
             )
         )
 

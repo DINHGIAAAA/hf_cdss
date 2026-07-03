@@ -92,6 +92,7 @@ class Settings(BaseSettings):
     verification_cache_max_entries: int = 128
     dose_calculator_enabled: bool = True
     dose_rules_cache_ttl_seconds: int = 300
+    interaction_rules_cache_ttl_seconds: int = 300
 
     model_config = SettingsConfigDict(env_prefix="HF_CDSS_", env_file=".env", extra="ignore")
 

@@ -1,0 +1,62 @@
+{
+  "version": "hf_interaction_rules_v1",
+  "source": "bundled_week7_baseline",
+  "rules": [
+    {
+      "interaction_rule_id": "acei_arb_combination",
+      "drug_set_a": ["class:acei"],
+      "drug_set_b": ["class:arb"],
+      "severity": "high",
+      "rule_body": {
+        "message": "ACE inhibitor and ARB combination should generally be avoided because it increases renal and hyperkalemia risk.",
+        "action": "avoid",
+        "target": "RAAS_combination",
+        "escalation": [],
+        "monitoring": ["Potassium", "Creatinine/eGFR"]
+      },
+      "evidence_ref": "week7_interaction_rule:ACEI_ARB_AVOID_COMBINATION"
+    },
+    {
+      "interaction_rule_id": "raasi_mra_hyperkalemia_monitoring",
+      "drug_set_a": ["class:raasi"],
+      "drug_set_b": ["class:mra"],
+      "severity": "moderate",
+      "rule_body": {
+        "message": "RAAS-inhibiting therapy combined with an MRA requires potassium and renal function monitoring.",
+        "action": "monitor",
+        "target": "RAASi_MRA",
+        "escalation": [{"field": "potassium", "operator": "gte", "value": 5.0, "severity": "high"}],
+        "monitoring": ["Potassium", "Creatinine/eGFR"]
+      },
+      "evidence_ref": "week7_interaction_rule:RAASI_MRA_K_RENAL_MONITORING"
+    },
+    {
+      "interaction_rule_id": "raasi_nsaid_renal_review",
+      "drug_set_a": ["class:raasi"],
+      "drug_set_b": ["class:nsaid"],
+      "severity": "moderate",
+      "rule_body": {
+        "message": "RAAS-inhibiting therapy with an NSAID may increase renal safety risk and should be reviewed.",
+        "action": "review",
+        "target": "RAASi_NSAID",
+        "escalation": [],
+        "monitoring": ["Creatinine/eGFR"]
+      },
+      "evidence_ref": "week7_interaction_rule:RAASI_NSAID_RENAL_REVIEW"
+    },
+    {
+      "interaction_rule_id": "anticoagulant_antiplatelet_bleeding",
+      "drug_set_a": ["class:anticoagulant"],
+      "drug_set_b": ["class:antiplatelet"],
+      "severity": "moderate",
+      "rule_body": {
+        "message": "Concurrent anticoagulant and antiplatelet therapy increases bleeding risk and should be reviewed.",
+        "action": "review",
+        "target": "bleeding_risk",
+        "escalation": [],
+        "monitoring": ["Bleeding signs"]
+      },
+      "evidence_ref": "week7_interaction_rule:ANTICOAG_ANTIPLATELET_BLEEDING_REVIEW"
+    }
+  ]
+}

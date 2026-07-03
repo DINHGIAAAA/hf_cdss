@@ -38,6 +38,19 @@ export const adminApi = {
   updateDoseRuleStatus: (ruleId, status) => apiPatch(`/admin/dose-rules/rules/${ruleId}`, { status }),
   bulkApproveDoseRules: (payload) => apiPost("/admin/dose-rules/bulk-approve", payload),
   activeDoseRules: () => apiGet("/admin/dose-rules/active"),
+  listInteractionRules: (params = {}) =>
+    apiGet(`/admin/interaction-rules${buildGovernanceQuery(params)}`),
+  getInteractionRule: (ruleId) => apiGet(`/admin/interaction-rules/rules/${ruleId}`),
+  getInteractionRuleVersions: (interactionRuleId) =>
+    apiGet(`/admin/interaction-rules/by-rid/${encodeURIComponent(interactionRuleId)}`),
+  getInteractionRuleDiff: (ruleId, against = "approved") =>
+    apiGet(`/admin/interaction-rules/rules/${ruleId}/diff?against=${encodeURIComponent(against)}`),
+  getInteractionRuleHistory: (interactionRuleId) =>
+    apiGet(`/admin/interaction-rules/${encodeURIComponent(interactionRuleId)}/history`),
+  updateInteractionRuleStatus: (ruleId, status) =>
+    apiPatch(`/admin/interaction-rules/rules/${ruleId}`, { status }),
+  bulkApproveInteractionRules: (payload) => apiPost("/admin/interaction-rules/bulk-approve", payload),
+  activeInteractionRules: () => apiGet("/admin/interaction-rules/active"),
 };
 
 export const evidenceApi = {

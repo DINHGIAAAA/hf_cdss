@@ -5,6 +5,7 @@ import {
   ClipboardList,
   FileSearch,
   LayoutDashboard,
+  Link2,
   LogOut,
   MessageSquareText,
   Network,
@@ -18,6 +19,7 @@ import { useAuth } from "../auth/AuthContext";
 const NAV_ITEMS = [
   { to: "/admin/rules", label: "Constraints", icon: ShieldCheck },
   { to: "/admin/dose-rules", label: "Dose rules", icon: Pill },
+  { to: "/admin/interaction-rules", label: "Interactions", icon: Link2 },
   { to: "/admin/evidence", label: "Evidence", icon: FileSearch },
   { to: "/admin/audit", label: "Audit", icon: ClipboardList },
   { to: "/admin/system", label: "System", icon: Activity },
