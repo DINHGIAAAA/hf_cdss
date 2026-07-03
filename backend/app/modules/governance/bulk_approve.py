@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.modules.datastores.gdmt_policies_postgres import approve_gdmt_policy, list_draft_gdmt_policy_ids
 from app.modules.datastores.interaction_rules_postgres import (
     approve_interaction_rule,
     list_draft_interaction_rule_ids,
@@ -113,4 +114,36 @@ def bulk_approve_interaction_rules(
         "skipped": [],
         "total_requested": len(ids),
         "message": f"Approved {len(approved)} of {len(ids)} draft interaction rules.",
+    }
+
+
+def bulk_approve_gdmt_policies(
+    admin_user_id: str,
+    *,
+    rule_ids: list[int] | None = None,
+    drug_class_key: str | None = None,
+    safety_tier: str | None = None,
+    q: str | None = None,
+    limit: int = 100,
+) -> dict[str, Any]:
+    ids = list_draft_gdmt_policy_ids(
+        rule_ids=rule_ids,
+        drug_class_key=drug_class_key,
+        safety_tier=safety_tier,
+        q=q,
+        limit=limit,
+    )
+    approved: list[int] = []
+    failed: list[dict[str, Any]] = []
+    for rule_id in ids:
+        if approve_gdmt_policy(rule_id, admin_user_id):
+            approved.append(rule_id)
+        else:
+            failed.append({"id": rule_id, "error": "Approve failed or policy is not draft"})
+    return {
+        "approved": approved,
+        "failed": failed,
+        "skipped": [],
+        "total_requested": len(ids),
+        "message": f"Approved {len(approved)} of {len(ids)} draft GDMT policies.",
     }

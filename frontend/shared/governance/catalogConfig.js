@@ -57,6 +57,22 @@ export const DOSE_CATALOG = {
   ],
 };
 
+export const GDMT_CATALOG = {
+  id: "gdmt-policies",
+  label: "GDMT policies",
+  bulkLabel: "GDMT policies",
+  listKey: "listGdmtPolicies",
+  bulkKey: "bulkApproveGdmtPolicies",
+  diffKey: "getGdmtPolicyDiff",
+  versionsKey: "getGdmtPolicyVersions",
+  logicalIdField: "gdmt_policy_id",
+  filters: [
+    { key: "drug_class_key", label: "Drug class key", placeholder: "e.g. MRA" },
+    { key: "safety_tier", label: "Safety tier", type: "select", options: SAFETY_TIER_OPTIONS },
+    { key: "q", label: "Search ID", placeholder: "gdmt policy id" },
+  ],
+};
+
 export const INTERACTION_CATALOG = {
   id: "interaction-rules",
   label: "Interaction rules",

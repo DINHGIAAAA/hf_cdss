@@ -1,0 +1,175 @@
+{
+  "version": "hf_gdmt_policy_v1",
+  "source": "bundled_week3_baseline",
+  "policies": [
+    {
+      "gdmt_policy_id": "gdmt_arni_acei_arb",
+      "drug_class_key": "ARNI/ACEi/ARB",
+      "display_label": "RAAS inhibition / ARNI",
+      "sort_order": 1,
+      "policy_body": {
+        "med_detection_terms": ["sacubitril", "valsartan", "enalapril", "lisinopril", "losartan", "candesartan"],
+        "warning_targets": ["RAASi_MRA", "RAASi_NSAID", "RAAS_combination"],
+        "aliases": ["arni", "acei", "arb", "raas", "sacubitril", "valsartan", "lisinopril", "losartan"],
+        "hfref_default_status": "consider",
+        "non_hfref_status": "review",
+        "guidance": {
+          "reasoning_base": [
+            "Core disease-modifying therapy for HFrEF, but this patient context is {context}."
+          ],
+          "current_med_present": "Current RAAS/ARNI-like therapy detected: {current}.",
+          "current_med_absent": "No clear current ARNI/ACEi/ARB therapy detected in the medication list.",
+          "conditional_reasoning": [
+            {
+              "profile_field": "bp_status",
+              "match": ["low", "hypotension"],
+              "text": "Low systolic BP increases risk of symptomatic hypotension during initiation or titration."
+            },
+            {
+              "profile_field": "potassium_status",
+              "not_match": ["normal"],
+              "text": "Abnormal potassium increases risk when RAAS-inhibiting therapy is intensified."
+            }
+          ],
+          "actions": [
+            "Review whether the patient is already on ACEi/ARB/ARNI and avoid duplicate RAAS blockade.",
+            "If clinically stable, consider low-dose initiation or cautious titration rather than escalation at full dose."
+          ],
+          "monitoring": [
+            "BP and symptoms after initiation/titration",
+            "Creatinine/eGFR and potassium within 1-2 weeks"
+          ],
+          "avoid_prepend_action": "Defer this class until the blocking safety issue is corrected or specialist review is completed.",
+          "caution_prepend_action": "Treat this as a cautious/conditional option, not an automatic approval."
+        }
+      },
+      "evidence_ref": "week3_gdmt_policy:ARNI_ACEi_ARB"
+    },
+    {
+      "gdmt_policy_id": "gdmt_beta_blocker",
+      "drug_class_key": "beta_blocker",
+      "display_label": "Evidence-based beta blocker",
+      "sort_order": 2,
+      "policy_body": {
+        "med_detection_terms": ["metoprolol", "bisoprolol", "carvedilol"],
+        "warning_targets": ["beta_blocker"],
+        "aliases": ["beta blocker", "metoprolol", "bisoprolol", "carvedilol", "bradycardia"],
+        "hfref_default_status": "consider",
+        "non_hfref_status": "review",
+        "guidance": {
+          "reasoning_base": [
+            "Evidence-based beta blocker is core HFrEF therapy; patient context is {context}."
+          ],
+          "current_med_present": "Current beta blocker detected: {current}.",
+          "current_med_absent": "No evidence-based beta blocker detected in the medication list.",
+          "conditional_reasoning": [
+            {
+              "profile_field": "hr_status",
+              "match": ["low", "bradycardia"],
+              "text": "Low heart rate makes dose escalation unsafe without assessing symptoms, ECG, and conduction disease."
+            },
+            {
+              "profile_field": "bp_status",
+              "match": ["low", "hypotension"],
+              "text": "Low BP may limit titration, especially if dizziness, shock, or congestion is present."
+            }
+          ],
+          "actions": [
+            "Continue if tolerated and clinically stable; avoid up-titration while HR/BP are limiting.",
+            "Check for decompensated HF, bradycardia symptoms, and AV block before any dose increase."
+          ],
+          "monitoring": ["HR, BP, dizziness/syncope", "Signs of congestion or acute decompensation"],
+          "avoid_prepend_action": "Defer this class until the blocking safety issue is corrected or specialist review is completed.",
+          "caution_prepend_action": "Treat this as a cautious/conditional option, not an automatic approval."
+        }
+      },
+      "evidence_ref": "week3_gdmt_policy:beta_blocker"
+    },
+    {
+      "gdmt_policy_id": "gdmt_mra",
+      "drug_class_key": "MRA",
+      "display_label": "Mineralocorticoid receptor antagonist",
+      "sort_order": 3,
+      "policy_body": {
+        "med_detection_terms": ["spironolactone", "eplerenone", "finerenone"],
+        "warning_targets": ["MRA", "RAASi_MRA"],
+        "aliases": ["mra", "mineralocorticoid receptor antagonist", "spironolactone", "eplerenone", "potassium"],
+        "hfref_default_status": "consider",
+        "non_hfref_status": "review",
+        "guidance": {
+          "reasoning_base": [
+            "MRA can reduce HFrEF morbidity/mortality, but renal function and potassium drive safety; patient context is {context}."
+          ],
+          "current_med_present": "Current MRA detected: {current}.",
+          "current_med_absent": "No current MRA detected in the medication list.",
+          "conditional_reasoning": [
+            {
+              "profile_field": "renal_status",
+              "not_match": ["normal", "mild_impairment"],
+              "text": "Reduced eGFR increases hyperkalemia and renal adverse-event risk."
+            },
+            {
+              "profile_field": "potassium_status",
+              "not_match": ["normal"],
+              "text": "Elevated potassium is a direct safety concern for MRA continuation or titration."
+            }
+          ],
+          "actions": [
+            "Do not increase MRA dose when potassium is elevated or eGFR is severely reduced.",
+            "Consider holding or reducing MRA if hyperkalemia is confirmed; reassess after correction."
+          ],
+          "monitoring": [
+            "Potassium and creatinine/eGFR promptly and after any change",
+            "Dietary potassium, supplements, NSAIDs, and RAAS combination risk"
+          ],
+          "avoid_prepend_action": "Defer this class until the blocking safety issue is corrected or specialist review is completed.",
+          "caution_prepend_action": "Treat this as a cautious/conditional option, not an automatic approval."
+        }
+      },
+      "evidence_ref": "week3_gdmt_policy:MRA"
+    },
+    {
+      "gdmt_policy_id": "gdmt_sglt2i",
+      "drug_class_key": "SGLT2i",
+      "display_label": "SGLT2 inhibitor",
+      "sort_order": 4,
+      "policy_body": {
+        "med_detection_terms": ["dapagliflozin", "empagliflozin"],
+        "warning_targets": [],
+        "aliases": ["sglt2", "sglt2 inhibitor", "dapagliflozin", "empagliflozin", "renal"],
+        "hfref_default_status": "consider",
+        "non_hfref_status": "review",
+        "guidance": {
+          "reasoning_base": [
+            "SGLT2 inhibitor is a core HFrEF GDMT class and is often useful with CKD/diabetes; patient context is {context}."
+          ],
+          "current_med_present": "Current SGLT2 inhibitor detected: {current}.",
+          "current_med_absent": "No current SGLT2 inhibitor detected in the medication list.",
+          "conditional_reasoning": [
+            {
+              "profile_field": "renal_status",
+              "match": ["severe_impairment", "kidney_failure"],
+              "text": "Low eGFR requires product-specific threshold review before initiation."
+            },
+            {
+              "profile_field": "bp_status",
+              "match": ["low", "hypotension"],
+              "text": "Volume status should be reviewed because diuretic effect can worsen hypotension or dehydration."
+            }
+          ],
+          "actions": [
+            "Consider initiation if no contraindication and eGFR meets product/guideline threshold.",
+            "Review volume status and diuretic dose before starting, especially if BP is low."
+          ],
+          "monitoring": [
+            "eGFR/renal function after initiation",
+            "Volume depletion, genital infections, ketoacidosis risk during fasting/acute illness"
+          ],
+          "avoid_prepend_action": "Defer this class until the blocking safety issue is corrected or specialist review is completed.",
+          "caution_prepend_action": "Treat this as a cautious/conditional option, not an automatic approval."
+        }
+      },
+      "evidence_ref": "week3_gdmt_policy:SGLT2i"
+    }
+  ]
+}

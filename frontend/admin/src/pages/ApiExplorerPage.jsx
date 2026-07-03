@@ -5,6 +5,12 @@ import { auditApi, adminApi, kgApi, retrievalApi } from "../api/index.js";
 
 const TOOLS = [
   {
+    id: "gdmt-policies",
+    label: "Active GDMT policies",
+    description: "GET /api/v1/admin/gdmt-policies/active — approved policies used by /recommend.",
+    run: () => adminApi.activeGdmtPolicies(),
+  },
+  {
     id: "interaction-rules",
     label: "Active interaction rules",
     description: "GET /api/v1/admin/interaction-rules/active — approved rules used by the interaction checker.",

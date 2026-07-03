@@ -51,6 +51,19 @@ export const adminApi = {
     apiPatch(`/admin/interaction-rules/rules/${ruleId}`, { status }),
   bulkApproveInteractionRules: (payload) => apiPost("/admin/interaction-rules/bulk-approve", payload),
   activeInteractionRules: () => apiGet("/admin/interaction-rules/active"),
+  listGdmtPolicies: (params = {}) =>
+    apiGet(`/admin/gdmt-policies${buildGovernanceQuery(params)}`),
+  getGdmtPolicy: (policyId) => apiGet(`/admin/gdmt-policies/rules/${policyId}`),
+  getGdmtPolicyVersions: (gdmtPolicyId) =>
+    apiGet(`/admin/gdmt-policies/by-rid/${encodeURIComponent(gdmtPolicyId)}`),
+  getGdmtPolicyDiff: (policyId, against = "approved") =>
+    apiGet(`/admin/gdmt-policies/rules/${policyId}/diff?against=${encodeURIComponent(against)}`),
+  getGdmtPolicyHistory: (gdmtPolicyId) =>
+    apiGet(`/admin/gdmt-policies/${encodeURIComponent(gdmtPolicyId)}/history`),
+  updateGdmtPolicyStatus: (policyId, status) =>
+    apiPatch(`/admin/gdmt-policies/rules/${policyId}`, { status }),
+  bulkApproveGdmtPolicies: (payload) => apiPost("/admin/gdmt-policies/bulk-approve", payload),
+  activeGdmtPolicies: () => apiGet("/admin/gdmt-policies/active"),
 };
 
 export const evidenceApi = {

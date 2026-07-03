@@ -7,6 +7,7 @@ import { LoginPage } from "./pages/LoginPage";
 import { ApiExplorerPage } from "./pages/ApiExplorerPage";
 import { EvidencePage } from "./pages/EvidencePage";
 import { DoseRulesPage } from "./pages/DoseRulesPage.jsx";
+import { GdmtPoliciesPage } from "./pages/GdmtPoliciesPage.jsx";
 import { InteractionRulesPage } from "./pages/InteractionRulesPage.jsx";
 import { RulesPage } from "./pages/RulesPage";
 import { SystemPage } from "./pages/SystemPage";
@@ -33,6 +34,7 @@ function App() {
             <Route element={<RulesPage />} path="rules" />
             <Route element={<DoseRulesPage />} path="dose-rules" />
             <Route element={<InteractionRulesPage />} path="interaction-rules" />
+            <Route element={<GdmtPoliciesPage />} path="gdmt-policies" />
             <Route element={<EvidencePage />} path="evidence" />
             <Route element={<SystemPage />} path="system" />
             <Route element={<ApiExplorerPage />} path="api" />

@@ -41,6 +41,7 @@ class RecommendationResponse(BaseModel):
     interaction_warnings: list[MedicationSafetyWarning] = Field(default_factory=list)
     dose_plans: list[SuggestedDosePlan] = Field(default_factory=list)
     dose_rules_version: str | None = None
+    gdmt_policy_version: str | None = None
     recommendations: list[MedicationRecommendation]
     overall_status: str
     disclaimer: str

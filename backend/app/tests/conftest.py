@@ -14,6 +14,7 @@ os.environ.setdefault("HF_CDSS_CLINICAL_INTAKE_LLM_TIMEOUT_SECONDS", "1")
 from app.core.config import settings
 from app.main import app
 from app.modules.constraint_builder.service import invalidate_constraint_cache
+from app.modules.gdmt_policy.policy_loader import invalidate_gdmt_policy_cache
 from app.modules.interaction_checking.rule_loader import invalidate_interaction_rules_cache
 from app.modules.datastores import bootstrap as bootstrap_module
 
@@ -165,6 +166,7 @@ def _patch_session_dependencies() -> None:
     import app.core.token_service as token_service
     import app.modules.chat.service as chat_service
     import app.modules.constraint_builder.service as constraint_service
+    import app.modules.datastores.gdmt_policies_postgres as gdmt_policies_postgres
     import app.modules.datastores.interaction_rules_postgres as interaction_rules_postgres
     import app.modules.datastores.postgres as postgres_module
     import app.modules.datastores.service as datastore_service
@@ -180,6 +182,7 @@ def _patch_session_dependencies() -> None:
 
     postgres_module.read_approved_constraint_rules = lambda: rules
     interaction_rules_postgres.read_approved_interaction_rules = lambda: []
+    gdmt_policies_postgres.read_approved_gdmt_policies = lambda: []
     constraint_service.read_approved_constraint_rules = lambda: rules
     datastore_service.datastore_status = fake_datastore_status
     health_routes.datastore_status = fake_datastore_status
@@ -229,11 +232,13 @@ def _reset_constraint_cache() -> None:
     _CHAT_DRAFTS.clear()
     invalidate_constraint_cache()
     invalidate_interaction_rules_cache()
+    invalidate_gdmt_policy_cache()
     yield
     _CHAT_MESSAGES.clear()
     _CHAT_DRAFTS.clear()
     invalidate_constraint_cache()
     invalidate_interaction_rules_cache()
+    invalidate_gdmt_policy_cache()
 
 
 @pytest.fixture(autouse=True)

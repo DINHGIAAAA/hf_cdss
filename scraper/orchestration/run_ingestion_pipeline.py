@@ -168,6 +168,12 @@ def main() -> None:
                 ),
                 ("generate_interaction_rules", [python, "-m", "scraper.process.generate_interaction_rules"]),
                 ("classify_interaction_rules", [python, "-m", "scraper.process.classify_interaction_rules"]),
+                (
+                    "extract_structured_gdmt_policy_claims",
+                    [python, "-m", "scraper.process.extract_structured_gdmt_policy_claims"],
+                ),
+                ("generate_gdmt_policies", [python, "-m", "scraper.process.generate_gdmt_policies"]),
+                ("classify_gdmt_policies", [python, "-m", "scraper.process.classify_gdmt_policies"]),
             ]
         )
     steps.extend(
@@ -230,6 +236,17 @@ def main() -> None:
                 "scraper.process.sync_interaction_rules_to_postgres",
                 "--rules",
                 "artifacts/interaction_rules/interaction_rules_classified.jsonl",
+            ],
+            args.dry_run,
+        )
+        run_step(
+            "sync_gdmt_policies_to_postgres",
+            [
+                python,
+                "-m",
+                "scraper.process.sync_gdmt_policies_to_postgres",
+                "--policies",
+                "artifacts/gdmt_policies/gdmt_policies_classified.jsonl",
             ],
             args.dry_run,
         )
