@@ -35,6 +35,8 @@ class GraphRAGContextRequest(BaseModel):
     patient: PatientProfile
     query: str | None = None
     top_k: int = 6
+    conversation_history: list[str] | None = None
+    clinical_state: dict[str, Any] | None = None
 
 
 class GraphRAGContextResponse(BaseModel):
@@ -87,6 +89,8 @@ class CitationValidation(BaseModel):
 class VerificationRequest(BaseModel):
     patient: PatientProfile
     recommendation: RecommendationResponse | None = None
+    conversation_history: list[str] | None = None
+    clinical_state: dict[str, Any] | None = None
 
 
 class VerificationResponse(BaseModel):

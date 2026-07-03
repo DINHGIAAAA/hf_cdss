@@ -14,6 +14,7 @@ os.environ.setdefault("HF_CDSS_CLINICAL_INTAKE_LLM_TIMEOUT_SECONDS", "1")
 from app.core.config import settings
 from app.main import app
 from app.modules.constraint_builder.service import invalidate_constraint_cache
+from app.modules.dose_safety.rule_loader import invalidate_dose_safety_warnings_cache
 from app.modules.gdmt_policy.policy_loader import invalidate_gdmt_policy_cache
 from app.modules.interaction_checking.rule_loader import invalidate_interaction_rules_cache
 from app.modules.datastores import bootstrap as bootstrap_module
@@ -222,9 +223,12 @@ def _stub_clinical_intake_llm(request, monkeypatch) -> None:
         return
     if "test_clinical_intake_selective.py" in str(request.fspath):
         return
+    async def _noop_llm_extractor(message: str):
+        return None
+
     monkeypatch.setattr(
         "app.modules.clinical_intake_extraction.service._call_llm_extractor",
-        lambda message: None,
+        _noop_llm_extractor,
     )
 
 
@@ -235,12 +239,14 @@ def _reset_constraint_cache() -> None:
     invalidate_constraint_cache()
     invalidate_interaction_rules_cache()
     invalidate_gdmt_policy_cache()
+    invalidate_dose_safety_warnings_cache()
     yield
     _CHAT_MESSAGES.clear()
     _CHAT_DRAFTS.clear()
     invalidate_constraint_cache()
     invalidate_interaction_rules_cache()
     invalidate_gdmt_policy_cache()
+    invalidate_dose_safety_warnings_cache()
 
 
 @pytest.fixture(autouse=True)

@@ -4,13 +4,21 @@ from app.modules.clinical_intake_extraction.selective_llm import should_call_llm
 from app.modules.clinical_intake_extraction.service import (
     _merge_extractions,
     _regex_extract_patient_from_message,
-    extract_patient_from_message,
+    extract_patient_from_message_sync as extract_patient_from_message,
 )
+
+
+def _async_llm_recorder(calls: list[str]):
+    async def _fake(message: str):
+        calls.append(message)
+        return None
+
+    return _fake
 
 
 def test_skips_llm_when_only_simple_missing_fields(monkeypatch) -> None:
     calls: list[str] = []
-    monkeypatch.setattr(service, "_call_llm_extractor", lambda message: calls.append(message) or None)
+    monkeypatch.setattr(service, "_call_llm_extractor", _async_llm_recorder(calls))
 
     patient = extract_patient_from_message(
         "EF 35, eGFR 55, K 4.8, BP 110/70, HR 68. NKDA. Stable.",
@@ -24,7 +32,7 @@ def test_skips_llm_when_only_simple_missing_fields(monkeypatch) -> None:
 
 def test_calls_llm_for_vague_clinical_question_without_structured_data(monkeypatch) -> None:
     calls: list[str] = []
-    monkeypatch.setattr(service, "_call_llm_extractor", lambda message: calls.append(message) or None)
+    monkeypatch.setattr(service, "_call_llm_extractor", _async_llm_recorder(calls))
 
     extract_patient_from_message("Can danh gia an toan MRA.", "VAGUE_QUESTION")
 
@@ -33,7 +41,7 @@ def test_calls_llm_for_vague_clinical_question_without_structured_data(monkeypat
 
 def test_calls_llm_when_complete_but_message_is_complex(monkeypatch) -> None:
     calls: list[str] = []
-    monkeypatch.setattr(service, "_call_llm_extractor", lambda message: calls.append(message) or None)
+    monkeypatch.setattr(service, "_call_llm_extractor", _async_llm_recorder(calls))
 
     extract_patient_from_message(
         (
@@ -50,7 +58,7 @@ def test_calls_llm_when_complete_but_message_is_complex(monkeypatch) -> None:
 
 def test_skips_llm_on_short_followup_when_history_has_context(monkeypatch) -> None:
     calls: list[str] = []
-    monkeypatch.setattr(service, "_call_llm_extractor", lambda message: calls.append(message) or None)
+    monkeypatch.setattr(service, "_call_llm_extractor", _async_llm_recorder(calls))
     monkeypatch.setattr(settings, "clinical_intake_history_enabled", True)
     monkeypatch.setattr(settings, "clinical_intake_semantic_enabled", False)
 
@@ -70,7 +78,7 @@ def test_skips_llm_on_short_followup_when_history_has_context(monkeypatch) -> No
 
 def test_calls_llm_when_medication_gap_and_message_mentions_drugs(monkeypatch) -> None:
     calls: list[str] = []
-    monkeypatch.setattr(service, "_call_llm_extractor", lambda message: calls.append(message) or None)
+    monkeypatch.setattr(service, "_call_llm_extractor", _async_llm_recorder(calls))
 
     extract_patient_from_message(
         "EF 30, eGFR 40, K 4.6, BP 100, HR 70. Taking Entresto 49/51 mg bid. NKDA. Stable.",

@@ -22,10 +22,6 @@ def get_gdmt_classes() -> dict[str, str]:
     return gdmt_classes_map(load_executable_gdmt_policies())
 
 
-# Backward-compatible alias for modules that import GDMT_CLASSES directly.
-GDMT_CLASSES = get_gdmt_classes()
-
-
 def _overall_status(
     risk_count: int,
     constraints: list[Constraint],

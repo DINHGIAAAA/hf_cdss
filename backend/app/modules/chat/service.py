@@ -179,8 +179,7 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
     extraction_message = "\n".join(value for value in [request.message, attachment_context] if value)
 
     yield _sse("status", {"step": "extracting_patient"})
-    extracted_patient = await asyncio.to_thread(
-        extract_patient_from_message,
+    extracted_patient = await extract_patient_from_message(
         extraction_message,
         conversation_id,
         conversation_history=_prior_user_messages(conversation_id),
@@ -249,7 +248,14 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
     )
 
     yield _sse("status", {"step": "verifying_evidence"})
-    verification = await verify_recommendation(VerificationRequest(patient=merged, recommendation=recommendation))
+    verification = await verify_recommendation(
+        VerificationRequest(
+            patient=merged,
+            recommendation=recommendation,
+            conversation_history=_prior_user_messages(conversation_id),
+            clinical_state=clinical_state,
+        )
+    )
     recommendation = enrich_recommendation_evidence(recommendation, verification.citation_validation)
     tool_outputs.append({"tool": "recommendation", "result": recommendation.model_dump(mode="json")})
     yield _sse("recommendation_ready", recommendation.model_dump(mode="json"))
@@ -322,8 +328,7 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
     base_patient = current.patient if current else _new_patient(conversation_id)
     attachment_context = _attachment_context(request)
     extraction_message = "\n".join(value for value in [request.message, attachment_context] if value)
-    extracted_patient = await asyncio.to_thread(
-        extract_patient_from_message,
+    extracted_patient = await extract_patient_from_message(
         extraction_message,
         conversation_id,
         conversation_history=_prior_user_messages(conversation_id),
@@ -384,7 +389,14 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
     recommendation = build_recommendation(
         RecommendationRequest(patient=merged, clinical_state=clinical_state)
     )
-    verification = await verify_recommendation(VerificationRequest(patient=merged, recommendation=recommendation))
+    verification = await verify_recommendation(
+        VerificationRequest(
+            patient=merged,
+            recommendation=recommendation,
+            conversation_history=_prior_user_messages(conversation_id),
+            clinical_state=clinical_state,
+        )
+    )
     recommendation = enrich_recommendation_evidence(recommendation, verification.citation_validation)
     llm_answer = await build_llm_answer(
         LLMAnswerRequest(

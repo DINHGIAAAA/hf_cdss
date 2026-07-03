@@ -3,11 +3,10 @@ import re
 import unicodedata
 from typing import Any
 
-import httpx
-
-from app.modules.drug_normalization.service import medications_catalog_for_intake
 from app.core.config import settings
+from app.core.http_client import get_async_client
 from app.core.llm_runtime import chat_completions_url, llm_auth_headers, llm_chat_completions_enabled
+from app.modules.drug_normalization.service import medications_catalog_for_intake
 from app.prompts.clinical_intake import CLINICAL_INTAKE_SYSTEM_PROMPT
 from app.schemas.patient import (
     AllergyStatement,
@@ -361,27 +360,31 @@ def _llm_extractor_available() -> bool:
     return llm_chat_completions_enabled()
 
 
-def _call_llm_extractor(message: str) -> dict[str, Any] | None:
+async def _call_llm_extractor(message: str) -> dict[str, Any] | None:
     if not _llm_extractor_available():
         return None
     try:
-        with httpx.Client(timeout=settings.clinical_intake_llm_timeout_seconds) as client:
-            response = client.post(
-                chat_completions_url(),
-                headers=llm_auth_headers(),
-                json={
-                    "model": settings.llm_model,
-                    "messages": [
-                        {"role": "system", "content": CLINICAL_INTAKE_SYSTEM_PROMPT},
-                        {"role": "user", "content": message[:12000]},
-                    ],
-                    "temperature": 0,
-                    "max_tokens": settings.clinical_intake_llm_max_tokens,
-                },
-            )
-            response.raise_for_status()
-            choices = response.json().get("choices", [])
-            content = choices[0].get("message", {}).get("content", "") if choices else ""
+        client = get_async_client(
+            "clinical_intake",
+            settings.clinical_intake_llm_timeout_seconds,
+            max_connections=4,
+        )
+        response = await client.post(
+            chat_completions_url(),
+            headers=llm_auth_headers(),
+            json={
+                "model": settings.llm_model,
+                "messages": [
+                    {"role": "system", "content": CLINICAL_INTAKE_SYSTEM_PROMPT},
+                    {"role": "user", "content": message[:12000]},
+                ],
+                "temperature": 0,
+                "max_tokens": settings.clinical_intake_llm_max_tokens,
+            },
+        )
+        response.raise_for_status()
+        choices = response.json().get("choices", [])
+        content = choices[0].get("message", {}).get("content", "") if choices else ""
         return _extract_json_object(content)
     except Exception:
         return None
@@ -557,7 +560,7 @@ def _merge_extractions(regex_patient: PatientProfile, llm_patient: PatientProfil
     return patient
 
 
-def extract_patient_from_message(
+async def extract_patient_from_message(
     message: str,
     conversation_id: str,
     *,
@@ -578,6 +581,24 @@ def extract_patient_from_message(
     )
     if not decision.call_llm:
         return merged
-    llm_data = _call_llm_extractor(aggregated_message)
+    llm_data = await _call_llm_extractor(aggregated_message)
     llm_patient = _patient_from_llm_data(llm_data, conversation_id, aggregated_message) if llm_data else None
     return _merge_extractions(merged, llm_patient)
+
+
+def extract_patient_from_message_sync(
+    message: str,
+    conversation_id: str,
+    *,
+    conversation_history: list[str] | None = None,
+) -> PatientProfile:
+    """Blocking helper for tests and scripts without a running event loop."""
+    import asyncio
+
+    return asyncio.run(
+        extract_patient_from_message(
+            message,
+            conversation_id,
+            conversation_history=conversation_history,
+        )
+    )

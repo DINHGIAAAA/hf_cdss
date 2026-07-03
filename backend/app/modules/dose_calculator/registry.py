@@ -3,7 +3,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Any
 
-from app.modules.dose_calculator.kg_loader import load_kg_dose_overlays
+from app.modules.dose_calculator.kg_loader import invalidate_kg_dose_overlays_cache, load_kg_dose_overlays
 from app.modules.dose_calculator.rule_loader import load_dose_rules_bundle, load_executable_dose_rules
 
 
@@ -56,3 +56,4 @@ def invalidate_dose_rules_registry_cache() -> None:
 
     load_dose_rules.cache_clear()
     invalidate_dose_rules_cache()
+    invalidate_kg_dose_overlays_cache()

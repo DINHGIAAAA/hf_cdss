@@ -2,13 +2,28 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from app.core.config import settings
 from app.modules.datastores.common import ARTIFACT_ROOT
 
 
 logger = logging.getLogger(__name__)
+
+_OVERLAY_CACHE_TIMESTAMP: datetime | None = None
+_cached_overlays: list[dict[str, Any]] | None = None
+
+
+def _cache_ttl_seconds() -> int:
+    return int(getattr(settings, "kg_dose_overlays_cache_ttl_seconds", 300))
+
+
+def invalidate_kg_dose_overlays_cache() -> None:
+    global _OVERLAY_CACHE_TIMESTAMP, _cached_overlays
+    _OVERLAY_CACHE_TIMESTAMP = None
+    _cached_overlays = None
 
 
 def _claims_path() -> Path | None:
@@ -22,7 +37,7 @@ def _claims_path() -> Path | None:
     return None
 
 
-def load_kg_dose_overlays() -> list[dict[str, Any]]:
+def _load_kg_dose_overlays_uncached() -> list[dict[str, Any]]:
     path = _claims_path()
     if path is None:
         return []
@@ -60,3 +75,18 @@ def load_kg_dose_overlays() -> list[dict[str, Any]]:
     except Exception as exc:
         logger.warning("Failed to load KG dose overlays: %s", exc)
     return overlays
+
+
+def load_kg_dose_overlays() -> list[dict[str, Any]]:
+    global _OVERLAY_CACHE_TIMESTAMP, _cached_overlays
+    if (
+        _OVERLAY_CACHE_TIMESTAMP is not None
+        and _cached_overlays is not None
+        and datetime.now() - _OVERLAY_CACHE_TIMESTAMP <= timedelta(seconds=_cache_ttl_seconds())
+    ):
+        return list(_cached_overlays)
+
+    overlays = _load_kg_dose_overlays_uncached()
+    _cached_overlays = overlays
+    _OVERLAY_CACHE_TIMESTAMP = datetime.now()
+    return list(overlays)

@@ -5,7 +5,7 @@ from app.modules.clinical_intake_extraction.semantic import (
     semantic_catalog_matches,
     semantic_extract_patient,
 )
-from app.modules.clinical_intake_extraction.service import extract_patient_from_message
+from app.modules.clinical_intake_extraction.service import extract_patient_from_message_sync as extract_patient_from_message
 
 
 def test_aggregate_conversation_context_keeps_relevant_prior_turns(monkeypatch) -> None:
@@ -73,9 +73,12 @@ def test_semantic_catalog_match_adds_medication(monkeypatch) -> None:
 def test_extract_patient_uses_conversation_history_for_split_vitals(monkeypatch) -> None:
     monkeypatch.setattr(settings, "clinical_intake_semantic_enabled", False)
     monkeypatch.setattr(settings, "clinical_intake_history_enabled", True)
+    async def _noop_llm_extractor(message: str):
+        return None
+
     monkeypatch.setattr(
         "app.modules.clinical_intake_extraction.service._call_llm_extractor",
-        lambda message: None,
+        _noop_llm_extractor,
     )
 
     patient = extract_patient_from_message(

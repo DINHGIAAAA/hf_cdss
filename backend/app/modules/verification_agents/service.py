@@ -369,6 +369,8 @@ async def verify_recommendation(request: VerificationRequest) -> VerificationRes
         GraphRAGContextRequest(
             patient=request.patient,
             top_k=max(1, min(settings.verification_retrieval_top_k, 8)),
+            conversation_history=request.conversation_history,
+            clinical_state=request.clinical_state,
         ),
     )
 

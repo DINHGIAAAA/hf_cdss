@@ -1,49 +1,14 @@
-"""Load approved GDMT recommendation policies from Postgres with JSON fallback."""
+"""Refactored GDMT policy loader using shared RuleCache."""
 
 from __future__ import annotations
 
-import json
-import logging
-from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from app.core.config import settings
+from app.core.rule_cache import RuleCache
 from app.modules.datastores.gdmt_policies_postgres import read_approved_gdmt_policies
 
-logger = logging.getLogger(__name__)
-
-_CACHE_TIMESTAMP: datetime | None = None
-_cached_bundle: dict[str, Any] | None = None
-_FALLBACK_PATH = Path(__file__).resolve().parent / "rules" / "hf_gdmt_policy_v1.json"
-
-
-def _cache_ttl_seconds() -> int:
-    return int(getattr(settings, "gdmt_policy_cache_ttl_seconds", 300))
-
-
-def invalidate_gdmt_policy_cache() -> None:
-    global _CACHE_TIMESTAMP, _cached_bundle
-    _CACHE_TIMESTAMP = None
-    _cached_bundle = None
-
-
-def _load_fallback_bundle() -> dict[str, Any]:
-    if not _FALLBACK_PATH.is_file():
-        return {"version": "hf_gdmt_policy_v1", "source": "bundled_fallback", "policies": []}
-    payload = json.loads(_FALLBACK_PATH.read_text(encoding="utf-8"))
-    return {
-        "version": payload.get("version", "hf_gdmt_policy_v1"),
-        "source": payload.get("source", "bundled_fallback"),
-        "policies": list(payload.get("policies") or []),
-    }
-
-
-def _should_refresh_cache() -> bool:
-    global _CACHE_TIMESTAMP
-    if _CACHE_TIMESTAMP is None or _cached_bundle is None:
-        return True
-    return datetime.now() - _CACHE_TIMESTAMP > timedelta(seconds=_cache_ttl_seconds())
+_MODULE_DIR = Path(__file__).resolve().parent
 
 
 def _normalize_policy_row(row: dict[str, Any]) -> dict[str, Any]:
@@ -64,43 +29,34 @@ def _normalize_policy_row(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def load_gdmt_policy_bundle() -> dict[str, Any]:
-    global _CACHE_TIMESTAMP, _cached_bundle
-    if not _should_refresh_cache() and _cached_bundle is not None:
-        return _cached_bundle
-
-    try:
-        rows = read_approved_gdmt_policies()
-        if rows:
-            policies = [_normalize_policy_row(row) for row in rows]
-            policies.sort(key=lambda item: int(item.get("sort_order") or 0))
-            bundle = {
-                "version": f"postgres_approved_{len(policies)}",
-                "source": "postgres_approved_gdmt_policies",
-                "policies": policies,
-            }
-            _cached_bundle = bundle
-            _CACHE_TIMESTAMP = datetime.now()
-            return bundle
-    except Exception as exc:
-        logger.error("Could not load GDMT policies from Postgres: %s", exc, exc_info=True)
-        if _cached_bundle is not None:
-            return _cached_bundle
-
-    fallback = _load_fallback_bundle()
-    logger.warning(
-        "Serving bundled fallback GDMT policies (%s policies)",
-        len(fallback.get("policies") or []),
-    )
-    _cached_bundle = fallback
-    _CACHE_TIMESTAMP = datetime.now()
-    return fallback
-
-
-def load_executable_gdmt_policies() -> list[dict[str, Any]]:
-    policies = list(load_gdmt_policy_bundle().get("policies") or [])
+def _normalize_policy_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    policies = [_normalize_policy_row(row) for row in rows]
     return sorted(policies, key=lambda item: int(item.get("sort_order") or 0))
 
 
+_CACHE = RuleCache(
+    catalog_name="gdmt_policies",
+    ttl_seconds_setting="gdmt_policy_cache_ttl_seconds",
+    fallback_path=_MODULE_DIR / "rules" / "hf_gdmt_policy_v1.json",
+    list_key="policies",
+    db_loader=read_approved_gdmt_policies,
+    default_version="hf_gdmt_policy_v1",
+    postgres_source="postgres_approved_gdmt_policies",
+    transform_rows=_normalize_policy_rows,
+)
+
+
+def invalidate_gdmt_policy_cache() -> None:
+    _CACHE.invalidate()
+
+
+def load_gdmt_policy_bundle() -> dict[str, Any]:
+    return _CACHE.load_bundle()
+
+
+def load_executable_gdmt_policies() -> list[dict[str, Any]]:
+    return _CACHE.load_items()
+
+
 def gdmt_policy_version() -> str:
-    return str(load_gdmt_policy_bundle().get("version") or "unknown")
+    return _CACHE.version()

@@ -1,6 +1,14 @@
 from app.core.config import settings
 from app.modules.clinical_intake_extraction import service
-from app.modules.clinical_intake_extraction.service import extract_patient_from_message
+from app.modules.clinical_intake_extraction.service import extract_patient_from_message_sync as extract_patient_from_message
+
+
+def _async_llm_recorder(calls: list[str]):
+    async def _fake(message: str):
+        calls.append(message)
+        return None
+
+    return _fake
 
 
 def test_extracts_vietnamese_vitals_labs_medications_and_allergy() -> None:
@@ -59,7 +67,7 @@ def test_skips_llm_intake_when_required_fields_are_complete(monkeypatch) -> None
     monkeypatch.setattr(
         service,
         "_call_llm_extractor",
-        lambda message: calls.append(message) or None,
+        _async_llm_recorder(calls),
     )
 
     extract_patient_from_message(
@@ -103,20 +111,15 @@ def test_llm_extractor_enriches_patient_identity_and_structured_fields(monkeypat
                 ]
             }
 
-    class FakeClient:
-        def __init__(self, *args, **kwargs):
-            pass
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *args):
-            return None
-
-        def post(self, *args, **kwargs):
+    class FakeAsyncClient:
+        async def post(self, *args, **kwargs):
             return FakeResponse()
 
-    monkeypatch.setattr(service.httpx, "Client", FakeClient)
+    monkeypatch.setattr(
+        service,
+        "get_async_client",
+        lambda *_args, **_kwargs: FakeAsyncClient(),
+    )
 
     patient = extract_patient_from_message("Can danh gia an toan MRA.", "LLM_INTAKE")
 

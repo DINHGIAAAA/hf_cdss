@@ -8,6 +8,7 @@ from typing import Any
 
 from app.core.config import settings
 from app.core.metrics import increment, observe
+from app.modules.chat.clinical_state import state_query_text
 from app.modules.citation_validation.service import source_link_for_chunk
 from app.modules.datastores.artifacts import sync_artifacts_from_processed_bucket
 from app.modules.datastores.chroma import retrieve_chroma
@@ -105,11 +106,31 @@ def _add_terms(terms: set[str], values: list[str]) -> None:
         terms.update(_tokenize(value))
 
 
-def query_terms_for_patient(patient: PatientProfile, query: str | None = None) -> list[str]:
+def query_terms_for_patient(
+    patient: PatientProfile,
+    query: str | None = None,
+    *,
+    conversation_history: list[str] | None = None,
+    clinical_state: dict[str, Any] | None = None,
+) -> list[str]:
     terms: set[str] = {"heart", "failure", "hfref", "gdmt"}
 
     if query:
         _add_terms(terms, [query])
+
+    if clinical_state:
+        _add_terms(terms, [state_query_text(clinical_state)])
+        _add_terms(terms, clinical_state.get("focus_medication_classes") or [])
+        _add_terms(terms, clinical_state.get("active_medication_classes") or [])
+        _add_terms(terms, clinical_state.get("conditions") or [])
+        for medication in clinical_state.get("mentioned_medications") or []:
+            if isinstance(medication, dict):
+                _add_terms(terms, [medication.get("name", ""), medication.get("drug_class", "")])
+
+    if conversation_history:
+        recent_turns = [turn.strip() for turn in conversation_history if turn and turn.strip()][-3:]
+        if recent_turns:
+            _add_terms(terms, recent_turns)
 
     _add_terms(terms, patient.current_medications)
     _add_terms(terms, patient.comorbidities)
@@ -314,7 +335,12 @@ def retrieve_graph_facts(terms: list[str], top_k: int, *, published: bool = True
 
 def build_graphrag_context(request: GraphRAGContextRequest) -> GraphRAGContextResponse:
     started = time.perf_counter()
-    terms = query_terms_for_patient(request.patient, request.query)
+    terms = query_terms_for_patient(
+        request.patient,
+        request.query,
+        conversation_history=request.conversation_history,
+        clinical_state=request.clinical_state,
+    )
     top_k = max(1, min(request.top_k, 12))
     graph_facts: list[GraphFact] = []
     evidence_chunks: list[EvidenceChunk] = []

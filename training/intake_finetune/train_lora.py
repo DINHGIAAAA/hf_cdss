@@ -38,6 +38,7 @@ def main() -> None:
     parser.add_argument("--lora-r", type=int, default=16)
     parser.add_argument("--lora-alpha", type=int, default=32)
     parser.add_argument("--lora-dropout", type=float, default=0.05)
+    parser.add_argument("--eval-fraction", type=float, default=0.1, help="Hold-out fraction for eval metrics")
     parser.add_argument("--bf16", action="store_true", help="Use bf16 when CUDA is available")
     args = parser.parse_args()
 
@@ -56,8 +57,17 @@ def main() -> None:
         raise SystemExit(f"Dataset not found: {args.dataset}. Run build_dataset.py first.")
 
     rows = load_jsonl(args.dataset)
-    dataset = Dataset.from_list(
-        [{"text": format_chat_text(row["messages"])} for row in rows]
+    split_index = max(1, int(len(rows) * (1 - max(0.0, min(args.eval_fraction, 0.5)))))
+    train_rows = rows[:split_index]
+    eval_rows = rows[split_index:] if split_index < len(rows) else []
+
+    train_dataset = Dataset.from_list(
+        [{"text": format_chat_text(row["messages"])} for row in train_rows]
+    )
+    eval_dataset = (
+        Dataset.from_list([{"text": format_chat_text(row["messages"])} for row in eval_rows])
+        if eval_rows
+        else None
     )
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
@@ -86,12 +96,15 @@ def main() -> None:
         num_train_epochs=args.epochs,
         max_steps=args.max_steps,
         per_device_train_batch_size=args.batch_size,
+        per_device_eval_batch_size=args.batch_size,
         gradient_accumulation_steps=args.gradient_accumulation,
         learning_rate=args.learning_rate,
         logging_steps=10,
         save_steps=100,
         save_total_limit=2,
         report_to=[],
+        evaluation_strategy="steps" if eval_dataset is not None else "no",
+        eval_steps=50 if eval_dataset is not None else None,
         bf16=args.bf16 and torch.cuda.is_available(),
         fp16=not args.bf16 and torch.cuda.is_available(),
         remove_unused_columns=False,
@@ -100,7 +113,8 @@ def main() -> None:
     trainer = SFTTrainer(
         model=model,
         tokenizer=tokenizer,
-        train_dataset=dataset,
+        train_dataset=train_dataset,
+        eval_dataset=eval_dataset,
         args=training_args,
         dataset_text_field="text",
         max_seq_length=args.max_seq_length,
@@ -114,6 +128,9 @@ def main() -> None:
         "base_model": args.base_model,
         "dataset": str(args.dataset),
         "records": len(rows),
+        "train_records": len(train_rows),
+        "eval_records": len(eval_rows),
+        "eval_fraction": args.eval_fraction,
         "output_dir": str(args.output_dir),
     }
     (args.output_dir / "train_metadata.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
