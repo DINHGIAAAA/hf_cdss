@@ -166,6 +166,7 @@ def _patch_session_dependencies() -> None:
     import app.core.token_service as token_service
     import app.modules.chat.service as chat_service
     import app.modules.constraint_builder.service as constraint_service
+    import app.modules.datastores.dose_safety_warnings_postgres as dose_safety_warnings_postgres
     import app.modules.datastores.gdmt_policies_postgres as gdmt_policies_postgres
     import app.modules.datastores.interaction_rules_postgres as interaction_rules_postgres
     import app.modules.datastores.postgres as postgres_module
@@ -183,6 +184,7 @@ def _patch_session_dependencies() -> None:
     postgres_module.read_approved_constraint_rules = lambda: rules
     interaction_rules_postgres.read_approved_interaction_rules = lambda: []
     gdmt_policies_postgres.read_approved_gdmt_policies = lambda: []
+    dose_safety_warnings_postgres.read_approved_dose_safety_warnings = lambda: []
     constraint_service.read_approved_constraint_rules = lambda: rules
     datastore_service.datastore_status = fake_datastore_status
     health_routes.datastore_status = fake_datastore_status

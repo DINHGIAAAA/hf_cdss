@@ -11,6 +11,7 @@ import {
   MessageSquareText,
   Network,
   Pill,
+  ShieldAlert,
   ShieldCheck,
   Users,
 } from "lucide-react";
@@ -20,6 +21,7 @@ import { useAuth } from "../auth/AuthContext";
 const NAV_ITEMS = [
   { to: "/admin/rules", label: "Constraints", icon: ShieldCheck },
   { to: "/admin/dose-rules", label: "Dose rules", icon: Pill },
+  { to: "/admin/dose-safety-warnings", label: "Dose safety", icon: ShieldAlert },
   { to: "/admin/interaction-rules", label: "Interactions", icon: Link2 },
   { to: "/admin/gdmt-policies", label: "GDMT policies", icon: HeartPulse },
   { to: "/admin/evidence", label: "Evidence", icon: FileSearch },

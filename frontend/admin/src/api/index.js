@@ -55,6 +55,19 @@ export const adminApi = {
     apiPatch(`/admin/gdmt-policies/rules/${policyId}`, { status }),
   bulkApproveGdmtPolicies: (payload) => apiPost("/admin/gdmt-policies/bulk-approve", payload),
   activeGdmtPolicies: () => apiGet("/admin/gdmt-policies/active"),
+  listDoseSafetyWarnings: (params = {}) =>
+    apiGet(`/admin/dose-safety-warnings${buildGovernanceQuery(params)}`),
+  getDoseSafetyWarning: (ruleId) => apiGet(`/admin/dose-safety-warnings/rules/${ruleId}`),
+  getDoseSafetyWarningVersions: (doseSafetyWarningId) =>
+    apiGet(`/admin/dose-safety-warnings/by-rid/${encodeURIComponent(doseSafetyWarningId)}`),
+  getDoseSafetyWarningDiff: (ruleId, against = "approved") =>
+    apiGet(`/admin/dose-safety-warnings/rules/${ruleId}/diff?against=${encodeURIComponent(against)}`),
+  getDoseSafetyWarningHistory: (doseSafetyWarningId) =>
+    apiGet(`/admin/dose-safety-warnings/${encodeURIComponent(doseSafetyWarningId)}/history`),
+  updateDoseSafetyWarningStatus: (ruleId, status) =>
+    apiPatch(`/admin/dose-safety-warnings/rules/${ruleId}`, { status }),
+  bulkApproveDoseSafetyWarnings: (payload) => apiPost("/admin/dose-safety-warnings/bulk-approve", payload),
+  activeDoseSafetyWarnings: () => apiGet("/admin/dose-safety-warnings/active"),
 };
 
 export const evidenceApi = {

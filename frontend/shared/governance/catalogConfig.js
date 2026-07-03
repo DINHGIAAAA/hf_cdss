@@ -89,3 +89,20 @@ export const INTERACTION_CATALOG = {
     { key: "q", label: "Search ID", placeholder: "interaction rule id" },
   ],
 };
+
+export const DOSE_SAFETY_CATALOG = {
+  id: "dose-safety-warnings",
+  label: "Dose safety warnings",
+  bulkLabel: "dose safety warnings",
+  listKey: "listDoseSafetyWarnings",
+  bulkKey: "bulkApproveDoseSafetyWarnings",
+  diffKey: "getDoseSafetyWarningDiff",
+  versionsKey: "getDoseSafetyWarningVersions",
+  logicalIdField: "dose_safety_warning_id",
+  filters: [
+    { key: "target", label: "Target", placeholder: "e.g. MRA" },
+    { key: "default_severity", label: "Severity", placeholder: "e.g. high" },
+    { key: "safety_tier", label: "Safety tier", type: "select", options: SAFETY_TIER_OPTIONS },
+    { key: "q", label: "Search ID", placeholder: "dose safety warning id" },
+  ],
+};

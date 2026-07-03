@@ -94,6 +94,7 @@ class Settings(BaseSettings):
     dose_rules_cache_ttl_seconds: int = 300
     interaction_rules_cache_ttl_seconds: int = 300
     gdmt_policy_cache_ttl_seconds: int = 300
+    dose_safety_warnings_cache_ttl_seconds: int = 300
 
     model_config = SettingsConfigDict(env_prefix="HF_CDSS_", env_file=".env", extra="ignore")
 

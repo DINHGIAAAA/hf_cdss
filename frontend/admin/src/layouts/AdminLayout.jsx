@@ -10,6 +10,7 @@ import {
   MessageSquareText,
   Network,
   Pill,
+  ShieldAlert,
   ShieldCheck,
 } from "lucide-react";
 
@@ -20,6 +21,7 @@ const DOCTOR_DASHBOARD_URL = import.meta.env.VITE_DOCTOR_DASHBOARD_URL ?? "http:
 const NAV_ITEMS = [
   { to: "/rules", label: "Constraints", icon: ShieldCheck },
   { to: "/dose-rules", label: "Dose rules", icon: Pill },
+  { to: "/dose-safety-warnings", label: "Dose safety", icon: ShieldAlert },
   { to: "/interaction-rules", label: "Interactions", icon: Link2 },
   { to: "/gdmt-policies", label: "GDMT policies", icon: HeartPulse },
   { to: "/evidence", label: "Evidence", icon: FileSearch },

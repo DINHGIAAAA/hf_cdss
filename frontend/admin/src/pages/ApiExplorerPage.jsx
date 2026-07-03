@@ -5,6 +5,12 @@ import { auditApi, adminApi, kgApi, retrievalApi } from "../api/index.js";
 
 const TOOLS = [
   {
+    id: "dose-safety-warnings",
+    label: "Active dose safety warnings",
+    description: "GET /api/v1/admin/dose-safety-warnings/active — approved warnings used by the dose checker.",
+    run: () => adminApi.activeDoseSafetyWarnings(),
+  },
+  {
     id: "gdmt-policies",
     label: "Active GDMT policies",
     description: "GET /api/v1/admin/gdmt-policies/active — approved policies used by /recommend.",

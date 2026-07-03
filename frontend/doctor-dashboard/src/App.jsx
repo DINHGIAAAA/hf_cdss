@@ -11,6 +11,7 @@ import { EvidencePage } from "./pages/EvidencePage";
 import { HomePage } from "./pages/HomePage";
 import { LoginPage } from "./pages/LoginPage";
 import { DoseRulesPage } from "./pages/DoseRulesPage.jsx";
+import { DoseSafetyWarningsPage } from "./pages/DoseSafetyWarningsPage.jsx";
 import { GdmtPoliciesPage } from "./pages/GdmtPoliciesPage.jsx";
 import { InteractionRulesPage } from "./pages/InteractionRulesPage.jsx";
 import { RulesPage } from "./pages/RulesPage";
@@ -46,6 +47,7 @@ function App() {
             <Route element={<Navigate replace to="rules" />} index />
             <Route element={<RulesPage />} path="rules" />
             <Route element={<DoseRulesPage />} path="dose-rules" />
+            <Route element={<DoseSafetyWarningsPage />} path="dose-safety-warnings" />
             <Route element={<InteractionRulesPage />} path="interaction-rules" />
             <Route element={<GdmtPoliciesPage />} path="gdmt-policies" />
             <Route element={<EvidencePage />} path="evidence" />

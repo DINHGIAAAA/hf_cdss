@@ -316,6 +316,56 @@ def initialize_postgres() -> dict[str, Any]:
                 "CREATE INDEX IF NOT EXISTS idx_gdmt_policy_history_policy "
                 "ON gdmt_policy_history (gdmt_policy_id, changed_at DESC)"
             )
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS dose_safety_warnings (
+                    id BIGSERIAL PRIMARY KEY,
+                    dose_safety_warning_id TEXT NOT NULL,
+                    version INTEGER NOT NULL DEFAULT 1,
+                    status TEXT NOT NULL DEFAULT 'draft',
+                    drug_keys TEXT[] NOT NULL DEFAULT '{}',
+                    target TEXT,
+                    default_severity TEXT NOT NULL DEFAULT 'moderate',
+                    rule_body JSONB NOT NULL,
+                    evidence_ref TEXT,
+                    clinical_sources JSONB NOT NULL DEFAULT '[]'::jsonb,
+                    source TEXT NOT NULL,
+                    safety_tier TEXT,
+                    approved_by TEXT,
+                    approved_at TIMESTAMPTZ,
+                    retired_by TEXT,
+                    retired_at TIMESTAMPTZ,
+                    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+            cursor.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_dose_safety_warnings_id_version "
+                "ON dose_safety_warnings (dose_safety_warning_id, version)"
+            )
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS dose_safety_warning_history (
+                    history_id BIGSERIAL PRIMARY KEY,
+                    dose_safety_warning_id TEXT NOT NULL,
+                    status_from TEXT,
+                    status_to TEXT NOT NULL,
+                    changed_by TEXT NOT NULL,
+                    changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    reason TEXT
+                )
+                """
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_dose_safety_warnings_status "
+                "ON dose_safety_warnings (status)"
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_dose_safety_warning_history_warning "
+                "ON dose_safety_warning_history (dose_safety_warning_id, changed_at DESC)"
+            )
         connection.commit()
 
     from app.modules.datastores.users import seed_default_users
@@ -337,6 +387,8 @@ def initialize_postgres() -> dict[str, Any]:
             "interaction_rule_history",
             "gdmt_policies",
             "gdmt_policy_history",
+            "dose_safety_warnings",
+            "dose_safety_warning_history",
         ],
         "users_seed": seed_result,
     }

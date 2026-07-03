@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.modules.datastores.dose_safety_warnings_postgres import (
+    approve_dose_safety_warning,
+    list_draft_dose_safety_warning_ids,
+)
 from app.modules.datastores.gdmt_policies_postgres import approve_gdmt_policy, list_draft_gdmt_policy_ids
 from app.modules.datastores.interaction_rules_postgres import (
     approve_interaction_rule,
@@ -146,4 +150,38 @@ def bulk_approve_gdmt_policies(
         "skipped": [],
         "total_requested": len(ids),
         "message": f"Approved {len(approved)} of {len(ids)} draft GDMT policies.",
+    }
+
+
+def bulk_approve_dose_safety_warnings(
+    admin_user_id: str,
+    *,
+    rule_ids: list[int] | None = None,
+    target: str | None = None,
+    default_severity: str | None = None,
+    safety_tier: str | None = None,
+    q: str | None = None,
+    limit: int = 100,
+) -> dict[str, Any]:
+    ids = list_draft_dose_safety_warning_ids(
+        rule_ids=rule_ids,
+        target=target,
+        default_severity=default_severity,
+        safety_tier=safety_tier,
+        q=q,
+        limit=limit,
+    )
+    approved: list[int] = []
+    failed: list[dict[str, Any]] = []
+    for rule_id in ids:
+        if approve_dose_safety_warning(rule_id, admin_user_id):
+            approved.append(rule_id)
+        else:
+            failed.append({"id": rule_id, "error": "Approve failed or warning is not draft"})
+    return {
+        "approved": approved,
+        "failed": failed,
+        "skipped": [],
+        "total_requested": len(ids),
+        "message": f"Approved {len(approved)} of {len(ids)} draft dose safety warnings.",
     }

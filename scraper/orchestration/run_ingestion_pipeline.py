@@ -163,6 +163,18 @@ def main() -> None:
                 ("generate_dose_rules", [python, "-m", "scraper.process.generate_dose_rules"]),
                 ("classify_dose_rules", [python, "-m", "scraper.process.classify_dose_rules"]),
                 (
+                    "extract_structured_dose_safety_claims",
+                    [python, "-m", "scraper.process.extract_structured_dose_safety_claims"],
+                ),
+                (
+                    "generate_dose_safety_warnings",
+                    [python, "-m", "scraper.process.generate_dose_safety_warnings"],
+                ),
+                (
+                    "classify_dose_safety_warnings",
+                    [python, "-m", "scraper.process.classify_dose_safety_warnings"],
+                ),
+                (
                     "extract_structured_interaction_claims",
                     [python, "-m", "scraper.process.extract_structured_interaction_claims"],
                 ),
@@ -247,6 +259,17 @@ def main() -> None:
                 "scraper.process.sync_gdmt_policies_to_postgres",
                 "--policies",
                 "artifacts/gdmt_policies/gdmt_policies_classified.jsonl",
+            ],
+            args.dry_run,
+        )
+        run_step(
+            "sync_dose_safety_warnings_to_postgres",
+            [
+                python,
+                "-m",
+                "scraper.process.sync_dose_safety_warnings_to_postgres",
+                "--warnings",
+                "artifacts/dose_safety_warnings/dose_safety_warnings_classified.jsonl",
             ],
             args.dry_run,
         )

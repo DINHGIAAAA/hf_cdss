@@ -114,3 +114,19 @@ def interaction_diff_payload(rule: dict[str, Any]) -> dict[str, Any]:
 
 def gdmt_diff_payload(policy: dict[str, Any]) -> dict[str, Any]:
     return {field: policy.get(field) for field in GDMT_DIFF_FIELDS}
+
+
+DOSE_SAFETY_DIFF_FIELDS = [
+    "drug_keys",
+    "target",
+    "default_severity",
+    "rule_body",
+    "evidence_ref",
+    "safety_tier",
+    "clinical_sources",
+    "metadata",
+]
+
+
+def dose_safety_diff_payload(warning: dict[str, Any]) -> dict[str, Any]:
+    return {field: warning.get(field) for field in DOSE_SAFETY_DIFF_FIELDS}
