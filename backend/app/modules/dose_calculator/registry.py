@@ -1,15 +1,21 @@
 from __future__ import annotations
 
-from functools import lru_cache
 from typing import Any
 
 from app.modules.dose_calculator.kg_loader import invalidate_kg_dose_overlays_cache, load_kg_dose_overlays
 from app.modules.dose_calculator.rule_loader import load_dose_rules_bundle, load_executable_dose_rules
 
 
-@lru_cache(maxsize=1)
-def load_dose_rules() -> list[dict[str, Any]]:
-    rules = list(load_executable_dose_rules())
+_registry_snapshot: tuple[str, list[dict[str, Any]]] | None = None
+
+
+def _bundle_fingerprint() -> str:
+    bundle = load_dose_rules_bundle()
+    rules = bundle.get("rules") or []
+    return f"{bundle.get('version')}|{bundle.get('source')}|{len(rules)}"
+
+
+def _merge_rules_with_overlays(rules: list[dict[str, Any]]) -> list[dict[str, Any]]:
     if not rules:
         return []
 
@@ -32,6 +38,17 @@ def load_dose_rules() -> list[dict[str, Any]]:
     return list(by_id.values())
 
 
+def load_dose_rules() -> list[dict[str, Any]]:
+    global _registry_snapshot
+    fingerprint = _bundle_fingerprint()
+    if _registry_snapshot is not None and _registry_snapshot[0] == fingerprint:
+        return list(_registry_snapshot[1])
+
+    rules = _merge_rules_with_overlays(list(load_executable_dose_rules()))
+    _registry_snapshot = (fingerprint, rules)
+    return list(rules)
+
+
 def dose_rules_bundle_version() -> str:
     return str(load_dose_rules_bundle().get("version") or "unknown")
 
@@ -52,8 +69,9 @@ def rules_for_class(drug_class: str) -> list[dict[str, Any]]:
 
 
 def invalidate_dose_rules_registry_cache() -> None:
+    global _registry_snapshot
     from app.modules.dose_calculator.rule_loader import invalidate_dose_rules_cache
 
-    load_dose_rules.cache_clear()
+    _registry_snapshot = None
     invalidate_dose_rules_cache()
     invalidate_kg_dose_overlays_cache()

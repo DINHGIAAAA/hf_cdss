@@ -6,6 +6,7 @@ from app.modules.datastores.common import DATA_ROOT
 from app.modules.datastores.chroma import chroma_status, initialize_chroma
 from app.modules.datastores.neo4j import initialize_neo4j, neo4j_status
 from app.modules.datastores.postgres import initialize_postgres, postgres_status
+from app.modules.dose_calculator.health import dose_rules_status
 
 
 logger = logging.getLogger(__name__)
@@ -44,5 +45,6 @@ def datastore_status() -> dict[str, Any]:
         "postgres": postgres_status(),
         "chroma": chroma_status(),
         "neo4j": neo4j_status(),
+        "dose_rules": dose_rules_status(),
     }
 

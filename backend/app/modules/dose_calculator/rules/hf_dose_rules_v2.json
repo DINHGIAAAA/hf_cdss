@@ -1,0 +1,685 @@
+{
+  "version": "hf_dose_rules_v2",
+  "source": "AHA/ACC/HFSA 2022 HF guideline titration tables, ESC 2021 GDMT notes, FDA drug labels (reference only).",
+  "rules": [
+    {
+      "rule_id": "bisoprolol_hf_titration",
+      "drug_keys": [
+        "bisoprolol",
+        "bisoprolol fumarate",
+        "bisoprolol_fumarate"
+      ],
+      "drug_class": "beta_blocker",
+      "calculation_type": "fixed_titration",
+      "evidence_refs": [
+        "aha_acc_hfsa_2022_gdmt",
+        "bisoprolol_label_hf"
+      ],
+      "starting_dose": {
+        "value": 1.25,
+        "unit": "mg",
+        "frequency": "once daily"
+      },
+      "target_dose": {
+        "value": 10,
+        "unit": "mg",
+        "frequency": "once daily"
+      },
+      "step_multiplier": 2.0,
+      "step_interval_weeks": 2,
+      "hold_if": {
+        "heart_rate_lt": 60,
+        "systolic_bp_lt": 100
+      },
+      "monitoring": [
+        "Heart rate and blood pressure before each uptitration",
+        "Symptoms of congestion or hypotension"
+      ]
+    },
+    {
+      "rule_id": "carvedilol_hf_titration",
+      "drug_keys": [
+        "carvedilol"
+      ],
+      "drug_class": "beta_blocker",
+      "calculation_type": "weight_adjusted_target",
+      "evidence_refs": [
+        "aha_acc_hfsa_2022_gdmt",
+        "carvedilol_label_hf"
+      ],
+      "starting_dose": {
+        "value": 3.125,
+        "unit": "mg",
+        "frequency": "twice daily"
+      },
+      "target_dose_standard": {
+        "value": 25,
+        "unit": "mg",
+        "frequency": "twice daily"
+      },
+      "target_dose_high_weight": {
+        "value": 50,
+        "unit": "mg",
+        "frequency": "twice daily"
+      },
+      "weight_threshold_kg": 85,
+      "step_interval_weeks": 2,
+      "hold_if": {
+        "heart_rate_lt": 55,
+        "systolic_bp_lt": 100
+      },
+      "monitoring": [
+        "Heart rate, blood pressure, weight, congestion signs"
+      ]
+    },
+    {
+      "rule_id": "metoprolol_succinate_hf_titration",
+      "drug_keys": [
+        "metoprolol succinate",
+        "metoprolol_succinate",
+        "metoprolol"
+      ],
+      "drug_class": "beta_blocker",
+      "calculation_type": "fixed_titration",
+      "evidence_refs": [
+        "aha_acc_hfsa_2022_gdmt",
+        "metoprolol_succinate_label_hf"
+      ],
+      "starting_dose": {
+        "value": 12.5,
+        "unit": "mg",
+        "frequency": "once daily"
+      },
+      "target_dose": {
+        "value": 200,
+        "unit": "mg",
+        "frequency": "once daily"
+      },
+      "step_multiplier": 2.0,
+      "step_interval_weeks": 2,
+      "hold_if": {
+        "heart_rate_lt": 60,
+        "systolic_bp_lt": 100
+      },
+      "monitoring": [
+        "Heart rate, blood pressure, symptoms"
+      ]
+    },
+    {
+      "rule_id": "digoxin_maintenance_crcl",
+      "drug_keys": [
+        "digoxin"
+      ],
+      "drug_class": "cardiac_glycoside",
+      "calculation_type": "crcl_bracket",
+      "evidence_refs": [
+        "digoxin_label",
+        "kdigo_ckd_2024"
+      ],
+      "requires": [
+        "age",
+        "sex",
+        "weight_kg",
+        "creatinine"
+      ],
+      "crcl_brackets": [
+        {
+          "crcl_min": 80,
+          "dose": {
+            "value": 0.125,
+            "unit": "mg",
+            "frequency": "once daily"
+          },
+          "note": "May use 0.125-0.25 mg daily; check levels."
+        },
+        {
+          "crcl_min": 50,
+          "dose": {
+            "value": 0.125,
+            "unit": "mg",
+            "frequency": "once daily"
+          },
+          "note": "Start low; monitor level and renal function."
+        },
+        {
+          "crcl_min": 30,
+          "dose": {
+            "value": 0.125,
+            "unit": "mg",
+            "frequency": "every other day"
+          },
+          "note": "Reduce dose interval; monitor digoxin level."
+        },
+        {
+          "crcl_min": 0,
+          "dose": null,
+          "note": "Avoid or use specialist-guided very low dose when CrCl <30."
+        }
+      ],
+      "monitoring": [
+        "Digoxin level",
+        "Potassium",
+        "Renal function",
+        "Bradycardia or arrhythmia symptoms"
+      ]
+    },
+    {
+      "rule_id": "apixaban_af_dose_reduction",
+      "drug_keys": [
+        "apixaban"
+      ],
+      "drug_class": "anticoagulant",
+      "calculation_type": "dual_criteria_reduction",
+      "evidence_refs": [
+        "apixaban_label",
+        "esc_af_guideline"
+      ],
+      "standard_dose": {
+        "value": 5,
+        "unit": "mg",
+        "frequency": "twice daily"
+      },
+      "reduced_dose": {
+        "value": 2.5,
+        "unit": "mg",
+        "frequency": "twice daily"
+      },
+      "reduction_criteria": [
+        {
+          "field": "age",
+          "operator": "gte",
+          "value": 80,
+          "label": "age >= 80 years"
+        },
+        {
+          "field": "weight_kg",
+          "operator": "lte",
+          "value": 60,
+          "label": "weight <= 60 kg"
+        },
+        {
+          "field": "creatinine",
+          "operator": "gte",
+          "value": 1.5,
+          "label": "serum creatinine >= 1.5 mg/dL"
+        }
+      ],
+      "reduction_min_matches": 2,
+      "renal_note": "Also review eGFR 15-29 mg indication context separately.",
+      "monitoring": [
+        "Bleeding signs",
+        "Renal function",
+        "Drug interactions"
+      ]
+    },
+    {
+      "rule_id": "rivaroxaban_af_crcl_dose",
+      "drug_keys": [
+        "rivaroxaban",
+        "xarelto"
+      ],
+      "drug_class": "anticoagulant",
+      "calculation_type": "crcl_threshold_dose",
+      "evidence_refs": [
+        "rivaroxaban_label",
+        "esc_af_guideline"
+      ],
+      "standard_dose": {
+        "value": 20,
+        "unit": "mg",
+        "frequency": "once daily with evening meal"
+      },
+      "reduced_dose": {
+        "value": 15,
+        "unit": "mg",
+        "frequency": "once daily with evening meal"
+      },
+      "crcl_threshold": 50,
+      "crcl_minimum": 15,
+      "standard_rationale": "Standard rivaroxaban 20 mg daily when CrCl is at least 50 mL/min.",
+      "reduced_rationale": "Reduced rivaroxaban 15 mg daily when CrCl is 15-49 mL/min.",
+      "below_minimum_rationale": "Avoid rivaroxaban when CrCl is below 15 mL/min.",
+      "needs_data_rationale": "Rivaroxaban dose selection requires renal function (CrCl or eGFR proxy).",
+      "monitoring": [
+        "Bleeding signs",
+        "Renal function",
+        "Drug interactions",
+        "Take with evening meal"
+      ]
+    },
+    {
+      "rule_id": "edoxaban_af_dose_reduction",
+      "drug_keys": [
+        "edoxaban",
+        "lixiana",
+        "savaysa"
+      ],
+      "drug_class": "anticoagulant",
+      "calculation_type": "criteria_reduction",
+      "evidence_refs": [
+        "edoxaban_label",
+        "esc_af_guideline",
+        "engage_af_timi_38"
+      ],
+      "standard_dose": {
+        "value": 60,
+        "unit": "mg",
+        "frequency": "once daily"
+      },
+      "reduced_dose": {
+        "value": 30,
+        "unit": "mg",
+        "frequency": "once daily"
+      },
+      "reduction_min_matches": 1,
+      "reduction_criteria": [
+        {
+          "field": "weight_kg",
+          "operator": "lte",
+          "value": 60,
+          "label": "weight <= 60 kg"
+        },
+        {
+          "field": "crcl",
+          "operator": "between",
+          "value_low": 15,
+          "value_high": 50,
+          "label": "CrCl 15-50 mL/min"
+        }
+      ],
+      "contraindicated_if": [
+        {
+          "field": "crcl",
+          "operator": "lt",
+          "value": 15,
+          "label": "CrCl below 15 mL/min"
+        },
+        {
+          "field": "crcl",
+          "operator": "gt",
+          "value": 95,
+          "label": "CrCl above 95 mL/min (reduced efficacy in AF)"
+        }
+      ],
+      "standard_rationale": "Standard edoxaban 60 mg daily when no dose-reduction criteria apply.",
+      "reduced_rationale": "Reduced edoxaban 30 mg daily when weight <= 60 kg or CrCl is 15-50 mL/min.",
+      "needs_data_rationale": "Edoxaban dosing requires weight and renal function for dose selection.",
+      "renal_note": "Review concomitant P-gp inhibitors separately; not modeled in this calculator.",
+      "monitoring": [
+        "Bleeding signs",
+        "Renal function",
+        "Drug interactions"
+      ]
+    },
+    {
+      "rule_id": "dabigatran_af_dose",
+      "drug_keys": [
+        "dabigatran",
+        "dabigatran etexilate",
+        "dabigatran_etexilate",
+        "pradaxa"
+      ],
+      "drug_class": "anticoagulant",
+      "calculation_type": "dabigatran_dose",
+      "evidence_refs": [
+        "dabigatran_label",
+        "re_ly_trial",
+        "esc_af_guideline"
+      ],
+      "standard_dose": {
+        "value": 150,
+        "unit": "mg",
+        "frequency": "twice daily"
+      },
+      "reduced_dose": {
+        "value": 110,
+        "unit": "mg",
+        "frequency": "twice daily"
+      },
+      "renal_reduced_dose": {
+        "value": 75,
+        "unit": "mg",
+        "frequency": "twice daily"
+      },
+      "crcl_minimum": 15,
+      "renal_reduced_crcl_max": 30,
+      "reduced_age_criterion": {
+        "field": "age",
+        "operator": "gte",
+        "value": 80,
+        "label": "age >= 80 years"
+      },
+      "monitoring": [
+        "Bleeding signs",
+        "Renal function",
+        "Drug interactions",
+        "Dysphagia or GI tolerance"
+      ]
+    },
+    {
+      "rule_id": "furosemide_congestion_titration",
+      "drug_keys": [
+        "furosemide",
+        "bumetanide",
+        "torsemide"
+      ],
+      "drug_class": "loop_diuretic",
+      "calculation_type": "congestion_range",
+      "evidence_refs": [
+        "aha_acc_hfsa_2022_diuretic",
+        "furosemide_label"
+      ],
+      "dose_range": {
+        "min": 20,
+        "max": 80,
+        "unit": "mg",
+        "frequency": "once or twice daily"
+      },
+      "monitoring": [
+        "Weight",
+        "Volume status",
+        "Electrolytes",
+        "Renal function",
+        "Blood pressure"
+      ]
+    },
+    {
+      "rule_id": "spironolactone_mra_hf",
+      "drug_keys": [
+        "spironolactone"
+      ],
+      "drug_class": "MRA",
+      "calculation_type": "fixed_titration",
+      "evidence_refs": [
+        "aha_acc_hfsa_2022_mra",
+        "spironolactone_label_hf"
+      ],
+      "starting_dose": {
+        "value": 12.5,
+        "unit": "mg",
+        "frequency": "once daily"
+      },
+      "target_dose": {
+        "value": 25,
+        "unit": "mg",
+        "frequency": "once daily"
+      },
+      "max_dose": {
+        "value": 50,
+        "unit": "mg",
+        "frequency": "once daily"
+      },
+      "hold_if": {
+        "potassium_gte": 5.0,
+        "egfr_lt": 30
+      },
+      "monitoring": [
+        "Potassium within 3 days then periodically",
+        "Renal function"
+      ]
+    },
+    {
+      "rule_id": "eplerenone_mra_hf",
+      "drug_keys": [
+        "eplerenone"
+      ],
+      "drug_class": "MRA",
+      "calculation_type": "fixed_titration",
+      "evidence_refs": [
+        "aha_acc_hfsa_2022_mra",
+        "eplerenone_label_hf"
+      ],
+      "starting_dose": {
+        "value": 25,
+        "unit": "mg",
+        "frequency": "once daily"
+      },
+      "target_dose": {
+        "value": 50,
+        "unit": "mg",
+        "frequency": "once daily"
+      },
+      "hold_if": {
+        "potassium_gte": 5.0,
+        "egfr_lt": 30
+      },
+      "monitoring": [
+        "Potassium and renal function after initiation"
+      ]
+    },
+    {
+      "rule_id": "sglt2i_hf_fixed",
+      "drug_keys": [
+        "dapagliflozin",
+        "empagliflozin"
+      ],
+      "drug_class": "SGLT2i",
+      "calculation_type": "fixed_dose",
+      "evidence_refs": [
+        "aha_acc_hfsa_2022_sglt2i",
+        "dapagliflozin_label_hf"
+      ],
+      "recommended_dose": {
+        "value": 10,
+        "unit": "mg",
+        "frequency": "once daily"
+      },
+      "monitoring": [
+        "Volume status",
+        "Genital infections",
+        "eGFR"
+      ]
+    },
+    {
+      "rule_id": "sacubitril_valsartan_arn_titration",
+      "drug_keys": [
+        "sacubitril/valsartan",
+        "sacubitril valsartan",
+        "sacubitril_and_valsartan",
+        "entresto"
+      ],
+      "drug_class": "ARNI",
+      "calculation_type": "step_titration",
+      "rationale": "ARNI titration for HFrEF using FDA label step doses with ACEi washout enforcement.",
+      "evidence_refs": [
+        "aha_acc_hfsa_2022_gdmt",
+        "sacubitril_valsartan_label_hf",
+        "arni_acei_36_hour_washout"
+      ],
+      "step_interval_weeks": 2,
+      "hold_if": {
+        "systolic_bp_lt": 100,
+        "potassium_gte": 5.5,
+        "egfr_lt": 30
+      },
+      "washout_rule": {
+        "min_hours": 36,
+        "message": "Do not initiate sacubitril/valsartan until ACEi has been withheld for at least 36 hours."
+      },
+      "dose_steps": [
+        {
+          "label": "24/26 mg",
+          "value": 24,
+          "unit": "mg",
+          "frequency": "twice daily"
+        },
+        {
+          "label": "49/51 mg",
+          "value": 49,
+          "unit": "mg",
+          "frequency": "twice daily"
+        },
+        {
+          "label": "97/103 mg",
+          "value": 97,
+          "unit": "mg",
+          "frequency": "twice daily"
+        }
+      ],
+      "monitoring": [
+        "Blood pressure and symptoms after each dose increase",
+        "Potassium and creatinine within 1-2 weeks after initiation or titration",
+        "Confirm no concomitant ACEi therapy"
+      ]
+    },
+    {
+      "rule_id": "enalapril_acei_titration",
+      "drug_keys": [
+        "enalapril",
+        "enalapril maleate",
+        "enalapril_maleate"
+      ],
+      "drug_class": "ACEi",
+      "calculation_type": "fixed_titration",
+      "rationale": "ACE inhibitor titration for HFrEF using enalapril label and AHA/ACC/HFSA guidance.",
+      "evidence_refs": [
+        "aha_acc_hfsa_2022_gdmt",
+        "enalapril_maleate_label_hf"
+      ],
+      "starting_dose": {
+        "value": 2.5,
+        "unit": "mg",
+        "frequency": "twice daily"
+      },
+      "target_dose": {
+        "value": 10,
+        "unit": "mg",
+        "frequency": "twice daily"
+      },
+      "step_multiplier": 2.0,
+      "step_interval_weeks": 2,
+      "hold_if": {
+        "systolic_bp_lt": 100,
+        "potassium_gte": 5.5,
+        "egfr_lt": 30
+      },
+      "monitoring": [
+        "Blood pressure",
+        "Potassium",
+        "Creatinine/eGFR within 1-2 weeks"
+      ]
+    },
+    {
+      "rule_id": "lisinopril_acei_titration",
+      "drug_keys": [
+        "lisinopril"
+      ],
+      "drug_class": "ACEi",
+      "calculation_type": "step_titration",
+      "rationale": "ACE inhibitor titration for HFrEF using lisinopril step doses.",
+      "evidence_refs": [
+        "aha_acc_hfsa_2022_gdmt",
+        "acei_hf_guideline"
+      ],
+      "step_interval_weeks": 2,
+      "hold_if": {
+        "systolic_bp_lt": 100,
+        "potassium_gte": 5.5,
+        "egfr_lt": 30
+      },
+      "dose_steps": [
+        {
+          "label": "2.5 mg",
+          "value": 2.5,
+          "unit": "mg",
+          "frequency": "once daily"
+        },
+        {
+          "label": "5 mg",
+          "value": 5,
+          "unit": "mg",
+          "frequency": "once daily"
+        },
+        {
+          "label": "10 mg",
+          "value": 10,
+          "unit": "mg",
+          "frequency": "once daily"
+        },
+        {
+          "label": "20 mg",
+          "value": 20,
+          "unit": "mg",
+          "frequency": "once daily"
+        }
+      ],
+      "monitoring": [
+        "Blood pressure",
+        "Potassium",
+        "Creatinine/eGFR within 1-2 weeks"
+      ]
+    },
+    {
+      "rule_id": "valsartan_arb_titration",
+      "drug_keys": [
+        "valsartan"
+      ],
+      "drug_class": "ARB",
+      "calculation_type": "step_titration",
+      "rationale": "ARB titration for HFrEF when ACEi/ARNI are not used.",
+      "evidence_refs": [
+        "aha_acc_hfsa_2022_gdmt",
+        "valsartan_label_hf"
+      ],
+      "step_interval_weeks": 2,
+      "hold_if": {
+        "systolic_bp_lt": 100,
+        "potassium_gte": 5.5,
+        "egfr_lt": 30
+      },
+      "dose_steps": [
+        {
+          "label": "40 mg",
+          "value": 40,
+          "unit": "mg",
+          "frequency": "twice daily"
+        },
+        {
+          "label": "80 mg",
+          "value": 80,
+          "unit": "mg",
+          "frequency": "twice daily"
+        },
+        {
+          "label": "160 mg",
+          "value": 160,
+          "unit": "mg",
+          "frequency": "twice daily"
+        }
+      ],
+      "monitoring": [
+        "Blood pressure",
+        "Potassium",
+        "Renal function"
+      ]
+    },
+    {
+      "rule_id": "warfarin_inr_adjustment",
+      "drug_keys": [
+        "warfarin",
+        "warfarin sodium",
+        "warfarin_sodium",
+        "coumadin"
+      ],
+      "drug_class": "anticoagulant_vka",
+      "calculation_type": "warfarin_inr",
+      "evidence_refs": [
+        "warfarin_sodium_label",
+        "acc_af_anticoagulation_guidance"
+      ],
+      "inr_target_low": 2.0,
+      "inr_target_high": 3.0,
+      "starting_dose": {
+        "value": 5,
+        "unit": "mg",
+        "frequency": "once daily"
+      },
+      "monitoring": [
+        "INR recheck 3-7 days after initiation or dose change",
+        "Bleeding signs and drug/food interactions",
+        "Maintain stable vitamin K intake"
+      ]
+    }
+  ],
+  "_promoted_from": "hf_dose_rules_v1.json"
+}

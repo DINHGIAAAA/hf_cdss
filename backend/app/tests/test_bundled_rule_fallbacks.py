@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from app.modules.dose_calculator.rule_validation import validate_bundle_file
+
 BUNDLED_CATALOGS = [
     {
         "path": Path("app/modules/constraint_builder/rules/constraints_v1.json"),
@@ -57,3 +59,5 @@ def test_bundled_fallback_catalogs_are_present_and_valid() -> None:
             assert catalog["id_key"] in item and item[catalog["id_key"]], (
                 f"{path.name} item missing {catalog['id_key']}"
             )
+        if catalog["path"].parts[-2:] == ("rules", "hf_dose_rules_v1.json"):
+            validate_bundle_file(path, strict=True)

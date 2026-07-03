@@ -1,18 +1,16 @@
-"""Seed bundled hf_dose_rules_v1.json into Postgres as approved dose rules."""
+"""Seed bundled dose rules JSON into Postgres as approved dose rules."""
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
 from app.modules.datastores.postgres import get_latest_dose_rule_version, insert_dose_rule
+from app.modules.dose_calculator.bundle_paths import resolve_dose_rules_bundle_path
+from app.modules.dose_calculator.rule_validation import validate_bundle_file
 
 
-RULES_PATH = Path(__file__).resolve().parent / "rules" / "hf_dose_rules_v1.json"
-
-
-def _row_from_rule(rule: dict[str, Any]) -> dict[str, Any]:
+def _row_from_rule(rule: dict[str, Any], *, bundle_version: str, bundle_name: str) -> dict[str, Any]:
     rule_id = rule["rule_id"]
     body = {
         key: value
@@ -29,16 +27,22 @@ def _row_from_rule(rule: dict[str, Any]) -> dict[str, Any]:
         "clinical_sources": [],
         "source": "bundled_seed",
         "safety_tier": "usable_rules",
-        "metadata": {"seed_source": "hf_dose_rules_v1.json", "content_hash": rule_id},
+        "metadata": {
+            "seed_source": bundle_name,
+            "bundle_version": bundle_version,
+            "content_hash": rule_id,
+        },
     }
 
 
-def migrate_bundled_dose_rules() -> dict[str, int]:
-    payload = json.loads(RULES_PATH.read_text(encoding="utf-8"))
+def migrate_bundled_dose_rules(bundle_path: str | None = None) -> dict[str, Any]:
+    path = Path(bundle_path) if bundle_path else resolve_dose_rules_bundle_path()
+    validated = validate_bundle_file(path, strict=True)
+    bundle_version = str(validated.get("version") or path.name)
     created = 0
     skipped = 0
-    for rule in payload.get("rules") or []:
-        row = _row_from_rule(rule)
+    for rule in validated.get("rules") or []:
+        row = _row_from_rule(rule, bundle_version=bundle_version, bundle_name=path.name)
         latest = get_latest_dose_rule_version(row["dose_rule_id"])
         if latest:
             skipped += 1
@@ -46,7 +50,7 @@ def migrate_bundled_dose_rules() -> dict[str, int]:
         row["version"] = 1
         if insert_dose_rule(row):
             created += 1
-    return {"created": created, "skipped": skipped}
+    return {"created": created, "skipped": skipped, "bundle_version": bundle_version, "path": str(path)}
 
 
 if __name__ == "__main__":

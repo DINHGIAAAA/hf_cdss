@@ -26,6 +26,8 @@ class RuleCache:
         default_version: str,
         postgres_source: str,
         transform_rows: Callable[[list[dict[str, Any]]], list[dict[str, Any]]] | None = None,
+        validate_bundle: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
+        fallback_path_resolver: Callable[[], Path] | None = None,
         enabled: Callable[[], bool] | None = None,
         disabled_bundle: dict[str, Any] | None = None,
     ) -> None:
@@ -37,6 +39,8 @@ class RuleCache:
         self.default_version = default_version
         self.postgres_source = postgres_source
         self.transform_rows = transform_rows
+        self.validate_bundle = validate_bundle
+        self.fallback_path_resolver = fallback_path_resolver
         self.enabled = enabled
         self.disabled_bundle = disabled_bundle or {
             "version": "disabled",
@@ -62,19 +66,31 @@ class RuleCache:
             return True
         return datetime.now() - self._cache_timestamp > timedelta(seconds=self._cache_ttl_seconds())
 
+    def _resolved_fallback_path(self) -> Path:
+        if self.fallback_path_resolver is not None:
+            return self.fallback_path_resolver()
+        return self.fallback_path
+
+    def _finalize_bundle(self, bundle: dict[str, Any]) -> dict[str, Any]:
+        if self.validate_bundle is not None:
+            return self.validate_bundle(bundle)
+        return bundle
+
     def _load_fallback_bundle(self) -> dict[str, Any]:
-        if not self.fallback_path.is_file():
+        path = self._resolved_fallback_path()
+        if not path.is_file():
             return {
                 "version": self.default_version,
                 "source": "bundled_fallback",
                 self.list_key: [],
             }
-        payload = json.loads(self.fallback_path.read_text(encoding="utf-8"))
-        return {
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        bundle = {
             "version": payload.get("version", self.default_version),
             "source": payload.get("source", "bundled_fallback"),
             self.list_key: list(payload.get(self.list_key) or []),
         }
+        return self._finalize_bundle(bundle)
 
     def load_bundle(self) -> dict[str, Any]:
         if self.enabled is not None and not self.enabled():
@@ -87,11 +103,13 @@ class RuleCache:
             rows = self.db_loader()
             if rows:
                 items = self.transform_rows(rows) if self.transform_rows else list(rows)
-                bundle = {
-                    "version": f"postgres_approved_{len(items)}",
-                    "source": self.postgres_source,
-                    self.list_key: items,
-                }
+                bundle = self._finalize_bundle(
+                    {
+                        "version": f"postgres_approved_{len(items)}",
+                        "source": self.postgres_source,
+                        self.list_key: items,
+                    }
+                )
                 self._cached_bundle = bundle
                 self._cache_timestamp = datetime.now()
                 return bundle
