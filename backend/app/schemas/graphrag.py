@@ -46,6 +46,9 @@ class GraphRAGContextResponse(BaseModel):
     evidence_chunks: list[EvidenceChunk]
     context_summary: str
     retrieval_sources: list[str] = Field(default_factory=list)
+    retrieval_query: str | None = None
+    hyde_document: str | None = None
+    hyde_used: bool = False
 
 
 class EvidenceSearchResponse(BaseModel):
@@ -91,6 +94,7 @@ class VerificationRequest(BaseModel):
     recommendation: RecommendationResponse | None = None
     conversation_history: list[str] | None = None
     clinical_state: dict[str, Any] | None = None
+    query: str | None = None
 
 
 class VerificationResponse(BaseModel):

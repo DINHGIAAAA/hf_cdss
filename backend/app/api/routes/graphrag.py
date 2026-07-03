@@ -2,7 +2,7 @@ import asyncio
 
 from fastapi import APIRouter
 
-from app.modules.graphrag.service import build_graphrag_context
+from app.modules.graphrag.service import build_graphrag_context_async
 from app.modules.datastores.postgres import write_audit_event
 from app.modules.verification_agents.service import verify_recommendation
 from app.schemas.graphrag import (
@@ -17,8 +17,8 @@ router = APIRouter()
 
 
 @router.post("/graphrag/context", response_model=GraphRAGContextResponse)
-def graphrag_context(payload: GraphRAGContextRequest) -> GraphRAGContextResponse:
-    return build_graphrag_context(payload)
+async def graphrag_context(payload: GraphRAGContextRequest) -> GraphRAGContextResponse:
+    return await build_graphrag_context_async(payload)
 
 
 @router.post("/verify", response_model=VerificationResponse)

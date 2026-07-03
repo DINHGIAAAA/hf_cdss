@@ -254,6 +254,7 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
             recommendation=recommendation,
             conversation_history=_prior_user_messages(conversation_id),
             clinical_state=clinical_state,
+            query=request.message,
         )
     )
     recommendation = enrich_recommendation_evidence(recommendation, verification.citation_validation)
@@ -395,6 +396,7 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
             recommendation=recommendation,
             conversation_history=_prior_user_messages(conversation_id),
             clinical_state=clinical_state,
+            query=request.message,
         )
     )
     recommendation = enrich_recommendation_evidence(recommendation, verification.citation_validation)

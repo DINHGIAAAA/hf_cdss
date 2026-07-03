@@ -9,6 +9,11 @@ from typing import Any
 from app.core.config import settings
 from app.core.metrics import increment, observe
 from app.modules.chat.clinical_state import state_query_text
+from app.modules.graphrag.hyde_expansion import (
+    build_semantic_retrieval_query,
+    generate_hyde_document,
+    should_expand_with_hyde,
+)
 from app.modules.citation_validation.service import source_link_for_chunk
 from app.modules.datastores.artifacts import sync_artifacts_from_processed_bucket
 from app.modules.datastores.chroma import retrieve_chroma
@@ -334,25 +339,85 @@ def retrieve_graph_facts(terms: list[str], top_k: int, *, published: bool = True
 
 
 def build_graphrag_context(request: GraphRAGContextRequest) -> GraphRAGContextResponse:
-    started = time.perf_counter()
+    import asyncio
+
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(build_graphrag_context_async(request))
+    return _build_graphrag_context_impl(
+        request,
+        semantic_query=request.query or "",
+        hyde_document=None,
+        hyde_used=False,
+    )
+
+
+async def build_graphrag_context_async(request: GraphRAGContextRequest) -> GraphRAGContextResponse:
     terms = query_terms_for_patient(
         request.patient,
         request.query,
         conversation_history=request.conversation_history,
         clinical_state=request.clinical_state,
     )
+    baseline_query = request.query or " ".join(terms)
+    hyde_document: str | None = None
+    hyde_used = False
+
+    if should_expand_with_hyde(request.query):
+        hyde_document = await generate_hyde_document(
+            request.query or "",
+            request.patient,
+            clinical_state=request.clinical_state,
+            conversation_history=request.conversation_history,
+        )
+        hyde_used = bool(hyde_document)
+
+    if hyde_document:
+        terms = sorted(set(terms) | set(_tokenize(hyde_document)))
+
+    semantic_query = build_semantic_retrieval_query(
+        baseline_query=baseline_query,
+        hyde_document=hyde_document,
+    )
+    return _build_graphrag_context_impl(
+        request,
+        terms=terms,
+        semantic_query=semantic_query,
+        hyde_document=hyde_document,
+        hyde_used=hyde_used,
+    )
+
+
+def _build_graphrag_context_impl(
+    request: GraphRAGContextRequest,
+    *,
+    terms: list[str] | None = None,
+    semantic_query: str,
+    hyde_document: str | None,
+    hyde_used: bool,
+) -> GraphRAGContextResponse:
+    started = time.perf_counter()
+    if terms is None:
+        terms = query_terms_for_patient(
+            request.patient,
+            request.query,
+            conversation_history=request.conversation_history,
+            clinical_state=request.clinical_state,
+        )
     top_k = max(1, min(request.top_k, 12))
     graph_facts: list[GraphFact] = []
     evidence_chunks: list[EvidenceChunk] = []
     retrieval_sources: list[str] = []
 
     if settings.retrieval_backend in {"hybrid", "databases"}:
-        # 1. Retrieve evidence chunks first, as they are needed for dynamic graph exploration
         try:
-            query_text = request.query or " ".join(terms)
+            query_text = semantic_query or request.query or " ".join(terms)
             evidence_chunks = retrieve_chroma(query_text, top_k)
             if evidence_chunks:
                 retrieval_sources.append("chromadb")
+                if hyde_used:
+                    retrieval_sources.append("hyde")
         except Exception as exc:
             logger.warning("ChromaDB retrieval unavailable; using local evidence fallback: %s", exc)
 
@@ -360,7 +425,6 @@ def build_graphrag_context(request: GraphRAGContextRequest) -> GraphRAGContextRe
             evidence_chunks = retrieve_evidence_chunks(terms, top_k)
             retrieval_sources.append("local_chunks")
 
-        # 2. Retrieve graph facts (static and dynamic)
         try:
             graph_facts = retrieve_neo4j(terms, top_k)
             if graph_facts:
@@ -368,13 +432,11 @@ def build_graphrag_context(request: GraphRAGContextRequest) -> GraphRAGContextRe
         except Exception as exc:
             logger.warning("Neo4j retrieval unavailable; using local graph fallback: %s", exc)
 
-        # 3. Enrich with dynamic facts from graph based on retrieved chunks
         dynamic_graph_facts = retrieve_dynamic_graph_facts(evidence_chunks, top_k=5)
         if dynamic_graph_facts:
             graph_facts.extend(dynamic_graph_facts)
             retrieval_sources.append("neo4j_dynamic")
 
-    # Fallback to local files if database retrieval failed
     if not graph_facts:
         graph_facts = retrieve_graph_facts(terms, top_k)
         retrieval_sources.append("local_relationships")
@@ -392,13 +454,23 @@ def build_graphrag_context(request: GraphRAGContextRequest) -> GraphRAGContextRe
             f"using {', '.join(retrieval_sources)} for recommendation verification."
         ),
         retrieval_sources=retrieval_sources,
+        retrieval_query=semantic_query or None,
+        hyde_document=hyde_document,
+        hyde_used=hyde_used,
     )
     observe(
         "hf_cdss_retrieval_latency",
         time.perf_counter() - started,
-        {"sources": ",".join(retrieval_sources) or "none", "mode": settings.retrieval_backend},
+        {
+            "sources": ",".join(retrieval_sources) or "none",
+            "mode": settings.retrieval_backend,
+            "hyde": "yes" if hyde_used else "no",
+        },
     )
-    increment("hf_cdss_retrieval_requests_total", {"mode": settings.retrieval_backend})
+    increment(
+        "hf_cdss_retrieval_requests_total",
+        {"mode": settings.retrieval_backend, "hyde": "yes" if hyde_used else "no"},
+    )
     return response
 
 

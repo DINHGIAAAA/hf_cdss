@@ -45,6 +45,7 @@ jobs:
           HF_CDSS_LLM_BASE_URL: http://127.0.0.1:9/v1
           HF_CDSS_LLM_TIMEOUT_SECONDS: "1"
           HF_CDSS_CLINICAL_INTAKE_LLM_TIMEOUT_SECONDS: "1"
+          HF_CDSS_HYDE_RETRIEVAL_ENABLED: "false"
         run: pytest app/tests -q --durations=10
 
   scraper-tests:

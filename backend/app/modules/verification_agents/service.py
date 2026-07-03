@@ -8,7 +8,7 @@ import time
 from app.core.config import settings
 from app.modules.citation_validation.service import validate_citations
 from app.modules.evidence_linking.service import attach_linked_evidence
-from app.modules.graphrag.service import build_graphrag_context
+from app.modules.graphrag.service import build_graphrag_context, build_graphrag_context_async
 from app.modules.reasoning.service import build_recommendation
 from app.modules.verification_agents.llm_runtime import run_llm_agent
 from app.modules.verification_agents.tools import AGENT_TOOL_NAMES, build_agent_tools
@@ -364,14 +364,18 @@ async def verify_recommendation(request: VerificationRequest) -> VerificationRes
         return cached
 
     response = request.recommendation or build_recommendation(RecommendationRequest(patient=request.patient))
-    context = await asyncio.to_thread(
-        build_graphrag_context,
+    context = await build_graphrag_context_async(
         GraphRAGContextRequest(
             patient=request.patient,
+            query=(
+                request.query
+                or request.patient.care_context.clinician_question
+                or request.patient.care_context.decision_context
+            ),
             top_k=max(1, min(settings.verification_retrieval_top_k, 8)),
             conversation_history=request.conversation_history,
             clinical_state=request.clinical_state,
-        ),
+        )
     )
 
     fallbacks: list[tuple[str, AgentResult]] = [

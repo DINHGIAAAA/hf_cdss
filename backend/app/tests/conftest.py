@@ -216,12 +216,19 @@ def _configure_test_auth(monkeypatch) -> None:
 
 
 @pytest.fixture(autouse=True)
+def _disable_hyde_in_tests(monkeypatch) -> None:
+    monkeypatch.setattr(settings, "hyde_retrieval_enabled", False)
+
+
+@pytest.fixture(autouse=True)
 def _stub_clinical_intake_llm(request, monkeypatch) -> None:
     if "test_clinical_intake_extraction.py" in str(request.fspath):
         return
     if "test_clinical_intake_semantic.py" in str(request.fspath):
         return
     if "test_clinical_intake_selective.py" in str(request.fspath):
+        return
+    if "test_hyde_expansion.py" in str(request.fspath):
         return
     async def _noop_llm_extractor(message: str):
         return None

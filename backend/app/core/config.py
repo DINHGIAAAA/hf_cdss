@@ -96,6 +96,14 @@ class Settings(BaseSettings):
     gdmt_policy_cache_ttl_seconds: int = 300
     dose_safety_warnings_cache_ttl_seconds: int = 300
     kg_dose_overlays_cache_ttl_seconds: int = 300
+    hyde_retrieval_enabled: bool = True
+    hyde_retrieval_model: str = "qwen2.5:1.5b"
+    hyde_retrieval_timeout_seconds: float = 20.0
+    hyde_retrieval_max_tokens: int = 220
+    hyde_retrieval_cache_ttl_seconds: int = 600
+    hyde_retrieval_cache_max_entries: int = 256
+    hyde_retrieval_min_query_chars: int = 8
+    hyde_retrieval_combine_baseline: bool = True
 
     model_config = SettingsConfigDict(env_prefix="HF_CDSS_", env_file=".env", extra="ignore")
 
