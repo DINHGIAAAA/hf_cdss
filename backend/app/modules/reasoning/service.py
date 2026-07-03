@@ -1,5 +1,7 @@
 from app.modules.clinical_normalization.service import normalize_patient
 from app.modules.constraint_builder.service import build_constraints
+from app.modules.dose_calculator.registry import dose_rules_bundle_version
+from app.modules.dose_calculator.service import build_dose_plans
 from app.modules.dose_checking.service import check_dose_safety
 from app.modules.interaction_checking.service import check_interactions
 from app.modules.risk_extraction.service import extract_risks
@@ -231,6 +233,9 @@ def _patient_summary(profile: NormalizedPatientProfile) -> dict:
         "potassium": observations.get("potassium"),
         "sbp": observations.get("systolic_bp"),
         "heart_rate": observations.get("heart_rate"),
+        "age": observations.get("age"),
+        "sex": observations.get("sex"),
+        "weight_kg": observations.get("weight_kg"),
         "comorbidities": profile.normalized_comorbidities,
     }
 
@@ -260,8 +265,7 @@ def build_recommendation(payload: RecommendationRequest) -> RecommendationRespon
         _recommendation_for_class(profile, constraints, safety_warnings, drug_class, label)
         for drug_class, label in GDMT_CLASSES.items()
     ]
-
-    return RecommendationResponse(
+    response = RecommendationResponse(
         case_id=profile.case_id,
         patient_summary=_patient_summary(profile),
         risk_flags=risks,
@@ -272,4 +276,11 @@ def build_recommendation(payload: RecommendationRequest) -> RecommendationRespon
         overall_status=_overall_status(len(risks), constraints, safety_warnings),
         disclaimer=DISCLAIMER,
     )
+    response.dose_plans = build_dose_plans(
+        payload.patient,
+        clinical_state=payload.clinical_state,
+        recommendation=response,
+    )
+    response.dose_rules_version = dose_rules_bundle_version()
+    return response
 

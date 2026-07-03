@@ -7,6 +7,7 @@ import {
   LogOut,
   MessageSquareText,
   Network,
+  Pill,
   ShieldCheck,
 } from "lucide-react";
 
@@ -15,7 +16,8 @@ import { useAuth } from "../auth/AuthContext";
 const DOCTOR_DASHBOARD_URL = import.meta.env.VITE_DOCTOR_DASHBOARD_URL ?? "http://127.0.0.1:5173";
 
 const NAV_ITEMS = [
-  { to: "/rules", label: "Rules", icon: ShieldCheck },
+  { to: "/rules", label: "Constraints", icon: ShieldCheck },
+  { to: "/dose-rules", label: "Dose rules", icon: Pill },
   { to: "/evidence", label: "Evidence", icon: FileSearch },
   { to: "/system", label: "System", icon: Activity },
   { to: "/api", label: "API Explorer", icon: Network },

@@ -93,6 +93,13 @@ def normalize_patient(patient: PatientProfile) -> NormalizedPatientProfile:
             "potassium": patient.potassium,
             "systolic_bp": patient.systolic_bp,
             "heart_rate": patient.heart_rate,
+            "weight_kg": _weight_kg(patient),
+            "inr": patient.inr,
             "nyha_class": patient.nyha_class,
         },
     )
+
+
+def _weight_kg(patient: PatientProfile) -> float | None:
+    value = patient.vitals.weight_kg.value if patient.vitals.weight_kg else None
+    return float(value) if value is not None else None

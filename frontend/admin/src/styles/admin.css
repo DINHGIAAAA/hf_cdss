@@ -579,3 +579,291 @@
     flex-direction: column;
   }
 }
+
+/* ── Dose rules (clinical dosing governance) ───────────────────────── */
+:root {
+  --color-dose-accent: #0891b2;
+  --color-dose-cta: #059669;
+  --font-mono: "Fira Code", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.badge.muted {
+  background: var(--color-surface-2);
+  color: var(--color-text-muted);
+}
+
+.dose-rules-page .dose-page-title {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+
+.dose-rules-page .dose-page-title h1 {
+  margin: 0;
+}
+
+.dose-stat-card strong {
+  color: var(--color-dose-accent);
+}
+
+.dose-tab-row button.active {
+  background: var(--color-dose-accent);
+  border-color: var(--color-dose-accent);
+}
+
+.dose-code {
+  background: #ecfeff;
+  border-radius: var(--radius-sm);
+  color: #0e7490;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  padding: 2px 6px;
+}
+
+.dose-detail-panel .dose-detail-meta {
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+  margin: 4px 0 0;
+}
+
+.dose-summary-grid {
+  gap: 8px;
+}
+
+.dose-summary-row {
+  display: grid;
+  gap: 2px;
+}
+
+.dose-json-block {
+  background: #0f1720;
+  border-radius: var(--radius);
+  color: #d8e2ec;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  line-height: 1.45;
+  max-height: 280px;
+  overflow: auto;
+  padding: 12px 14px;
+  white-space: pre-wrap;
+}
+
+.dose-primary-action {
+  background: var(--color-dose-cta);
+}
+
+.dose-primary-action:hover:not(:disabled) {
+  background: #047857;
+}
+
+.admin-table--dose td code {
+  white-space: nowrap;
+}
+
+/* ── Governance: filters, bulk approve, version diff ─────────────── */
+.gov-toolbar {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-lg);
+  display: grid;
+  gap: 14px;
+  margin-bottom: 16px;
+  padding: 14px 16px;
+}
+
+.gov-toolbar-heading {
+  align-items: center;
+  color: var(--color-text-2);
+  display: flex;
+  gap: 8px;
+  font-size: 0.9rem;
+}
+
+.gov-filter-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.gov-filter-field {
+  display: grid;
+  font-size: 0.82rem;
+  gap: 4px;
+}
+
+.gov-filter-field input,
+.gov-filter-field select {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  min-height: 36px;
+  padding: 0 10px;
+}
+
+.gov-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.gov-bulk-bar {
+  align-items: center;
+  border-top: 1px solid var(--color-border-light);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-top: 12px;
+}
+
+.gov-select-all {
+  align-items: center;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 0.85rem;
+  gap: 8px;
+}
+
+.gov-selected-count {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+.gov-permission-hint {
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+}
+
+.gov-confirm-dialog {
+  background: #ecfeff;
+  border: 1px solid #a5f3fc;
+  border-radius: var(--radius);
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  width: min(100%, 420px);
+}
+
+.gov-confirm-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.gov-filter-summary {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  margin: 0 0 12px;
+}
+
+.gov-diff-panel {
+  border-top: 1px solid var(--color-border-light);
+  margin-top: 12px;
+  padding-top: 12px;
+}
+
+.gov-diff-header {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.gov-diff-header h3 {
+  align-items: center;
+  display: flex;
+  font-size: 0.95rem;
+  gap: 8px;
+  margin: 0;
+}
+
+.gov-diff-select {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  min-height: 34px;
+  padding: 0 8px;
+}
+
+.gov-diff-meta {
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+  margin: 0 0 10px;
+}
+
+.gov-diff-status {
+  align-items: center;
+  color: var(--color-text-muted);
+  display: flex;
+  font-size: 0.85rem;
+  gap: 8px;
+}
+
+.gov-diff-list {
+  display: grid;
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.gov-diff-list li {
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+}
+
+.gov-diff-list strong {
+  margin-right: 8px;
+}
+
+.gov-diff-badge {
+  background: #e2e8f0;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  text-transform: uppercase;
+}
+
+.gov-diff-modified {
+  border-left: 3px solid #0891b2;
+}
+
+.gov-diff-added {
+  border-left: 3px solid #059669;
+}
+
+.gov-diff-removed {
+  border-left: 3px solid #a12b25;
+}
+
+.gov-diff-values {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 1fr 1fr;
+  margin-top: 8px;
+}
+
+.gov-diff-values pre {
+  background: #0f1720;
+  border-radius: var(--radius-sm);
+  color: #d8e2ec;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  margin: 4px 0 0;
+  max-height: 120px;
+  overflow: auto;
+  padding: 8px;
+  white-space: pre-wrap;
+}
+
+.gov-diff-values small {
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+@media (max-width: 768px) {
+  .gov-diff-values {
+    grid-template-columns: 1fr;
+  }
+}

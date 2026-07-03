@@ -42,6 +42,10 @@ class Settings(BaseSettings):
     clinical_intake_history_enabled: bool = True
     clinical_intake_history_max_messages: int = 12
     clinical_intake_history_relevance_threshold: float = 0.38
+    clinical_intake_selective_llm_enabled: bool = True
+    clinical_intake_selective_min_confidence: float = 0.75
+    clinical_intake_selective_simple_missing_max: int = 3
+    clinical_intake_selective_complexity_word_threshold: int = 80
     postgres_dsn: str = "postgresql://hf_cdss:hf_cdss@localhost:55432/hf_cdss"
     neo4j_uri: str = "bolt://localhost:7687"
     neo4j_user: str = "neo4j"
@@ -86,6 +90,8 @@ class Settings(BaseSettings):
     verification_cache_enabled: bool = True
     verification_cache_ttl_seconds: int = 300
     verification_cache_max_entries: int = 128
+    dose_calculator_enabled: bool = True
+    dose_rules_cache_ttl_seconds: int = 300
 
     model_config = SettingsConfigDict(env_prefix="HF_CDSS_", env_file=".env", extra="ignore")
 

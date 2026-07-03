@@ -29,6 +29,13 @@ def _compact_recommendation(payload: LLMAnswerRequest) -> dict[str, Any]:
             "potassium": payload.patient.potassium,
             "systolic_bp": payload.patient.systolic_bp,
             "heart_rate": payload.patient.heart_rate,
+            "age": payload.patient.age,
+            "sex": payload.patient.sex,
+            "weight_kg": payload.patient.weight_kg,
+            "creatinine": payload.patient.creatinine,
+            "inr": payload.patient.inr,
+            "inr_target_low": payload.patient.inr_target_low,
+            "inr_target_high": payload.patient.inr_target_high,
             "comorbidities": payload.patient.comorbidities,
             "current_medications": payload.patient.current_medications,
             "allergies": payload.patient.allergies,
@@ -57,6 +64,24 @@ def _compact_recommendation(payload: LLMAnswerRequest) -> dict[str, Any]:
                 "warnings": item.warnings[:3],
             }
             for item in payload.recommendation.recommendations
+        ],
+        "dose_plans": [
+            {
+                "drug_name": plan.drug_name,
+                "drug_class": plan.drug_class,
+                "status": plan.status,
+                "intent": plan.intent,
+                "rationale": plan.rationale,
+                "current_dose": plan.current_dose.model_dump() if plan.current_dose else None,
+                "recommended_dose": plan.recommended_dose.model_dump() if plan.recommended_dose else None,
+                "target_dose": plan.target_dose.model_dump() if plan.target_dose else None,
+                "titration_plan": plan.titration_plan[:4],
+                "calculation_steps": [step.model_dump() for step in plan.calculation_steps[:5]],
+                "hold_criteria": plan.hold_criteria[:3],
+                "missing_inputs": plan.missing_inputs,
+                "evidence_refs": plan.evidence_refs[:4],
+            }
+            for plan in payload.recommendation.dose_plans
         ],
         "verification": {
             "final_verdict": verification.final_verdict if verification else None,
@@ -117,7 +142,19 @@ def fallback_answer(payload: LLMAnswerRequest) -> str:
         )
 
     lines.append("\nCách tính/kiểm tra liều")
-    if action_items:
+    if payload.recommendation.dose_plans:
+        for plan in payload.recommendation.dose_plans[:4]:
+            if plan.recommended_dose:
+                dose_label = plan.recommended_dose.label or (
+                    f"{plan.recommended_dose.value:g} {plan.recommended_dose.unit}"
+                )
+                lines.append(
+                    f"- {plan.drug_name}: {dose_label} "
+                    f"{plan.recommended_dose.frequency} ({plan.status}). {plan.rationale}"
+                )
+            for step in plan.calculation_steps[:2]:
+                lines.append(f"  • {step.description}: {step.result}")
+    elif action_items:
         lines.extend(f"- {item}" for item in action_items)
     else:
         lines.append("- Đối chiếu liều hiện tại, mục tiêu điều trị và chống chỉ định trước khi thay đổi.")

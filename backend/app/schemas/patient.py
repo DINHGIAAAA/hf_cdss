@@ -103,6 +103,7 @@ class Labs(BaseModel):
     hba1c: ClinicalValue | None = None
     alt: ClinicalValue | None = None
     ast: ClinicalValue | None = None
+    inr: ClinicalValue | None = None
 
 
 class Biomarkers(BaseModel):
@@ -217,6 +218,9 @@ class CareContext(BaseModel):
     clinician_question: str | None = None
     treatment_goal: str | None = None
     decision_context: str | None = None
+    acei_last_dose_hours_ago: float | None = None
+    inr_target_low: float | None = None
+    inr_target_high: float | None = None
 
 
 class RedFlag(BaseModel):
@@ -386,6 +390,24 @@ class PatientProfile(BaseModel):
     def heart_rate(self) -> float | None:
         value = _value(self.vitals.heart_rate)
         return float(value) if value is not None else None
+
+    @property
+    def weight_kg(self) -> float | None:
+        value = _value(self.vitals.weight_kg)
+        return float(value) if value is not None else None
+
+    @property
+    def inr(self) -> float | None:
+        value = _value(self.labs.inr)
+        return float(value) if value is not None else None
+
+    @property
+    def inr_target_low(self) -> float | None:
+        return self.care_context.inr_target_low
+
+    @property
+    def inr_target_high(self) -> float | None:
+        return self.care_context.inr_target_high
 
     @property
     def nyha_class(self) -> str | None:

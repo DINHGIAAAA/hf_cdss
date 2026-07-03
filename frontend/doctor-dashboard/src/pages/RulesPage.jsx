@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronRight, LoaderCircle, RefreshCw } from "lucide-react";
 
 import { adminApi } from "../api/index.js";
@@ -6,6 +6,9 @@ import { useAuth } from "../auth/AuthContext";
 import { RuleDetail } from "../components/RuleDetail.jsx";
 import { RuleVisibilityBadge } from "../components/RuleVisibilityBadge.jsx";
 import { ruleVisibilityMeta, tabVisibilityBanner } from "../utils/ruleVisibility.js";
+import { ApprovalToolbar } from "@shared/governance/ApprovalToolbar.jsx";
+import { CONSTRAINT_CATALOG } from "@shared/governance/catalogConfig.js";
+import { useRuleSelection } from "@shared/governance/useRuleSelection.js";
 
 const STATUS_TABS = [
   { id: "all", label: "All" },
@@ -13,6 +16,12 @@ const STATUS_TABS = [
   { id: "approved", label: "Approved" },
   { id: "retired", label: "Retired" },
 ];
+
+const EMPTY_FILTERS = {
+  target_drug_class: "",
+  action: "",
+  q: "",
+};
 
 function statusClass(status) {
   if (status === "approved") return "success";
@@ -23,12 +32,15 @@ function statusClass(status) {
 export function RulesPage() {
   const { isAuthenticated, hasRole } = useAuth();
   const [tab, setTab] = useState("draft");
+  const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [appliedFilters, setAppliedFilters] = useState(EMPTY_FILTERS);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedId, setSelectedId] = useState(null);
   const [selectedRule, setSelectedRule] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [bulkLoading, setBulkLoading] = useState(false);
   const [toast, setToast] = useState("");
 
   const canApprove = isAuthenticated && hasRole("clinical_lead");
@@ -40,18 +52,36 @@ export function RulesPage() {
     setLoading(true);
     setError("");
     try {
-      const result = await adminApi.listRules(tab === "all" ? undefined : tab);
+      const result = await adminApi.listRules({
+        status: tab === "all" ? undefined : tab,
+        ...appliedFilters,
+      });
       setData(result);
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [tab]);
+  }, [tab, appliedFilters]);
 
   useEffect(() => {
     loadRules();
   }, [loadRules]);
+
+  const items = data?.items || [];
+  const {
+    selectedIds,
+    allVisibleSelected,
+    toggleOne,
+    toggleAllVisible,
+    clearSelection,
+    selectedCount,
+  } = useRuleSelection(items);
+
+  const activeFilterCount = useMemo(
+    () => Object.values(appliedFilters).filter(Boolean).length,
+    [appliedFilters],
+  );
 
   async function openRule(ruleId) {
     setSelectedId(ruleId);
@@ -86,7 +116,24 @@ export function RulesPage() {
     }
   }
 
-  const items = data?.items || [];
+  async function handleBulkApprove() {
+    setBulkLoading(true);
+    setToast("");
+    try {
+      const payload = {
+        rule_ids: [...selectedIds],
+        ...Object.fromEntries(Object.entries(appliedFilters).filter(([, value]) => Boolean(value))),
+      };
+      const result = await adminApi.bulkApproveConstraints(payload);
+      setToast(result.message);
+      clearSelection();
+      await loadRules();
+    } catch (err) {
+      setToast(err.message);
+    } finally {
+      setBulkLoading(false);
+    }
+  }
 
   return (
     <div className="admin-page">
@@ -139,13 +186,45 @@ export function RulesPage() {
         ))}
       </div>
 
+      <ApprovalToolbar
+        allVisibleSelected={allVisibleSelected}
+        bulkLoading={bulkLoading}
+        canBulkApprove={canApprove}
+        catalog={CONSTRAINT_CATALOG}
+        filters={filters}
+        onApplyFilters={() => setAppliedFilters({ ...filters })}
+        onBulkApprove={handleBulkApprove}
+        onClearFilters={() => {
+          setFilters(EMPTY_FILTERS);
+          setAppliedFilters(EMPTY_FILTERS);
+        }}
+        onFilterChange={(key, value) => setFilters((prev) => ({ ...prev, [key]: value }))}
+        onToggleAll={toggleAllVisible}
+        selectedCount={selectedCount}
+        showBulk={tab === "draft"}
+      />
+
+      {activeFilterCount > 0 && (
+        <p className="gov-filter-summary" role="status">
+          {activeFilterCount} filter(s) active · {items.length} result(s)
+        </p>
+      )}
+
       <div className={`admin-banner rule-visibility-banner ${tabBanner.tone}`} role="status">
         <strong>{tabBanner.title}</strong>
         <span>{tabBanner.message}</span>
       </div>
 
-      {toast && <p className="admin-toast" role="status">{toast}</p>}
-      {error && <p className="inline-error" role="alert">{error}</p>}
+      {toast && (
+        <p className="admin-toast" role="status">
+          {toast}
+        </p>
+      )}
+      {error && (
+        <p className="inline-error" role="alert">
+          {error}
+        </p>
+      )}
 
       <div className={`admin-split${selectedRule ? " admin-split--open" : ""}`}>
         <section className="admin-table-panel">
@@ -162,6 +241,7 @@ export function RulesPage() {
           ) : (
             <table className="admin-table admin-table--rules">
               <colgroup>
+                {tab === "draft" && <col className="col-select" />}
                 <col className="col-constraint" />
                 <col className="col-action" />
                 <col className="col-status" />
@@ -171,6 +251,7 @@ export function RulesPage() {
               </colgroup>
               <thead>
                 <tr>
+                  {tab === "draft" && <th>Select</th>}
                   <th>Constraint</th>
                   <th>Action</th>
                   <th>Status</th>
@@ -184,11 +265,25 @@ export function RulesPage() {
                   const visibility = ruleVisibilityMeta(rule.status);
                   return (
                     <tr className={selectedId === rule.id ? "selected" : ""} key={rule.id}>
+                      {tab === "draft" && (
+                        <td>
+                          {rule.status === "draft" ? (
+                            <input
+                              aria-label={`Select ${rule.constraint_id}`}
+                              checked={selectedIds.has(rule.id)}
+                              onChange={() => toggleOne(rule.id)}
+                              type="checkbox"
+                            />
+                          ) : null}
+                        </td>
+                      )}
                       <td className="cell-ellipsis" title={rule.constraint_id}>
                         <strong>{rule.constraint_id}</strong>
                         <small>v{rule.version}</small>
                       </td>
-                      <td className="cell-ellipsis" title={rule.action}>{rule.action}</td>
+                      <td className="cell-ellipsis" title={rule.action}>
+                        {rule.action}
+                      </td>
                       <td>
                         <span className={`badge ${statusClass(rule.status)}`}>{rule.status}</span>
                       </td>

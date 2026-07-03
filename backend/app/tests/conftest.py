@@ -212,6 +212,8 @@ def _stub_clinical_intake_llm(request, monkeypatch) -> None:
         return
     if "test_clinical_intake_semantic.py" in str(request.fspath):
         return
+    if "test_clinical_intake_selective.py" in str(request.fspath):
+        return
     monkeypatch.setattr(
         "app.modules.clinical_intake_extraction.service._call_llm_extractor",
         lambda message: None,

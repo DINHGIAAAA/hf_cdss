@@ -15,7 +15,7 @@ from app.api.routes import (
     recommendation,
     retrieval,
 )
-from app.api.routes.admin import audit_router, constraint_rules_router, evidence_router, users_router
+from app.api.routes.admin import audit_router, constraint_rules_router, dose_rules_router, evidence_router, users_router
 
 
 api_router = APIRouter()
@@ -34,6 +34,7 @@ api_router.include_router(chat.router, tags=["chat"])
 api_router.include_router(metrics.router, tags=["metrics"])
 api_router.include_router(auth.router, tags=["auth"])
 api_router.include_router(constraint_rules_router, prefix="/admin", tags=["admin"])
+api_router.include_router(dose_rules_router, prefix="/admin", tags=["admin"])
 api_router.include_router(evidence_router, prefix="/admin", tags=["admin"])
 api_router.include_router(users_router, prefix="/admin", tags=["admin"])
 api_router.include_router(audit_router, prefix="/admin", tags=["admin"])

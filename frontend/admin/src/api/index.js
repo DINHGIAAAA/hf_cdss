@@ -1,17 +1,34 @@
 import { apiGet, apiPatch, apiPost, login, logout, API_BASE_URL } from "@shared/api/client.js";
+import { buildGovernanceQuery } from "@shared/governance/catalogConfig.js";
 
 export { login, logout, API_BASE_URL };
 
 export const adminApi = {
-  listRules: (status) => apiGet(status ? `/admin/constraints?status=${status}` : "/admin/constraints"),
+  listRules: (params = {}) =>
+    apiGet(`/admin/constraints${buildGovernanceQuery(params)}`),
   getRule: (ruleId) => apiGet(`/admin/constraints/rules/${ruleId}`),
   getVersions: (constraintId) => apiGet(`/admin/constraints/by-cid/${encodeURIComponent(constraintId)}`),
+  getConstraintRuleDiff: (ruleId, against = "approved") =>
+    apiGet(`/admin/constraints/rules/${ruleId}/diff?against=${encodeURIComponent(against)}`),
   getHistory: (constraintId) => apiGet(`/admin/constraints/${encodeURIComponent(constraintId)}/history`),
   updateStatus: (ruleId, status) => apiPatch(`/admin/constraints/rules/${ruleId}`, { status }),
   approve: (ruleId) => apiPatch(`/admin/constraints/rules/${ruleId}`, { status: "approved" }),
   retire: (ruleId) => apiPatch(`/admin/constraints/rules/${ruleId}`, { status: "retired" }),
   unretire: (ruleId) => apiPatch(`/admin/constraints/rules/${ruleId}`, { status: "approved" }),
+  bulkApproveConstraints: (payload) => apiPost("/admin/constraints/bulk-approve", payload),
   activeRules: () => apiGet("/admin/constraints/active"),
+  listDoseRules: (params = {}) =>
+    apiGet(`/admin/dose-rules${buildGovernanceQuery(params)}`),
+  getDoseRule: (ruleId) => apiGet(`/admin/dose-rules/rules/${ruleId}`),
+  getDoseRuleVersions: (doseRuleId) =>
+    apiGet(`/admin/dose-rules/by-rid/${encodeURIComponent(doseRuleId)}`),
+  getDoseRuleDiff: (ruleId, against = "approved") =>
+    apiGet(`/admin/dose-rules/rules/${ruleId}/diff?against=${encodeURIComponent(against)}`),
+  getDoseRuleHistory: (doseRuleId) =>
+    apiGet(`/admin/dose-rules/${encodeURIComponent(doseRuleId)}/history`),
+  updateDoseRuleStatus: (ruleId, status) => apiPatch(`/admin/dose-rules/rules/${ruleId}`, { status }),
+  bulkApproveDoseRules: (payload) => apiPost("/admin/dose-rules/bulk-approve", payload),
+  activeDoseRules: () => apiGet("/admin/dose-rules/active"),
 };
 
 export const evidenceApi = {

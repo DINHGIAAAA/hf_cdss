@@ -5,6 +5,12 @@ import { auditApi, adminApi, kgApi, retrievalApi } from "../api/index.js";
 
 const TOOLS = [
   {
+    id: "dose-rules",
+    label: "Active dose rules",
+    description: "GET /api/v1/admin/dose-rules/active — approved rules used by the dose calculator.",
+    run: () => adminApi.activeDoseRules(),
+  },
+  {
     id: "rules",
     label: "Active rules",
     description: "GET /api/v1/admin/constraints/active — published rules used by the CDSS engine (admin only).",

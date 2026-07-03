@@ -8,6 +8,7 @@ import {
   LogOut,
   MessageSquareText,
   Network,
+  Pill,
   ShieldCheck,
   Users,
 } from "lucide-react";
@@ -15,7 +16,8 @@ import {
 import { useAuth } from "../auth/AuthContext";
 
 const NAV_ITEMS = [
-  { to: "/admin/rules", label: "Rules", icon: ShieldCheck },
+  { to: "/admin/rules", label: "Constraints", icon: ShieldCheck },
+  { to: "/admin/dose-rules", label: "Dose rules", icon: Pill },
   { to: "/admin/evidence", label: "Evidence", icon: FileSearch },
   { to: "/admin/audit", label: "Audit", icon: ClipboardList },
   { to: "/admin/system", label: "System", icon: Activity },

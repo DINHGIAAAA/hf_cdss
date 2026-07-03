@@ -205,7 +205,11 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
     _save_draft(draft)
     yield _sse("draft_ready", draft.model_dump(mode="json"))
 
-    missing_check = check_missing_fields(merged)
+    missing_check = check_missing_fields(
+        merged,
+        clinical_intent=clinical_state.get("intent"),
+        clinical_state=clinical_state,
+    )
     tool_outputs: list[dict[str, Any]] = [
         {"tool": "patient_draft_merge", "patient": merged.legacy_summary()},
         {"tool": "clinical_state_memory", "result": clinical_state},
@@ -240,7 +244,9 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
         return
 
     yield _sse("status", {"step": "building_recommendation"})
-    recommendation = build_recommendation(RecommendationRequest(patient=merged))
+    recommendation = build_recommendation(
+        RecommendationRequest(patient=merged, clinical_state=clinical_state)
+    )
 
     yield _sse("status", {"step": "verifying_evidence"})
     verification = await verify_recommendation(VerificationRequest(patient=merged, recommendation=recommendation))
@@ -341,7 +347,11 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
     )
     _save_draft(draft)
 
-    missing_check = check_missing_fields(merged)
+    missing_check = check_missing_fields(
+        merged,
+        clinical_intent=clinical_state.get("intent"),
+        clinical_state=clinical_state,
+    )
     tool_outputs: list[dict[str, Any]] = [
         {"tool": "patient_draft_merge", "patient": merged.legacy_summary()},
         {"tool": "clinical_state_memory", "result": clinical_state},
@@ -371,7 +381,9 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
             tool_outputs=tool_outputs,
         )
 
-    recommendation = build_recommendation(RecommendationRequest(patient=merged))
+    recommendation = build_recommendation(
+        RecommendationRequest(patient=merged, clinical_state=clinical_state)
+    )
     verification = await verify_recommendation(VerificationRequest(patient=merged, recommendation=recommendation))
     recommendation = enrich_recommendation_evidence(recommendation, verification.citation_validation)
     llm_answer = await build_llm_answer(

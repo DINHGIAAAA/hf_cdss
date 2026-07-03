@@ -25,14 +25,18 @@ from app.api.routes.admin.deps import (
 from app.modules.datastores.postgres import (
     approve_constraint_rule,
     get_constraint_rule,
+    get_constraint_rule_latest_by_status,
     get_constraint_rule_versions,
     read_constraint_rule_history,
     read_constraint_rules_by_status,
+    read_constraint_rules_filtered,
     retire_constraint_rule,
     rule_with_constraint_id_exists,
     unretire_constraint_rule,
 )
 from app.modules.constraint_builder.service import invalidate_constraint_cache, load_constraint_rules
+from app.modules.governance.bulk_approve import bulk_approve_constraint_rules
+from app.modules.governance.diff import CONSTRAINT_DIFF_FIELDS, constraint_diff_payload, diff_field_map
 
 
 router = APIRouter(prefix="/constraints", tags=["admin", "constraints"])
@@ -114,6 +118,28 @@ class ConstraintRuleStatusUpdate(BaseModel):
     )
 
 
+class BulkApproveRequest(BaseModel):
+    rule_ids: list[int] | None = Field(default=None, description="Explicit draft rule ids to approve")
+    target_drug_class: str | None = None
+    action: str | None = None
+    q: str | None = Field(default=None, description="Search constraint_id")
+    limit: int = Field(default=100, ge=1, le=200)
+
+
+class BulkApproveResponse(BaseModel):
+    approved: list[int]
+    failed: list[dict[str, Any]]
+    skipped: list[int]
+    total_requested: int
+    message: str
+
+
+class RuleVersionDiffResponse(BaseModel):
+    current: dict[str, Any]
+    baseline: dict[str, Any] | None
+    changes: list[dict[str, Any]]
+
+
 def _apply_rule_status_change(
     rule_id: int,
     target_status: Literal["approved", "retired"],
@@ -175,25 +201,34 @@ def _apply_rule_status_change(
 @router.get("", response_model=ConstraintRuleListResponse)
 def list_constraint_rules(
     status: str | None = Query(None, description="Filter by status: draft, approved, retired"),
+    target_drug_class: str | None = Query(None),
+    action: str | None = Query(None),
+    q: str | None = Query(None, description="Search constraint_id"),
     limit: int = Query(100, ge=1, le=500),
     current_user: AdminUser = Depends(require_admin_reader),
 ) -> ConstraintRuleListResponse:
-    """List constraint rules, optionally filtered by status."""
-    if status:
-        rules = read_constraint_rules_by_status(status, limit=limit)
+    """List constraint rules, optionally filtered by status and metadata."""
+    has_filters = any([target_drug_class, action, q])
+    if has_filters or status:
+        rules = read_constraint_rules_filtered(
+            status=status,
+            target_drug_class=target_drug_class,
+            action=action,
+            q=q,
+            limit=limit,
+        )
         items = [ConstraintRuleResponse(**r) for r in rules]
     else:
-        # Get all statuses
         draft = read_constraint_rules_by_status("draft", limit=limit)
         approved = read_constraint_rules_by_status("approved", limit=limit)
         retired = read_constraint_rules_by_status("retired", limit=limit)
         rules = draft + approved + retired
         items = [ConstraintRuleResponse(**r) for r in rules]
-    
+
     draft_count = len([r for r in rules if r.get("status") == "draft"])
     approved_count = len([r for r in rules if r.get("status") == "approved"])
     retired_count = len([r for r in rules if r.get("status") == "retired"])
-    
+
     return ConstraintRuleListResponse(
         total=len(rules),
         items=items,
@@ -201,6 +236,25 @@ def list_constraint_rules(
         approved_count=approved_count,
         retired_count=retired_count,
     )
+
+
+@router.post("/bulk-approve", response_model=BulkApproveResponse)
+def bulk_approve_constraints(
+    payload: BulkApproveRequest,
+    background_tasks: BackgroundTasks,
+    current_user: AdminUser = Depends(get_current_admin_user),
+) -> BulkApproveResponse:
+    require_role(current_user, "clinical_lead")
+    result = bulk_approve_constraint_rules(
+        current_user.id,
+        rule_ids=payload.rule_ids,
+        target_drug_class=payload.target_drug_class,
+        action=payload.action,
+        q=payload.q,
+        limit=payload.limit,
+    )
+    background_tasks.add_task(invalidate_constraint_cache)
+    return BulkApproveResponse(**result)
 
 
 @router.get("/active")
@@ -233,6 +287,52 @@ def get_constraint_rule_endpoint(
     if not rule:
         raise HTTPException(status_code=404, detail="Constraint rule not found")
     return ConstraintRuleResponse(**rule)
+
+
+def _resolve_constraint_baseline(rule: dict[str, Any], against: str) -> dict[str, Any] | None:
+    if against == "approved":
+        baseline = get_constraint_rule_latest_by_status(rule["constraint_id"], "approved")
+        if baseline and baseline["id"] == rule["id"]:
+            return None
+        return baseline
+    if against == "previous":
+        versions = get_constraint_rule_versions(rule["constraint_id"])
+        previous = next((item for item in versions if item["version"] == rule["version"] - 1), None)
+        return get_constraint_rule(previous["id"]) if previous else None
+    try:
+        baseline_id = int(against)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="against must be approved, previous, or a rule id") from exc
+    baseline = get_constraint_rule(baseline_id)
+    if not baseline or baseline["constraint_id"] != rule["constraint_id"]:
+        raise HTTPException(status_code=404, detail="Baseline rule version not found")
+    return baseline
+
+
+@router.get("/rules/{rule_id}/diff", response_model=RuleVersionDiffResponse)
+def get_constraint_rule_diff_endpoint(
+    rule_id: int,
+    against: str = Query("approved", description="approved | previous | {rule_id}"),
+    _: AdminUser = Depends(require_admin_reader),
+) -> RuleVersionDiffResponse:
+    current = get_constraint_rule(rule_id)
+    if not current:
+        raise HTTPException(status_code=404, detail="Constraint rule not found")
+    baseline = _resolve_constraint_baseline(current, against)
+    changes = diff_field_map(
+        constraint_diff_payload(baseline or {}),
+        constraint_diff_payload(current),
+        CONSTRAINT_DIFF_FIELDS,
+    )
+    return RuleVersionDiffResponse(
+        current={"id": current["id"], "version": current["version"], "status": current["status"]},
+        baseline=(
+            {"id": baseline["id"], "version": baseline["version"], "status": baseline["status"]}
+            if baseline
+            else None
+        ),
+        changes=changes,
+    )
 
 
 @router.patch("/rules/{rule_id}", response_model=RuleActionResponse)

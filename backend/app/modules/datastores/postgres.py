@@ -168,6 +168,55 @@ def initialize_postgres() -> dict[str, Any]:
                 "CREATE INDEX IF NOT EXISTS idx_constraint_rule_history_constraint "
                 "ON constraint_rule_history (constraint_id, changed_at DESC)"
             )
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS dose_rules (
+                    id BIGSERIAL PRIMARY KEY,
+                    dose_rule_id TEXT NOT NULL,
+                    version INTEGER NOT NULL DEFAULT 1,
+                    status TEXT NOT NULL DEFAULT 'draft',
+                    drug_keys TEXT[] NOT NULL DEFAULT '{}',
+                    drug_class TEXT,
+                    calculation_type TEXT NOT NULL,
+                    rule_body JSONB NOT NULL,
+                    evidence_ref TEXT,
+                    clinical_sources JSONB NOT NULL DEFAULT '[]'::jsonb,
+                    source TEXT NOT NULL,
+                    safety_tier TEXT,
+                    approved_by TEXT,
+                    approved_at TIMESTAMPTZ,
+                    retired_by TEXT,
+                    retired_at TIMESTAMPTZ,
+                    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+            cursor.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_dose_rules_id_version "
+                "ON dose_rules (dose_rule_id, version)"
+            )
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS dose_rule_history (
+                    history_id BIGSERIAL PRIMARY KEY,
+                    dose_rule_id TEXT NOT NULL,
+                    status_from TEXT,
+                    status_to TEXT NOT NULL,
+                    changed_by TEXT NOT NULL,
+                    changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    reason TEXT
+                )
+                """
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_dose_rules_status ON dose_rules (status)"
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_dose_rule_history_dose_rule "
+                "ON dose_rule_history (dose_rule_id, changed_at DESC)"
+            )
         connection.commit()
 
     from app.modules.datastores.users import seed_default_users
@@ -183,6 +232,8 @@ def initialize_postgres() -> dict[str, Any]:
             "users",
             "constraint_rules",
             "constraint_rule_history",
+            "dose_rules",
+            "dose_rule_history",
         ],
         "users_seed": seed_result,
     }
@@ -461,6 +512,142 @@ def read_constraint_rules_by_status(status: str, limit: int = 100) -> list[dict[
                 }
                 for row in cursor.fetchall()
             ]
+
+
+def _constraint_list_filters(
+    *,
+    status: str | None,
+    target_drug_class: str | None,
+    action: str | None,
+    q: str | None,
+) -> tuple[list[str], list[Any]]:
+    conditions: list[str] = []
+    params: list[Any] = []
+    if status:
+        conditions.append("status = %s")
+        params.append(status)
+    if target_drug_class:
+        conditions.append("target_drug_class ILIKE %s")
+        params.append(f"%{target_drug_class}%")
+    if action:
+        conditions.append("action ILIKE %s")
+        params.append(f"%{action}%")
+    if q:
+        conditions.append("constraint_id ILIKE %s")
+        params.append(f"%{q}%")
+    return conditions, params
+
+
+def read_constraint_rules_filtered(
+    *,
+    status: str | None = None,
+    target_drug_class: str | None = None,
+    action: str | None = None,
+    q: str | None = None,
+    limit: int = 500,
+) -> list[dict[str, Any]]:
+    conditions, params = _constraint_list_filters(
+        status=status,
+        target_drug_class=target_drug_class,
+        action=action,
+        q=q,
+    )
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    params.append(limit)
+    with postgres_pool().connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f""" --noqa: S608
+                SELECT id, constraint_id, version, target_drug_class, action,
+                       reason, risk_names, severity_any, evidence_ref, clinical_sources, status,
+                       source, approved_by, approved_at, retired_by, retired_at, created_at,
+                       updated_at, metadata
+                FROM constraint_rules
+                {where}
+                ORDER BY created_at DESC
+                LIMIT %s
+                """,
+                tuple(params),
+            )
+            return [
+                {
+                    "id": row[0],
+                    "constraint_id": row[1],
+                    "version": row[2],
+                    "target_drug_class": row[3],
+                    "action": row[4],
+                    "reason": row[5],
+                    "risk_names": list(row[6]) if row[6] else [],
+                    "severity_any": list(row[7]) if row[7] else [],
+                    "evidence_ref": row[8],
+                    "clinical_sources": row[9] or [],
+                    "status": row[10],
+                    "source": row[11],
+                    "approved_by": row[12],
+                    "approved_at": row[13].isoformat() if row[13] else None,
+                    "retired_by": row[14],
+                    "retired_at": row[15].isoformat() if row[15] else None,
+                    "created_at": row[16].isoformat(),
+                    "updated_at": row[17].isoformat(),
+                    "metadata": row[18] or {},
+                }
+                for row in cursor.fetchall()
+            ]
+
+
+def list_draft_constraint_rule_ids(
+    *,
+    rule_ids: list[int] | None = None,
+    target_drug_class: str | None = None,
+    action: str | None = None,
+    q: str | None = None,
+    limit: int = 100,
+) -> list[int]:
+    conditions = ["status = 'draft'"]
+    params: list[Any] = []
+    if rule_ids:
+        conditions.append("id = ANY(%s)")
+        params.append(rule_ids)
+    if target_drug_class:
+        conditions.append("target_drug_class ILIKE %s")
+        params.append(f"%{target_drug_class}%")
+    if action:
+        conditions.append("action ILIKE %s")
+        params.append(f"%{action}%")
+    if q:
+        conditions.append("constraint_id ILIKE %s")
+        params.append(f"%{q}%")
+    params.append(limit)
+    with postgres_pool().connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"""
+                SELECT id FROM constraint_rules
+                WHERE {' AND '.join(conditions)}
+                ORDER BY created_at DESC
+                LIMIT %s
+                """,
+                tuple(params),
+            )
+            return [row[0] for row in cursor.fetchall()]
+
+
+def get_constraint_rule_latest_by_status(constraint_id: str, status: str) -> dict[str, Any] | None:
+    with postgres_pool().connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT id FROM constraint_rules
+                WHERE constraint_id = %s AND status = %s
+                ORDER BY version DESC
+                LIMIT 1
+                """,
+                (constraint_id, status),
+            )
+            row = cursor.fetchone()
+            if not row:
+                return None
+            return get_constraint_rule(row[0])
 
 
 def read_all_constraint_rules(
@@ -821,3 +1008,497 @@ def get_constraint_rule(rule_id: int) -> dict[str, Any] | None:
                 "updated_at": row[17].isoformat(),
                 "metadata": row[18] or {},
             }
+
+
+def _log_dose_rule_history(
+    cursor,
+    dose_rule_id: str,
+    status_from: str | None,
+    status_to: str,
+    changed_by: str,
+    reason: str | None = None,
+) -> None:
+    cursor.execute(
+        """
+        INSERT INTO dose_rule_history (dose_rule_id, status_from, status_to, changed_by, reason)
+        VALUES (%s, %s, %s, %s, %s)
+        """,
+        (dose_rule_id, status_from, status_to, changed_by, reason),
+    )
+
+
+def read_approved_dose_rules() -> list[dict[str, Any]]:
+    with postgres_pool().connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT id, dose_rule_id, version, drug_keys, drug_class, calculation_type,
+                       rule_body, evidence_ref, clinical_sources, metadata, status
+                FROM dose_rules
+                WHERE status = 'approved'
+                ORDER BY drug_class, created_at DESC
+                """
+            )
+            return [
+                {
+                    "id": row[0],
+                    "dose_rule_id": row[1],
+                    "version": row[2],
+                    "drug_keys": list(row[3]) if row[3] else [],
+                    "drug_class": row[4],
+                    "calculation_type": row[5],
+                    "rule_body": row[6] or {},
+                    "evidence_ref": row[7],
+                    "clinical_sources": row[8] or [],
+                    "metadata": row[9] or {},
+                    "status": row[10],
+                }
+                for row in cursor.fetchall()
+            ]
+
+
+def read_dose_rules_by_status(status: str, limit: int = 100) -> list[dict[str, Any]]:
+    with postgres_pool().connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT id, dose_rule_id, version, drug_keys, drug_class, calculation_type,
+                       rule_body, evidence_ref, clinical_sources, status, source,
+                       approved_by, approved_at, retired_by, retired_at, created_at,
+                       updated_at, metadata, safety_tier
+                FROM dose_rules
+                WHERE status = %s
+                ORDER BY created_at DESC
+                LIMIT %s
+                """,
+                (status, limit),
+            )
+            return [
+                {
+                    "id": row[0],
+                    "dose_rule_id": row[1],
+                    "version": row[2],
+                    "drug_keys": list(row[3]) if row[3] else [],
+                    "drug_class": row[4],
+                    "calculation_type": row[5],
+                    "rule_body": row[6] or {},
+                    "evidence_ref": row[7],
+                    "clinical_sources": row[8] or [],
+                    "status": row[9],
+                    "source": row[10],
+                    "approved_by": row[11],
+                    "approved_at": row[12].isoformat() if row[12] else None,
+                    "retired_by": row[13],
+                    "retired_at": row[14].isoformat() if row[14] else None,
+                    "created_at": row[15].isoformat(),
+                    "updated_at": row[16].isoformat(),
+                    "metadata": row[17] or {},
+                    "safety_tier": row[18],
+                }
+                for row in cursor.fetchall()
+            ]
+
+
+def insert_dose_rule(rule: dict[str, Any]) -> bool:
+    try:
+        psycopg = _psycopg()
+        with postgres_pool().connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO dose_rules (
+                        dose_rule_id, version, drug_keys, drug_class, calculation_type,
+                        rule_body, evidence_ref, clinical_sources, source, safety_tier, metadata
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (dose_rule_id, version) DO UPDATE
+                    SET drug_keys = EXCLUDED.drug_keys,
+                        drug_class = EXCLUDED.drug_class,
+                        calculation_type = EXCLUDED.calculation_type,
+                        rule_body = EXCLUDED.rule_body,
+                        evidence_ref = EXCLUDED.evidence_ref,
+                        clinical_sources = EXCLUDED.clinical_sources,
+                        safety_tier = EXCLUDED.safety_tier,
+                        metadata = EXCLUDED.metadata,
+                        updated_at = NOW()
+                    WHERE dose_rules.status = 'draft'
+                    RETURNING xmax
+                    """,
+                    (
+                        rule.get("dose_rule_id"),
+                        rule.get("version", 1),
+                        rule.get("drug_keys", []),
+                        rule.get("drug_class"),
+                        rule.get("calculation_type"),
+                        psycopg.types.json.Jsonb(rule.get("rule_body") or {}),
+                        rule.get("evidence_ref"),
+                        psycopg.types.json.Jsonb(rule.get("clinical_sources") or []),
+                        rule.get("source", "pipeline_generated"),
+                        rule.get("safety_tier"),
+                        psycopg.types.json.Jsonb(rule.get("metadata") or {}),
+                    ),
+                )
+                result = cursor.fetchone()
+                if result and result[0] == 0:
+                    _log_dose_rule_history(
+                        cursor,
+                        rule.get("dose_rule_id"),
+                        status_from=None,
+                        status_to="draft",
+                        changed_by=rule.get("source", "pipeline_generated"),
+                        reason="Dose rule created",
+                    )
+        return True
+    except Exception as exc:
+        logger.warning("Failed to insert dose rule: %s", exc)
+        return False
+
+
+def approve_dose_rule(rule_id: int, admin_user_id: str) -> bool:
+    try:
+        with postgres_pool().connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT dose_rule_id FROM dose_rules WHERE id = %s AND status = 'draft'",
+                    (rule_id,),
+                )
+                result = cursor.fetchone()
+                if not result:
+                    return False
+                dose_rule_id = result[0]
+
+                cursor.execute(
+                    """
+                    UPDATE dose_rules
+                    SET status = 'retired', retired_by = %s, retired_at = NOW(), updated_at = NOW()
+                    WHERE dose_rule_id = %s AND status = 'approved' AND id != %s
+                    RETURNING id
+                    """,
+                    (f"system_auto_retire_by_{admin_user_id}", dose_rule_id, rule_id),
+                )
+                for retired_row in cursor.fetchall():
+                    _log_dose_rule_history(
+                        cursor,
+                        dose_rule_id,
+                        "approved",
+                        "retired",
+                        f"system_auto_retire_by_{admin_user_id}",
+                        f"Auto-retired due to new version approval (rule_id: {rule_id})",
+                    )
+
+                cursor.execute(
+                    """
+                    UPDATE dose_rules
+                    SET status = 'approved', approved_by = %s, approved_at = NOW(), updated_at = NOW()
+                    WHERE id = %s AND status = 'draft'
+                    """,
+                    (admin_user_id, rule_id),
+                )
+                if cursor.rowcount == 0:
+                    return False
+                _log_dose_rule_history(cursor, dose_rule_id, "draft", "approved", admin_user_id, "Dose rule approved")
+        return True
+    except Exception as exc:
+        logger.warning("Failed to approve dose rule %s: %s", rule_id, exc)
+        return False
+
+
+def retire_dose_rule(rule_id: int, admin_user_id: str) -> bool:
+    try:
+        with postgres_pool().connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT dose_rule_id FROM dose_rules WHERE id = %s", (rule_id,))
+                row = cursor.fetchone()
+                if not row:
+                    return False
+                dose_rule_id = row[0]
+                cursor.execute(
+                    """
+                    UPDATE dose_rules
+                    SET status = 'retired', retired_by = %s, retired_at = NOW(), updated_at = NOW()
+                    WHERE id = %s AND status = 'approved'
+                    """,
+                    (admin_user_id, rule_id),
+                )
+                if cursor.rowcount > 0:
+                    _log_dose_rule_history(cursor, dose_rule_id, "approved", "retired", admin_user_id, "Dose rule retired")
+        return True
+    except Exception as exc:
+        logger.warning("Failed to retire dose rule: %s", exc)
+        return False
+
+
+def unretire_dose_rule(rule_id: int, admin_user_id: str) -> bool:
+    try:
+        with postgres_pool().connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT dose_rule_id FROM dose_rules WHERE id = %s", (rule_id,))
+                row = cursor.fetchone()
+                if not row:
+                    return False
+                dose_rule_id = row[0]
+                cursor.execute(
+                    """
+                    UPDATE dose_rules
+                    SET status = 'approved', approved_by = %s, approved_at = NOW(),
+                        retired_by = NULL, retired_at = NULL, updated_at = NOW()
+                    WHERE id = %s AND status = 'retired'
+                    """,
+                    (admin_user_id, rule_id),
+                )
+                if cursor.rowcount > 0:
+                    _log_dose_rule_history(cursor, dose_rule_id, "retired", "approved", admin_user_id, "Dose rule un-retired")
+        return True
+    except Exception as exc:
+        logger.warning("Failed to un-retire dose rule: %s", exc)
+        return False
+
+
+def get_latest_dose_rule_version(dose_rule_id: str) -> dict[str, Any] | None:
+    with postgres_pool().connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT id, dose_rule_id, version, status, metadata
+                FROM dose_rules
+                WHERE dose_rule_id = %s
+                ORDER BY version DESC
+                LIMIT 1
+                """,
+                (dose_rule_id,),
+            )
+            row = cursor.fetchone()
+            if not row:
+                return None
+            return {
+                "id": row[0],
+                "dose_rule_id": row[1],
+                "version": row[2],
+                "status": row[3],
+                "metadata": row[4] or {},
+            }
+
+
+def dose_rule_with_id_exists(dose_rule_id: str) -> bool:
+    with postgres_pool().connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1 FROM dose_rules WHERE dose_rule_id = %s LIMIT 1", (dose_rule_id,))
+            return cursor.fetchone() is not None
+
+
+def get_dose_rule(rule_id: int) -> dict[str, Any] | None:
+    with postgres_pool().connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT id, dose_rule_id, version, drug_keys, drug_class, calculation_type,
+                       rule_body, evidence_ref, clinical_sources, status, source,
+                       approved_by, approved_at, retired_by, retired_at, created_at,
+                       updated_at, metadata, safety_tier
+                FROM dose_rules
+                WHERE id = %s
+                """,
+                (rule_id,),
+            )
+            row = cursor.fetchone()
+            if row is None:
+                return None
+            return {
+                "id": row[0],
+                "dose_rule_id": row[1],
+                "version": row[2],
+                "drug_keys": list(row[3]) if row[3] else [],
+                "drug_class": row[4],
+                "calculation_type": row[5],
+                "rule_body": row[6] or {},
+                "evidence_ref": row[7],
+                "clinical_sources": row[8] or [],
+                "status": row[9],
+                "source": row[10],
+                "approved_by": row[11],
+                "approved_at": row[12].isoformat() if row[12] else None,
+                "retired_by": row[13],
+                "retired_at": row[14].isoformat() if row[14] else None,
+                "created_at": row[15].isoformat(),
+                "updated_at": row[16].isoformat(),
+                "metadata": row[17] or {},
+                "safety_tier": row[18],
+            }
+
+
+def get_dose_rule_versions(dose_rule_id: str) -> list[dict[str, Any]]:
+    with postgres_pool().connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT id, dose_rule_id, version, status, created_at, updated_at
+                FROM dose_rules
+                WHERE dose_rule_id = %s
+                ORDER BY version DESC
+                """,
+                (dose_rule_id,),
+            )
+            return [
+                {
+                    "id": row[0],
+                    "dose_rule_id": row[1],
+                    "version": row[2],
+                    "status": row[3],
+                    "created_at": row[4].isoformat(),
+                    "updated_at": row[5].isoformat(),
+                }
+                for row in cursor.fetchall()
+            ]
+
+
+def read_dose_rule_history(dose_rule_id: str) -> list[dict[str, Any]]:
+    with postgres_pool().connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT history_id, dose_rule_id, status_from, status_to, changed_by, changed_at, reason
+                FROM dose_rule_history
+                WHERE dose_rule_id = %s
+                ORDER BY changed_at DESC
+                """,
+                (dose_rule_id,),
+            )
+            return [
+                {
+                    "history_id": row[0],
+                    "dose_rule_id": row[1],
+                    "status_from": row[2],
+                    "status_to": row[3],
+                    "changed_by": row[4],
+                    "changed_at": row[5].isoformat(),
+                    "reason": row[6],
+                }
+                for row in cursor.fetchall()
+            ]
+
+
+def read_dose_rules_filtered(
+    *,
+    status: str | None = None,
+    drug_class: str | None = None,
+    calculation_type: str | None = None,
+    safety_tier: str | None = None,
+    q: str | None = None,
+    limit: int = 500,
+) -> list[dict[str, Any]]:
+    conditions: list[str] = []
+    params: list[Any] = []
+    if status:
+        conditions.append("status = %s")
+        params.append(status)
+    if drug_class:
+        conditions.append("drug_class ILIKE %s")
+        params.append(f"%{drug_class}%")
+    if calculation_type:
+        conditions.append("calculation_type ILIKE %s")
+        params.append(f"%{calculation_type}%")
+    if safety_tier:
+        conditions.append("safety_tier = %s")
+        params.append(safety_tier)
+    if q:
+        conditions.append("dose_rule_id ILIKE %s")
+        params.append(f"%{q}%")
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    params.append(limit)
+    with postgres_pool().connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"""
+                SELECT id, dose_rule_id, version, drug_keys, drug_class, calculation_type,
+                       rule_body, evidence_ref, clinical_sources, status, source,
+                       approved_by, approved_at, retired_by, retired_at, created_at,
+                       updated_at, metadata, safety_tier
+                FROM dose_rules
+                {where}
+                ORDER BY created_at DESC
+                LIMIT %s
+                """,
+                tuple(params),
+            )
+            return [
+                {
+                    "id": row[0],
+                    "dose_rule_id": row[1],
+                    "version": row[2],
+                    "drug_keys": list(row[3]) if row[3] else [],
+                    "drug_class": row[4],
+                    "calculation_type": row[5],
+                    "rule_body": row[6] or {},
+                    "evidence_ref": row[7],
+                    "clinical_sources": row[8] or [],
+                    "status": row[9],
+                    "source": row[10],
+                    "approved_by": row[11],
+                    "approved_at": row[12].isoformat() if row[12] else None,
+                    "retired_by": row[13],
+                    "retired_at": row[14].isoformat() if row[14] else None,
+                    "created_at": row[15].isoformat(),
+                    "updated_at": row[16].isoformat(),
+                    "metadata": row[17] or {},
+                    "safety_tier": row[18],
+                }
+                for row in cursor.fetchall()
+            ]
+
+
+def list_draft_dose_rule_ids(
+    *,
+    rule_ids: list[int] | None = None,
+    drug_class: str | None = None,
+    calculation_type: str | None = None,
+    safety_tier: str | None = None,
+    q: str | None = None,
+    limit: int = 100,
+) -> list[int]:
+    conditions = ["status = 'draft'"]
+    params: list[Any] = []
+    if rule_ids:
+        conditions.append("id = ANY(%s)")
+        params.append(rule_ids)
+    if drug_class:
+        conditions.append("drug_class ILIKE %s")
+        params.append(f"%{drug_class}%")
+    if calculation_type:
+        conditions.append("calculation_type ILIKE %s")
+        params.append(f"%{calculation_type}%")
+    if safety_tier:
+        conditions.append("safety_tier = %s")
+        params.append(safety_tier)
+    if q:
+        conditions.append("dose_rule_id ILIKE %s")
+        params.append(f"%{q}%")
+    params.append(limit)
+    with postgres_pool().connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"""
+                SELECT id FROM dose_rules
+                WHERE {' AND '.join(conditions)}
+                ORDER BY created_at DESC
+                LIMIT %s
+                """,
+                tuple(params),
+            )
+            return [row[0] for row in cursor.fetchall()]
+
+
+def get_dose_rule_latest_by_status(dose_rule_id: str, status: str) -> dict[str, Any] | None:
+    with postgres_pool().connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT id FROM dose_rules
+                WHERE dose_rule_id = %s AND status = %s
+                ORDER BY version DESC
+                LIMIT 1
+                """,
+                (dose_rule_id, status),
+            )
+            row = cursor.fetchone()
+            if not row:
+                return None
+            return get_dose_rule(row[0])

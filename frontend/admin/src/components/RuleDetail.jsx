@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { CheckCircle2, History, RotateCcw, ShieldOff, XCircle } from "lucide-react";
 
 import { adminApi } from "../api/index.js";
+import { VersionDiffPanel } from "@shared/governance/VersionDiffPanel.jsx";
 
 function statusClass(status) {
   if (status === "approved") return "success";
@@ -12,6 +13,7 @@ function statusClass(status) {
 export function RuleDetail({ rule, onClose, onAction, actionLoading, canApprove, canAdmin }) {
   const [history, setHistory] = useState([]);
   const [historyError, setHistoryError] = useState("");
+  const [versions, setVersions] = useState([]);
 
   useEffect(() => {
     if (!canAdmin || !rule?.constraint_id) return;
@@ -20,6 +22,14 @@ export function RuleDetail({ rule, onClose, onAction, actionLoading, canApprove,
       .then((data) => setHistory(data.items || []))
       .catch((err) => setHistoryError(err.message));
   }, [rule?.constraint_id, canAdmin]);
+
+  useEffect(() => {
+    if (!rule?.constraint_id) return;
+    adminApi
+      .getVersions(rule.constraint_id)
+      .then((data) => setVersions(data.items || []))
+      .catch(() => setVersions([]));
+  }, [rule?.constraint_id]);
 
   if (!rule) return null;
 
@@ -65,6 +75,12 @@ export function RuleDetail({ rule, onClose, onAction, actionLoading, canApprove,
             </ul>
           </section>
         )}
+
+        <VersionDiffPanel
+          fetchDiff={adminApi.getConstraintRuleDiff}
+          ruleId={rule.id}
+          versions={versions}
+        />
 
         {canAdmin && (
           <section>

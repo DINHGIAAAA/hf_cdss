@@ -10,6 +10,7 @@ import { ChatPage } from "./pages/ChatPage";
 import { EvidencePage } from "./pages/EvidencePage";
 import { HomePage } from "./pages/HomePage";
 import { LoginPage } from "./pages/LoginPage";
+import { DoseRulesPage } from "./pages/DoseRulesPage.jsx";
 import { RulesPage } from "./pages/RulesPage";
 import { SystemPage } from "./pages/SystemPage";
 import { UsersPage } from "./pages/UsersPage";
@@ -42,6 +43,7 @@ function App() {
           >
             <Route element={<Navigate replace to="rules" />} index />
             <Route element={<RulesPage />} path="rules" />
+            <Route element={<DoseRulesPage />} path="dose-rules" />
             <Route element={<EvidencePage />} path="evidence" />
             <Route element={<SystemPage />} path="system" />
             <Route element={<UsersPage />} path="users" />

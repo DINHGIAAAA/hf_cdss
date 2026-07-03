@@ -67,6 +67,21 @@ def normalize_text(text: str) -> str:
     return ascii_text.lower().replace("đ", "d")
 
 
+def extract_current_message(aggregated_message: str) -> str:
+    for line in aggregated_message.splitlines():
+        if line.startswith("[Current]"):
+            return line.removeprefix("[Current]").strip()
+    return aggregated_message.strip()
+
+
+def _numeric_search_texts(message: str) -> tuple[str, str, str, str]:
+    current = extract_current_message(message)
+    if current and "[Current]" in message:
+        return current, normalize_text(current), message, normalize_text(message)
+    normalized = normalize_text(message)
+    return message, normalized, message, normalized
+
+
 def _source(field: str, raw: str, confidence: float = 0.9) -> SourceTrace:
     return SourceTrace(source_type="chat", document_id=field, source_text=raw[:240], confidence=confidence)
 
@@ -215,63 +230,111 @@ def _extract_allergies(raw_text: str, normalized_text: str) -> list[AllergyState
 
 
 def _regex_extract_patient_from_message(message: str, conversation_id: str) -> PatientProfile:
-    normalized = normalize_text(message)
-    lvef, lvef_text = _num(
+    primary_text, normalized_primary, full_text, normalized_full = _numeric_search_texts(message)
+    normalized = normalized_full
+
+    def measured(patterns: tuple[str, ...]) -> tuple[float | None, str]:
+        value, matched = _num(patterns, primary_text, normalized_primary)
+        if value is None and primary_text != full_text:
+            value, matched = _num(patterns, full_text, normalized_full)
+        return value, matched
+
+    lvef, lvef_text = measured(
         (
             r"\b(?:lvef|ef)\s*(?:is|was|=|:|con|khoang|about|around)?\s*(\d+(?:[.,]\d+)?)\s*%?",
             r"\b(?:ejection fraction|phan suat tong mau)\s*(?:is|was|=|:|con|khoang)?\s*(\d+(?:[.,]\d+)?)",
         ),
-        message,
-        normalized,
     )
-    egfr, egfr_text = _num(
+    egfr, egfr_text = measured(
         (
             r"\b(?:egfr|e-gfr)\s*(?:is|was|=|:|khoang|about)?\s*(\d+(?:[.,]\d+)?)",
             r"\b(?:muc loc cau than|loc cau than)\s*(?:la|khoang|about)?\s*(\d+(?:[.,]\d+)?)",
         ),
-        message,
-        normalized,
     )
-    potassium, potassium_text = _num(
+    potassium, potassium_text = measured(
         (
             r"\b(?:potassium|serum k|kali|k\+?|k)\s*(?:mau|is|was|=|:|la|khoang)?\s*(\d+(?:[.,]\d+)?)",
         ),
-        message,
-        normalized,
     )
-    systolic_bp, sbp_text = _num(
+    systolic_bp, sbp_text = measured(
         (
             r"\b(?:sbp|systolic(?: bp)?|huyet ap tam thu)\s*(?:is|was|=|:|la|khoang)?\s*(\d+(?:[.,]\d+)?)",
             r"\b(?:bp|blood pressure|huyet ap|ha)\s*(?:is|was|=|:|la|khoang)?\s*(\d{2,3})(?:/\d{2,3})?",
         ),
-        message,
-        normalized,
     )
-    heart_rate, hr_text = _num(
+    heart_rate, hr_text = measured(
         (
             r"\b(?:hr|heart rate|pulse|nhip tim|mach)\s*(?:is|was|=|:|la|khoang)?\s*(\d+(?:[.,]\d+)?)",
             r"\b(\d+(?:[.,]\d+)?)\s*(?:bpm|lan/phut)\b",
         ),
-        message,
+    )
+    weight_kg, weight_text = measured(
+        (
+            r"\b(?:weight|body weight|can nang|cn)\s*(?:is|was|=|:|la|khoang)?\s*(\d+(?:[.,]\d+)?)\s*kg?\b",
+            r"\b(\d+(?:[.,]\d+)?)\s*kg\b",
+        ),
+    )
+    inr, inr_text = measured(
+        (
+            r"\b(?:inr|prothrombin time|pt)\s*(?:is|was|=|:|la|khoang)?\s*(\d+(?:[.,]\d+)?)",
+            r"\b(?:muc inr|chi so inr)\s*(?:la|khoang)?\s*(\d+(?:[.,]\d+)?)",
+        ),
+    )
+
+    inr_target_low = None
+    inr_target_high = None
+    inr_target_match = re.search(
+        r"\b(?:inr\s*)?target(?:\s*inr)?\s*(?:is|was|=|:|la|khoang)?\s*(\d+(?:[.,]\d+)?)\s*(?:-|to|den|đến)\s*(\d+(?:[.,]\d+)?)",
         normalized,
     )
+    if inr_target_match:
+        inr_target_low = float(inr_target_match.group(1).replace(",", "."))
+        inr_target_high = float(inr_target_match.group(2).replace(",", "."))
+
+    acei_last_dose_hours_ago = None
+    acei_hours_match = re.search(
+        r"\b(?:last\s+)?(?:acei|ace inhibitor|enalapril|lisinopril|ramipril|captopril)\s+"
+        r"(?:dose\s+)?(?:was\s+)?(\d+(?:[.,]\d+)?)\s*(?:hours?|h|gio|giờ)\s+ago",
+        normalized,
+    )
+    if acei_hours_match:
+        acei_last_dose_hours_ago = float(acei_hours_match.group(1).replace(",", "."))
+
+    age_match = re.search(
+        r"\b(?:age|tuoi)\s*(?:is|was|=|:|la|khoang)?\s*(\d{1,3})\b",
+        normalized,
+    )
+    age = int(age_match.group(1)) if age_match else None
+    sex = None
+    if re.search(r"\b(?:male|nam|man)\b", normalized):
+        sex = "male"
+    elif re.search(r"\b(?:female|nu|woman)\b", normalized):
+        sex = "female"
 
     return PatientProfile(
         patient_identity=PatientIdentity(case_id=conversation_id),
+        demographics=Demographics(age=age, sex=sex),
         heart_failure_profile=HeartFailureProfile(lvef=_clinical_value(lvef, "%", "lvef", lvef_text)),
         labs=Labs(
             egfr=_clinical_value(egfr, "mL/min/1.73m2", "egfr", egfr_text),
             potassium=_clinical_value(potassium, "mmol/L", "potassium", potassium_text),
+            inr=_clinical_value(inr, "", "inr", inr_text),
         ),
         vitals=Vitals(
             systolic_bp=_clinical_value(systolic_bp, "mmHg", "systolic_bp", sbp_text),
             heart_rate=_clinical_value(heart_rate, "bpm", "heart_rate", hr_text),
+            weight_kg=_clinical_value(weight_kg, "kg", "weight_kg", weight_text),
         ),
         conditions=_extract_conditions(normalized),
         medications=_extract_medications(message, normalized),
         allergy_statements=_extract_allergies(message, normalized),
         red_flags=_extract_red_flags(normalized),
-        care_context=CareContext(clinician_question=message),
+        care_context=CareContext(
+            clinician_question=message,
+            acei_last_dose_hours_ago=acei_last_dose_hours_ago,
+            inr_target_low=inr_target_low,
+            inr_target_high=inr_target_high,
+        ),
     )
 
 
@@ -398,6 +461,7 @@ def _patient_from_llm_data(data: dict[str, Any], conversation_id: str, message: 
             egfr=_clinical_value_llm(data.get("egfr"), "mL/min/1.73m2", "egfr"),
             creatinine=_clinical_value_llm(data.get("creatinine"), "mg/dL", "creatinine"),
             potassium=_clinical_value_llm(data.get("potassium"), "mmol/L", "potassium"),
+            inr=_clinical_value_llm(data.get("inr"), "", "inr"),
         ),
         vitals=Vitals(
             systolic_bp=_clinical_value_llm(data.get("systolic_bp"), "mmHg", "systolic_bp"),
@@ -409,7 +473,12 @@ def _patient_from_llm_data(data: dict[str, Any], conversation_id: str, message: 
         medications=medications,
         allergy_statements=allergies,
         red_flags=red_flags,
-        care_context=CareContext(clinician_question=message),
+        care_context=CareContext(
+            clinician_question=message,
+            acei_last_dose_hours_ago=_as_float(data.get("acei_last_dose_hours_ago")),
+            inr_target_low=_as_float(data.get("inr_target_low")),
+            inr_target_high=_as_float(data.get("inr_target_high")),
+        ),
     )
 
 
@@ -467,18 +536,25 @@ def _merge_extractions(regex_patient: PatientProfile, llm_patient: PatientProfil
     patient.labs.egfr = _prefer_measured(patient.labs.egfr, llm_patient.labs.egfr)
     patient.labs.creatinine = _prefer_measured(patient.labs.creatinine, llm_patient.labs.creatinine)
     patient.labs.potassium = _prefer_measured(patient.labs.potassium, llm_patient.labs.potassium)
+    patient.labs.inr = _prefer_measured(patient.labs.inr, llm_patient.labs.inr)
+    patient.care_context.acei_last_dose_hours_ago = _prefer(
+        patient.care_context.acei_last_dose_hours_ago,
+        llm_patient.care_context.acei_last_dose_hours_ago,
+    )
+    patient.care_context.inr_target_low = _prefer(
+        patient.care_context.inr_target_low,
+        llm_patient.care_context.inr_target_low,
+    )
+    patient.care_context.inr_target_high = _prefer(
+        patient.care_context.inr_target_high,
+        llm_patient.care_context.inr_target_high,
+    )
     patient.chief_complaint = _prefer(patient.chief_complaint, llm_patient.chief_complaint)
     patient.conditions = _merge_named(patient.conditions, llm_patient.conditions, "name")
     patient.medications = _merge_named(patient.medications, llm_patient.medications, "name")
     patient.allergy_statements = _merge_named(patient.allergy_statements, llm_patient.allergy_statements, "substance")
     patient.red_flags = _merge_named(patient.red_flags, llm_patient.red_flags, "name")
     return patient
-
-
-def _intake_fields_complete(patient: PatientProfile) -> bool:
-    from app.modules.missing_fields.service import check_missing_fields
-
-    return check_missing_fields(patient).status == "complete"
 
 
 def extract_patient_from_message(
@@ -488,12 +564,19 @@ def extract_patient_from_message(
     conversation_history: list[str] | None = None,
 ) -> PatientProfile:
     from app.modules.clinical_intake_extraction.semantic import aggregate_conversation_context, semantic_extract_patient
+    from app.modules.clinical_intake_extraction.selective_llm import should_call_llm_extractor
 
     aggregated_message = aggregate_conversation_context(message, conversation_history or [])
     regex_patient = _regex_extract_patient_from_message(aggregated_message, conversation_id)
     semantic_patient = semantic_extract_patient(aggregated_message, conversation_id)
     merged = _merge_extractions(regex_patient, semantic_patient)
-    if _intake_fields_complete(merged):
+    decision = should_call_llm_extractor(
+        aggregated_message=aggregated_message,
+        regex_patient=regex_patient,
+        semantic_patient=semantic_patient,
+        merged=merged,
+    )
+    if not decision.call_llm:
         return merged
     llm_data = _call_llm_extractor(aggregated_message)
     llm_patient = _patient_from_llm_data(llm_data, conversation_id, aggregated_message) if llm_data else None
