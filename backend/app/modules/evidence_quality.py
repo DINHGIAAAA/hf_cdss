@@ -3,7 +3,9 @@ from __future__ import annotations
 import re
 from datetime import date
 
+from app.modules.clinical_entity_boosting import clinical_entity_boost
 from app.schemas.graphrag import EvidenceChunk
+from app.schemas.patient import PatientProfile
 
 
 SOURCE_AUTHORITY = {
@@ -60,7 +62,12 @@ def evidence_level_for_chunk(chunk: EvidenceChunk) -> str:
     return "source_text"
 
 
-def quality_score_for_chunk(chunk: EvidenceChunk, matched_terms: list[str] | None = None) -> float:
+def quality_score_for_chunk(
+    chunk: EvidenceChunk,
+    matched_terms: list[str] | None = None,
+    *,
+    patient: PatientProfile | None = None,
+) -> float:
     metadata = chunk.metadata or {}
     matched_terms = matched_terms or []
     score = min(max(float(chunk.score), 0.0), 1.0) * 0.35
@@ -81,7 +88,7 @@ def quality_score_for_chunk(chunk: EvidenceChunk, matched_terms: list[str] | Non
         score += 0.05
     if metadata.get("provenance"):
         score += 0.05
-    score += min(len(set(matched_terms)), 4) * 0.04
+    score += clinical_entity_boost(matched_terms, patient=patient, chunk=chunk)
 
     year = _metadata_year(chunk)
     if year:
@@ -91,8 +98,13 @@ def quality_score_for_chunk(chunk: EvidenceChunk, matched_terms: list[str] | Non
     return round(min(score, 1.0), 3)
 
 
-def enrich_evidence_chunk(chunk: EvidenceChunk, matched_terms: list[str] | None = None) -> EvidenceChunk:
-    quality_score = quality_score_for_chunk(chunk, matched_terms)
+def enrich_evidence_chunk(
+    chunk: EvidenceChunk,
+    matched_terms: list[str] | None = None,
+    *,
+    patient: PatientProfile | None = None,
+) -> EvidenceChunk:
+    quality_score = quality_score_for_chunk(chunk, matched_terms, patient=patient)
     return chunk.model_copy(
         update={
             "quality_score": quality_score,

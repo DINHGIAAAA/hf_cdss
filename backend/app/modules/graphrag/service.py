@@ -27,6 +27,7 @@ from app.modules.datastores.chroma import retrieve_chroma, retrieve_chroma_multi
 from app.modules.datastores.common import CHUNKS_PATH, DATA_ROOT, RELATIONSHIPS_PATH
 from app.modules.datastores.neo4j import neo4j_driver as get_driver, retrieve_neo4j
 from app.modules.evidence_text import normalize_evidence_text
+from app.modules.clinical_entity_boosting import matched_terms_for_chunk
 from app.modules.evidence_quality import enrich_evidence_chunk, quality_score_for_chunk
 from app.modules.semantic_retrieval.service import reciprocal_rank_fusion, rerank_evidence_chunks
 from app.schemas.graphrag import (
@@ -318,6 +319,8 @@ def _retrieve_evidence_from_chroma(
     primary_query: str,
     top_k: int,
     scope: EvidenceScope | None = None,
+    patient: PatientProfile | None = None,
+    terms: list[str] | None = None,
 ) -> list[EvidenceChunk]:
     if len(queries) > 1 and settings.graphrag_multi_query_enabled:
         return retrieve_chroma_multi_query(
@@ -325,8 +328,10 @@ def _retrieve_evidence_from_chroma(
             top_k,
             primary_query=primary_query,
             scope=scope,
+            patient=patient,
+            terms=terms,
         )
-    return retrieve_chroma(primary_query or queries[0], top_k, scope=scope)
+    return retrieve_chroma(primary_query or queries[0], top_k, scope=scope, patient=patient, terms=terms)
 
 
 def _retrieve_graph_facts_parallel(
@@ -355,6 +360,8 @@ def _merge_evidence_rankings(
     *,
     query: str,
     top_k: int,
+    patient: PatientProfile | None = None,
+    terms: list[str] | None = None,
 ) -> list[EvidenceChunk]:
     if not ranked_lists:
         return []
@@ -363,7 +370,13 @@ def _merge_evidence_rankings(
     else:
         merged = reciprocal_rank_fusion(ranked_lists)
     ranked = rerank_evidence_chunks(query, merged, top_k)
-    return sorted(ranked, key=lambda item: (quality_score_for_chunk(item), item.score), reverse=True)[:top_k]
+
+    def rank_key(item: EvidenceChunk) -> tuple[float, float]:
+        matched = matched_terms_for_chunk(item, terms or [])
+        quality = quality_score_for_chunk(item, matched, patient=patient)
+        return quality, item.score
+
+    return sorted(ranked, key=rank_key, reverse=True)[:top_k]
 
 
 def _score_text(text: str, terms: list[str]) -> float:
@@ -375,7 +388,13 @@ def _score_text(text: str, terms: list[str]) -> float:
     return score
 
 
-def retrieve_evidence_chunks(terms: list[str], top_k: int, *, published: bool = True) -> list[EvidenceChunk]:
+def retrieve_evidence_chunks(
+    terms: list[str],
+    top_k: int,
+    *,
+    published: bool = True,
+    patient: PatientProfile | None = None,
+) -> list[EvidenceChunk]:
     chunk_rows = load_published_chunks() if published else load_staging_chunks()
     scored: list[tuple[float, dict[str, Any]]] = []
     for chunk in chunk_rows:
@@ -409,13 +428,15 @@ def retrieve_evidence_chunks(terms: list[str], top_k: int, *, published: bool = 
         )
         matched_terms = [term for term in terms if term.lower() in text.lower()]
         evidence_chunk = evidence_chunk.model_copy(update={"source_link": source_link_for_chunk(evidence_chunk)})
-        chunks.append(enrich_evidence_chunk(evidence_chunk, matched_terms))
+        chunks.append(enrich_evidence_chunk(evidence_chunk, matched_terms, patient=patient))
     ranked = rerank_evidence_chunks(" ".join(terms), chunks, top_k)
-    return sorted(
-        ranked,
-        key=lambda item: (quality_score_for_chunk(item), item.score),
-        reverse=True,
-    )[:top_k]
+
+    def rank_key(item: EvidenceChunk) -> tuple[float, float]:
+        matched = matched_terms_for_chunk(item, terms)
+        quality = quality_score_for_chunk(item, matched, patient=patient)
+        return quality, item.score
+
+    return sorted(ranked, key=rank_key, reverse=True)[:top_k]
 
 
 def get_top_entities_from_chunks(chunks: list[EvidenceChunk], top_n: int = 3) -> list[dict]:
@@ -631,6 +652,8 @@ def _build_graphrag_context_impl(
                 primary_query=primary_query,
                 top_k=top_k,
                 scope=evidence_scope,
+                patient=request.patient,
+                terms=terms,
             )
             if evidence_chunks:
                 retrieval_sources.append("chromadb")
@@ -642,11 +665,13 @@ def _build_graphrag_context_impl(
             logger.warning("ChromaDB retrieval unavailable; using local evidence fallback: %s", exc)
 
         if not evidence_chunks:
-            local_chunks = retrieve_evidence_chunks(terms, top_k)
+            local_chunks = retrieve_evidence_chunks(terms, top_k, patient=request.patient)
             evidence_chunks = _merge_evidence_rankings(
                 [local_chunks],
                 query=primary_query,
                 top_k=top_k,
+                patient=request.patient,
+                terms=terms,
             )
             retrieval_sources.append("local_chunks")
 
@@ -661,7 +686,7 @@ def _build_graphrag_context_impl(
         graph_facts = retrieve_graph_facts(terms, top_k)
         retrieval_sources.append("local_relationships")
     if not evidence_chunks:
-        evidence_chunks = retrieve_evidence_chunks(terms, top_k)
+        evidence_chunks = retrieve_evidence_chunks(terms, top_k, patient=request.patient)
         retrieval_sources.append("local_chunks")
 
     if evidence_chunks and settings.graphrag_chunk_window_size > 0:

@@ -110,3 +110,37 @@ def test_rule_tier_marks_unstructured_hard_block_for_refinement() -> None:
         "extraction_method": "regex",
     }
     assert rule_tier(rule) == "needs_condition_refinement"
+
+
+def test_section_filter_embeds_haystack_once_per_record(monkeypatch) -> None:
+    from scraper.semantic.embeddings import _embed_text_cached, _prototype_vectors
+    from scraper.semantic.section_filter import filter_important_sections
+
+    _embed_text_cached.cache_clear()
+    _prototype_vectors.cache_clear()
+
+    haystack_embed_calls: list[str] = []
+
+    def fake_embed_texts(texts: list[str], **kwargs):
+        for text in texts:
+            if text.startswith("Clinical practice recommendation"):
+                continue
+            haystack_embed_calls.append(text)
+        return [[1.0, 0.0] for _ in texts]
+
+    monkeypatch.setattr("scraper.semantic.embeddings.embed_texts", fake_embed_texts)
+
+    records = [
+        {
+            "source_type": "guideline",
+            "section": "Therapy",
+            "text": f"Guideline section text number {index} about heart failure therapy.",
+        }
+        for index in range(3)
+    ]
+
+    important = filter_important_sections(records)
+    assert len(important) == 3
+    haystack_calls = [text for text in haystack_embed_calls if text.startswith("Therapy\n")]
+    assert len(haystack_calls) == 3
+

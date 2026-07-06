@@ -68,8 +68,8 @@ def test_graphrag_uses_graph_guided_scope(monkeypatch) -> None:
     def fake_scope(terms, *, top_k=24, chunk_ids=None):
         return EvidenceScope(document_ids=("spironolactone_label",))
 
-    def fake_chroma(query, top_k, *, scope=None):
-        captured["scope"] = scope
+    def fake_chroma(query, top_k, **kwargs):
+        captured["scope"] = kwargs.get("scope")
         return []
 
     monkeypatch.setattr("app.modules.graphrag.service.resolve_evidence_scope", fake_scope)

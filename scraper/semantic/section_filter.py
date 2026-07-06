@@ -12,7 +12,7 @@ from scraper.transform.extract_important_sections import (
     normalize,
 )
 from scraper.semantic import config
-from scraper.semantic.embeddings import max_similarity_to_prototypes
+from scraper.semantic.embeddings import embed_text, max_similarity_vector_to_prototypes, warmup_prototype_vectors
 from scraper.semantic.topic_prototypes import DRUG_SECTION_PROTOTYPES, GUIDELINE_TOPIC_PROTOTYPES
 
 logger = logging.getLogger(__name__)
@@ -25,6 +25,12 @@ def _semantic_drug_matches(record: dict) -> list[str]:
     if not haystack:
         return []
 
+    try:
+        haystack_vector = embed_text(haystack)
+    except Exception as exc:
+        logger.warning("Drug section haystack embedding failed: %s", exc)
+        return []
+
     matches: list[str] = []
     for canonical, prototypes in DRUG_SECTION_PROTOTYPES.items():
         aliases = DRUG_SECTION_ALIASES.get(canonical, {canonical})
@@ -32,7 +38,7 @@ def _semantic_drug_matches(record: dict) -> list[str]:
             matches.append(canonical)
             continue
         try:
-            score = max_similarity_to_prototypes(haystack, tuple(prototypes))
+            score = max_similarity_vector_to_prototypes(haystack_vector, prototypes)
         except Exception as exc:
             logger.warning("Drug section embedding failed for %s: %s", canonical, exc)
             continue
@@ -46,10 +52,16 @@ def _semantic_guideline_matches(record: dict) -> list[str]:
     if not haystack:
         return []
 
+    try:
+        haystack_vector = embed_text(haystack)
+    except Exception as exc:
+        logger.warning("Guideline haystack embedding failed: %s", exc)
+        return []
+
     matches: list[str] = []
     for topic, prototypes in GUIDELINE_TOPIC_PROTOTYPES.items():
         try:
-            score = max_similarity_to_prototypes(haystack, tuple(prototypes))
+            score = max_similarity_vector_to_prototypes(haystack_vector, prototypes)
         except Exception as exc:
             logger.warning("Guideline topic embedding failed for %s: %s", topic, exc)
             continue
@@ -59,6 +71,8 @@ def _semantic_guideline_matches(record: dict) -> list[str]:
 
 
 def filter_important_sections(records: list[dict]) -> list[dict]:
+    warmup_prototype_vectors(DRUG_SECTION_PROTOTYPES, GUIDELINE_TOPIC_PROTOTYPES)
+
     important: list[dict] = []
     for record in records:
         keyword_matches: list[str] = []

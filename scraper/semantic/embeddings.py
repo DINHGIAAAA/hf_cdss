@@ -67,15 +67,41 @@ def embeddings_available() -> bool:
         return False
 
 
-def max_similarity_to_prototypes(text: str, prototypes: list[str]) -> float:
-    if not text.strip() or not prototypes:
+def max_similarity_vector_to_prototypes(
+    text_vector: Sequence[float],
+    prototypes: Sequence[str],
+) -> float:
+    if not text_vector or not prototypes:
         return 0.0
-    prototype_vectors = _prototype_vectors(prototypes)
-    text_vector = embed_texts([text])[0]
+    prototype_vectors = _prototype_vectors(tuple(prototypes))
     return max(cosine_similarity(text_vector, prototype_vector) for prototype_vector in prototype_vectors)
 
 
+@lru_cache(maxsize=2048)
+def _embed_text_cached(text: str) -> tuple[float, ...]:
+    if not text.strip():
+        return tuple()
+    return tuple(embed_texts([text])[0])
+
+
+def embed_text(text: str) -> list[float]:
+    return list(_embed_text_cached(text))
+
+
+def max_similarity_to_prototypes(text: str, prototypes: Sequence[str]) -> float:
+    if not text.strip() or not prototypes:
+        return 0.0
+    return max_similarity_vector_to_prototypes(_embed_text_cached(text), prototypes)
+
+
 @lru_cache(maxsize=256)
-def _prototype_vectors(prototypes: tuple[str, ...]) -> tuple[list[float], ...]:
+def _prototype_vectors(prototypes: tuple[str, ...]) -> tuple[tuple[float, ...], ...]:
     vectors = embed_texts(list(prototypes))
-    return tuple(vectors)
+    return tuple(tuple(vector) for vector in vectors)
+
+
+def warmup_prototype_vectors(*prototype_maps: dict[str, list[str]]) -> None:
+    """Pre-embed topic prototypes once per pipeline run."""
+    for prototype_map in prototype_maps:
+        for prototypes in prototype_map.values():
+            _prototype_vectors(tuple(prototypes))
