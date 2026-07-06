@@ -4,6 +4,7 @@ from typing import Any
 
 from app.core.config import settings
 from app.modules.datastores.common import RELATIONSHIPS_PATH, read_jsonl
+from app.modules.graphrag.evidence_scope import EvidenceScope
 from app.schemas.graphrag import GraphFact
 
 
@@ -100,6 +101,103 @@ def retrieve_neo4j(terms: list[str], top_k: int) -> list[GraphFact]:
             )
             for record in records
         ]
+
+
+def retrieve_evidence_scope_neo4j(terms: list[str], *, top_k: int = 24) -> EvidenceScope:
+    search_query = " OR ".join(f'"{term}"' for term in terms if term)
+    if not search_query:
+        return EvidenceScope()
+
+    scope: dict[str, set[str]] = {
+        "document_ids": set(),
+        "section_ids": set(),
+        "chunk_ids": set(),
+    }
+    chunk_node_ids: set[str] = set()
+
+    with neo4j_driver().session() as session:
+        seed_rows = session.run(
+            """
+            CALL db.index.fulltext.queryRelationships('relationship_search', $search_query)
+            YIELD relationship AS rel, score
+            WITH startNode(rel) AS source, endNode(rel) AS target, rel, score
+            ORDER BY score DESC
+            LIMIT $top_k
+            RETURN source.id AS source_id, source.entity_type AS source_type,
+                   target.id AS target_id, target.entity_type AS target_type,
+                   rel.relationship_type AS relationship_type,
+                   rel.metadata_json AS metadata_json
+            """,
+            search_query=search_query,
+            top_k=max(1, top_k),
+        )
+        for record in seed_rows:
+            metadata = json.loads(record["metadata_json"] or "{}")
+            for node_id, entity_type in (
+                (record["source_id"], record["source_type"]),
+                (record["target_id"], record["target_type"]),
+            ):
+                if not node_id:
+                    continue
+                if str(node_id).startswith("chunk:"):
+                    chunk_node_ids.add(str(node_id))
+                elif str(node_id).startswith("section:"):
+                    scope["section_ids"].add(str(node_id).removeprefix("section:"))
+                elif str(node_id).startswith("document:"):
+                    scope["document_ids"].add(str(node_id).removeprefix("document:"))
+                elif entity_type == "Section":
+                    scope["section_ids"].add(str(node_id))
+                elif entity_type == "Document":
+                    scope["document_ids"].add(str(node_id))
+                elif entity_type == "Chunk":
+                    chunk_node_ids.add(f"chunk:{node_id}")
+            if metadata.get("document_id"):
+                scope["document_ids"].add(str(metadata["document_id"]))
+            if metadata.get("section_id"):
+                scope["section_ids"].add(str(metadata["section_id"]))
+            if metadata.get("chunk_id"):
+                scope["chunk_ids"].add(str(metadata["chunk_id"]))
+
+        if chunk_node_ids:
+            expansion_rows = session.run(
+                """
+                UNWIND $chunk_node_ids AS chunk_node_id
+                MATCH (chunk:Entity {id: chunk_node_id})-[part:RELATED]->(section:Entity)
+                WHERE part.relationship_type = 'PART_OF'
+                OPTIONAL MATCH (section)-[doc_rel:RELATED]->(document:Entity)
+                WHERE doc_rel.relationship_type = 'FROM'
+                RETURN chunk.id AS chunk_node_id,
+                       section.id AS section_node_id,
+                       document.id AS document_node_id,
+                       part.metadata_json AS part_metadata_json,
+                       doc_rel.metadata_json AS doc_metadata_json
+                """,
+                chunk_node_ids=sorted(chunk_node_ids),
+            )
+            for record in expansion_rows:
+                chunk_node_id = record["chunk_node_id"]
+                if chunk_node_id:
+                    scope["chunk_ids"].add(str(chunk_node_id).removeprefix("chunk:"))
+                section_node_id = record["section_node_id"]
+                if section_node_id:
+                    scope["section_ids"].add(str(section_node_id).removeprefix("section:"))
+                document_node_id = record["document_node_id"]
+                if document_node_id:
+                    scope["document_ids"].add(str(document_node_id).removeprefix("document:"))
+                for metadata_json in (record["part_metadata_json"], record["doc_metadata_json"]):
+                    if not metadata_json:
+                        continue
+                    metadata = json.loads(metadata_json)
+                    if metadata.get("document_id"):
+                        scope["document_ids"].add(str(metadata["document_id"]))
+                    if metadata.get("section_id"):
+                        scope["section_ids"].add(str(metadata["section_id"]))
+
+    return EvidenceScope(
+        document_ids=tuple(sorted(scope["document_ids"])),
+        section_ids=tuple(sorted(scope["section_ids"])),
+        chunk_ids=tuple(sorted(scope["chunk_ids"])),
+    )
 
 
 def neo4j_status() -> dict[str, Any]:

@@ -114,6 +114,7 @@ class Settings(BaseSettings):
     graphrag_rrf_k: int = 60
     graphrag_chunk_window_size: int = 1
     graphrag_adaptive_top_k: bool = True
+    graphrag_graph_guided_filter_enabled: bool = True
 
     model_config = SettingsConfigDict(env_prefix="HF_CDSS_", env_file=".env", extra="ignore")
 

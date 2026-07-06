@@ -3,6 +3,7 @@ import asyncio
 from app.core.config import settings
 from app.modules.datastores import chroma as chroma_module
 from app.modules.graphrag import service as graphrag_service
+from app.modules.graphrag.evidence_scope import EvidenceScope
 from app.modules.graphrag.service import (
     adaptive_top_k,
     build_graphrag_context,
@@ -145,7 +146,7 @@ def test_build_graphrag_context_sync_uses_hyde_when_loop_running(monkeypatch) ->
     async def fake_hyde(*_args, **_kwargs):
         return "Mineralocorticoid receptor antagonists require potassium monitoring."
 
-    def fake_multi_query(queries: list[str], top_k: int, *, primary_query: str | None = None):
+    def fake_multi_query(queries: list[str], top_k: int, **kwargs):
         captured["queries"] = queries
         return [
             EvidenceChunk(
@@ -160,6 +161,7 @@ def test_build_graphrag_context_sync_uses_hyde_when_loop_running(monkeypatch) ->
 
     monkeypatch.setattr("app.modules.graphrag.service.generate_hyde_document", fake_hyde)
     monkeypatch.setattr("app.modules.graphrag.service._retrieve_evidence_from_chroma", fake_multi_query)
+    monkeypatch.setattr("app.modules.graphrag.service.resolve_evidence_scope", lambda *_args, **_kwargs: EvidenceScope())
     monkeypatch.setattr("app.modules.graphrag.service.retrieve_neo4j", lambda *_args, **_kwargs: [])
     monkeypatch.setattr("app.modules.graphrag.service.retrieve_graph_facts", lambda *_args, **_kwargs: [])
     monkeypatch.setattr("app.modules.graphrag.service.retrieve_evidence_chunks", lambda *_args, **_kwargs: [])
@@ -187,7 +189,7 @@ def test_build_graphrag_context_async_uses_multi_query(monkeypatch) -> None:
     async def fake_hyde(*_args, **_kwargs):
         return "HyDE document about potassium and renal function."
 
-    def fake_multi_query(queries: list[str], top_k: int, *, primary_query: str | None = None):
+    def fake_multi_query(queries: list[str], top_k: int, **kwargs):
         captured["queries"] = queries
         return [
             EvidenceChunk(
@@ -202,6 +204,7 @@ def test_build_graphrag_context_async_uses_multi_query(monkeypatch) -> None:
 
     monkeypatch.setattr("app.modules.graphrag.service.generate_hyde_document", fake_hyde)
     monkeypatch.setattr("app.modules.graphrag.service._retrieve_evidence_from_chroma", fake_multi_query)
+    monkeypatch.setattr("app.modules.graphrag.service.resolve_evidence_scope", lambda *_args, **_kwargs: EvidenceScope())
     monkeypatch.setattr("app.modules.graphrag.service.retrieve_neo4j", lambda *_args, **_kwargs: [])
     monkeypatch.setattr("app.modules.graphrag.service.retrieve_graph_facts", lambda *_args, **_kwargs: [])
     monkeypatch.setattr("app.modules.graphrag.service.expand_chunk_windows", lambda chunks, **kwargs: chunks)

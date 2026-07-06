@@ -11,6 +11,7 @@ from typing import Any
 from app.core.config import settings
 from app.core.metrics import increment, observe
 from app.modules.chat.clinical_state import state_query_text
+from app.modules.graphrag.evidence_scope import EvidenceScope, resolve_evidence_scope
 from app.modules.graphrag.hyde_expansion import (
     build_semantic_retrieval_query,
     generate_hyde_document,
@@ -312,10 +313,16 @@ def _retrieve_evidence_from_chroma(
     *,
     primary_query: str,
     top_k: int,
+    scope: EvidenceScope | None = None,
 ) -> list[EvidenceChunk]:
     if len(queries) > 1 and settings.graphrag_multi_query_enabled:
-        return retrieve_chroma_multi_query(queries, top_k, primary_query=primary_query)
-    return retrieve_chroma(primary_query or queries[0], top_k)
+        return retrieve_chroma_multi_query(
+            queries,
+            top_k,
+            primary_query=primary_query,
+            scope=scope,
+        )
+    return retrieve_chroma(primary_query or queries[0], top_k, scope=scope)
 
 
 def _retrieve_graph_facts_parallel(
@@ -603,6 +610,13 @@ def _build_graphrag_context_impl(
     retrieval_sources: list[str] = []
     queries = retrieval_queries or [semantic_query or request.query or " ".join(terms)]
     primary_query = semantic_query or request.query or " ".join(terms)
+    evidence_scope = (
+        resolve_evidence_scope(terms)
+        if settings.graphrag_graph_guided_filter_enabled
+        else EvidenceScope()
+    )
+    if evidence_scope and not evidence_scope.is_empty():
+        retrieval_sources.append("graph_guided")
 
     if settings.retrieval_backend in {"hybrid", "databases"}:
         try:
@@ -610,6 +624,7 @@ def _build_graphrag_context_impl(
                 queries,
                 primary_query=primary_query,
                 top_k=top_k,
+                scope=evidence_scope,
             )
             if evidence_chunks:
                 retrieval_sources.append("chromadb")

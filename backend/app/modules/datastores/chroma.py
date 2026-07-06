@@ -1,5 +1,6 @@
 import json
 import hashlib
+import logging
 from functools import lru_cache
 from typing import Any
 
@@ -15,10 +16,14 @@ from app.modules.semantic_retrieval.service import (
     reciprocal_rank_fusion,
     rerank_evidence_chunks,
 )
+from app.modules.graphrag.evidence_scope import EvidenceScope
 from app.schemas.graphrag import EvidenceChunk
 
 
-INDEX_VERSION = "heart_failure_chunks_v4"
+logger = logging.getLogger(__name__)
+
+
+INDEX_VERSION = "heart_failure_chunks_v5"
 
 
 def _file_sha256(path) -> str:
@@ -126,6 +131,9 @@ def initialize_chroma() -> dict[str, Any]:
                     "document_id": chunk.get("document_id", ""),
                     "source_type": chunk.get("source_type", ""),
                     "section": chunk.get("section") or "",
+                    "section_id": chunk.get("section_id")
+                    or (chunk.get("metadata") or {}).get("section_id")
+                    or "",
                     "metadata_json": json.dumps(chunk.get("metadata", {}), ensure_ascii=False),
                 }
                 for chunk in batch
@@ -142,12 +150,20 @@ def initialize_chroma() -> dict[str, Any]:
     return {"status": "ok", "chunks": len(chunks), "action": "upserted"}
 
 
-def _query_chroma(query: str, candidate_count: int) -> list[EvidenceChunk]:
-    results = _collection().query(
-        query_embeddings=[embed_query(query)],
-        n_results=candidate_count,
-        include=["documents", "metadatas", "distances"],
-    )
+def _query_chroma(
+    query: str,
+    candidate_count: int,
+    *,
+    where: dict[str, Any] | None = None,
+) -> list[EvidenceChunk]:
+    query_kwargs: dict[str, Any] = {
+        "query_embeddings": [embed_query(query)],
+        "n_results": candidate_count,
+        "include": ["documents", "metadatas", "distances"],
+    }
+    if where:
+        query_kwargs["where"] = where
+    results = _collection().query(**query_kwargs)
     ids = results.get("ids", [[]])[0]
     documents = results.get("documents", [[]])[0]
     metadatas = results.get("metadatas", [[]])[0]
@@ -171,10 +187,50 @@ def _query_chroma(query: str, candidate_count: int) -> list[EvidenceChunk]:
     return chunks
 
 
-def retrieve_chroma(query: str, top_k: int) -> list[EvidenceChunk]:
+def retrieve_chroma(
+    query: str,
+    top_k: int,
+    *,
+    scope: EvidenceScope | None = None,
+) -> list[EvidenceChunk]:
     candidate_count = max(top_k, min(settings.semantic_rerank_candidates, top_k * 4))
+    if scope and not scope.is_empty() and settings.graphrag_graph_guided_filter_enabled:
+        return retrieve_chroma_graph_guided(query, top_k, scope=scope, candidate_count=candidate_count)
     chunks = _query_chroma(query, candidate_count)
     ranked = rerank_evidence_chunks(query, chunks, top_k)
+    return sorted(ranked, key=lambda item: (quality_score_for_chunk(item), item.score), reverse=True)[:top_k]
+
+
+def retrieve_chroma_graph_guided(
+    query: str,
+    top_k: int,
+    *,
+    scope: EvidenceScope,
+    candidate_count: int | None = None,
+) -> list[EvidenceChunk]:
+    candidate_count = candidate_count or max(top_k, min(settings.semantic_rerank_candidates, top_k * 4))
+    where = scope.chroma_where()
+    ranked_lists: list[list[EvidenceChunk]] = []
+    if where:
+        try:
+            filtered = _query_chroma(query, candidate_count, where=where)
+            if filtered:
+                ranked_lists.append(filtered)
+        except Exception as exc:
+            logger.warning("Graph-guided Chroma filter failed; falling back to open search: %s", exc)
+
+    try:
+        ranked_lists.append(_query_chroma(query, candidate_count))
+    except Exception:
+        if not ranked_lists:
+            raise
+
+    if len(ranked_lists) == 1:
+        merged = ranked_lists[0]
+    else:
+        merged = reciprocal_rank_fusion(ranked_lists)
+
+    ranked = rerank_evidence_chunks(query, merged, top_k)
     return sorted(ranked, key=lambda item: (quality_score_for_chunk(item), item.score), reverse=True)[:top_k]
 
 
@@ -183,6 +239,7 @@ def retrieve_chroma_multi_query(
     top_k: int,
     *,
     primary_query: str | None = None,
+    scope: EvidenceScope | None = None,
 ) -> list[EvidenceChunk]:
     unique_queries: list[str] = []
     seen: set[str] = set()
@@ -199,20 +256,31 @@ def retrieve_chroma_multi_query(
     if not unique_queries:
         return []
     if len(unique_queries) == 1:
-        return retrieve_chroma(unique_queries[0], top_k)
+        return retrieve_chroma(unique_queries[0], top_k, scope=scope)
 
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
     per_query_k = max(2, top_k // 2 + 2)
     candidate_count = max(per_query_k, min(settings.semantic_rerank_candidates, per_query_k * 4))
-    ranked_lists: list[list[EvidenceChunk]] = []
-    with ThreadPoolExecutor(max_workers=min(len(unique_queries), 4)) as pool:
-        futures = [pool.submit(_query_chroma, query, candidate_count) for query in unique_queries]
-        for future in as_completed(futures):
-            try:
-                ranked_lists.append(future.result())
-            except Exception:
-                continue
+    if scope and not scope.is_empty() and settings.graphrag_graph_guided_filter_enabled:
+        ranked_lists = [
+            retrieve_chroma_graph_guided(
+                query,
+                per_query_k,
+                scope=scope,
+                candidate_count=candidate_count,
+            )
+            for query in unique_queries
+        ]
+    else:
+        ranked_lists = []
+        with ThreadPoolExecutor(max_workers=min(len(unique_queries), 4)) as pool:
+            futures = [pool.submit(_query_chroma, query, candidate_count) for query in unique_queries]
+            for future in as_completed(futures):
+                try:
+                    ranked_lists.append(future.result())
+                except Exception:
+                    continue
 
     if not ranked_lists:
         return []
