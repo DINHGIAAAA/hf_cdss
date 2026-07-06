@@ -231,19 +231,17 @@ def retrieve_evidence_chunks(terms: list[str], top_k: int, *, published: bool = 
 def get_top_entities_from_chunks(chunks: list[EvidenceChunk], top_n: int = 3) -> list[dict]:
     """Extracts the most frequent, non-generic entities from a list of chunks."""
     entity_counts: dict[str, dict[str, Any]] = {}
-    # These entity types are often too generic for graph exploration
     generic_types = {"action", "threshold"}
 
     for chunk in chunks:
-        entities_to_process = []
-        # First, check for entities in the serialized metadata_json field
-        if "metadata_json" in chunk.metadata:
+        entities_to_process: list[dict[str, Any]] = list(chunk.metadata.get("entities") or [])
+        if not entities_to_process and chunk.metadata.get("metadata_json"):
             try:
                 complex_meta = json.loads(chunk.metadata["metadata_json"])
-                entities_to_process = complex_meta.get("entities", [])
+                entities_to_process = list(complex_meta.get("entities") or [])
             except (json.JSONDecodeError, TypeError):
                 pass
-        
+
         for entity in entities_to_process:
             entity_type = entity.get("entity_type")
             if entity_type in generic_types:
@@ -277,13 +275,16 @@ def retrieve_dynamic_graph_facts(chunks: list[EvidenceChunk], top_k: int = 5) ->
     dynamic_facts: list[GraphFact] = []
 
     def find_co_occurring_entities(tx, entity_id: str, entity_type_filter: str):
-        """Cypher query to find co-occurring entities within the same chunks."""
+        """Find entities that co-occur with the seed entity inside the same evidence chunks."""
         query = """
-        MATCH (e1:Entity {id: $entity_id})<-[:CONTAINS_ENTITY]-(c:Chunk)-[:CONTAINS_ENTITY]->(e2:Entity)
-        WHERE e2.type = $entity_type_filter AND e1 <> e2
-        WITH e2.value AS entity_name, count(c) AS co_occurrences
-        WHERE co_occurrences > 1
-        RETURN entity_name, co_occurrences
+        MATCH (chunk:Entity)-[r1:RELATED]->(seed:Entity {id: $entity_id})
+        WHERE r1.relationship_type = 'CONTAINS_ENTITY' AND chunk.entity_type = 'Chunk'
+        MATCH (chunk)-[r2:RELATED]->(related:Entity)
+        WHERE r2.relationship_type = 'CONTAINS_ENTITY'
+          AND related.entity_type = $entity_type_filter
+          AND related.id <> $entity_id
+        WITH related.id AS entity_id, related.entity_type AS entity_type, count(chunk) AS co_occurrences
+        RETURN entity_id, entity_type, co_occurrences
         ORDER BY co_occurrences DESC
         LIMIT 3
         """
@@ -299,8 +300,18 @@ def retrieve_dynamic_graph_facts(chunks: list[EvidenceChunk], top_k: int = 5) ->
             if entity.get("entity_type") == "drug":
                 related_conditions = session.execute_read(find_co_occurring_entities, entity_id, "condition")
                 for record in related_conditions:
-                    fact_text = f"Drug '{entity_value}' is often mentioned with condition '{record['entity_name']}' (in {record['co_occurrences']} evidence chunks)."
-                    fact = GraphFact(fact_id=f"dynamic_{entity_id}_{record['entity_name']}", source_id=entity_id, relationship_type="OFTEN_CO_OCCURS_WITH", target_id=f"condition:{record['entity_name']}", metadata={"description": fact_text, "source": "dynamic_graph_analysis"})
+                    entity_name = record.get("entity_id", "")
+                    fact_text = (
+                        f"Drug '{entity_value}' is often mentioned with condition '{entity_name}' "
+                        f"(in {record['co_occurrences']} evidence chunks)."
+                    )
+                    fact = GraphFact(
+                        fact_id=f"dynamic_{entity_id}_{entity_name}",
+                        source_id=entity_id,
+                        relationship_type="OFTEN_CO_OCCURS_WITH",
+                        target_id=entity_name,
+                        metadata={"description": fact_text, "source": "dynamic_graph_analysis"},
+                    )
                     dynamic_facts.append(fact)
 
     return dynamic_facts[:top_k]

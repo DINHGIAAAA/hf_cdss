@@ -1,3 +1,4 @@
+from scraper.io.jsonl import read_jsonl, write_jsonl
 """Generate executable dose rules from structured dose claims."""
 
 import argparse
@@ -5,19 +6,6 @@ import json
 from pathlib import Path
 
 from scraper.semantic.dose_rule_builder import dose_rules_from_claims
-
-
-def read_jsonl(path: Path) -> list[dict]:
-    with path.open(encoding="utf-8-sig") as handle:
-        return [json.loads(line) for line in handle if line.strip()]
-
-
-def write_jsonl(records: list[dict], path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8", newline="\n") as handle:
-        for record in records:
-            handle.write(json.dumps(record, ensure_ascii=False) + "\n")
-
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate dose rules from structured dose claims.")
@@ -28,7 +16,6 @@ def main() -> None:
     rules = dose_rules_from_claims(read_jsonl(args.input))
     write_jsonl(rules, args.output)
     print(f"Wrote {len(rules)} dose rules to {args.output}")
-
 
 if __name__ == "__main__":
     main()

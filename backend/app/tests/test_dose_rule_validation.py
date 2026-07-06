@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from app.modules.dose_calculator.bundle_paths import resolve_dose_rules_bundle_path
+from app.modules.dose_calculator.dose_rules_paths import resolve_dose_rules_bundle_path
 from app.modules.dose_calculator.rule_loader import load_executable_dose_rules, load_dose_rules_bundle
 from app.modules.dose_calculator.rule_validation import (
     DoseRulesValidationError,

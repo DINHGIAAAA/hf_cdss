@@ -1,3 +1,4 @@
+from scraper.io.jsonl import read_jsonl, write_jsonl
 import argparse
 import html
 import json
@@ -9,7 +10,6 @@ from pathlib import Path
 from tqdm import tqdm
 
 from scraper.transform.text_normalization import normalize_text
-
 
 class ArticleHTMLParser(HTMLParser):
     def __init__(self) -> None:
@@ -45,7 +45,6 @@ class ArticleHTMLParser(HTMLParser):
         if self.capture_tag and not self.skip_depth:
             self.current.append(data)
 
-
 def load_registry(path: Path | None) -> dict[str, dict]:
     if path is None or not path.exists():
         return {}
@@ -56,7 +55,6 @@ def load_registry(path: Path | None) -> dict[str, dict]:
         rows[target_path] = source
         rows[Path(target_path).name] = source
     return rows
-
 
 def source_metadata(path: Path, registry: dict[str, dict]) -> dict:
     source = registry.get(path.name) or registry.get(path.as_posix()) or {}
@@ -82,10 +80,8 @@ def source_metadata(path: Path, registry: dict[str, dict]) -> dict:
         "topic": source.get("topic"),
     }
 
-
 def slug(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-") or "section"
-
 
 def parse_sections(path: Path, registry: dict[str, dict]) -> list[dict]:
     metadata = source_metadata(path, registry)
@@ -107,7 +103,6 @@ def parse_sections(path: Path, registry: dict[str, dict]) -> list[dict]:
     if current_text:
         sections.append(_section_record(path, metadata, current_heading, current_text))
     return sections
-
 
 def _section_record(path: Path, metadata: dict, section: str, lines: list[str]) -> dict:
     text = normalize_text("\n".join(lines))
@@ -135,14 +130,6 @@ def _section_record(path: Path, metadata: dict, section: str, lines: list[str]) 
         },
     }
 
-
-def write_jsonl(records: list[dict], output_path: Path) -> None:
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with output_path.open("w", encoding="utf-8", newline="\n") as handle:
-        for record in records:
-            handle.write(json.dumps(record, ensure_ascii=False) + "\n")
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(description="Parse guideline HTML pages to JSONL.")
     parser.add_argument("--input-dir", default="raw/guidelines", type=Path)
@@ -165,7 +152,6 @@ def main() -> None:
 
     write_jsonl(sections, args.sections_output)
     print(f"Wrote {len(sections)} sections to {args.sections_output}")
-
 
 if __name__ == "__main__":
     main()

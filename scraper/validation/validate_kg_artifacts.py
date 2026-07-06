@@ -1,8 +1,11 @@
+"""Validate KG JSONL artifacts before datastore bootstrap."""
+
 import argparse
 import json
 import re
 from pathlib import Path
 
+from scraper.io.jsonl import read_jsonl
 
 REQUIRED_FIELDS = {
     "chunks": ("chunk_id", "document_id", "source_type", "text", "metadata"),
@@ -14,14 +17,6 @@ MOJIBAKE_PATTERNS = ("\ufffd", "Ã", "Â", "â€™", "â€œ", "â€", "Ä�
 REQUIRED_CHUNK_METADATA = ("source_url", "citation", "provenance")
 PROVENANCE_FIELDS = ("source_id", "section")
 
-
-def read_jsonl(path: Path) -> list[dict]:
-    if not path.exists():
-        return []
-    with path.open(encoding="utf-8-sig") as handle:
-        return [json.loads(line) for line in handle if line.strip()]
-
-
 def validate_unique(records: list[dict], field: str) -> list[str]:
     errors = []
     seen = set()
@@ -31,7 +26,6 @@ def validate_unique(records: list[dict], field: str) -> list[str]:
             errors.append(f"Duplicate {field}={value} at row {index}")
         seen.add(value)
     return errors
-
 
 def validate_entity_occurrences(records: list[dict]) -> list[str]:
     errors = []
@@ -48,10 +42,8 @@ def validate_entity_occurrences(records: list[dict]) -> list[str]:
         seen.add(key)
     return errors
 
-
 def _has_mojibake(value: str) -> bool:
     return any(pattern in value for pattern in MOJIBAKE_PATTERNS)
-
 
 def validate_chunk_quality(path: Path, rows: list[dict]) -> list[str]:
     errors = []
@@ -80,7 +72,6 @@ def validate_chunk_quality(path: Path, rows: list[dict]) -> list[str]:
             errors.append(f"{path}: row {index} source_url must be an http(s) URL")
     return errors
 
-
 def validate_claim_quality(path: Path, rows: list[dict]) -> list[str]:
     errors = []
     for index, row in enumerate(rows, start=1):
@@ -91,7 +82,6 @@ def validate_claim_quality(path: Path, rows: list[dict]) -> list[str]:
         if not isinstance(confidence, int | float) or confidence < 0 or confidence > 1:
             errors.append(f"{path}: row {index} confidence must be between 0 and 1")
     return errors
-
 
 def validate_download_manifest(path: Path) -> tuple[int, list[str]]:
     if not path.exists():
@@ -119,6 +109,42 @@ def validate_download_manifest(path: Path) -> tuple[int, list[str]]:
                 errors.append(f"{path}: row {index} artifact {artifact.get('target_path')} missing sha256")
     return len(rows), errors
 
+def validate_relationship_refs(
+    relationships: list[dict],
+    *,
+    entities: list[dict],
+    chunks: list[dict],
+    claims: list[dict],
+) -> list[str]:
+    errors: list[str] = []
+    known_ids: set[str] = set()
+    for entity in entities:
+        if entity.get("entity_id"):
+            known_ids.add(str(entity["entity_id"]))
+    for chunk in chunks:
+        if chunk.get("chunk_id"):
+            known_ids.add(f"chunk:{chunk['chunk_id']}")
+        metadata = chunk.get("metadata") or {}
+        section_id_value = chunk.get("section_id") or metadata.get("section_id")
+        if section_id_value:
+            known_ids.add(f"section:{section_id_value}")
+        if chunk.get("document_id"):
+            known_ids.add(f"document:{str(chunk['document_id']).strip().lower().replace(' ', '_')}")
+    for claim in claims:
+        if claim.get("claim_id"):
+            known_ids.add(f"claim:{claim['claim_id']}")
+        if claim.get("drug"):
+            known_ids.add(f"drug:{claim['drug']}")
+
+    for index, rel in enumerate(relationships, start=1):
+        source_id = rel.get("source_id")
+        target_id = rel.get("target_id")
+        rel_type = rel.get("relationship_type")
+        if source_id and source_id not in known_ids and not str(source_id).startswith(("drug:", "claim:", "rule:", "condition:", "risk:", "lab:")):
+            errors.append(f"relationships: row {index} orphan source_id={source_id} ({rel_type})")
+        if target_id and target_id not in known_ids and not str(target_id).startswith(("drug:", "claim:", "rule:", "condition:", "risk:", "lab:")):
+            errors.append(f"relationships: row {index} orphan target_id={target_id} ({rel_type})")
+    return errors
 
 def validate_file(name: str, path: Path, id_field: str | None) -> tuple[int, list[str]]:
     rows = read_jsonl(path)
@@ -136,7 +162,6 @@ def validate_file(name: str, path: Path, id_field: str | None) -> tuple[int, lis
     elif name == "claims":
         errors.extend(validate_claim_quality(path, rows))
     return len(rows), errors
-
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Validate KG JSONL artifacts before datastore bootstrap.")
@@ -156,6 +181,16 @@ def main() -> None:
         summary[name] = count
         all_errors.extend(errors)
 
+    relationship_rows = read_jsonl(args.root / "artifacts/relationships/relationships.jsonl")
+    all_errors.extend(
+        validate_relationship_refs(
+            relationship_rows,
+            entities=read_jsonl(args.root / "artifacts/entities/entities.jsonl"),
+            chunks=read_jsonl(args.root / "artifacts/chunks/chunks.jsonl"),
+            claims=read_jsonl(args.root / "artifacts/claims/claims.jsonl"),
+        )
+    )
+
     manifest_count, manifest_errors = validate_download_manifest(
         args.root / "artifacts/manifests/download_manifest.json"
     )
@@ -165,7 +200,6 @@ def main() -> None:
     print(json.dumps({"summary": summary, "errors": all_errors[:20]}, ensure_ascii=False, indent=2))
     if all_errors:
         raise SystemExit(f"Validation failed with {len(all_errors)} error(s)")
-
 
 if __name__ == "__main__":
     main()

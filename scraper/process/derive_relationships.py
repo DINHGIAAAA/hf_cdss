@@ -4,10 +4,9 @@ import json
 import re
 from pathlib import Path
 
-
-def slug(value: str) -> str:
-    value = re.sub(r"[^a-zA-Z0-9]+", "_", value or "").strip("_").lower()
-    return value or "unknown"
+from scraper.io.jsonl import read_jsonl, write_jsonl
+from scraper.kg.identifiers import chunk_node_id, document_node_id, section_id_for_record, section_node_id, slug
+from scraper.process.evidence_linking import find_chunk_for_claim
 
 
 def relationship_id(source_id: str, rel_type: str, target_id: str) -> str:
@@ -168,16 +167,104 @@ def relationships_from_rules(rules: list[dict]) -> list[dict]:
     return rels
 
 
-def read_jsonl(path: Path) -> list[dict]:
-    with path.open(encoding="utf-8-sig") as handle:
-        return [json.loads(line) for line in handle if line.strip()]
+def relationships_from_chunk_grounding(claims: list[dict], chunks: list[dict]) -> list[dict]:
+    rels: list[dict] = []
+    for claim in claims:
+        chunk = find_chunk_for_claim(claim, chunks)
+        if not chunk:
+            continue
+        metadata = chunk.get("metadata") or {}
+        rels.append(
+            relationship(
+                claim_id(claim),
+                "Claim",
+                "GROUNDED_IN",
+                chunk_node_id(str(chunk.get("chunk_id") or "")),
+                "Chunk",
+                {
+                    "claim_id": claim.get("claim_id"),
+                    "chunk_id": chunk.get("chunk_id"),
+                    "section_id": chunk.get("section_id") or metadata.get("section_id"),
+                    "document_id": chunk.get("document_id"),
+                    "source_section": chunk.get("section"),
+                },
+            )
+        )
+    return rels
 
 
-def write_jsonl(records: list[dict], path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8", newline="\n") as handle:
-        for record in records:
-            handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+def relationships_from_entities(entities: list[dict]) -> list[dict]:
+    rels: list[dict] = []
+    for entity in entities:
+        chunk_id = entity.get("chunk_id")
+        entity_id = entity.get("entity_id")
+        if not chunk_id or not entity_id:
+            continue
+        entity_type = str(entity.get("entity_type") or "entity")
+        rels.append(
+            relationship(
+                chunk_node_id(str(chunk_id)),
+                "Chunk",
+                "CONTAINS_ENTITY",
+                str(entity_id),
+                entity_type,
+                {
+                    "entity_id": entity_id,
+                    "entity_type": entity_type,
+                    "value": entity.get("value"),
+                    "normalized_value": entity.get("normalized_value"),
+                    "chunk_id": chunk_id,
+                },
+            )
+        )
+    return rels
+
+
+def relationships_from_chunks(chunks: list[dict]) -> list[dict]:
+    rels: list[dict] = []
+    seen_sections: set[tuple[str, str]] = set()
+    for chunk in chunks:
+        chunk_id = str(chunk.get("chunk_id") or "")
+        if not chunk_id:
+            continue
+        metadata = chunk.get("metadata") or {}
+        section_id_value = chunk.get("section_id") or metadata.get("section_id") or section_id_for_record(chunk)
+        section_target = section_node_id(section_id_value)
+        rels.append(
+            relationship(
+                chunk_node_id(chunk_id),
+                "Chunk",
+                "PART_OF",
+                section_target,
+                "Section",
+                {
+                    "chunk_id": chunk_id,
+                    "section_id": section_id_value,
+                    "section": chunk.get("section"),
+                    "document_id": chunk.get("document_id"),
+                },
+            )
+        )
+        document_id = str(chunk.get("document_id") or "")
+        if document_id:
+            key = (document_id, section_target)
+            if key not in seen_sections:
+                seen_sections.add(key)
+                rels.append(
+                    relationship(
+                        section_target,
+                        "Section",
+                        "FROM",
+                        document_node_id(document_id),
+                        "Document",
+                        {
+                            "section_id": section_id_value,
+                            "section": chunk.get("section"),
+                            "document_id": document_id,
+                        },
+                    )
+                )
+    return rels
 
 
 def dedupe_relationships(relationships: list[dict]) -> list[dict]:
@@ -192,9 +279,20 @@ def dedupe_relationships(relationships: list[dict]) -> list[dict]:
     return unique
 
 
-def derive_all_relationships(claims: list[dict], rules: list[dict]) -> list[dict]:
+def derive_all_relationships(
+    claims: list[dict],
+    rules: list[dict],
+    *,
+    chunks: list[dict] | None = None,
+    entities: list[dict] | None = None,
+) -> list[dict]:
     relationships = relationships_from_claims(claims)
     relationships.extend(relationships_from_rules(rules))
+    if chunks:
+        relationships.extend(relationships_from_chunk_grounding(claims, chunks))
+        relationships.extend(relationships_from_chunks(chunks))
+    if entities:
+        relationships.extend(relationships_from_entities(entities))
     return dedupe_relationships(relationships)
 
 
@@ -208,11 +306,18 @@ def main() -> None:
         type=Path,
         help="Fallback rules file when classified rules are missing.",
     )
+    parser.add_argument("--chunks-input", default="artifacts/chunks/chunks.jsonl", type=Path)
+    parser.add_argument("--entities-input", default="artifacts/entities/entities.jsonl", type=Path)
     parser.add_argument("--output", default="artifacts/relationships/relationships.jsonl", type=Path)
     args = parser.parse_args()
 
     rules_path = args.rules_input if args.rules_input.exists() else args.rules_fallback
-    relationships = derive_all_relationships(read_jsonl(args.claims_input), read_jsonl(rules_path))
+    relationships = derive_all_relationships(
+        read_jsonl(args.claims_input),
+        read_jsonl(rules_path),
+        chunks=read_jsonl(args.chunks_input) if args.chunks_input.exists() else [],
+        entities=read_jsonl(args.entities_input) if args.entities_input.exists() else [],
+    )
     write_jsonl(relationships, args.output)
     print(f"Wrote {len(relationships)} relationships to {args.output}")
 

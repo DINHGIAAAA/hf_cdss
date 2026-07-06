@@ -1,4 +1,4 @@
-"""Resolve active bundled dose-rules file from settings."""
+"""Resolve bundled dose-rules file paths from settings."""
 
 from __future__ import annotations
 

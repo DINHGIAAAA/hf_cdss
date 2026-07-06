@@ -7,8 +7,10 @@ from typing import Any
 from app.core.config import settings
 from app.core.rule_cache import RuleCache
 from app.modules.datastores.postgres import read_approved_dose_rules
-from app.modules.dose_calculator.bundle_paths import expected_bundle_version_label, resolve_dose_rules_bundle_path
-from app.modules.dose_calculator.bundle_paths import expected_bundle_version_label
+from app.modules.dose_calculator.dose_rules_paths import (
+    expected_bundle_version_label,
+    resolve_dose_rules_bundle_path,
+)
 from app.modules.dose_calculator.rule_validation import validate_bundle_payload, validate_runtime_bundle
 
 
@@ -48,7 +50,6 @@ def _rows_to_rules(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 _CACHE = RuleCache(
     catalog_name="dose_rules",
     ttl_seconds_setting="dose_rules_cache_ttl_seconds",
-    fallback_path=resolve_dose_rules_bundle_path(),
     fallback_path_resolver=resolve_dose_rules_bundle_path,
     list_key="rules",
     db_loader=read_approved_dose_rules,
@@ -65,10 +66,6 @@ def invalidate_dose_rules_cache() -> None:
     _CACHE.invalidate()
 
 
-def expire_dose_rules_cache() -> None:
-    _CACHE.expire()
-
-
 def load_dose_rules_bundle() -> dict[str, Any]:
     return _CACHE.load_bundle()
 
@@ -79,7 +76,3 @@ def load_executable_dose_rules() -> list[dict[str, Any]]:
 
 def dose_rules_version() -> str:
     return _CACHE.version()
-
-
-def active_dose_rules_bundle_path() -> str:
-    return str(resolve_dose_rules_bundle_path())

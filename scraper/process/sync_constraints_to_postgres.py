@@ -1,18 +1,14 @@
-"""Sync constraint rules from scraper output to PostgreSQL database.
+"""Sync constraint rules from scraper output to PostgreSQL database."""
 
-This script:
-1. Converts drug-specific rules from the pipeline output.
-2. Calculates a content hash to detect changes.
-3. Checks the database for the latest version of a rule.
-4. If the rule has changed, it inserts a new, incremented version with 'draft' status.
-5. If the rule is unchanged, it is skipped.
-"""
+from __future__ import annotations
+
 import argparse
 import hashlib
 import json
 from pathlib import Path
 from typing import Any
 
+from scraper.io.jsonl import read_jsonl
 
 # Risk factor normalization mapping for claim text → constraint metadata
 RISK_NAME_MAPPING = {
@@ -36,15 +32,6 @@ RISK_NAME_MAPPING = {
     "glycemia": "hyperglycemia",
 }
 
-
-def read_jsonl(path: Path) -> list[dict]:
-    """Read JSONL file."""
-    if not path.exists():
-        return []
-    with path.open(encoding="utf-8-sig") as handle:
-        return [json.loads(line) for line in handle if line.strip()]
-
-
 def extract_risk_factors_from_text(text: str) -> list[str]:
     """Extract risk factor names from claim text."""
     text_lower = text.lower()
@@ -55,7 +42,6 @@ def extract_risk_factors_from_text(text: str) -> list[str]:
             risks.add(risk_name)
     
     return list(risks) if risks else []
-
 
 def get_rule_content_hash(constraint: dict) -> str:
     """Generate a hash for the core content of a rule to detect changes."""
@@ -72,7 +58,6 @@ def get_rule_content_hash(constraint: dict) -> str:
     # Use sort_keys=True to ensure consistent hash
     encoded = json.dumps(content_to_hash, sort_keys=True).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
-
 
 def extract_severity_from_claim(claim: dict) -> list[str]:
     """Extract severity levels from claim."""
@@ -93,15 +78,14 @@ def extract_severity_from_claim(claim: dict) -> list[str]:
     
     return severities if severities else ["moderate"]
 
-
 def convert_rule_to_constraint(rule: dict) -> dict[str, Any]:
     """Convert a generated rule to constraint_rules table format."""
     from scraper.paths import data_root
     from scraper.process.drug_normalization import resolve_pipeline_drug_id
+    from scraper.io.jsonl import read_jsonl as read_chunks_jsonl
     from scraper.process.evidence_linking import (
         chunk_evidence_ref,
         chunk_source_locator,
-        read_jsonl as read_chunks_jsonl,
         resolve_chunk_for_rule,
     )
 
@@ -187,7 +171,6 @@ def convert_rule_to_constraint(rule: dict) -> dict[str, Any]:
     
     return constraint_data
 
-
 def sync_pipeline_rules(db_functions: Any, rules_path: Path) -> dict[str, int]:
     """Convert and sync pipeline-generated rules to database, handling versioning."""
     rules = read_jsonl(rules_path)
@@ -238,7 +221,6 @@ def sync_pipeline_rules(db_functions: Any, rules_path: Path) -> dict[str, int]:
     
     return {"new_versions_created": new_versions_created, "skipped_unchanged": skipped_unchanged, "errors": errors}
 
-
 def resolve_rules_path(rules_path: Path | None = None) -> Path:
     from scraper.paths import data_root
 
@@ -253,7 +235,6 @@ def resolve_rules_path(rules_path: Path | None = None) -> Path:
         if candidate.exists():
             return candidate
     return root / "artifacts/rules/rules_classified.jsonl"
-
 
 def sync_constraints_to_postgres(rules_path: Path | None = None) -> dict[str, Any]:
     """Sync validated pipeline rules into PostgreSQL as draft constraint versions."""
@@ -287,7 +268,6 @@ def sync_constraints_to_postgres(rules_path: Path | None = None) -> dict[str, An
     print(f"Synced: {result['synced']}")
 
     return result
-
 
 if __name__ == "__main__":
     import sys

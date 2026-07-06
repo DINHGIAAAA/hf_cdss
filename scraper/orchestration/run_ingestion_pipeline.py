@@ -157,35 +157,9 @@ def main() -> None:
                 ("generate_rules", [python, "-m", "scraper.process.generate_rules"]),
                 ("classify_rules", [python, "-m", "scraper.process.classify_rules"]),
                 (
-                    "extract_structured_dose_claims",
-                    [python, "-m", "scraper.process.extract_structured_dose_claims"],
+                    "governance_catalog_steps",
+                    [python, "-m", "scraper.orchestration.governance_catalog_steps"],
                 ),
-                ("generate_dose_rules", [python, "-m", "scraper.process.generate_dose_rules"]),
-                ("classify_dose_rules", [python, "-m", "scraper.process.classify_dose_rules"]),
-                (
-                    "extract_structured_dose_safety_claims",
-                    [python, "-m", "scraper.process.extract_structured_dose_safety_claims"],
-                ),
-                (
-                    "generate_dose_safety_warnings",
-                    [python, "-m", "scraper.process.generate_dose_safety_warnings"],
-                ),
-                (
-                    "classify_dose_safety_warnings",
-                    [python, "-m", "scraper.process.classify_dose_safety_warnings"],
-                ),
-                (
-                    "extract_structured_interaction_claims",
-                    [python, "-m", "scraper.process.extract_structured_interaction_claims"],
-                ),
-                ("generate_interaction_rules", [python, "-m", "scraper.process.generate_interaction_rules"]),
-                ("classify_interaction_rules", [python, "-m", "scraper.process.classify_interaction_rules"]),
-                (
-                    "extract_structured_gdmt_policy_claims",
-                    [python, "-m", "scraper.process.extract_structured_gdmt_policy_claims"],
-                ),
-                ("generate_gdmt_policies", [python, "-m", "scraper.process.generate_gdmt_policies"]),
-                ("classify_gdmt_policies", [python, "-m", "scraper.process.classify_gdmt_policies"]),
             ]
         )
     steps.extend(
@@ -219,58 +193,8 @@ def main() -> None:
 
     if not args.skip_rules:
         run_step(
-            "sync_constraints_to_postgres",
-            [
-                python,
-                "-m",
-                "scraper.process.sync_constraints_to_postgres",
-                "--rules",
-                "artifacts/rules/rules_classified.jsonl",
-            ],
-            args.dry_run,
-        )
-        run_step(
-            "sync_dose_rules_to_postgres",
-            [
-                python,
-                "-m",
-                "scraper.process.sync_dose_rules_to_postgres",
-                "--rules",
-                "artifacts/dose_rules/dose_rules_classified.jsonl",
-            ],
-            args.dry_run,
-        )
-        run_step(
-            "sync_interaction_rules_to_postgres",
-            [
-                python,
-                "-m",
-                "scraper.process.sync_interaction_rules_to_postgres",
-                "--rules",
-                "artifacts/interaction_rules/interaction_rules_classified.jsonl",
-            ],
-            args.dry_run,
-        )
-        run_step(
-            "sync_gdmt_policies_to_postgres",
-            [
-                python,
-                "-m",
-                "scraper.process.sync_gdmt_policies_to_postgres",
-                "--policies",
-                "artifacts/gdmt_policies/gdmt_policies_classified.jsonl",
-            ],
-            args.dry_run,
-        )
-        run_step(
-            "sync_dose_safety_warnings_to_postgres",
-            [
-                python,
-                "-m",
-                "scraper.process.sync_dose_safety_warnings_to_postgres",
-                "--warnings",
-                "artifacts/dose_safety_warnings/dose_safety_warnings_classified.jsonl",
-            ],
+            "sync_governance_catalogs",
+            [python, "-m", "scraper.process.sync_governance_catalog", "--catalog", "all"],
             args.dry_run,
         )
 

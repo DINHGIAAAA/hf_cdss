@@ -1,8 +1,15 @@
+"""Extract entities from chunks, enrich chunk metadata, and write both artifacts."""
+
+from __future__ import annotations
+
 import argparse
 import hashlib
-import json
 import re
+from collections import defaultdict
 from pathlib import Path
+from typing import Any
+
+from scraper.io.jsonl import read_jsonl, write_jsonl
 
 
 ENTITY_PATTERNS = {
@@ -46,25 +53,13 @@ ENTITY_PATTERNS = {
 }
 
 
-def read_jsonl(path: Path) -> list[dict]:
-    with path.open(encoding="utf-8-sig") as handle:
-        return [json.loads(line) for line in handle if line.strip()]
-
-
-def write_jsonl(records: list[dict], path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8", newline="\n") as handle:
-        for record in records:
-            handle.write(json.dumps(record, ensure_ascii=False) + "\n")
-
-
 def entity_id(entity_type: str, value: str) -> str:
     normalized = re.sub(r"\s+", " ", value.lower()).strip()
     digest = hashlib.sha1(f"{entity_type}|{normalized}".encode("utf-8")).hexdigest()[:12]
     return f"{entity_type}_{digest}"
 
 
-def extract_drug_entity(chunk: dict) -> list[dict]:
+def extract_drug_entity(chunk: dict[str, Any]) -> list[dict[str, Any]]:
     metadata = chunk.get("metadata") or {}
     drug = metadata.get("drug")
     if not drug:
@@ -83,7 +78,7 @@ def extract_drug_entity(chunk: dict) -> list[dict]:
     ]
 
 
-def extract_entities(chunk: dict) -> list[dict]:
+def extract_entities_from_chunk(chunk: dict[str, Any]) -> list[dict[str, Any]]:
     text = chunk.get("text", "")
     entities = extract_drug_entity(chunk)
 
@@ -109,16 +104,41 @@ def extract_entities(chunk: dict) -> list[dict]:
     return entities
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Extract first-pass clinical entities from chunks.")
-    parser.add_argument("--input", default="artifacts/chunks/chunks.jsonl", type=Path)
-    parser.add_argument("--output", default="artifacts/entities/entities.jsonl", type=Path)
-    args = parser.parse_args()
+def _entity_summary(entity: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: entity[key]
+        for key in ("entity_id", "entity_type", "value", "normalized_value")
+        if key in entity and entity[key] not in (None, "")
+    }
 
-    entities = []
-    seen = set()
-    for chunk in read_jsonl(args.input):
-        for entity in extract_entities(chunk):
+
+def enrich_chunks_with_entities(chunks: list[dict[str, Any]], entities: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    by_chunk: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for entity in entities:
+        chunk_id = entity.get("chunk_id")
+        if chunk_id:
+            by_chunk[str(chunk_id)].append(entity)
+
+    enriched: list[dict[str, Any]] = []
+    for chunk in chunks:
+        chunk_id = str(chunk.get("chunk_id") or "")
+        chunk_entities = by_chunk.get(chunk_id, [])
+        metadata = dict(chunk.get("metadata") or {})
+        summaries = [_entity_summary(entity) for entity in chunk_entities]
+        metadata["entity_ids"] = [summary["entity_id"] for summary in summaries if summary.get("entity_id")]
+        metadata["entities"] = summaries
+        metadata["threshold_entities"] = [
+            summary for summary in summaries if summary.get("entity_type") == "threshold"
+        ]
+        enriched.append({**chunk, "metadata": metadata})
+    return enriched
+
+
+def extract_and_enrich(chunks: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    entities: list[dict[str, Any]] = []
+    seen: set[tuple[Any, ...]] = set()
+    for chunk in chunks:
+        for entity in extract_entities_from_chunk(chunk):
             key = (
                 entity["entity_id"],
                 entity.get("chunk_id"),
@@ -129,9 +149,23 @@ def main() -> None:
                 continue
             seen.add(key)
             entities.append(entity)
+    return enrich_chunks_with_entities(chunks, entities), entities
 
-    write_jsonl(entities, args.output)
-    print(f"Wrote {len(entities)} entities to {args.output}")
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Extract entities and enrich chunk metadata in one pass.")
+    parser.add_argument("--input", default="artifacts/chunks/chunks.jsonl", type=Path)
+    parser.add_argument("--chunks-output", default=None, type=Path, help="Defaults to --input (in-place).")
+    parser.add_argument("--entities-output", default="artifacts/entities/entities.jsonl", type=Path)
+    args = parser.parse_args()
+
+    chunks = read_jsonl(args.input)
+    enriched_chunks, entities = extract_and_enrich(chunks)
+    chunks_output = args.chunks_output or args.input
+    write_jsonl(enriched_chunks, chunks_output)
+    write_jsonl(entities, args.entities_output)
+    attached = sum(1 for chunk in enriched_chunks if (chunk.get("metadata") or {}).get("entity_ids"))
+    print(f"Wrote {len(entities)} entities and {len(enriched_chunks)} chunks ({attached} with entity metadata)")
 
 
 if __name__ == "__main__":

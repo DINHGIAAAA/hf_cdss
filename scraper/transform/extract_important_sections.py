@@ -1,10 +1,10 @@
+from scraper.io.jsonl import read_jsonl, write_jsonl
 import argparse
 import json
 import re
 from pathlib import Path
 
 from scraper.transform.text_normalization import normalize_inline_text
-
 
 DRUG_SECTION_ALIASES = {
     "INDICATIONS AND USAGE": {"INDICATIONS AND USAGE", "INDICATIONS & USAGE"},
@@ -29,22 +29,8 @@ GUIDELINE_TOPICS = {
     "hypertension": ("hypertension", "blood pressure", "antihypertensive"),
 }
 
-
 def normalize(value: str) -> str:
     return normalize_inline_text(value).upper()
-
-
-def read_jsonl(path: Path) -> list[dict]:
-    with path.open(encoding="utf-8-sig") as handle:
-        return [json.loads(line) for line in handle if line.strip()]
-
-
-def write_jsonl(records: list[dict], path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8", newline="\n") as handle:
-        for record in records:
-            handle.write(json.dumps(record, ensure_ascii=False) + "\n")
-
 
 def drug_matches(record: dict) -> list[str]:
     section = normalize(record.get("section", ""))
@@ -60,7 +46,6 @@ def drug_matches(record: dict) -> list[str]:
 
     return matches
 
-
 def guideline_matches(record: dict) -> list[str]:
     haystack = f"{record.get('section', '')} {record.get('text', '')}".lower()
     return [
@@ -69,14 +54,17 @@ def guideline_matches(record: dict) -> list[str]:
         if any(term in haystack for term in terms)
     ]
 
+from scraper.kg.identifiers import section_id_for_record
 
 def mark_record(record: dict, matched_topics: list[str]) -> dict:
     output = dict(record)
     metadata = dict(output.get("metadata") or {})
     metadata["matched_important_topics"] = matched_topics
+    section_id_value = section_id_for_record(output)
+    metadata["section_id"] = section_id_value
+    output["section_id"] = section_id_value
     output["metadata"] = metadata
     return output
-
 
 def dedupe_sections(records: list[dict]) -> list[dict]:
     seen: set[tuple] = set()
@@ -93,7 +81,6 @@ def dedupe_sections(records: list[dict]) -> list[dict]:
         unique.append(record)
     return unique
 
-
 def collect_section_files(sections_dir: Path) -> list[Path]:
     candidates = [
         sections_dir / "guideline_sections.jsonl",
@@ -101,7 +88,6 @@ def collect_section_files(sections_dir: Path) -> list[Path]:
         sections_dir / "drug_label_sections.jsonl",
     ]
     return [path for path in candidates if path.exists()]
-
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Filter important clinical sections from parsed guideline and label sections.")
@@ -119,7 +105,6 @@ def main() -> None:
     important = filter_important_sections(records)
     write_jsonl(important, args.output)
     print(f"Wrote {len(important)} important sections to {args.output}")
-
 
 if __name__ == "__main__":
     main()

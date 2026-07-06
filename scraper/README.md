@@ -20,5 +20,8 @@ Run the pipeline from the project root:
 py -m scraper.orchestration.run_ingestion_pipeline --use-existing
 ```
 
-The legacy files under `data/heart_failure/scripts` are thin compatibility wrappers
-that dispatch into this package.
+Postgres sync (after pipeline):
+
+```powershell
+py -m scraper.process.sync_governance_catalog --catalog all
+```

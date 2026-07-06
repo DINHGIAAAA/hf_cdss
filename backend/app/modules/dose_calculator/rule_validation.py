@@ -10,8 +10,10 @@ from typing import Any
 from jsonschema import Draft202012Validator
 
 from app.core.config import settings
-from app.modules.dose_calculator.bundle_paths import expected_bundle_version_label, resolve_dose_rules_bundle_path
-
+from app.modules.dose_calculator.dose_rules_paths import (
+    expected_bundle_version_label,
+    resolve_dose_rules_bundle_path,
+)
 
 _SCHEMA_PATH = Path(__file__).resolve().parent / "schemas" / "hf_dose_rules_bundle.schema.json"
 

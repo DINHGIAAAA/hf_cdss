@@ -1,9 +1,9 @@
+from scraper.io.jsonl import read_jsonl, write_jsonl
 import argparse
 import hashlib
 import json
 import re
 from pathlib import Path
-
 
 CLAIM_PATTERNS = {
     "contraindication": (
@@ -83,26 +83,12 @@ STRONG_MODAL_TERMS = (
     "is indicated",
 )
 
-
-def read_jsonl(path: Path) -> list[dict]:
-    with path.open(encoding="utf-8-sig") as handle:
-        return [json.loads(line) for line in handle if line.strip()]
-
-
-def write_jsonl(records: list[dict], path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8", newline="\n") as handle:
-        for record in records:
-            handle.write(json.dumps(record, ensure_ascii=False) + "\n")
-
-
 def sentence_split(text: str) -> list[str]:
     text = re.sub(r"\s+", " ", text or "").strip()
     if not text:
         return []
     sentences = re.split(r"(?<=[.!?])\s+(?=[A-Z0-9(])", text)
     return [sentence.strip() for sentence in sentences if len(sentence.strip()) >= 20]
-
 
 def classify_claim(sentence: str, source_type: str) -> str | None:
     haystack = sentence.lower()
@@ -128,7 +114,6 @@ def classify_claim(sentence: str, source_type: str) -> str | None:
     ranked.sort(key=lambda item: item[0])
     return ranked[0][1]
 
-
 def confidence(sentence: str, claim_type: str, source_type: str) -> float:
     haystack = sentence.lower()
     score = 0.75
@@ -140,12 +125,10 @@ def confidence(sentence: str, claim_type: str, source_type: str) -> float:
         score += 0.05
     return min(round(score, 2), 1.0)
 
-
 def claim_id(record: dict, sentence: str, index: int) -> str:
     raw = f"{record.get('document_id')}|{record.get('section')}|{index}|{sentence}"
     digest = hashlib.sha1(raw.encode("utf-8")).hexdigest()[:12]
     return f"claim_{digest}"
-
 
 def create_claim_regex(record: dict, sentence: str, index: int) -> dict | None:
     claim_type = classify_claim(sentence, record.get("source_type", ""))
@@ -193,7 +176,6 @@ def create_claim_regex(record: dict, sentence: str, index: int) -> dict | None:
 
     return output
 
-
 def dedupe_claims_by_id(claims: list[dict]) -> list[dict]:
     seen: set[str] = set()
     unique: list[dict] = []
@@ -204,7 +186,6 @@ def dedupe_claims_by_id(claims: list[dict]) -> list[dict]:
         seen.add(claim_key)
         unique.append(claim)
     return unique
-
 
 def claims_from_records(records: list[dict], max_claims_per_section: int) -> list[dict]:
     from scraper.semantic.claim_extraction import extract_claims_batch
@@ -232,7 +213,6 @@ def claims_from_records(records: list[dict], max_claims_per_section: int) -> lis
 
     return dedupe_claims(dedupe_claims_by_id(claims))
 
-
 def main() -> None:
     parser = argparse.ArgumentParser(description="Create claims from important sections.")
     parser.add_argument("--input", default="processed/sections/important_sections.jsonl", type=Path)
@@ -243,7 +223,6 @@ def main() -> None:
     claims = claims_from_records(read_jsonl(args.input), args.max_claims_per_section)
     write_jsonl(claims, args.output)
     print(f"Wrote {len(claims)} claims to {args.output}")
-
 
 if __name__ == "__main__":
     main()

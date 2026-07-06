@@ -37,11 +37,6 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Validate dose rule bundles (JSON Schema)
-        env:
-          PYTHONPATH: ${{ github.workspace }}/backend
-        run: python -m app.modules.dose_calculator.validate_rules
-
       - name: Run backend tests
         env:
           PYTHONPATH: ${{ github.workspace }}/backend

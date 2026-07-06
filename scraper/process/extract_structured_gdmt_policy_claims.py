@@ -1,3 +1,4 @@
+from scraper.io.jsonl import read_jsonl, write_jsonl
 """Extract structured GDMT policy claims from chunks via semantic LLM."""
 
 from __future__ import annotations
@@ -7,21 +8,6 @@ import json
 from pathlib import Path
 
 from scraper.semantic.gdmt_policy_claim_extraction import extract_structured_gdmt_policies_batch
-
-
-def read_jsonl(path: Path) -> list[dict]:
-    if not path.exists():
-        return []
-    with path.open(encoding="utf-8-sig") as handle:
-        return [json.loads(line) for line in handle if line.strip()]
-
-
-def write_jsonl(records: list[dict], path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8", newline="\n") as handle:
-        for record in records:
-            handle.write(json.dumps(record, ensure_ascii=False) + "\n")
-
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Extract structured GDMT policy claims from chunks.")
@@ -38,7 +24,6 @@ def main() -> None:
             claims.append(claim)
     write_jsonl(claims, args.output)
     print(f"Wrote {len(claims)} GDMT policy claim records to {args.output}")
-
 
 if __name__ == "__main__":
     main()

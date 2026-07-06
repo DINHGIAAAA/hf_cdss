@@ -1,3 +1,4 @@
+from scraper.io.jsonl import read_jsonl, write_jsonl
 import argparse
 import json
 import re
@@ -8,13 +9,10 @@ from tqdm import tqdm
 
 from scraper.transform.text_normalization import normalize_inline_text
 
-
 NS = {"hl7": "urn:hl7-org:v3"}
-
 
 def clean_text(value: str) -> str:
     return normalize_inline_text(value)
-
 
 def section_name(section: ET.Element) -> str:
     code = section.find("hl7:code", NS)
@@ -26,7 +24,6 @@ def section_name(section: ET.Element) -> str:
     raw = raw.replace(" SECTION", "")
     return clean_text(raw).upper()
 
-
 def element_text(element: ET.Element) -> str:
     parts = []
     for text in element.itertext():
@@ -35,7 +32,6 @@ def element_text(element: ET.Element) -> str:
             parts.append(text)
     return clean_text(" ".join(parts))
 
-
 def first_attr(root: ET.Element, path: str, attr: str) -> str | None:
     node = root.find(path, NS)
     if node is None:
@@ -43,17 +39,14 @@ def first_attr(root: ET.Element, path: str, attr: str) -> str | None:
     value = node.attrib.get(attr)
     return value or None
 
-
 def document_title(root: ET.Element) -> str | None:
     title = root.findtext("hl7:title", default="", namespaces=NS)
     return clean_text(title) or None
-
 
 def dailymed_url(setid: str | None) -> str | None:
     if not setid:
         return None
     return f"https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid={setid}"
-
 
 def load_manifest(path: Path) -> dict:
     if not path.exists():
@@ -66,7 +59,6 @@ def load_manifest(path: Path) -> dict:
         if row.get("xml"):
             manifest[Path(row["xml"]).as_posix()] = row
     return manifest
-
 
 def load_registry(path: Path | None) -> dict:
     if path is None or not path.exists():
@@ -83,7 +75,6 @@ def load_registry(path: Path | None) -> dict:
             rows[slug] = source
     return rows
 
-
 def infer_manifest_row(xml_path: Path, raw_dir: Path, manifest: dict, registry: dict | None = None) -> dict:
     slug = xml_path.parent.name
     rel = xml_path.relative_to(raw_dir).as_posix()
@@ -97,7 +88,6 @@ def infer_manifest_row(xml_path: Path, raw_dir: Path, manifest: dict, registry: 
         or registry.get(slug)
         or {"slug": slug, "query": slug.replace("_", " ")}
     )
-
 
 def parse_xml(xml_path: Path, raw_dir: Path, manifest: dict, registry: dict | None = None) -> list[dict]:
     row = infer_manifest_row(xml_path, raw_dir, manifest, registry)
@@ -159,14 +149,6 @@ def parse_xml(xml_path: Path, raw_dir: Path, manifest: dict, registry: dict | No
 
     return records
 
-
-def write_jsonl(records: list[dict], output_path: Path) -> None:
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with output_path.open("w", encoding="utf-8", newline="\n") as handle:
-        for record in records:
-            handle.write(json.dumps(record, ensure_ascii=False) + "\n")
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(description="Parse DailyMed SPL XML labels to JSONL.")
     parser.add_argument("--input-dir", default="raw/drug_labels", type=Path)
@@ -193,7 +175,6 @@ def main() -> None:
     print("\n--- Processing Summary ---")
     print(f"Total XML files processed: {len(xml_paths)}")
     print(f"Total sections written to '{args.output}': {len(records)}")
-
 
 if __name__ == "__main__":
     main()

@@ -2,17 +2,10 @@
 
 from __future__ import annotations
 
-import json
 import re
-from pathlib import Path
 from typing import Any
 
-
-def read_jsonl(path: Path) -> list[dict]:
-    if not path.exists():
-        return []
-    with path.open(encoding="utf-8-sig") as handle:
-        return [json.loads(line) for line in handle if line.strip()]
+from scraper.io.jsonl import read_jsonl
 
 
 def _normalize_text(value: str) -> str:

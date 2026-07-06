@@ -20,27 +20,27 @@ class RuleCache:
         *,
         catalog_name: str,
         ttl_seconds_setting: str,
-        fallback_path: Path,
         list_key: str,
         db_loader: Callable[[], list[dict[str, Any]]],
         default_version: str,
         postgres_source: str,
+        fallback_path: Path | None = None,
+        fallback_path_resolver: Callable[[], Path] | None = None,
         transform_rows: Callable[[list[dict[str, Any]]], list[dict[str, Any]]] | None = None,
         validate_bundle: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
-        fallback_path_resolver: Callable[[], Path] | None = None,
         enabled: Callable[[], bool] | None = None,
         disabled_bundle: dict[str, Any] | None = None,
     ) -> None:
         self.catalog_name = catalog_name
         self.ttl_seconds_setting = ttl_seconds_setting
         self.fallback_path = fallback_path
+        self.fallback_path_resolver = fallback_path_resolver
         self.list_key = list_key
         self.db_loader = db_loader
         self.default_version = default_version
         self.postgres_source = postgres_source
         self.transform_rows = transform_rows
         self.validate_bundle = validate_bundle
-        self.fallback_path_resolver = fallback_path_resolver
         self.enabled = enabled
         self.disabled_bundle = disabled_bundle or {
             "version": "disabled",
@@ -69,7 +69,9 @@ class RuleCache:
     def _resolved_fallback_path(self) -> Path:
         if self.fallback_path_resolver is not None:
             return self.fallback_path_resolver()
-        return self.fallback_path
+        if self.fallback_path is not None:
+            return self.fallback_path
+        raise FileNotFoundError(f"No fallback path configured for {self.catalog_name}")
 
     def _finalize_bundle(self, bundle: dict[str, Any]) -> dict[str, Any]:
         if self.validate_bundle is not None:

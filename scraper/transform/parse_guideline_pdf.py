@@ -1,3 +1,4 @@
+from scraper.io.jsonl import read_jsonl, write_jsonl
 import argparse
 import os
 import json
@@ -16,7 +17,6 @@ from scraper.transform.opendataloader_extract import (
 )
 from scraper.transform.text_normalization import append_flow_line, normalize_text, repair_pdf_flow_text
 
-
 HEADING_RE = re.compile(
     r"^\s*("
     # Pattern 1: Numbered/lettered headings (e.g., "1.2 Title", "A. Title")
@@ -27,16 +27,13 @@ HEADING_RE = re.compile(
     r")\s*$"
 )
 
-
 def clean_text(value: str) -> str:
     return normalize_text(value)
-
 
 def document_id_from_path(path: Path) -> str:
     value = path.stem.lower()
     value = re.sub(r"[^a-z0-9]+", "_", value)
     return value.strip("_")
-
 
 def load_registry(path: Path | None) -> dict[str, dict]:
     if path is None or not path.exists():
@@ -49,7 +46,6 @@ def load_registry(path: Path | None) -> dict[str, dict]:
         rows[Path(target_path).name] = source
         rows[document_id_from_path(Path(target_path))] = source
     return rows
-
 
 def source_metadata(pdf_path: Path, registry: dict[str, dict]) -> dict:
     source = registry.get(pdf_path.name) or registry.get(document_id_from_path(pdf_path)) or {}
@@ -77,7 +73,6 @@ def source_metadata(pdf_path: Path, registry: dict[str, dict]) -> dict:
         "storage_uri": source.get("storage_uri"),
     }
 
-
 def is_heading(line: str) -> bool:
     line = clean_text(line)
     # Loosen length constraints: min 4 for short words, max 200 for long titles
@@ -100,12 +95,10 @@ def is_heading(line: str) -> bool:
     # Finally, apply the main regex for more complex patterns.
     return bool(HEADING_RE.match(line))
 
-
 IGNORED_SECTION_TITLES = {
     "CONTENTS", "TABLE OF CONTENTS", "REFERENCES", "BIBLIOGRAPHY",
     "CONTRIBUTORS", "DISCLOSURES", "APPENDIX", "INDEX", "PEER REVIEW"
 }
-
 
 def split_sections(pages: list[dict]) -> list[dict]:
     sections = []
@@ -156,7 +149,6 @@ def split_sections(pages: list[dict]) -> list[dict]:
         filtered_sections.append(section)
 
     return filtered_sections
-
 
 def parse_pdf_with_pdfplumber(
     pdf_path: Path,
@@ -214,7 +206,6 @@ def parse_pdf_with_pdfplumber(
                     )
 
     return pages, tables
-
 
 def parse_pdf(
     pdf_path: Path,
@@ -329,14 +320,6 @@ def parse_pdf(
 
     return document, sections, tables
 
-
-def write_jsonl(records: list[dict], output_path: Path) -> None:
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with output_path.open("w", encoding="utf-8", newline="\n") as handle:
-        for record in records:
-            handle.write(json.dumps(record, ensure_ascii=False) + "\n")
-
-
 def parse_pdf_job(args: tuple[Path, Path, bool, dict, bool, Path | None, bool]) -> tuple[dict, list[dict], list[dict]]:
     pdf_path = args[0]
     with pdf_path.open("rb") as handle:
@@ -344,7 +327,6 @@ def parse_pdf_job(args: tuple[Path, Path, bool, dict, bool, Path | None, bool]) 
             print(f"Skipping non-PDF file: {pdf_path}")
             return {}, [], []
     return parse_pdf(*args)
-
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Parse guideline PDFs and produce documents and sections.")
@@ -436,7 +418,6 @@ def main() -> None:
     print(f"Total documents written: {doc_count}")
     print(f"Total sections written: {sec_count}")
     print(f"Total tables saved to disk: {table_count}")
-
 
 if __name__ == "__main__":
     main()

@@ -154,7 +154,13 @@ bucket.
 py -m scraper.validation.validate_kg_artifacts --root data\heart_failure
 ```
 
-Legacy files under `data/heart_failure/scripts` are compatibility wrappers. New scraping
+## Ingestion entrypoint
+
+```bash
+python -m scraper.orchestration.run_ingestion_pipeline
+```
+
+Legacy `data/heart_failure/scripts/` wrappers were removed. Use the module paths above.
 logic lives under `scraper/`.
 
 ## Load Into Datastores
