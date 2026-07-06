@@ -9,6 +9,7 @@ from app.modules.citation_validation.service import source_link_for_chunk
 from app.modules.datastores.common import CHUNKS_PATH, read_jsonl
 from app.modules.evidence_text import normalize_evidence_text
 from app.modules.clinical_entity_boosting import matched_terms_for_chunk
+from app.modules.evidence_filter import filter_evidence_chunks
 from app.modules.evidence_quality import enrich_evidence_chunk, quality_score_for_chunk
 from app.schemas.patient import PatientProfile
 from app.modules.semantic_retrieval.service import (
@@ -247,14 +248,16 @@ def _rank_chunks(
     patient: PatientProfile | None = None,
     terms: list[str] | None = None,
 ) -> list[EvidenceChunk]:
-    ranked = rerank_evidence_chunks(query, chunks, top_k)
+    pool_k = max(top_k, retrieval_candidate_count(top_k))
+    ranked = rerank_evidence_chunks(query, chunks, pool_k)
 
     def rank_key(item: EvidenceChunk) -> tuple[float, float]:
         matched = matched_terms_for_chunk(item, terms or [])
         quality = quality_score_for_chunk(item, matched, patient=patient)
         return quality, item.score
 
-    return sorted(ranked, key=rank_key, reverse=True)[:top_k]
+    ordered = sorted(ranked, key=rank_key, reverse=True)
+    return filter_evidence_chunks(ordered, patient=patient, terms=terms, top_k=top_k)
 
 
 def retrieve_chroma(

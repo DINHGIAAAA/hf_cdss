@@ -21,6 +21,7 @@ from app.modules.graphrag.hyde_expansion import (
     generate_hyde_document,
     should_expand_with_hyde,
 )
+from app.modules.graphrag.query_decomposition import decompose_retrieval_queries
 from app.modules.citation_validation.service import source_link_for_chunk
 from app.modules.datastores.artifacts import sync_artifacts_from_processed_bucket
 from app.modules.datastores.chroma import retrieve_chroma, retrieve_chroma_multi_query
@@ -28,6 +29,7 @@ from app.modules.datastores.common import CHUNKS_PATH, DATA_ROOT, RELATIONSHIPS_
 from app.modules.datastores.neo4j import neo4j_driver as get_driver, retrieve_neo4j
 from app.modules.evidence_text import normalize_evidence_text
 from app.modules.clinical_entity_boosting import matched_terms_for_chunk
+from app.modules.evidence_filter import filter_evidence_chunks
 from app.modules.evidence_quality import enrich_evidence_chunk, quality_score_for_chunk
 from app.modules.semantic_retrieval.service import (
     reciprocal_rank_fusion,
@@ -205,7 +207,7 @@ def _semantic_retrieval_queries(
     *,
     baseline_query: str,
     hyde_document: str | None,
-) -> list[str]:
+) -> tuple[list[str], bool]:
     queries: list[str] = []
     semantic_query = build_semantic_retrieval_query(
         baseline_query=baseline_query,
@@ -223,6 +225,11 @@ def _semantic_retrieval_queries(
             if state_text and state_text not in queries:
                 queries.append(state_text)
 
+    decomposed: list[str] = []
+    if settings.graphrag_multi_query_enabled:
+        decomposed = decompose_retrieval_queries(request, baseline_query=baseline_query)
+        queries.extend(decomposed)
+
     unique: list[str] = []
     seen: set[str] = set()
     for query in queries:
@@ -234,7 +241,7 @@ def _semantic_retrieval_queries(
             continue
         seen.add(key)
         unique.append(normalized)
-    return unique
+    return unique, bool(decomposed)
 
 
 @lru_cache(maxsize=1)
@@ -373,14 +380,16 @@ def _merge_evidence_rankings(
         merged = ranked_lists[0]
     else:
         merged = reciprocal_rank_fusion(ranked_lists)
-    ranked = rerank_evidence_chunks(query, merged, top_k)
+    pool_k = max(top_k, min(len(merged), top_k * 2))
+    ranked = rerank_evidence_chunks(query, merged, pool_k)
 
     def rank_key(item: EvidenceChunk) -> tuple[float, float]:
         matched = matched_terms_for_chunk(item, terms or [])
         quality = quality_score_for_chunk(item, matched, patient=patient)
         return quality, item.score
 
-    return sorted(ranked, key=rank_key, reverse=True)[:top_k]
+    ordered = sorted(ranked, key=rank_key, reverse=True)
+    return filter_evidence_chunks(ordered, patient=patient, terms=terms, top_k=top_k)
 
 
 def _score_text(text: str, terms: list[str]) -> float:
@@ -433,14 +442,15 @@ def retrieve_evidence_chunks(
         matched_terms = [term for term in terms if term.lower() in text.lower()]
         evidence_chunk = evidence_chunk.model_copy(update={"source_link": source_link_for_chunk(evidence_chunk)})
         chunks.append(enrich_evidence_chunk(evidence_chunk, matched_terms, patient=patient))
-    ranked = rerank_evidence_chunks(" ".join(terms), chunks, top_k)
+    ranked = rerank_evidence_chunks(" ".join(terms), chunks, max(top_k, len(chunks)))
 
     def rank_key(item: EvidenceChunk) -> tuple[float, float]:
         matched = matched_terms_for_chunk(item, terms)
         quality = quality_score_for_chunk(item, matched, patient=patient)
         return quality, item.score
 
-    return sorted(ranked, key=rank_key, reverse=True)[:top_k]
+    ordered = sorted(ranked, key=rank_key, reverse=True)
+    return filter_evidence_chunks(ordered, patient=patient, terms=terms, top_k=top_k)
 
 
 def get_top_entities_from_chunks(chunks: list[EvidenceChunk], top_n: int = 3) -> list[dict]:
@@ -601,7 +611,7 @@ async def build_graphrag_context_async(request: GraphRAGContextRequest) -> Graph
         baseline_query=baseline_query,
         hyde_document=hyde_document,
     )
-    retrieval_queries = _semantic_retrieval_queries(
+    retrieval_queries, query_decomposed = _semantic_retrieval_queries(
         request,
         baseline_query=baseline_query,
         hyde_document=hyde_document,
@@ -613,6 +623,7 @@ async def build_graphrag_context_async(request: GraphRAGContextRequest) -> Graph
         hyde_document=hyde_document,
         hyde_used=hyde_used,
         retrieval_queries=retrieval_queries,
+        query_decomposed=query_decomposed,
     )
 
 
@@ -624,6 +635,7 @@ def _build_graphrag_context_impl(
     hyde_document: str | None,
     hyde_used: bool,
     retrieval_queries: list[str] | None = None,
+    query_decomposed: bool = False,
 ) -> GraphRAGContextResponse:
     started = time.perf_counter()
     if terms is None:
@@ -639,6 +651,10 @@ def _build_graphrag_context_impl(
     retrieval_sources: list[str] = []
     queries = retrieval_queries or [semantic_query or request.query or " ".join(terms)]
     primary_query = semantic_query or request.query or " ".join(terms)
+    if len(queries) > 1:
+        retrieval_sources.append("multi_query")
+    if query_decomposed:
+        retrieval_sources.append("query_decomposition")
     evidence_scope = (
         resolve_evidence_scope(terms, chunk_ids=request.constraint_chunk_ids)
         if settings.graphrag_graph_guided_filter_enabled
@@ -661,8 +677,6 @@ def _build_graphrag_context_impl(
             )
             if evidence_chunks:
                 retrieval_sources.append("chromadb")
-                if len(queries) > 1:
-                    retrieval_sources.append("multi_query")
                 if hyde_used:
                     retrieval_sources.append("hyde")
         except Exception as exc:

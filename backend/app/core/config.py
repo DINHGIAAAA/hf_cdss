@@ -115,6 +115,8 @@ class Settings(BaseSettings):
     chroma_filter_max_ids: int = 48
     evidence_text_max_length: int = 1200
     graphrag_multi_query_enabled: bool = True
+    graphrag_query_decomposition_enabled: bool = True
+    graphrag_query_decomposition_max_queries: int = 6
     graphrag_rrf_k: int = 60
     graphrag_chunk_window_size: int = 1
     graphrag_adaptive_top_k: bool = True
@@ -153,6 +155,10 @@ class Settings(BaseSettings):
     hyde_retrieval_min_query_chars: int = 8
     hyde_retrieval_combine_baseline: bool = True
     graphrag_lost_in_middle_reorder_enabled: bool = True
+    evidence_negative_filter_enabled: bool = True
+    evidence_negative_filter_min_quality_score: float = 0.38
+    evidence_negative_filter_require_patient_entity: bool = True
+    evidence_negative_filter_min_results: int = 2
 
     model_config = SettingsConfigDict(env_prefix="HF_CDSS_", env_file=".env", extra="ignore")
 
