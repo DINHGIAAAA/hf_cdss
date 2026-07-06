@@ -15,6 +15,7 @@ from scraper.transform.opendataloader_extract import (
     extract_with_opendataloader,
     opendataloader_available,
 )
+from scraper.transform.table_sections import build_table_section_records
 from scraper.transform.text_normalization import append_flow_line, normalize_text, repair_pdf_flow_text
 
 HEADING_RE = re.compile(
@@ -152,7 +153,6 @@ def split_sections(pages: list[dict]) -> list[dict]:
 
 def parse_pdf_with_pdfplumber(
     pdf_path: Path,
-    extract_tables: bool,
     fast_parsing: bool = False,
 ) -> tuple[list[dict], list[dict]]:
     import pdfplumber
@@ -162,22 +162,17 @@ def parse_pdf_with_pdfplumber(
 
     with pdfplumber.open(pdf_path) as pdf:
         for index, page in enumerate(pdf.pages, start=1):
-            page_tables = []
-            found_tables_data = []
+            text_table_settings = {
+                "vertical_strategy": "text",
+                "horizontal_strategy": "text",
+                "snap_x_tolerance": 6,
+            }
+            page_tables = page.find_tables()
 
-            if extract_tables:
-                text_table_settings = {
-                    "vertical_strategy": "text",
-                    "horizontal_strategy": "text",
-                    "snap_x_tolerance": 6,
-                }
-                page_tables = page.find_tables()
+            if not page_tables and not fast_parsing:
+                page_tables = page.find_tables(text_table_settings)
 
-                if not page_tables and not fast_parsing:
-                    page_tables = page.find_tables(text_table_settings)
-
-                found_tables_data = [t.extract() for t in page_tables]
-
+            found_tables_data = [t.extract() for t in page_tables]
             table_bboxes = [t.bbox for t in page_tables]
 
             def not_within_bboxes(obj):
@@ -189,28 +184,26 @@ def parse_pdf_with_pdfplumber(
 
                 return not any(obj_in_bbox(obj, bbox) for bbox in table_bboxes)
 
-            page_to_extract = page.filter(not_within_bboxes) if extract_tables and table_bboxes else page
+            page_to_extract = page.filter(not_within_bboxes) if table_bboxes else page
             text = repair_pdf_flow_text(page_to_extract.extract_text(x_tolerance=2, y_tolerance=2) or "")
             pages.append({"page": index, "text": text})
 
-            if extract_tables:
-                for table_index, table in enumerate(found_tables_data or [], start=1):
-                    if not table:
-                        continue
-                    tables.append(
-                        {
-                            "page": index,
-                            "table_index": table_index,
-                            "rows": table,
-                        }
-                    )
+            for table_index, table in enumerate(found_tables_data or [], start=1):
+                if not table:
+                    continue
+                tables.append(
+                    {
+                        "page": index,
+                        "table_index": table_index,
+                        "rows": table,
+                    }
+                )
 
     return pages, tables
 
 def parse_pdf(
     pdf_path: Path,
     tables_dir: Path,
-    extract_tables: bool,
     registry: dict[str, dict] | None = None,
     fast_parsing: bool = False,
     odl_cache_dir: Path | None = None,
@@ -237,34 +230,16 @@ def parse_pdf(
     if not pages:
         pages, raw_tables = parse_pdf_with_pdfplumber(
             pdf_path,
-            extract_tables=extract_tables,
             fast_parsing=fast_parsing,
         )
 
-    tables = []
-    if extract_tables:
-        for table in raw_tables:
-            table_record = {
-                "document_id": document_id,
-                "source_type": "guideline",
-                "page": table["page"],
-                "table_index": table["table_index"],
-                "rows": table["rows"],
-                "metadata": {
-                    **provenance,
-                    "guideline_topic": guideline_topic,
-                    "source_file": str(pdf_path),
-                    "page": table["page"],
-                    "section": f"TABLE {table['table_index']}",
-                    "provenance": {
-                        "source_id": provenance["source_id"],
-                        "source_url": provenance.get("source_url"),
-                        "page": table["page"],
-                        "table_index": table["table_index"],
-                    },
-                },
-            }
-            tables.append(table_record)
+    tables, table_sections = build_table_section_records(
+        raw_tables,
+        document_id=document_id,
+        provenance=provenance,
+        guideline_topic=guideline_topic,
+        source_file=str(pdf_path),
+    )
 
     document = {
         "document_id": document_id,
@@ -311,6 +286,8 @@ def parse_pdf(
             }
         )
 
+    sections.extend(table_sections)
+
     if tables:
         tables_dir.mkdir(parents=True, exist_ok=True)
         table_output = tables_dir / f"{document_id}_tables.jsonl"
@@ -320,7 +297,7 @@ def parse_pdf(
 
     return document, sections, tables
 
-def parse_pdf_job(args: tuple[Path, Path, bool, dict, bool, Path | None, bool]) -> tuple[dict, list[dict], list[dict]]:
+def parse_pdf_job(args: tuple[Path, Path, dict, bool, Path | None, bool]) -> tuple[dict, list[dict], list[dict]]:
     pdf_path = args[0]
     with pdf_path.open("rb") as handle:
         if handle.read(4) != b"%PDF":
@@ -333,7 +310,6 @@ def main() -> None:
     parser.add_argument("--input-dir", default="raw/guidelines", type=Path)
     parser.add_argument("--registry", default="sources/sources.example.json", type=Path)
     parser.add_argument("--tables-dir", default="processed/tables", type=Path)
-    parser.add_argument("--extract-tables", action="store_true")
     parser.add_argument("--fast-parsing", action="store_true", help="Use faster, less accurate parsing settings (e.g., disable text-based table finding).")
     parser.add_argument(
         "--pdf-parser",
@@ -368,7 +344,6 @@ def main() -> None:
         (
             pdf_path,
             args.tables_dir,
-            args.extract_tables,
             registry,
             args.fast_parsing,
             odl_cache_dir,

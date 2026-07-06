@@ -1,25 +1,9 @@
 from app.modules.graphrag.service import query_terms_for_patient
-from app.schemas.patient import PatientProfile
-
-
-def _patient(**overrides) -> PatientProfile:
-    base = {
-        "case_id": "CASE_GRAPHRAG",
-        "lvef": 28,
-        "egfr": 24,
-        "potassium": 5.7,
-        "systolic_bp": 98,
-        "heart_rate": 54,
-        "comorbidities": ["CKD"],
-        "current_medications": ["spironolactone"],
-        "allergies": [],
-    }
-    base.update(overrides)
-    return PatientProfile(**base)
+from app.tests.conftest import hfref_patient
 
 
 def test_query_terms_include_conversation_history() -> None:
-    patient = _patient(current_medications=[])
+    patient = hfref_patient(current_medications=[])
     terms = query_terms_for_patient(
         patient,
         "co nen tiep tuc spironolactone khong",
@@ -33,7 +17,7 @@ def test_query_terms_include_conversation_history() -> None:
 
 
 def test_query_terms_include_clinical_state() -> None:
-    patient = _patient()
+    patient = hfref_patient()
     clinical_state = {
         "intent": "safety_check",
         "hf_type": "HFrEF",

@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.core.config import settings
+from app.modules.clinical_terms import CLINICAL_TERMS, DRUG_CLASS_TERMS, dedupe_strings, patient_lab_context_text
 from app.schemas.graphrag import GraphRAGContextRequest
 from app.schemas.patient import PatientProfile
 
@@ -51,18 +52,11 @@ def normalize_drug_class(value: str | None) -> str:
     return DRUG_CLASS_ALIASES.get(underscored, underscored)
 
 
-def _graph_terms():
-    from app.modules.graphrag.service import CLINICAL_TERMS, DRUG_CLASS_TERMS
-
-    return CLINICAL_TERMS, DRUG_CLASS_TERMS
-
-
 def _infer_classes_from_medications(patient: PatientProfile) -> list[str]:
-    _, drug_class_terms = _graph_terms()
     classes: set[str] = set()
     for medication in patient.current_medications:
         medication_lower = medication.lower()
-        for drug_class, terms in drug_class_terms.items():
+        for drug_class, terms in DRUG_CLASS_TERMS.items():
             if any(term in medication_lower for term in terms if len(term) >= 5):
                 classes.add(drug_class)
     return sorted(classes)
@@ -80,8 +74,7 @@ def _medications_for_class(drug_class: str, patient: PatientProfile, clinical_st
         if medication.status == "active" and normalize_drug_class(medication.drug_class) == drug_class:
             names.add(medication.normalized_name or medication.name)
 
-    _, drug_class_terms = _graph_terms()
-    class_terms = drug_class_terms.get(drug_class, [])
+    class_terms = DRUG_CLASS_TERMS.get(drug_class, [])
     for medication in patient.current_medications:
         medication_lower = medication.lower()
         if any(term in medication_lower for term in class_terms if len(term) >= 5):
@@ -142,25 +135,9 @@ def collect_condition_facets(patient: PatientProfile, clinical_state: dict | Non
     return sorted(conditions)
 
 
-def _patient_lab_context(patient: PatientProfile) -> str:
-    parts: list[str] = []
-    if patient.lvef is not None:
-        parts.append(f"LVEF {patient.lvef}%")
-    if patient.egfr is not None:
-        parts.append(f"eGFR {patient.egfr}")
-    if patient.potassium is not None:
-        parts.append(f"potassium {patient.potassium}")
-    if patient.systolic_bp is not None:
-        parts.append(f"SBP {patient.systolic_bp}")
-    if patient.heart_rate is not None:
-        parts.append(f"HR {patient.heart_rate}")
-    return " ".join(parts)
-
-
 def _condition_search_terms(condition: str) -> str:
-    clinical_terms, _ = _graph_terms()
     lower = condition.lower()
-    for label, terms in clinical_terms.items():
+    for label, terms in CLINICAL_TERMS.items():
         if label in lower:
             return " ".join(terms[:6])
     return condition
@@ -181,14 +158,13 @@ def build_drug_class_query(
     clinical_state: dict | None,
     baseline_query: str,
 ) -> str:
-    _, drug_class_terms = _graph_terms()
     state = clinical_state or {}
     label = DRUG_CLASS_LABELS.get(facet.drug_class, facet.drug_class.replace("_", " "))
-    search_terms = " ".join(drug_class_terms.get(facet.drug_class, [facet.drug_class])[:6])
+    search_terms = " ".join(DRUG_CLASS_TERMS.get(facet.drug_class, [facet.drug_class])[:6])
     medication_names = " ".join(facet.medications)
     hf_type = state.get("hf_type") or "heart failure"
     intent = state.get("intent") or ""
-    lab_context = _patient_lab_context(patient)
+    lab_context = patient_lab_context_text(patient)
     baseline = baseline_query.strip()[:240]
     return " ".join(
         part
@@ -213,7 +189,7 @@ def build_condition_query(
 ) -> str:
     state = clinical_state or {}
     hf_type = state.get("hf_type") or "heart failure"
-    lab_context = _patient_lab_context(patient)
+    lab_context = patient_lab_context_text(patient)
     condition_terms = _condition_search_terms(condition)
     return " ".join(
         part
@@ -261,15 +237,4 @@ def decompose_retrieval_queries(
             )
         )
 
-    unique: list[str] = []
-    seen: set[str] = set()
-    max_queries = max(2, settings.graphrag_query_decomposition_max_queries)
-    for query in queries:
-        key = query.lower()
-        if not query or key in seen:
-            continue
-        seen.add(key)
-        unique.append(query)
-        if len(unique) >= max_queries:
-            break
-    return unique
+    return dedupe_strings(queries, max_items=max(2, settings.graphrag_query_decomposition_max_queries))

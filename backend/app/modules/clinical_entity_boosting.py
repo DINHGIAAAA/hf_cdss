@@ -5,7 +5,6 @@ from __future__ import annotations
 import re
 from enum import Enum
 
-from app.core.config import settings
 from app.schemas.graphrag import EvidenceChunk
 from app.schemas.patient import PatientProfile
 
@@ -18,6 +17,38 @@ class EntityTier(str, Enum):
     CONDITION = "condition"
     SAFETY = "safety"
     GENERAL = "general"
+
+
+TIER_WEIGHTS: dict[EntityTier, float] = {
+    EntityTier.LAB_CRITICAL: 0.12,
+    EntityTier.LAB_MONITOR: 0.06,
+    EntityTier.DRUG_CLASS: 0.10,
+    EntityTier.DRUG_NAME: 0.08,
+    EntityTier.CONDITION: 0.05,
+    EntityTier.SAFETY: 0.09,
+    EntityTier.GENERAL: 0.03,
+}
+
+TIER_CAPS: dict[EntityTier, int] = {
+    EntityTier.LAB_CRITICAL: 2,
+    EntityTier.LAB_MONITOR: 1,
+    EntityTier.DRUG_CLASS: 2,
+    EntityTier.DRUG_NAME: 2,
+    EntityTier.CONDITION: 2,
+    EntityTier.SAFETY: 2,
+    EntityTier.GENERAL: 3,
+}
+
+THRESHOLD_BOOST_MAX = 0.22
+THRESHOLD_ABNORMAL_MULTIPLIER = 1.15
+THRESHOLD_CRITICAL_MULTIPLIER = 1.35
+PATIENT_LAB_AFFINITY_MULTIPLIER = 1.40
+PATIENT_CRITICAL_MULTIPLIER = 1.65
+SECTION_RENAL_BOOST = 0.07
+SECTION_POTASSIUM_BOOST = 0.06
+SECTION_BP_BOOST = 0.05
+SECTION_HR_BOOST = 0.05
+SECTION_SAFETY_BOOST = 0.04
 
 
 LAB_CRITICAL_TERMS: frozenset[str] = frozenset(
@@ -200,27 +231,11 @@ _THRESHOLD_REGEXES: tuple[tuple[re.Pattern[str], str, str], ...] = (
 
 
 def _tier_weights() -> dict[EntityTier, float]:
-    return {
-        EntityTier.LAB_CRITICAL: settings.clinical_entity_boost_lab_critical_weight,
-        EntityTier.LAB_MONITOR: settings.clinical_entity_boost_lab_monitor_weight,
-        EntityTier.DRUG_CLASS: settings.clinical_entity_boost_drug_class_weight,
-        EntityTier.DRUG_NAME: settings.clinical_entity_boost_drug_name_weight,
-        EntityTier.CONDITION: settings.clinical_entity_boost_condition_weight,
-        EntityTier.SAFETY: settings.clinical_entity_boost_safety_weight,
-        EntityTier.GENERAL: settings.clinical_entity_boost_general_weight,
-    }
+    return TIER_WEIGHTS
 
 
 def _tier_caps() -> dict[EntityTier, int]:
-    return {
-        EntityTier.LAB_CRITICAL: settings.clinical_entity_boost_lab_critical_cap,
-        EntityTier.LAB_MONITOR: settings.clinical_entity_boost_lab_monitor_cap,
-        EntityTier.DRUG_CLASS: settings.clinical_entity_boost_drug_class_cap,
-        EntityTier.DRUG_NAME: settings.clinical_entity_boost_drug_name_cap,
-        EntityTier.CONDITION: settings.clinical_entity_boost_condition_cap,
-        EntityTier.SAFETY: settings.clinical_entity_boost_safety_cap,
-        EntityTier.GENERAL: settings.clinical_entity_boost_general_cap,
-    }
+    return TIER_CAPS
 
 
 def classify_term_tier(term: str) -> EntityTier:
@@ -242,11 +257,6 @@ def classify_term_tier(term: str) -> EntityTier:
     if tokens & CONDITION_TERMS:
         return EntityTier.CONDITION
     return EntityTier.GENERAL
-
-
-# Backward-compatible alias used in tests
-def classify_term(term: str) -> EntityTier:
-    return classify_term_tier(term)
 
 
 def _contains_term(haystack: str, term: str) -> bool:
@@ -348,8 +358,8 @@ def _patient_term_multiplier(term: str, patient: PatientProfile | None) -> float
         return 1.0
 
     if _patient_is_critical(metric, value):
-        return settings.clinical_entity_patient_critical_multiplier
-    return settings.clinical_entity_patient_lab_affinity_multiplier
+        return PATIENT_CRITICAL_MULTIPLIER
+    return PATIENT_LAB_AFFINITY_MULTIPLIER
 
 
 def _patient_satisfies_threshold(patient_value: float, threshold: float, operator: str) -> bool:
@@ -375,11 +385,11 @@ def _threshold_proximity_score(patient_value: float, threshold: float, operator:
         distance = max(patient_value - threshold, 0.0)
     proximity = 1.0 - min(distance / margin, 1.0)
 
-    base = settings.clinical_entity_threshold_boost_max
+    base = THRESHOLD_BOOST_MAX
     if _patient_is_critical(metric, patient_value):
-        base *= settings.clinical_entity_threshold_critical_multiplier
+        base *= THRESHOLD_CRITICAL_MULTIPLIER
     elif _patient_is_abnormal(metric, patient_value):
-        base *= settings.clinical_entity_threshold_abnormal_multiplier
+        base *= THRESHOLD_ABNORMAL_MULTIPLIER
 
     return base * (0.5 + 0.5 * proximity)
 
@@ -451,18 +461,18 @@ def section_context_boost(chunk: EvidenceChunk, patient: PatientProfile | None) 
 
     if patient.egfr is not None and patient.egfr < 45:
         if any(token in haystack or token in section for token in ("renal", "kidney", "egfr", "creatinine", "ckd")):
-            boost += settings.clinical_entity_section_renal_boost
+            boost += SECTION_RENAL_BOOST
     if patient.potassium is not None and patient.potassium >= 5.0:
         if any(token in haystack or token in section for token in ("potassium", "hyperkalemia", "hyperkalaemia")):
-            boost += settings.clinical_entity_section_potassium_boost
+            boost += SECTION_POTASSIUM_BOOST
     if patient.systolic_bp is not None and patient.systolic_bp < 100:
         if any(token in haystack or token in section for token in ("hypotension", "blood pressure", "systolic")):
-            boost += settings.clinical_entity_section_bp_boost
+            boost += SECTION_BP_BOOST
     if patient.heart_rate is not None and patient.heart_rate < 60:
         if any(token in haystack or token in section for token in ("heart rate", "bradycardia", "beta blocker")):
-            boost += settings.clinical_entity_section_hr_boost
+            boost += SECTION_HR_BOOST
     if any(token in section for token in ("contraindication", "warning", "precaution", "renal")):
-        boost += settings.clinical_entity_section_safety_boost
+        boost += SECTION_SAFETY_BOOST
 
     return boost
 

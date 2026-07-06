@@ -11,6 +11,7 @@ from scraper.transform.extract_important_sections import (
     mark_record,
     normalize,
 )
+from scraper.transform.table_sections import is_extracted_table_section
 from scraper.semantic import config
 from scraper.semantic.embeddings import embed_text, max_similarity_vector_to_prototypes, warmup_prototype_vectors
 from scraper.semantic.topic_prototypes import DRUG_SECTION_PROTOTYPES, GUIDELINE_TOPIC_PROTOTYPES
@@ -77,6 +78,14 @@ def filter_important_sections(records: list[dict]) -> list[dict]:
     for record in records:
         keyword_matches: list[str] = []
         semantic_matches: list[str] = []
+
+        if is_extracted_table_section(record):
+            keyword_matches = guideline_matches(record) or ["tables"]
+            output = mark_record(record, sorted(set(keyword_matches)))
+            metadata = output.setdefault("metadata", {})
+            metadata["section_match_method"] = "extracted_table"
+            important.append(output)
+            continue
 
         if record.get("source_type") == "drug_label":
             keyword_matches = drug_matches(record)

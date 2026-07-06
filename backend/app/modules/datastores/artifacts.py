@@ -19,6 +19,7 @@ CURRENT_MANIFEST = "artifacts/current/manifest.json"
 
 def _s3_client():
     import boto3
+    from botocore.config import Config
 
     return boto3.client(
         "s3",
@@ -26,6 +27,10 @@ def _s3_client():
         aws_access_key_id=settings.aws_access_key_id,
         aws_secret_access_key=settings.aws_secret_access_key,
         region_name=settings.aws_default_region,
+        config=Config(
+            request_checksum_calculation="when_required",
+            response_checksum_validation="when_required",
+        ),
     )
 
 

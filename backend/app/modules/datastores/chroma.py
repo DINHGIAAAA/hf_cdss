@@ -7,6 +7,7 @@ from typing import Any
 from app.core.config import settings
 from app.modules.citation_validation.service import source_link_for_chunk
 from app.modules.datastores.common import CHUNKS_PATH, read_jsonl
+from app.modules.clinical_terms import dedupe_strings
 from app.modules.evidence_text import normalize_evidence_text
 from app.modules.clinical_entity_boosting import matched_terms_for_chunk
 from app.modules.evidence_filter import filter_evidence_chunks
@@ -329,17 +330,7 @@ def retrieve_chroma_multi_query(
     patient: PatientProfile | None = None,
     terms: list[str] | None = None,
 ) -> list[EvidenceChunk]:
-    unique_queries: list[str] = []
-    seen: set[str] = set()
-    for query in queries:
-        normalized = (query or "").strip()
-        if not normalized:
-            continue
-        key = normalized.lower()
-        if key in seen:
-            continue
-        seen.add(key)
-        unique_queries.append(normalized)
+    unique_queries = dedupe_strings(queries)
 
     if not unique_queries:
         return []

@@ -20,6 +20,25 @@ from app.modules.interaction_checking.rule_loader import invalidate_interaction_
 from app.modules.datastores import bootstrap as bootstrap_module
 
 
+from app.schemas.patient import PatientProfile
+
+
+def hfref_patient(**overrides) -> PatientProfile:
+    base = {
+        "case_id": "CASE_HFREF",
+        "lvef": 28,
+        "egfr": 24,
+        "potassium": 5.7,
+        "systolic_bp": 98,
+        "heart_rate": 54,
+        "comorbidities": ["CKD"],
+        "current_medications": ["spironolactone"],
+        "allergies": [],
+    }
+    base.update(overrides)
+    return PatientProfile(**base)
+
+
 API_PREFIX = "/api/v1"
 TEST_API_KEY = "test-api-key"
 _CONSTRAINTS_FIXTURE = (

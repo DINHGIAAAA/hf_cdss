@@ -1,6 +1,5 @@
 import json
 import logging
-import re
 import time
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
@@ -29,6 +28,11 @@ from app.modules.datastores.common import CHUNKS_PATH, DATA_ROOT, RELATIONSHIPS_
 from app.modules.datastores.neo4j import neo4j_driver as get_driver, retrieve_neo4j
 from app.modules.evidence_text import normalize_evidence_text
 from app.modules.clinical_entity_boosting import matched_terms_for_chunk
+from app.modules.clinical_terms import (
+    collect_query_terms_for_patient,
+    dedupe_strings,
+    tokenize_clinical_text,
+)
 from app.modules.evidence_filter import filter_evidence_chunks
 from app.modules.evidence_quality import enrich_evidence_chunk, quality_score_for_chunk
 from app.modules.semantic_retrieval.service import (
@@ -43,29 +47,10 @@ from app.schemas.graphrag import (
     GraphRAGContextRequest,
     GraphRAGContextResponse,
 )
-from app.modules.drug_normalization.service import expand_drug_search_terms
 from app.schemas.patient import PatientProfile
 
 
 logger = logging.getLogger(__name__)
-
-DRUG_CLASS_TERMS = {
-    "mra": ["mra", "mineralocorticoid", "spironolactone", "eplerenone", "potassium", "hyperkalemia", "egfr"],
-    "arni": ["arni", "sacubitril", "valsartan", "acei", "arb", "raas", "potassium", "hypotension", "egfr"],
-    "acei": ["acei", "enalapril", "lisinopril", "raas", "potassium", "hypotension"],
-    "arb": ["arb", "losartan", "valsartan", "candesartan", "raas", "potassium", "hypotension"],
-    "beta_blocker": ["beta", "blocker", "metoprolol", "bisoprolol", "carvedilol", "bradycardia", "heart rate"],
-    "sglt2i": ["sglt2", "dapagliflozin", "empagliflozin", "egfr", "renal", "kidney"],
-}
-
-CLINICAL_TERMS = {
-    "ckd": ["ckd", "kidney", "renal", "egfr"],
-    "diabetes": ["diabetes", "sglt2", "hypoglycemia"],
-    "atrial fibrillation": ["atrial", "fibrillation", "apixaban", "warfarin", "bleeding"],
-    "hypertension": ["hypertension", "blood pressure", "hypotension"],
-    "copd": ["copd", "bronchospastic", "beta blocker"],
-}
-
 
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
@@ -116,15 +101,6 @@ def load_staging_relationships() -> list[dict[str, Any]]:
     return _read_jsonl(RELATIONSHIPS_PATH)
 
 
-def _tokenize(value: str) -> list[str]:
-    return [token for token in re.split(r"[^a-z0-9+]+", value.lower()) if len(token) >= 3]
-
-
-def _add_terms(terms: set[str], values: list[str]) -> None:
-    for value in values:
-        terms.update(_tokenize(value))
-
-
 def query_terms_for_patient(
     patient: PatientProfile,
     query: str | None = None,
@@ -132,62 +108,13 @@ def query_terms_for_patient(
     conversation_history: list[str] | None = None,
     clinical_state: dict[str, Any] | None = None,
 ) -> list[str]:
-    terms: set[str] = {"heart", "failure", "hfref", "gdmt"}
-
-    if query:
-        _add_terms(terms, [query])
-
-    if clinical_state:
-        _add_terms(terms, [state_query_text(clinical_state)])
-        _add_terms(terms, clinical_state.get("focus_medication_classes") or [])
-        _add_terms(terms, clinical_state.get("active_medication_classes") or [])
-        _add_terms(terms, clinical_state.get("conditions") or [])
-        for medication in clinical_state.get("mentioned_medications") or []:
-            if isinstance(medication, dict):
-                _add_terms(terms, [medication.get("name", ""), medication.get("drug_class", "")])
-
-    if conversation_history:
-        recent_turns = [turn.strip() for turn in conversation_history if turn and turn.strip()][-3:]
-        if recent_turns:
-            _add_terms(terms, recent_turns)
-
-    _add_terms(terms, patient.current_medications)
-    _add_terms(terms, patient.comorbidities)
-    _add_terms(terms, patient.allergies)
-    _add_terms(
-        terms,
-        [
-            patient.care_context.clinician_question or "",
-            patient.care_context.decision_context or "",
-            patient.care_context.treatment_goal or "",
-        ],
+    return collect_query_terms_for_patient(
+        patient,
+        query,
+        conversation_history=conversation_history,
+        clinical_state=clinical_state,
+        state_query_text_fn=state_query_text,
     )
-
-    for medication in patient.current_medications:
-        _add_terms(terms, expand_drug_search_terms(medication))
-        med = medication.lower()
-        for class_terms in DRUG_CLASS_TERMS.values():
-            if any(term in med for term in class_terms):
-                _add_terms(terms, class_terms)
-
-    for comorbidity in patient.comorbidities:
-        lower = comorbidity.lower()
-        for label, clinical_terms in CLINICAL_TERMS.items():
-            if label in lower:
-                _add_terms(terms, clinical_terms)
-
-    if patient.lvef is not None and patient.lvef <= 40:
-        _add_terms(terms, ["hfref", "reduced ejection fraction", "gdmt", "arni", "mra", "sglt2", "beta blocker"])
-    if patient.egfr is not None and patient.egfr < 60:
-        _add_terms(terms, ["renal", "kidney", "egfr", "ckd"])
-    if patient.potassium is not None and patient.potassium >= 5.0:
-        _add_terms(terms, ["potassium", "hyperkalemia", "mra", "raas"])
-    if patient.systolic_bp is not None and patient.systolic_bp < 100:
-        _add_terms(terms, ["hypotension", "blood pressure", "raas", "arni"])
-    if patient.heart_rate is not None and patient.heart_rate < 60:
-        _add_terms(terms, ["bradycardia", "heart rate", "beta blocker"])
-
-    return sorted(terms)
 
 
 def adaptive_top_k(request: GraphRAGContextRequest) -> int:
@@ -230,18 +157,7 @@ def _semantic_retrieval_queries(
         decomposed = decompose_retrieval_queries(request, baseline_query=baseline_query)
         queries.extend(decomposed)
 
-    unique: list[str] = []
-    seen: set[str] = set()
-    for query in queries:
-        normalized = query.strip()
-        if not normalized:
-            continue
-        key = normalized.lower()
-        if key in seen:
-            continue
-        seen.add(key)
-        unique.append(normalized)
-    return unique, bool(decomposed)
+    return dedupe_strings(queries), bool(decomposed)
 
 
 @lru_cache(maxsize=1)
@@ -605,7 +521,7 @@ async def build_graphrag_context_async(request: GraphRAGContextRequest) -> Graph
         hyde_used = bool(hyde_document)
 
     if hyde_document:
-        terms = sorted(set(terms) | set(_tokenize(hyde_document)))
+        terms = sorted(set(terms) | set(tokenize_clinical_text(hyde_document)))
 
     semantic_query = build_semantic_retrieval_query(
         baseline_query=baseline_query,
@@ -748,7 +664,7 @@ def _build_graphrag_context_impl(
 
 def search_evidence(query: str, top_k: int = 6, *, published: bool = True) -> EvidenceSearchResponse:
     started = time.perf_counter()
-    terms = sorted(set(_tokenize(query)))
+    terms = sorted(set(tokenize_clinical_text(query)))
     top_k = max(1, min(top_k, 12))
     source_set = "current" if published else "staging"
     graph_facts = retrieve_graph_facts(terms, top_k, published=published) if terms else []

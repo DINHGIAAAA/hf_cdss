@@ -2,71 +2,12 @@
 
 from __future__ import annotations
 
-import re
-
 from app.core.config import settings
 from app.modules.clinical_entity_boosting import matched_terms_for_chunk
-from app.modules.drug_normalization.service import expand_drug_search_terms
+from app.modules.clinical_terms import patient_profile_entities
 from app.modules.evidence_quality import enrich_evidence_chunk, quality_score_for_chunk
 from app.schemas.graphrag import EvidenceChunk
 from app.schemas.patient import PatientProfile
-
-
-def _tokenize(value: str) -> list[str]:
-    return [token for token in re.split(r"[^a-z0-9+]+", value.lower()) if len(token) >= 3]
-
-
-def _add_terms(terms: set[str], values: list[str]) -> None:
-    for value in values:
-        terms.update(_tokenize(value))
-
-
-def patient_profile_entities(patient: PatientProfile) -> list[str]:
-    """Patient-specific entities used for negative filtering (excludes generic HF baselines)."""
-    from app.modules.graphrag.service import CLINICAL_TERMS, DRUG_CLASS_TERMS
-
-    terms: set[str] = set()
-    _add_terms(terms, patient.current_medications)
-    _add_terms(terms, patient.comorbidities)
-    _add_terms(terms, patient.allergies)
-
-    for medication in patient.current_medications:
-        _add_terms(terms, expand_drug_search_terms(medication))
-        medication_lower = medication.lower()
-        for class_terms in DRUG_CLASS_TERMS.values():
-            if any(term in medication_lower for term in class_terms):
-                _add_terms(terms, class_terms)
-
-    for comorbidity in patient.comorbidities:
-        lower = comorbidity.lower()
-        for label, clinical_terms in CLINICAL_TERMS.items():
-            if label in lower:
-                _add_terms(terms, clinical_terms)
-
-    if patient.lvef is not None:
-        _add_terms(terms, ["lvef", "ejection fraction"])
-        if patient.lvef <= 40:
-            _add_terms(terms, ["hfref", "reduced ejection fraction"])
-        else:
-            terms.add("hfpef")
-    if patient.egfr is not None:
-        _add_terms(terms, ["egfr", "gfr", "renal"])
-        if patient.egfr < 60:
-            _add_terms(terms, ["ckd", "kidney"])
-    if patient.potassium is not None:
-        terms.add("potassium")
-        if patient.potassium >= 5.0:
-            _add_terms(terms, ["hyperkalemia", "k+"])
-    if patient.systolic_bp is not None:
-        _add_terms(terms, ["systolic", "blood pressure", "hypotension"])
-    if patient.heart_rate is not None:
-        _add_terms(terms, ["heart rate", "bradycardia"])
-    if patient.creatinine is not None:
-        terms.add("creatinine")
-    if patient.inr is not None:
-        terms.add("inr")
-
-    return sorted(terms)
 
 
 def passes_negative_evidence_filter(

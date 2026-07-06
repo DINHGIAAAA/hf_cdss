@@ -7,6 +7,7 @@ from typing import Any
 from botocore.exceptions import ClientError
 
 from scraper.paths import data_root
+from scraper.s3_client import s3_client
 
 ROOT = data_root()
 DEFAULT_REGISTRY = ROOT / "sources" / "sources.example.json"
@@ -17,18 +18,6 @@ DEFAULT_PREFIX = os.environ.get("HF_CDSS_S3_PREFIX", "heart_failure")
 
 def load_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8-sig"))
-
-
-def s3_client(endpoint_url: str):
-    import boto3
-
-    return boto3.client(
-        "s3",
-        endpoint_url=endpoint_url,
-        aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID", "test"),
-        aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY", "test"),
-        region_name=os.environ.get("AWS_DEFAULT_REGION", "us-east-1"),
-    )
 
 
 def object_key(prefix: str, target_path: str) -> str:

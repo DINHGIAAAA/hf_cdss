@@ -12,7 +12,7 @@ from app.modules.graphrag.hyde_expansion import (
 )
 from app.modules.graphrag.service import build_graphrag_context_async
 from app.schemas.graphrag import EvidenceChunk, GraphRAGContextRequest
-from app.schemas.patient import PatientProfile
+from app.tests.conftest import hfref_patient
 
 
 def _evidence_chunk() -> EvidenceChunk:
@@ -24,22 +24,6 @@ def _evidence_chunk() -> EvidenceChunk:
         text="Potassium monitoring guidance.",
         score=0.8,
     )
-
-
-def _patient(**overrides) -> PatientProfile:
-    base = {
-        "case_id": "CASE_HYDE",
-        "lvef": 28,
-        "egfr": 24,
-        "potassium": 5.7,
-        "systolic_bp": 98,
-        "heart_rate": 54,
-        "comorbidities": ["CKD"],
-        "current_medications": ["spironolactone"],
-        "allergies": [],
-    }
-    base.update(overrides)
-    return PatientProfile(**base)
 
 
 @pytest.fixture(autouse=True)
@@ -79,7 +63,7 @@ def test_generate_hyde_document_uses_llm_and_cache(monkeypatch) -> None:
 
     monkeypatch.setattr(hyde_expansion, "get_async_client", lambda *_args, **_kwargs: FakeClient())
 
-    patient = _patient()
+    patient = hfref_patient()
     query = "co nen tiep spiro k+ 5.7"
     first = asyncio.run(generate_hyde_document(query, patient))
     second = asyncio.run(generate_hyde_document(query, patient))
@@ -139,7 +123,7 @@ def test_build_graphrag_context_async_uses_hyde_for_chroma(monkeypatch) -> None:
     response = asyncio.run(
         build_graphrag_context_async(
             GraphRAGContextRequest(
-                patient=_patient(),
+                patient=hfref_patient(),
                 query="co nen tiep spiro k+ 5.7",
                 top_k=4,
             )

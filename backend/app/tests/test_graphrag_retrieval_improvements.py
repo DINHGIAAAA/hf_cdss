@@ -12,23 +12,7 @@ from app.modules.graphrag.service import (
 )
 from app.modules.semantic_retrieval import service as semantic_service
 from app.schemas.graphrag import EvidenceChunk, GraphRAGContextRequest
-from app.schemas.patient import PatientProfile
-
-
-def _patient(**overrides) -> PatientProfile:
-    base = {
-        "case_id": "CASE_RETRIEVAL",
-        "lvef": 28,
-        "egfr": 24,
-        "potassium": 5.7,
-        "systolic_bp": 98,
-        "heart_rate": 54,
-        "comorbidities": ["CKD"],
-        "current_medications": ["spironolactone"],
-        "allergies": [],
-    }
-    base.update(overrides)
-    return PatientProfile(**base)
+from app.tests.conftest import hfref_patient
 
 
 def _chunk(chunk_id: str, score: float) -> EvidenceChunk:
@@ -84,7 +68,7 @@ def test_reciprocal_rank_fusion_prefers_consensus_ranking() -> None:
 def test_adaptive_top_k_scales_with_clinical_complexity(monkeypatch) -> None:
     monkeypatch.setattr(settings, "graphrag_adaptive_top_k", True)
     request = GraphRAGContextRequest(
-        patient=_patient(),
+        patient=hfref_patient(),
         top_k=6,
         clinical_state={
             "focus_medication_classes": ["mra", "sglt2i"],
@@ -199,7 +183,7 @@ def test_build_graphrag_context_sync_uses_hyde_when_loop_running(monkeypatch) ->
     async def run_in_loop() -> None:
         response = build_graphrag_context(
             GraphRAGContextRequest(
-                patient=_patient(),
+                patient=hfref_patient(),
                 query="co nen tiep spiro k+ 5.7",
                 top_k=4,
             )
@@ -242,7 +226,7 @@ def test_build_graphrag_context_async_uses_multi_query(monkeypatch) -> None:
     response = asyncio.run(
         build_graphrag_context_async(
             GraphRAGContextRequest(
-                patient=_patient(),
+                patient=hfref_patient(),
                 query="co nen tiep spiro k+ 5.7",
                 top_k=4,
                 clinical_state={"conditions": ["ckd"], "focus_medication_classes": ["mra"]},

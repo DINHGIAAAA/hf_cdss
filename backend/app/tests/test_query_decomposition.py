@@ -7,28 +7,15 @@ from app.modules.graphrag.query_decomposition import (
 )
 from app.modules.graphrag.service import _semantic_retrieval_queries
 from app.schemas.graphrag import GraphRAGContextRequest
-from app.schemas.patient import PatientProfile
-
-
-def _patient(**overrides) -> PatientProfile:
-    base = {
-        "case_id": "CASE_DECOMP",
-        "lvef": 28,
-        "egfr": 24,
-        "potassium": 5.7,
-        "systolic_bp": 98,
-        "heart_rate": 54,
-        "comorbidities": ["CKD", "diabetes"],
-        "current_medications": ["spironolactone", "empagliflozin"],
-        "allergies": [],
-    }
-    base.update(overrides)
-    return PatientProfile(**base)
+from app.tests.conftest import hfref_patient
 
 
 def test_should_decompose_for_multiple_drug_classes() -> None:
     facets = collect_drug_class_facets(
-        _patient(),
+        hfref_patient(
+            comorbidities=["CKD", "diabetes"],
+            current_medications=["spironolactone", "empagliflozin"],
+        ),
         {
             "focus_medication_classes": ["MRA", "SGLT2i"],
             "mentioned_medications": [
@@ -37,14 +24,17 @@ def test_should_decompose_for_multiple_drug_classes() -> None:
             ],
         },
     )
-    conditions = collect_condition_facets(_patient(), {"conditions": ["CKD", "diabetes"]})
+    conditions = collect_condition_facets(hfref_patient(), {"conditions": ["CKD", "diabetes"]})
 
     assert len(facets) >= 2
     assert should_decompose_query(facets, conditions) is True
 
 
 def test_decompose_generates_per_drug_class_and_comorbidity_queries() -> None:
-    patient = _patient()
+    patient = hfref_patient(
+        comorbidities=["CKD", "diabetes"],
+        current_medications=["spironolactone", "empagliflozin"],
+    )
     clinical_state = {
         "intent": "safety_check",
         "hf_type": "HFrEF",
@@ -71,7 +61,7 @@ def test_decompose_generates_per_drug_class_and_comorbidity_queries() -> None:
 
 
 def test_decompose_skipped_for_simple_single_drug_case() -> None:
-    patient = _patient(
+    patient = hfref_patient(
         current_medications=["spironolactone"],
         comorbidities=[],
         egfr=70,
@@ -97,7 +87,7 @@ def test_semantic_retrieval_queries_include_decomposed_facets(monkeypatch) -> No
     monkeypatch.setattr(settings, "graphrag_query_decomposition_enabled", True)
 
     request = GraphRAGContextRequest(
-        patient=_patient(),
+        patient=hfref_patient(),
         query="Review MRA and SGLT2i safety with CKD",
         clinical_state={
             "intent": "safety_check",
@@ -146,7 +136,7 @@ def test_build_graphrag_context_marks_query_decomposition_source(monkeypatch) ->
     response = asyncio.run(
         build_graphrag_context_async(
             GraphRAGContextRequest(
-                patient=_patient(),
+                patient=hfref_patient(),
                 query="Review MRA and SGLT2i with CKD and diabetes",
                 top_k=4,
                 clinical_state={

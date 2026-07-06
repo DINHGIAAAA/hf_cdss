@@ -1,6 +1,5 @@
 from app.modules.clinical_entity_boosting import (
     EntityTier,
-    classify_term,
     classify_term_tier,
     clinical_entity_boost,
     threshold_proximity_boost,
@@ -33,8 +32,8 @@ def test_classify_term_tier_groups_fine_grained_entities() -> None:
 
 
 def test_patient_critical_lab_terms_get_higher_multiplier(monkeypatch) -> None:
-    monkeypatch.setattr("app.modules.clinical_entity_boosting.settings.clinical_entity_patient_critical_multiplier", 1.65)
-    monkeypatch.setattr("app.modules.clinical_entity_boosting.settings.clinical_entity_patient_lab_affinity_multiplier", 1.40)
+    monkeypatch.setattr("app.modules.clinical_entity_boosting.PATIENT_CRITICAL_MULTIPLIER", 1.65)
+    monkeypatch.setattr("app.modules.clinical_entity_boosting.PATIENT_LAB_AFFINITY_MULTIPLIER", 1.40)
 
     patient = PatientProfile(case_id="CASE_1", egfr=24)
     critical_boost = clinical_entity_boost(["egfr"], patient=patient)
@@ -44,8 +43,8 @@ def test_patient_critical_lab_terms_get_higher_multiplier(monkeypatch) -> None:
 
 
 def test_threshold_proximity_boost_stronger_for_critical_egfr(monkeypatch) -> None:
-    monkeypatch.setattr("app.modules.clinical_entity_boosting.settings.clinical_entity_threshold_boost_max", 0.22)
-    monkeypatch.setattr("app.modules.clinical_entity_boosting.settings.clinical_entity_threshold_critical_multiplier", 1.35)
+    monkeypatch.setattr("app.modules.clinical_entity_boosting.THRESHOLD_BOOST_MAX", 0.22)
+    monkeypatch.setattr("app.modules.clinical_entity_boosting.THRESHOLD_CRITICAL_MULTIPLIER", 1.35)
 
     patient = PatientProfile(case_id="CASE_1", egfr=24)
     chunk = _chunk(

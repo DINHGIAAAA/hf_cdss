@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 
 from scraper.paths import data_root
+from scraper.s3_client import s3_client
 
 ROOT = data_root()
 DEFAULT_ENDPOINT_URL = os.environ.get("HF_CDSS_S3_ENDPOINT_URL", "http://localhost:4566")
@@ -14,18 +15,6 @@ def safe_run_id(value: str | None) -> str | None:
     if value is None:
         return None
     return "".join(char if char.isalnum() or char in ("-", "_", ".") else "_" for char in value)
-
-
-def s3_client(endpoint_url: str):
-    import boto3
-
-    return boto3.client(
-        "s3",
-        endpoint_url=endpoint_url,
-        aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID", "test"),
-        aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY", "test"),
-        region_name=os.environ.get("AWS_DEFAULT_REGION", "us-east-1"),
-    )
 
 
 def content_type(path: Path) -> str:

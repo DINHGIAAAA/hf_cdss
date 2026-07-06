@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from scraper.paths import data_root
+from scraper.s3_client import s3_client
 
 ROOT = data_root()
 DEFAULT_REGISTRY = ROOT / "sources" / "sources.example.json"
@@ -133,18 +134,6 @@ def validate_payload(kind: str, target_path: str, payload: bytes, url: str) -> N
         raise RuntimeError(f"Expected HTML but received non-HTML payload from {url}")
     if (kind == "xml" or suffix == ".xml") and not (head.startswith(b"<?xml") or head.startswith(b"<")):
         raise RuntimeError(f"Expected XML but received non-XML payload from {url}")
-
-
-def s3_client(endpoint_url: str):
-    import boto3
-
-    return boto3.client(
-        "s3",
-        endpoint_url=endpoint_url,
-        aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID", "test"),
-        aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY", "test"),
-        region_name=os.environ.get("AWS_DEFAULT_REGION", "us-east-1"),
-    )
 
 
 def s3_key(prefix: str, target_path: str) -> str:

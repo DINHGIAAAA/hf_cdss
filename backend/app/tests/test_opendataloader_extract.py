@@ -1,3 +1,10 @@
+import sys
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 from scraper.transform.opendataloader_extract import parse_opendataloader_document
 from scraper.transform.parse_guideline_pdf import split_sections
 
@@ -60,6 +67,8 @@ SAMPLE_DOCUMENT = {
 
 
 def test_parse_opendataloader_document_builds_pages_and_tables() -> None:
+    from scraper.transform.table_sections import build_table_section_records
+
     pages, tables = parse_opendataloader_document(SAMPLE_DOCUMENT)
 
     assert len(pages) == 2
@@ -72,6 +81,16 @@ def test_parse_opendataloader_document_builds_pages_and_tables() -> None:
     assert tables[0]["page"] == 1
     assert tables[0]["rows"][0] == ["Drug", "Dose"]
     assert tables[0]["rows"][1] == ["Metformin", "500 mg"]
+
+    _, table_sections = build_table_section_records(
+        tables,
+        document_id="ada_guideline",
+        provenance={"source_id": "ada_guideline"},
+        guideline_topic="diabetes",
+        source_file="ada_guideline.pdf",
+    )
+    assert table_sections[0]["section"] == "TABLE 1"
+    assert "| Metformin | 500 mg |" in table_sections[0]["text"]
 
 
 def test_split_sections_uses_opendataloader_heading_markers() -> None:
