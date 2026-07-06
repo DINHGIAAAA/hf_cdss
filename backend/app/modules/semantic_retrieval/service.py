@@ -1,6 +1,7 @@
 import logging
 import math
 import re
+from collections import defaultdict
 from functools import lru_cache
 
 from app.core.config import settings
@@ -73,6 +74,29 @@ def _source_quality(chunk: EvidenceChunk) -> float:
     if chunk.source_type == "drug_label":
         return 0.05
     return 0.0
+
+
+def reciprocal_rank_fusion(
+    ranked_lists: list[list[EvidenceChunk]],
+    *,
+    k: int | None = None,
+) -> list[EvidenceChunk]:
+    """Merge multiple ranked chunk lists without requiring score normalization."""
+    if not ranked_lists:
+        return []
+    if len(ranked_lists) == 1:
+        return list(ranked_lists[0])
+
+    rrf_k = k if k is not None else settings.graphrag_rrf_k
+    scores: dict[str, float] = defaultdict(float)
+    chunks: dict[str, EvidenceChunk] = {}
+    for ranked in ranked_lists:
+        for rank, chunk in enumerate(ranked, start=1):
+            scores[chunk.chunk_id] += 1.0 / (rrf_k + rank)
+            if chunk.chunk_id not in chunks or chunk.score > chunks[chunk.chunk_id].score:
+                chunks[chunk.chunk_id] = chunk
+
+    return sorted(chunks.values(), key=lambda item: scores[item.chunk_id], reverse=True)
 
 
 def rerank_evidence_chunks(query: str, chunks: list[EvidenceChunk], top_k: int) -> list[EvidenceChunk]:

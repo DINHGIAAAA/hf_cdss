@@ -2,6 +2,8 @@ import json
 import logging
 import re
 import time
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -16,12 +18,12 @@ from app.modules.graphrag.hyde_expansion import (
 )
 from app.modules.citation_validation.service import source_link_for_chunk
 from app.modules.datastores.artifacts import sync_artifacts_from_processed_bucket
-from app.modules.datastores.chroma import retrieve_chroma
+from app.modules.datastores.chroma import retrieve_chroma, retrieve_chroma_multi_query
 from app.modules.datastores.common import CHUNKS_PATH, DATA_ROOT, RELATIONSHIPS_PATH
 from app.modules.datastores.neo4j import neo4j_driver as get_driver, retrieve_neo4j
 from app.modules.evidence_text import normalize_evidence_text
 from app.modules.evidence_quality import enrich_evidence_chunk, quality_score_for_chunk
-from app.modules.semantic_retrieval.service import rerank_evidence_chunks
+from app.modules.semantic_retrieval.service import reciprocal_rank_fusion, rerank_evidence_chunks
 from app.schemas.graphrag import (
     EvidenceChunk,
     EvidenceSearchResponse,
@@ -174,6 +176,183 @@ def query_terms_for_patient(
         _add_terms(terms, ["bradycardia", "heart rate", "beta blocker"])
 
     return sorted(terms)
+
+
+def adaptive_top_k(request: GraphRAGContextRequest) -> int:
+    base_k = max(1, request.top_k or 6)
+    if not settings.graphrag_adaptive_top_k:
+        return min(base_k, 16)
+    state = request.clinical_state or {}
+    focus_classes = len(state.get("focus_medication_classes") or [])
+    conditions = len(state.get("conditions") or [])
+    medications = len(state.get("mentioned_medications") or [])
+    complexity = focus_classes + conditions // 2 + medications // 3
+    return min(max(base_k + complexity * 2, 4), 16)
+
+
+def _semantic_retrieval_queries(
+    request: GraphRAGContextRequest,
+    *,
+    baseline_query: str,
+    hyde_document: str | None,
+) -> list[str]:
+    queries: list[str] = []
+    semantic_query = build_semantic_retrieval_query(
+        baseline_query=baseline_query,
+        hyde_document=hyde_document,
+    )
+    if semantic_query:
+        queries.append(semantic_query)
+    if baseline_query and baseline_query not in queries:
+        queries.append(baseline_query)
+    if settings.graphrag_multi_query_enabled:
+        if hyde_document and hyde_document not in queries:
+            queries.append(hyde_document)
+        if request.clinical_state:
+            state_text = state_query_text(request.clinical_state)
+            if state_text and state_text not in queries:
+                queries.append(state_text)
+
+    unique: list[str] = []
+    seen: set[str] = set()
+    for query in queries:
+        normalized = query.strip()
+        if not normalized:
+            continue
+        key = normalized.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(normalized)
+    return unique
+
+
+@lru_cache(maxsize=1)
+def _chunk_index_by_id() -> dict[str, dict[str, Any]]:
+    return {row["chunk_id"]: row for row in load_published_chunks()}
+
+
+@lru_cache(maxsize=1)
+def _chunk_index_by_position() -> dict[tuple[str, str, int], str]:
+    index: dict[tuple[str, str, int], str] = {}
+    for row in load_published_chunks():
+        metadata = row.get("metadata") or {}
+        document_id = row.get("document_id", "")
+        section_id = row.get("section_id") or metadata.get("section_id") or row.get("section") or ""
+        chunk_index = int(metadata.get("chunk_index") or 0)
+        if document_id and chunk_index:
+            index[(document_id, section_id, chunk_index)] = row["chunk_id"]
+    return index
+
+
+def _row_to_evidence_chunk(row: dict[str, Any], *, score: float) -> EvidenceChunk:
+    metadata = row.get("metadata") or {}
+    chunk = EvidenceChunk(
+        chunk_id=row["chunk_id"],
+        document_id=row.get("document_id", ""),
+        source_type=row.get("source_type", ""),
+        section=row.get("section"),
+        text=normalize_evidence_text(row.get("text", ""))[:900],
+        score=score,
+        metadata=metadata,
+        source_url=metadata.get("source_url"),
+        page=metadata.get("page") or metadata.get("page_start"),
+    )
+    return enrich_evidence_chunk(chunk.model_copy(update={"source_link": source_link_for_chunk(chunk)}))
+
+
+def expand_chunk_windows(
+    chunks: list[EvidenceChunk],
+    *,
+    window_size: int | None = None,
+) -> list[EvidenceChunk]:
+    if not chunks:
+        return []
+    window = window_size if window_size is not None else settings.graphrag_chunk_window_size
+    if window <= 0:
+        return chunks
+
+    by_id = _chunk_index_by_id()
+    by_position = _chunk_index_by_position()
+    expanded: dict[str, EvidenceChunk] = {chunk.chunk_id: chunk for chunk in chunks}
+
+    for chunk in chunks:
+        metadata = chunk.metadata or {}
+        document_id = chunk.document_id
+        section_id = metadata.get("section_id") or chunk.section or ""
+        chunk_index = int(metadata.get("chunk_index") or 0)
+        if not document_id or not chunk_index:
+            continue
+        for offset in range(-window, window + 1):
+            if offset == 0:
+                continue
+            neighbor_id = by_position.get((document_id, section_id, chunk_index + offset))
+            if not neighbor_id or neighbor_id in expanded:
+                continue
+            row = by_id.get(neighbor_id)
+            if not row:
+                continue
+            expanded[neighbor_id] = _row_to_evidence_chunk(row, score=chunk.score * 0.85)
+
+    ordered: list[EvidenceChunk] = []
+    seen: set[str] = set()
+    for chunk in sorted(chunks, key=lambda item: item.score, reverse=True):
+        if chunk.chunk_id not in seen:
+            ordered.append(expanded[chunk.chunk_id])
+            seen.add(chunk.chunk_id)
+    for chunk_id, chunk in expanded.items():
+        if chunk_id not in seen:
+            ordered.append(chunk)
+            seen.add(chunk_id)
+    return ordered
+
+
+def _retrieve_evidence_from_chroma(
+    queries: list[str],
+    *,
+    primary_query: str,
+    top_k: int,
+) -> list[EvidenceChunk]:
+    if len(queries) > 1 and settings.graphrag_multi_query_enabled:
+        return retrieve_chroma_multi_query(queries, top_k, primary_query=primary_query)
+    return retrieve_chroma(primary_query or queries[0], top_k)
+
+
+def _retrieve_graph_facts_parallel(
+    terms: list[str],
+    top_k: int,
+    evidence_chunks: list[EvidenceChunk],
+) -> tuple[list[GraphFact], list[GraphFact]]:
+    graph_facts: list[GraphFact] = []
+    dynamic_graph_facts: list[GraphFact] = []
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        neo4j_future = pool.submit(retrieve_neo4j, terms, top_k)
+        dynamic_future = pool.submit(retrieve_dynamic_graph_facts, evidence_chunks, 5)
+        try:
+            graph_facts = neo4j_future.result()
+        except Exception as exc:
+            logger.warning("Neo4j retrieval unavailable; using local graph fallback: %s", exc)
+        try:
+            dynamic_graph_facts = dynamic_future.result()
+        except Exception as exc:
+            logger.warning("Dynamic Neo4j retrieval unavailable: %s", exc)
+    return graph_facts, dynamic_graph_facts
+
+
+def _merge_evidence_rankings(
+    ranked_lists: list[list[EvidenceChunk]],
+    *,
+    query: str,
+    top_k: int,
+) -> list[EvidenceChunk]:
+    if not ranked_lists:
+        return []
+    if len(ranked_lists) == 1:
+        merged = ranked_lists[0]
+    else:
+        merged = reciprocal_rank_fusion(ranked_lists)
+    ranked = rerank_evidence_chunks(query, merged, top_k)
+    return sorted(ranked, key=lambda item: (quality_score_for_chunk(item), item.score), reverse=True)[:top_k]
 
 
 def _score_text(text: str, terms: list[str]) -> float:
@@ -350,18 +529,13 @@ def retrieve_graph_facts(terms: list[str], top_k: int, *, published: bool = True
 
 
 def build_graphrag_context(request: GraphRAGContextRequest) -> GraphRAGContextResponse:
-    import asyncio
-
     try:
         asyncio.get_running_loop()
     except RuntimeError:
         return asyncio.run(build_graphrag_context_async(request))
-    return _build_graphrag_context_impl(
-        request,
-        semantic_query=request.query or "",
-        hyde_document=None,
-        hyde_used=False,
-    )
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        return executor.submit(asyncio.run, build_graphrag_context_async(request)).result()
 
 
 async def build_graphrag_context_async(request: GraphRAGContextRequest) -> GraphRAGContextResponse:
@@ -391,12 +565,18 @@ async def build_graphrag_context_async(request: GraphRAGContextRequest) -> Graph
         baseline_query=baseline_query,
         hyde_document=hyde_document,
     )
+    retrieval_queries = _semantic_retrieval_queries(
+        request,
+        baseline_query=baseline_query,
+        hyde_document=hyde_document,
+    )
     return _build_graphrag_context_impl(
         request,
         terms=terms,
         semantic_query=semantic_query,
         hyde_document=hyde_document,
         hyde_used=hyde_used,
+        retrieval_queries=retrieval_queries,
     )
 
 
@@ -407,6 +587,7 @@ def _build_graphrag_context_impl(
     semantic_query: str,
     hyde_document: str | None,
     hyde_used: bool,
+    retrieval_queries: list[str] | None = None,
 ) -> GraphRAGContextResponse:
     started = time.perf_counter()
     if terms is None:
@@ -416,34 +597,41 @@ def _build_graphrag_context_impl(
             conversation_history=request.conversation_history,
             clinical_state=request.clinical_state,
         )
-    top_k = max(1, min(request.top_k, 12))
+    top_k = adaptive_top_k(request)
     graph_facts: list[GraphFact] = []
     evidence_chunks: list[EvidenceChunk] = []
     retrieval_sources: list[str] = []
+    queries = retrieval_queries or [semantic_query or request.query or " ".join(terms)]
+    primary_query = semantic_query or request.query or " ".join(terms)
 
     if settings.retrieval_backend in {"hybrid", "databases"}:
         try:
-            query_text = semantic_query or request.query or " ".join(terms)
-            evidence_chunks = retrieve_chroma(query_text, top_k)
+            evidence_chunks = _retrieve_evidence_from_chroma(
+                queries,
+                primary_query=primary_query,
+                top_k=top_k,
+            )
             if evidence_chunks:
                 retrieval_sources.append("chromadb")
+                if len(queries) > 1:
+                    retrieval_sources.append("multi_query")
                 if hyde_used:
                     retrieval_sources.append("hyde")
         except Exception as exc:
             logger.warning("ChromaDB retrieval unavailable; using local evidence fallback: %s", exc)
 
         if not evidence_chunks:
-            evidence_chunks = retrieve_evidence_chunks(terms, top_k)
+            local_chunks = retrieve_evidence_chunks(terms, top_k)
+            evidence_chunks = _merge_evidence_rankings(
+                [local_chunks],
+                query=primary_query,
+                top_k=top_k,
+            )
             retrieval_sources.append("local_chunks")
 
-        try:
-            graph_facts = retrieve_neo4j(terms, top_k)
-            if graph_facts:
-                retrieval_sources.append("neo4j")
-        except Exception as exc:
-            logger.warning("Neo4j retrieval unavailable; using local graph fallback: %s", exc)
-
-        dynamic_graph_facts = retrieve_dynamic_graph_facts(evidence_chunks, top_k=5)
+        graph_facts, dynamic_graph_facts = _retrieve_graph_facts_parallel(terms, top_k, evidence_chunks)
+        if graph_facts:
+            retrieval_sources.append("neo4j")
         if dynamic_graph_facts:
             graph_facts.extend(dynamic_graph_facts)
             retrieval_sources.append("neo4j_dynamic")
@@ -454,6 +642,10 @@ def _build_graphrag_context_impl(
     if not evidence_chunks:
         evidence_chunks = retrieve_evidence_chunks(terms, top_k)
         retrieval_sources.append("local_chunks")
+
+    if evidence_chunks and settings.graphrag_chunk_window_size > 0:
+        evidence_chunks = expand_chunk_windows(evidence_chunks)
+        retrieval_sources.append("chunk_window")
 
     response = GraphRAGContextResponse(
         case_id=request.patient.case_id,

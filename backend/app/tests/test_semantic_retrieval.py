@@ -11,6 +11,27 @@ def test_embedding_index_version_includes_provider_model_and_dimensions(monkeypa
     assert semantic_service.embedding_index_version() == "ollama_nomic_embed_text_768"
 
 
+def test_reciprocal_rank_fusion_merges_rank_lists() -> None:
+    left = EvidenceChunk(
+        chunk_id="left",
+        document_id="a",
+        source_type="guideline",
+        section="A",
+        text="Left chunk.",
+        score=0.2,
+    )
+    right = EvidenceChunk(
+        chunk_id="right",
+        document_id="b",
+        source_type="guideline",
+        section="B",
+        text="Right chunk.",
+        score=0.9,
+    )
+    merged = semantic_service.reciprocal_rank_fusion([[left], [right, left]])
+    assert merged[0].chunk_id == "left"
+
+
 def test_semantic_rerank_orders_by_embedding_similarity(monkeypatch) -> None:
     monkeypatch.setattr(settings, "semantic_rerank_enabled", True)
     monkeypatch.setattr(settings, "semantic_rerank_weight", 1.0)

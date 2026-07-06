@@ -8,11 +8,17 @@ from app.modules.citation_validation.service import source_link_for_chunk
 from app.modules.datastores.common import CHUNKS_PATH, read_jsonl
 from app.modules.evidence_text import normalize_evidence_text
 from app.modules.evidence_quality import enrich_evidence_chunk, quality_score_for_chunk
-from app.modules.semantic_retrieval.service import embed_documents, embed_query, embedding_index_version, rerank_evidence_chunks
+from app.modules.semantic_retrieval.service import (
+    embed_documents,
+    embed_query,
+    embedding_index_version,
+    reciprocal_rank_fusion,
+    rerank_evidence_chunks,
+)
 from app.schemas.graphrag import EvidenceChunk
 
 
-INDEX_VERSION = "heart_failure_chunks_v3"
+INDEX_VERSION = "heart_failure_chunks_v4"
 
 
 def _file_sha256(path) -> str:
@@ -66,6 +72,31 @@ def _searchable_text(chunk: dict[str, Any]) -> str:
     )
 
 
+def _contextual_prefix(chunk: dict[str, Any]) -> str:
+    """Anthropic-style contextual retrieval prefix for embedding only."""
+    metadata = chunk.get("metadata", {}) or {}
+    parts: list[str] = []
+    document_id = chunk.get("document_id") or metadata.get("source_document_id") or ""
+    if document_id:
+        parts.append(document_id.replace("_", " ").replace("-", " "))
+    section = chunk.get("section") or metadata.get("source_section") or ""
+    if section:
+        parts.append(section)
+    publisher = metadata.get("publisher") or metadata.get("organization") or metadata.get("source") or ""
+    if publisher:
+        parts.append(str(publisher))
+    source_type = chunk.get("source_type") or ""
+    if source_type:
+        parts.append(source_type.replace("_", " "))
+    if not parts:
+        return ""
+    return f"[From {', '.join(parts)}]: "
+
+
+def _embed_text_for_chunk(chunk: dict[str, Any]) -> str:
+    return _contextual_prefix(chunk) + _searchable_text(chunk)
+
+
 def initialize_chroma() -> dict[str, Any]:
     chunks = read_jsonl(CHUNKS_PATH)
     source_sha256 = _file_sha256(CHUNKS_PATH) if CHUNKS_PATH.exists() else ""
@@ -85,7 +116,7 @@ def initialize_chroma() -> dict[str, Any]:
         batch = chunks[start : start + batch_size]
         end = min(start + batch_size, len(chunks))
         print(f"[datastore-bootstrap] chroma upsert batch {start + 1}-{end}/{len(chunks)}", flush=True)
-        searchable_documents = [_searchable_text(chunk) for chunk in batch]
+        searchable_documents = [_embed_text_for_chunk(chunk) for chunk in batch]
         collection.upsert(
             ids=[chunk["chunk_id"] for chunk in batch],
             documents=[chunk.get("text", "") for chunk in batch],
@@ -111,8 +142,7 @@ def initialize_chroma() -> dict[str, Any]:
     return {"status": "ok", "chunks": len(chunks), "action": "upserted"}
 
 
-def retrieve_chroma(query: str, top_k: int) -> list[EvidenceChunk]:
-    candidate_count = max(top_k, min(settings.semantic_rerank_candidates, top_k * 4))
+def _query_chroma(query: str, candidate_count: int) -> list[EvidenceChunk]:
     results = _collection().query(
         query_embeddings=[embed_query(query)],
         n_results=candidate_count,
@@ -138,7 +168,57 @@ def retrieve_chroma(query: str, top_k: int) -> list[EvidenceChunk]:
             page=raw_metadata.get("page") or raw_metadata.get("page_start"),
         )
         chunks.append(enrich_evidence_chunk(chunk.model_copy(update={"source_link": source_link_for_chunk(chunk)})))
+    return chunks
+
+
+def retrieve_chroma(query: str, top_k: int) -> list[EvidenceChunk]:
+    candidate_count = max(top_k, min(settings.semantic_rerank_candidates, top_k * 4))
+    chunks = _query_chroma(query, candidate_count)
     ranked = rerank_evidence_chunks(query, chunks, top_k)
+    return sorted(ranked, key=lambda item: (quality_score_for_chunk(item), item.score), reverse=True)[:top_k]
+
+
+def retrieve_chroma_multi_query(
+    queries: list[str],
+    top_k: int,
+    *,
+    primary_query: str | None = None,
+) -> list[EvidenceChunk]:
+    unique_queries: list[str] = []
+    seen: set[str] = set()
+    for query in queries:
+        normalized = (query or "").strip()
+        if not normalized:
+            continue
+        key = normalized.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        unique_queries.append(normalized)
+
+    if not unique_queries:
+        return []
+    if len(unique_queries) == 1:
+        return retrieve_chroma(unique_queries[0], top_k)
+
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    per_query_k = max(2, top_k // 2 + 2)
+    candidate_count = max(per_query_k, min(settings.semantic_rerank_candidates, per_query_k * 4))
+    ranked_lists: list[list[EvidenceChunk]] = []
+    with ThreadPoolExecutor(max_workers=min(len(unique_queries), 4)) as pool:
+        futures = [pool.submit(_query_chroma, query, candidate_count) for query in unique_queries]
+        for future in as_completed(futures):
+            try:
+                ranked_lists.append(future.result())
+            except Exception:
+                continue
+
+    if not ranked_lists:
+        return []
+    merged = reciprocal_rank_fusion(ranked_lists)
+    rerank_query = primary_query or unique_queries[0]
+    ranked = rerank_evidence_chunks(rerank_query, merged, top_k)
     return sorted(ranked, key=lambda item: (quality_score_for_chunk(item), item.score), reverse=True)[:top_k]
 
 

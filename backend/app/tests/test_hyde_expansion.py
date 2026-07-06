@@ -112,8 +112,13 @@ def test_build_graphrag_context_async_uses_hyde_for_chroma(monkeypatch) -> None:
         captured["query"] = query
         return []
 
+    def fake_multi_query(queries: list[str], top_k: int, *, primary_query: str | None = None):
+        captured["query"] = primary_query or queries[0]
+        return []
+
     monkeypatch.setattr("app.modules.graphrag.service.generate_hyde_document", fake_hyde)
     monkeypatch.setattr("app.modules.graphrag.service.retrieve_chroma", fake_chroma)
+    monkeypatch.setattr("app.modules.graphrag.service.retrieve_chroma_multi_query", fake_multi_query)
     monkeypatch.setattr("app.modules.graphrag.service.retrieve_neo4j", lambda *_args, **_kwargs: [])
     monkeypatch.setattr("app.modules.graphrag.service.retrieve_graph_facts", lambda *_args, **_kwargs: [])
     monkeypatch.setattr("app.modules.graphrag.service.retrieve_evidence_chunks", lambda *_args, **_kwargs: [])

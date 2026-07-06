@@ -357,26 +357,33 @@ def _write_cache(key: str, response: VerificationResponse) -> None:
         )
 
 
-async def verify_recommendation(request: VerificationRequest) -> VerificationResponse:
+async def verify_recommendation(
+    request: VerificationRequest,
+    *,
+    prefetched_context: GraphRAGContextResponse | None = None,
+) -> VerificationResponse:
     cache_key = _cache_key(request)
     cached = _read_cache(cache_key)
     if cached:
         return cached
 
     response = request.recommendation or build_recommendation(RecommendationRequest(patient=request.patient))
-    context = await build_graphrag_context_async(
-        GraphRAGContextRequest(
-            patient=request.patient,
-            query=(
-                request.query
-                or request.patient.care_context.clinician_question
-                or request.patient.care_context.decision_context
-            ),
-            top_k=max(1, min(settings.verification_retrieval_top_k, 8)),
-            conversation_history=request.conversation_history,
-            clinical_state=request.clinical_state,
+    if prefetched_context is not None:
+        context = prefetched_context
+    else:
+        context = await build_graphrag_context_async(
+            GraphRAGContextRequest(
+                patient=request.patient,
+                query=(
+                    request.query
+                    or request.patient.care_context.clinician_question
+                    or request.patient.care_context.decision_context
+                ),
+                top_k=max(1, min(settings.verification_retrieval_top_k, 16)),
+                conversation_history=request.conversation_history,
+                clinical_state=request.clinical_state,
+            )
         )
-    )
 
     fallbacks: list[tuple[str, AgentResult]] = [
         ("safety_agent", safety_agent(response)),

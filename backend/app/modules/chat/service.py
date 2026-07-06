@@ -5,6 +5,7 @@ from collections.abc import AsyncIterator
 from datetime import datetime, timezone
 from typing import Any
 
+from app.core.config import settings
 from app.modules.clinical_intake_extraction.service import extract_patient_from_message
 from app.modules.chat.clinical_state import build_clinical_state, state_query_text
 from app.modules.datastores.postgres import (
@@ -18,9 +19,10 @@ from app.modules.explanation.llm_service import build_llm_answer, stream_llm_ans
 from app.modules.evidence_linking.service import enrich_recommendation_evidence
 from app.modules.missing_fields.service import build_missing_fields_prompt, check_missing_fields
 from app.modules.reasoning.service import build_recommendation
+from app.modules.graphrag.service import build_graphrag_context_async
 from app.modules.verification_agents.service import verify_recommendation
 from app.schemas.chat import ChatMessage, ChatRequest, ChatResponse, PatientDraft
-from app.schemas.graphrag import VerificationRequest
+from app.schemas.graphrag import GraphRAGContextRequest, VerificationRequest
 from app.schemas.llm import LLMAnswerRequest
 from app.schemas.patient import ClinicalDocument, PatientIdentity, PatientProfile
 from app.schemas.recommendation import RecommendationRequest
@@ -243,6 +245,14 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
         return
 
     yield _sse("status", {"step": "building_recommendation"})
+    graphrag_request = GraphRAGContextRequest(
+        patient=merged,
+        query=request.message,
+        top_k=settings.verification_retrieval_top_k,
+        conversation_history=_prior_user_messages(conversation_id),
+        clinical_state=clinical_state,
+    )
+    graphrag_prefetch = asyncio.create_task(build_graphrag_context_async(graphrag_request))
     recommendation = build_recommendation(
         RecommendationRequest(patient=merged, clinical_state=clinical_state)
     )
@@ -255,7 +265,8 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
             conversation_history=_prior_user_messages(conversation_id),
             clinical_state=clinical_state,
             query=request.message,
-        )
+        ),
+        prefetched_context=await graphrag_prefetch,
     )
     recommendation = enrich_recommendation_evidence(recommendation, verification.citation_validation)
     tool_outputs.append({"tool": "recommendation", "result": recommendation.model_dump(mode="json")})
@@ -387,6 +398,14 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
             tool_outputs=tool_outputs,
         )
 
+    graphrag_request = GraphRAGContextRequest(
+        patient=merged,
+        query=request.message,
+        top_k=settings.verification_retrieval_top_k,
+        conversation_history=_prior_user_messages(conversation_id),
+        clinical_state=clinical_state,
+    )
+    graphrag_prefetch = asyncio.create_task(build_graphrag_context_async(graphrag_request))
     recommendation = build_recommendation(
         RecommendationRequest(patient=merged, clinical_state=clinical_state)
     )
@@ -397,7 +416,8 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
             conversation_history=_prior_user_messages(conversation_id),
             clinical_state=clinical_state,
             query=request.message,
-        )
+        ),
+        prefetched_context=await graphrag_prefetch,
     )
     recommendation = enrich_recommendation_evidence(recommendation, verification.citation_validation)
     llm_answer = await build_llm_answer(
