@@ -29,7 +29,11 @@ from app.modules.datastores.neo4j import neo4j_driver as get_driver, retrieve_ne
 from app.modules.evidence_text import normalize_evidence_text
 from app.modules.clinical_entity_boosting import matched_terms_for_chunk
 from app.modules.evidence_quality import enrich_evidence_chunk, quality_score_for_chunk
-from app.modules.semantic_retrieval.service import reciprocal_rank_fusion, rerank_evidence_chunks
+from app.modules.semantic_retrieval.service import (
+    reciprocal_rank_fusion,
+    reorder_evidence_chunks_for_llm,
+    rerank_evidence_chunks,
+)
 from app.schemas.graphrag import (
     EvidenceChunk,
     EvidenceSearchResponse,
@@ -693,6 +697,11 @@ def _build_graphrag_context_impl(
         evidence_chunks = expand_chunk_windows(evidence_chunks)
         retrieval_sources.append("chunk_window")
 
+    if evidence_chunks:
+        evidence_chunks = reorder_evidence_chunks_for_llm(evidence_chunks)
+        if settings.graphrag_lost_in_middle_reorder_enabled and len(evidence_chunks) > 2:
+            retrieval_sources.append("lost_in_middle_reorder")
+
     response = GraphRAGContextResponse(
         case_id=request.patient.case_id,
         query_terms=terms,
@@ -735,6 +744,7 @@ def search_evidence(query: str, top_k: int = 6, *, published: bool = True) -> Ev
         retrieval_sources.append(f"{'published' if published else 'staging'}_relationships")
     if evidence_chunks:
         retrieval_sources.append(f"{'published' if published else 'staging'}_chunks")
+    evidence_chunks = reorder_evidence_chunks_for_llm(evidence_chunks)
     response = EvidenceSearchResponse(
         query=query,
         query_terms=terms,

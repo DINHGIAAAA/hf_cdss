@@ -4,6 +4,8 @@ import re
 from collections import defaultdict
 from functools import lru_cache
 
+from typing import TypeVar
+
 from app.core.config import settings
 from app.modules.datastores.common import hashing_embedding
 from app.modules.evidence_text import normalize_evidence_text
@@ -11,6 +13,8 @@ from app.schemas.graphrag import EvidenceChunk
 
 
 logger = logging.getLogger(__name__)
+
+_T = TypeVar("_T")
 
 
 def _slug(value: str) -> str:
@@ -151,3 +155,28 @@ def rerank_evidence_chunks(query: str, chunks: list[EvidenceChunk], top_k: int) 
             logger.warning("Cohere rerank unavailable; falling back to bi-encoder rerank: %s", exc)
 
     return _rerank_with_bi_encoder(query, chunks, top_k)
+
+
+def lost_in_middle_reorder(items: list[_T]) -> list[_T]:
+    """Place highest-priority items at the start and end of a ranked list.
+
+    Mitigates the Lost-in-the-Middle effect (Liu et al., 2023) where LLMs under-use
+    context placed in the middle of long prompts. Input must already be ranked best-first.
+    """
+    if len(items) <= 2:
+        return list(items)
+
+    left_part: list[T] = []
+    right_part: list[T] = []
+    for index, item in enumerate(items):
+        if index % 2 == 0:
+            left_part.append(item)
+        else:
+            right_part.insert(0, item)
+    return left_part + right_part
+
+
+def reorder_evidence_chunks_for_llm(chunks: list[EvidenceChunk]) -> list[EvidenceChunk]:
+    if not settings.graphrag_lost_in_middle_reorder_enabled or len(chunks) <= 2:
+        return chunks
+    return lost_in_middle_reorder(chunks)

@@ -6,6 +6,7 @@ from functools import lru_cache
 
 from app.modules.citation_validation.service import source_link_for_chunk
 from app.modules.graphrag.service import load_chunks
+from app.modules.semantic_retrieval.service import reorder_evidence_chunks_for_llm
 from app.schemas.clinical import Constraint
 from app.schemas.graphrag import CitationValidation, EvidenceChunk, GraphRAGContextResponse
 from app.schemas.recommendation import MedicationRecommendation, RecommendationResponse
@@ -125,7 +126,9 @@ def prioritize_context_chunks(
             prioritized.append(chunk)
             seen.add(chunk.chunk_id)
 
-    return context.model_copy(update={"evidence_chunks": prioritized[:12]})
+    return context.model_copy(
+        update={"evidence_chunks": reorder_evidence_chunks_for_llm(prioritized[:12])}
+    )
 
 
 def attach_linked_evidence(

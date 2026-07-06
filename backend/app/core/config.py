@@ -152,6 +152,7 @@ class Settings(BaseSettings):
     hyde_retrieval_cache_max_entries: int = 256
     hyde_retrieval_min_query_chars: int = 8
     hyde_retrieval_combine_baseline: bool = True
+    graphrag_lost_in_middle_reorder_enabled: bool = True
 
     model_config = SettingsConfigDict(env_prefix="HF_CDSS_", env_file=".env", extra="ignore")
 

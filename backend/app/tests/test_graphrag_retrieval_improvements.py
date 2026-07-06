@@ -42,6 +42,36 @@ def _chunk(chunk_id: str, score: float) -> EvidenceChunk:
     )
 
 
+def test_lost_in_middle_reorder_places_best_chunks_at_edges() -> None:
+    chunks = [f"c{i}" for i in range(5)]
+
+    reordered = semantic_service.lost_in_middle_reorder(chunks)
+
+    assert reordered == ["c0", "c2", "c4", "c3", "c1"]
+
+
+def test_reorder_evidence_chunks_for_llm_respects_setting(monkeypatch) -> None:
+    chunks = [
+        EvidenceChunk(
+            chunk_id=f"c{i}",
+            document_id="doc",
+            source_type="guideline",
+            section="RENAL",
+            text=f"chunk {i}",
+            score=1.0 - (i * 0.1),
+        )
+        for i in range(4)
+    ]
+
+    monkeypatch.setattr(settings, "graphrag_lost_in_middle_reorder_enabled", False)
+    assert semantic_service.reorder_evidence_chunks_for_llm(chunks) == chunks
+
+    monkeypatch.setattr(settings, "graphrag_lost_in_middle_reorder_enabled", True)
+    reordered = semantic_service.reorder_evidence_chunks_for_llm(chunks)
+    assert reordered[0].chunk_id == "c0"
+    assert reordered[-1].chunk_id == "c1"
+
+
 def test_reciprocal_rank_fusion_prefers_consensus_ranking() -> None:
     list_a = [_chunk("a", 0.9), _chunk("b", 0.8), _chunk("c", 0.7)]
     list_b = [_chunk("b", 0.6), _chunk("a", 0.5), _chunk("d", 0.4)]
