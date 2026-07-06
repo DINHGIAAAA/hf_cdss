@@ -114,6 +114,12 @@ class Settings(BaseSettings):
     constraint_chunk_fetch_limit: int = 50
     chroma_filter_max_ids: int = 48
     evidence_text_max_length: int = 1200
+    graphrag_multi_query_enabled: bool = True
+    graphrag_rrf_k: int = 60
+    graphrag_chunk_window_size: int = 1
+    graphrag_adaptive_top_k: bool = True
+    graphrag_graph_guided_filter_enabled: bool = True
+    neo4j_query_timeout_seconds: float = 5.0
     hyde_retrieval_enabled: bool = True
     hyde_retrieval_model: str = "qwen2.5:1.5b"
     hyde_retrieval_timeout_seconds: float = 20.0
@@ -122,12 +128,6 @@ class Settings(BaseSettings):
     hyde_retrieval_cache_max_entries: int = 256
     hyde_retrieval_min_query_chars: int = 8
     hyde_retrieval_combine_baseline: bool = True
-    graphrag_multi_query_enabled: bool = True
-    graphrag_rrf_k: int = 60
-    graphrag_chunk_window_size: int = 1
-    graphrag_adaptive_top_k: bool = True
-    graphrag_graph_guided_filter_enabled: bool = True
-    neo4j_query_timeout_seconds: float = 5.0
 
     model_config = SettingsConfigDict(env_prefix="HF_CDSS_", env_file=".env", extra="ignore")
 

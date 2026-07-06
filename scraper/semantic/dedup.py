@@ -54,7 +54,6 @@ def _dedupe_by_minhash(
 
     kept: list[dict] = []
     kept_signatures: dict[str, tuple[int, ...]] = {}
-    kept_ids: list[str] = []
 
     for record in records:
         record_id = record.get("chunk_id") or record.get("id") or str(id(record))
@@ -95,7 +94,7 @@ def dedupe_by_embedding(
         return records
 
     working = records
-    if config.MINHASH_DEDUP_ENABLED:
+    if getattr(config, "MINHASH_DEDUP_ENABLED", True):
         minhash_threshold = min(0.98, threshold + 0.02)
         working = _dedupe_by_minhash(records, text_field=text_field, threshold=minhash_threshold)
         if len(working) <= 1:
