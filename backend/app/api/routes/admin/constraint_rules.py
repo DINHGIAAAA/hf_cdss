@@ -124,6 +124,7 @@ class BulkApproveRequest(BaseModel):
     action: str | None = None
     q: str | None = Field(default=None, description="Search constraint_id")
     limit: int = Field(default=100, ge=1, le=200)
+    dry_run: bool = Field(default=False, description="Preview candidate ids without approving")
 
 
 class BulkApproveResponse(BaseModel):
@@ -132,6 +133,8 @@ class BulkApproveResponse(BaseModel):
     skipped: list[int]
     total_requested: int
     message: str
+    dry_run: bool = False
+    candidate_ids: list[int] = Field(default_factory=list)
 
 
 class RuleVersionDiffResponse(BaseModel):
@@ -252,8 +255,10 @@ def bulk_approve_constraints(
         action=payload.action,
         q=payload.q,
         limit=payload.limit,
+        dry_run=payload.dry_run,
     )
-    background_tasks.add_task(invalidate_constraint_cache)
+    if not payload.dry_run:
+        background_tasks.add_task(invalidate_constraint_cache)
     return BulkApproveResponse(**result)
 
 

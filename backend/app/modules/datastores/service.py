@@ -35,7 +35,62 @@ def bootstrap_datastores() -> dict[str, Any]:
             logger.warning("%s bootstrap unavailable: %s", name, exc)
             results[name] = {"status": "unavailable", "detail": str(exc)}
             print(f"[datastore-bootstrap] {name} unavailable: {exc}", flush=True)
+
+    try:
+        print("[datastore-bootstrap] seeding governance catalogs...", flush=True)
+        from app.modules.datastores.seed_governance_catalogs import seed_all_governance_catalogs
+
+        results["governance_seed"] = seed_all_governance_catalogs()
+        print(f"[datastore-bootstrap] governance_seed: {results['governance_seed']}", flush=True)
+    except Exception as exc:
+        logger.warning("governance seed unavailable: %s", exc)
+        results["governance_seed"] = {"status": "unavailable", "detail": str(exc)}
+
+    results["runtime_caches"] = _preload_runtime_caches()
     return results
+
+
+def _preload_runtime_caches() -> dict[str, Any]:
+    """Warm governance and intake caches so first chat request avoids cold-start DB reads."""
+    import importlib
+
+    loaders: tuple[tuple[str, str, str], ...] = (
+        ("constraints", "app.modules.constraint_builder.service", "load_constraint_rules"),
+        ("gdmt_policies", "app.modules.gdmt_policy.policy_loader", "load_executable_gdmt_policies"),
+        ("interaction_rules", "app.modules.interaction_checking.rule_loader", "load_executable_interaction_rules"),
+        ("dose_safety_warnings", "app.modules.dose_safety.rule_loader", "load_executable_dose_safety_warnings"),
+        ("dose_rules", "app.modules.dose_calculator.registry", "load_dose_rules"),
+    )
+    warmed: dict[str, Any] = {}
+    for name, module_path, function_name in loaders:
+        try:
+            module = importlib.import_module(module_path)
+            loader = getattr(module, function_name)
+            items = loader()
+            warmed[name] = {"status": "ok", "count": len(items)}
+            print(f"[datastore-bootstrap] warmed cache {name}: {len(items)} item(s)", flush=True)
+        except Exception as exc:
+            logger.warning("runtime cache preload unavailable for %s: %s", name, exc)
+            warmed[name] = {"status": "unavailable", "detail": str(exc)}
+
+    try:
+        from app.modules.clinical_intake_extraction.semantic import _catalog_vectors
+
+        entries, vectors = _catalog_vectors()
+        warmed["clinical_intake_catalog"] = {
+            "status": "ok",
+            "entries": len(entries),
+            "vectors": len(vectors),
+        }
+        print(
+            f"[datastore-bootstrap] warmed clinical intake catalog: {len(entries)} entries",
+            flush=True,
+        )
+    except Exception as exc:
+        logger.warning("clinical intake catalog preload unavailable: %s", exc)
+        warmed["clinical_intake_catalog"] = {"status": "unavailable", "detail": str(exc)}
+
+    return warmed
 
 
 def datastore_status() -> dict[str, Any]:

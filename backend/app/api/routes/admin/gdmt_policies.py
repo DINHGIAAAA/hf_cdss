@@ -66,6 +66,7 @@ class BulkApproveRequest(BaseModel):
     safety_tier: str | None = None
     q: str | None = None
     limit: int = Field(default=100, ge=1, le=200)
+    dry_run: bool = Field(default=False, description="Preview candidate ids without approving")
 
 
 class BulkApproveResponse(BaseModel):
@@ -74,6 +75,8 @@ class BulkApproveResponse(BaseModel):
     skipped: list[int]
     total_requested: int
     message: str
+    dry_run: bool = False
+    candidate_ids: list[int] = Field(default_factory=list)
 
 
 class RuleVersionDiffResponse(BaseModel):
@@ -168,8 +171,10 @@ def bulk_approve_gdmt_policies_endpoint(
         safety_tier=payload.safety_tier,
         q=payload.q,
         limit=payload.limit,
+        dry_run=payload.dry_run,
     )
-    background_tasks.add_task(invalidate_gdmt_policy_cache)
+    if not payload.dry_run:
+        background_tasks.add_task(invalidate_gdmt_policy_cache)
     return BulkApproveResponse(**result)
 
 

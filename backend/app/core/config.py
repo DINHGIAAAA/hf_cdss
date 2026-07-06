@@ -74,6 +74,8 @@ class Settings(BaseSettings):
     audit_schema_version: str = "2026-06-12"
     rate_limit_requests: int = 60
     rate_limit_window_seconds: int = 60
+    admin_rate_limit_requests: int = 10
+    admin_rate_limit_window_seconds: int = 60
     auth_login_rate_limit_requests: int = 10
     auth_login_rate_limit_window_seconds: int = 60
     postgres_pool_min_size: int = 1

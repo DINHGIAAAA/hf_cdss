@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
+import threading
 from dataclasses import dataclass
 from typing import Any
 
@@ -40,6 +41,7 @@ class CatalogMatch:
 
 
 _catalog_cache: tuple[str, list[CatalogEntry], list[list[float]]] | None = None
+_catalog_cache_lock = threading.Lock()
 
 
 def _normalize_text(text: str) -> str:
@@ -105,16 +107,17 @@ def _build_catalog_entries() -> list[CatalogEntry]:
 def _catalog_vectors() -> tuple[list[CatalogEntry], list[list[float]]]:
     global _catalog_cache
     version = embedding_index_version()
-    if _catalog_cache and _catalog_cache[0] == version:
-        return _catalog_cache[1], _catalog_cache[2]
-    entries = _build_catalog_entries()
-    try:
-        vectors = embed_documents([entry.label for entry in entries])
-    except Exception as exc:
-        logger.warning("Clinical intake catalog embedding failed: %s", exc)
-        vectors = []
-    _catalog_cache = (version, entries, vectors)
-    return entries, vectors
+    with _catalog_cache_lock:
+        if _catalog_cache and _catalog_cache[0] == version:
+            return _catalog_cache[1], _catalog_cache[2]
+        entries = _build_catalog_entries()
+        try:
+            vectors = embed_documents([entry.label for entry in entries])
+        except Exception as exc:
+            logger.warning("Clinical intake catalog embedding failed: %s", exc)
+            vectors = []
+        _catalog_cache = (version, entries, vectors)
+        return entries, vectors
 
 
 def _alias_match_allowed(normalized_text: str, aliases: tuple[str, ...]) -> bool:
@@ -259,4 +262,5 @@ def semantic_extract_patient(text: str, conversation_id: str) -> PatientProfile 
 
 def clear_catalog_cache() -> None:
     global _catalog_cache
-    _catalog_cache = None
+    with _catalog_cache_lock:
+        _catalog_cache = None

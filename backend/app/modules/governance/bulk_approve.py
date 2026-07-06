@@ -21,6 +21,18 @@ from app.modules.datastores.postgres import (
 )
 
 
+def _dry_run_result(ids: list[int], *, label: str) -> dict[str, Any]:
+    return {
+        "approved": [],
+        "failed": [],
+        "skipped": ids,
+        "total_requested": len(ids),
+        "message": f"Dry run: would approve {len(ids)} draft {label}.",
+        "dry_run": True,
+        "candidate_ids": ids,
+    }
+
+
 def bulk_approve_constraint_rules(
     admin_user_id: str,
     *,
@@ -29,6 +41,7 @@ def bulk_approve_constraint_rules(
     action: str | None = None,
     q: str | None = None,
     limit: int = 100,
+    dry_run: bool = False,
 ) -> dict[str, Any]:
     ids = list_draft_constraint_rule_ids(
         rule_ids=rule_ids,
@@ -37,6 +50,8 @@ def bulk_approve_constraint_rules(
         q=q,
         limit=limit,
     )
+    if dry_run:
+        return _dry_run_result(ids, label="constraint rules")
     approved: list[int] = []
     failed: list[dict[str, Any]] = []
     for rule_id in ids:
@@ -50,6 +65,8 @@ def bulk_approve_constraint_rules(
         "skipped": [],
         "total_requested": len(ids),
         "message": f"Approved {len(approved)} of {len(ids)} draft constraint rules.",
+        "dry_run": False,
+        "candidate_ids": [],
     }
 
 
@@ -62,6 +79,7 @@ def bulk_approve_dose_rules(
     safety_tier: str | None = None,
     q: str | None = None,
     limit: int = 100,
+    dry_run: bool = False,
 ) -> dict[str, Any]:
     ids = list_draft_dose_rule_ids(
         rule_ids=rule_ids,
@@ -71,6 +89,8 @@ def bulk_approve_dose_rules(
         q=q,
         limit=limit,
     )
+    if dry_run:
+        return _dry_run_result(ids, label="dose rules")
     approved: list[int] = []
     failed: list[dict[str, Any]] = []
     for rule_id in ids:
@@ -84,6 +104,8 @@ def bulk_approve_dose_rules(
         "skipped": [],
         "total_requested": len(ids),
         "message": f"Approved {len(approved)} of {len(ids)} draft dose rules.",
+        "dry_run": False,
+        "candidate_ids": [],
     }
 
 
@@ -96,6 +118,7 @@ def bulk_approve_interaction_rules(
     safety_tier: str | None = None,
     q: str | None = None,
     limit: int = 100,
+    dry_run: bool = False,
 ) -> dict[str, Any]:
     ids = list_draft_interaction_rule_ids(
         rule_ids=rule_ids,
@@ -105,6 +128,8 @@ def bulk_approve_interaction_rules(
         q=q,
         limit=limit,
     )
+    if dry_run:
+        return _dry_run_result(ids, label="interaction rules")
     approved: list[int] = []
     failed: list[dict[str, Any]] = []
     for rule_id in ids:
@@ -118,6 +143,8 @@ def bulk_approve_interaction_rules(
         "skipped": [],
         "total_requested": len(ids),
         "message": f"Approved {len(approved)} of {len(ids)} draft interaction rules.",
+        "dry_run": False,
+        "candidate_ids": [],
     }
 
 
@@ -129,6 +156,7 @@ def bulk_approve_gdmt_policies(
     safety_tier: str | None = None,
     q: str | None = None,
     limit: int = 100,
+    dry_run: bool = False,
 ) -> dict[str, Any]:
     ids = list_draft_gdmt_policy_ids(
         rule_ids=rule_ids,
@@ -137,6 +165,8 @@ def bulk_approve_gdmt_policies(
         q=q,
         limit=limit,
     )
+    if dry_run:
+        return _dry_run_result(ids, label="GDMT policies")
     approved: list[int] = []
     failed: list[dict[str, Any]] = []
     for rule_id in ids:
@@ -150,6 +180,8 @@ def bulk_approve_gdmt_policies(
         "skipped": [],
         "total_requested": len(ids),
         "message": f"Approved {len(approved)} of {len(ids)} draft GDMT policies.",
+        "dry_run": False,
+        "candidate_ids": [],
     }
 
 
@@ -162,6 +194,7 @@ def bulk_approve_dose_safety_warnings(
     safety_tier: str | None = None,
     q: str | None = None,
     limit: int = 100,
+    dry_run: bool = False,
 ) -> dict[str, Any]:
     ids = list_draft_dose_safety_warning_ids(
         rule_ids=rule_ids,
@@ -171,6 +204,8 @@ def bulk_approve_dose_safety_warnings(
         q=q,
         limit=limit,
     )
+    if dry_run:
+        return _dry_run_result(ids, label="dose safety warnings")
     approved: list[int] = []
     failed: list[dict[str, Any]] = []
     for rule_id in ids:
@@ -184,4 +219,6 @@ def bulk_approve_dose_safety_warnings(
         "skipped": [],
         "total_requested": len(ids),
         "message": f"Approved {len(approved)} of {len(ids)} draft dose safety warnings.",
+        "dry_run": False,
+        "candidate_ids": [],
     }

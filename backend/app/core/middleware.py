@@ -42,11 +42,16 @@ RATE_LIMIT_PATHS = (
     f"{API_PREFIX}/llm/answer",
 )
 
+ADMIN_RATE_LIMIT_PATHS = (
+    f"{API_PREFIX}/admin",
+)
+
 LOGIN_RATE_LIMIT_PATHS = (
     f"{API_PREFIX}/auth/login",
     "/api/auth/login",
 )
 _rate_windows: dict[str, deque[float]] = defaultdict(deque)
+_admin_rate_windows: dict[str, deque[float]] = defaultdict(deque)
 _login_rate_windows: dict[str, deque[float]] = defaultdict(deque)
 
 
@@ -86,6 +91,25 @@ def _client_id(request: Request) -> str:
 def _safe_client_id(request: Request) -> str:
     value = _client_id(request)
     return hashlib.sha256(value.encode("utf-8")).hexdigest()[:16]
+
+
+def _is_admin_rate_limited(request: Request) -> bool:
+    if not any(
+        request.url.path == path or request.url.path.startswith(f"{path}/") for path in ADMIN_RATE_LIMIT_PATHS
+    ):
+        return False
+
+    now = time.monotonic()
+    window = max(1, settings.admin_rate_limit_window_seconds)
+    limit = max(1, settings.admin_rate_limit_requests)
+    key = f"{_client_id(request)}:{request.url.path}"
+    entries = _admin_rate_windows[key]
+    while entries and now - entries[0] > window:
+        entries.popleft()
+    if len(entries) >= limit:
+        return True
+    entries.append(now)
+    return False
 
 
 def _is_rate_limited(request: Request) -> bool:
@@ -150,6 +174,10 @@ async def production_guard_middleware(
         if _is_login_rate_limited(request):
             status_code = 429
             return _error(429, "rate_limited", "Too many login attempts. Please retry later.", request_id)
+
+        if _is_admin_rate_limited(request):
+            status_code = 429
+            return _error(429, "rate_limited", "Too many admin requests. Please retry later.", request_id)
 
         if _is_rate_limited(request):
             status_code = 429
