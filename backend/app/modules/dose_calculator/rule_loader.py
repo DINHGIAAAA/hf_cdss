@@ -70,6 +70,11 @@ def load_dose_rules_bundle() -> dict[str, Any]:
     return _CACHE.load_bundle()
 
 
+def _load_fallback_bundle() -> dict[str, Any]:
+    """Load bundled JSON fallback only (used by tests and legacy callers)."""
+    return _CACHE._load_fallback_bundle()
+
+
 def load_executable_dose_rules() -> list[dict[str, Any]]:
     return _CACHE.load_items()
 
