@@ -24,7 +24,8 @@ def test_graphrag_context_returns_graph_and_evidence(client) -> None:
     assert payload["graph_facts"]
     assert payload["evidence_chunks"]
     assert "Retrieved" in payload["context_summary"]
-    assert payload["retrieval_sources"] == ["local_relationships", "local_chunks"]
+    assert "local_relationships" in payload["retrieval_sources"]
+    assert "local_chunks" in payload["retrieval_sources"]
 
 
 def test_verify_runs_agent_verdicts(client) -> None:

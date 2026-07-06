@@ -11,8 +11,19 @@ from app.modules.graphrag.hyde_expansion import (
     should_expand_with_hyde,
 )
 from app.modules.graphrag.service import build_graphrag_context_async
-from app.schemas.graphrag import GraphRAGContextRequest
+from app.schemas.graphrag import EvidenceChunk, GraphRAGContextRequest
 from app.schemas.patient import PatientProfile
+
+
+def _evidence_chunk() -> EvidenceChunk:
+    return EvidenceChunk(
+        chunk_id="chunk-hyde-test",
+        document_id="doc",
+        source_type="guideline",
+        section="RENAL",
+        text="Potassium monitoring guidance.",
+        score=0.8,
+    )
 
 
 def _patient(**overrides) -> PatientProfile:
@@ -101,6 +112,7 @@ def test_should_expand_with_hyde_respects_flags(monkeypatch) -> None:
 
 def test_build_graphrag_context_async_uses_hyde_for_chroma(monkeypatch) -> None:
     monkeypatch.setattr(settings, "hyde_retrieval_enabled", True)
+    monkeypatch.setattr(settings, "graphrag_query_decomposition_enabled", False)
     monkeypatch.setattr(settings, "llm_api_type", "chat_completions")
     monkeypatch.setattr(settings, "retrieval_backend", "databases")
     captured: dict[str, str] = {}
@@ -108,13 +120,13 @@ def test_build_graphrag_context_async_uses_hyde_for_chroma(monkeypatch) -> None:
     async def fake_hyde(*_args, **_kwargs):
         return "Mineralocorticoid receptor antagonists require potassium and renal monitoring in HFrEF."
 
-    def fake_chroma(query: str, top_k: int):
+    def fake_chroma(query: str, top_k: int, **_kwargs):
         captured["query"] = query
-        return []
+        return [_evidence_chunk()]
 
-    def fake_multi_query(queries: list[str], top_k: int, *, primary_query: str | None = None):
+    def fake_multi_query(queries: list[str], top_k: int, *, primary_query: str | None = None, **_kwargs):
         captured["query"] = primary_query or queries[0]
-        return []
+        return [_evidence_chunk()]
 
     monkeypatch.setattr("app.modules.graphrag.service.generate_hyde_document", fake_hyde)
     monkeypatch.setattr("app.modules.graphrag.service.retrieve_chroma", fake_chroma)
@@ -122,6 +134,7 @@ def test_build_graphrag_context_async_uses_hyde_for_chroma(monkeypatch) -> None:
     monkeypatch.setattr("app.modules.graphrag.service.retrieve_neo4j", lambda *_args, **_kwargs: [])
     monkeypatch.setattr("app.modules.graphrag.service.retrieve_graph_facts", lambda *_args, **_kwargs: [])
     monkeypatch.setattr("app.modules.graphrag.service.retrieve_evidence_chunks", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr("app.modules.graphrag.service.expand_chunk_windows", lambda chunks, **kwargs: chunks)
 
     response = asyncio.run(
         build_graphrag_context_async(
@@ -135,4 +148,5 @@ def test_build_graphrag_context_async_uses_hyde_for_chroma(monkeypatch) -> None:
 
     assert response.hyde_used is True
     assert "Mineralocorticoid receptor antagonists" in captured["query"]
-    assert "hyde" in response.retrieval_sources or response.hyde_document
+    assert "hyde" in response.retrieval_sources
+    assert response.hyde_document
