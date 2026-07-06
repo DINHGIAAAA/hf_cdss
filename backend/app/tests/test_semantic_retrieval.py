@@ -34,6 +34,7 @@ def test_reciprocal_rank_fusion_merges_rank_lists() -> None:
 
 def test_semantic_rerank_orders_by_embedding_similarity(monkeypatch) -> None:
     monkeypatch.setattr(settings, "semantic_rerank_enabled", True)
+    monkeypatch.setattr(settings, "semantic_rerank_provider", "bi_encoder")
     monkeypatch.setattr(settings, "semantic_rerank_weight", 1.0)
     monkeypatch.setattr(semantic_service, "embed_query", lambda query: [1.0, 0.0])
     monkeypatch.setattr(

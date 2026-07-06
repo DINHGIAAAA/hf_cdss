@@ -99,25 +99,16 @@ def reciprocal_rank_fusion(
     return sorted(chunks.values(), key=lambda item: scores[item.chunk_id], reverse=True)
 
 
-def rerank_evidence_chunks(query: str, chunks: list[EvidenceChunk], top_k: int) -> list[EvidenceChunk]:
-    if not settings.semantic_rerank_enabled or len(chunks) <= 1:
-        return chunks[:top_k]
+def retrieval_candidate_count(top_k: int) -> int:
+    """Stage-1 ANN pool size before cross-encoder reranking."""
+    return max(top_k, min(settings.semantic_rerank_candidates, 50))
+
+
+def _rerank_with_bi_encoder(query: str, chunks: list[EvidenceChunk], top_k: int) -> list[EvidenceChunk]:
+    from app.modules.semantic_retrieval.cohere_rerank import chunk_rerank_document
 
     query_embedding = embed_query(query)
-    chunk_embeddings = embed_documents(
-        [
-            " ".join(
-                [
-                    chunk.document_id,
-                    chunk.section or "",
-                    chunk.text,
-                    str(chunk.metadata.get("citation") or ""),
-                    str(chunk.metadata.get("title") or ""),
-                ]
-            )
-            for chunk in chunks
-        ]
-    )
+    chunk_embeddings = embed_documents([chunk_rerank_document(chunk) for chunk in chunks])
     reranked = []
     for chunk, embedding in zip(chunks, chunk_embeddings):
         semantic_score = cosine_similarity(query_embedding, embedding)
@@ -135,6 +126,7 @@ def rerank_evidence_chunks(query: str, chunks: list[EvidenceChunk], top_k: int) 
                 "score": max(0.0, min(1.0, combined_score)),
                 "metadata": {
                     **(chunk.metadata or {}),
+                    "rerank_provider": "bi_encoder",
                     "semantic_score": max(0.0, min(1.0, semantic_score)),
                     "pre_rerank_score": chunk.score,
                     "rerank_score": combined_score,
@@ -143,3 +135,19 @@ def rerank_evidence_chunks(query: str, chunks: list[EvidenceChunk], top_k: int) 
         )
         for combined_score, semantic_score, chunk in reranked[:top_k]
     ]
+
+
+def rerank_evidence_chunks(query: str, chunks: list[EvidenceChunk], top_k: int) -> list[EvidenceChunk]:
+    if not settings.semantic_rerank_enabled or len(chunks) <= 1:
+        return chunks[:top_k]
+
+    provider = settings.semantic_rerank_provider.lower().strip()
+    if provider == "cohere" and settings.cohere_api_key:
+        try:
+            from app.modules.semantic_retrieval.cohere_rerank import cohere_rerank_chunks
+
+            return cohere_rerank_chunks(query, chunks, top_k)
+        except Exception as exc:
+            logger.warning("Cohere rerank unavailable; falling back to bi-encoder rerank: %s", exc)
+
+    return _rerank_with_bi_encoder(query, chunks, top_k)

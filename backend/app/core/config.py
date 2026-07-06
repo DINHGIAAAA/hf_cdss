@@ -59,8 +59,13 @@ class Settings(BaseSettings):
     embedding_dimensions: int = 1024
     embedding_batch_size: int = 16
     semantic_rerank_enabled: bool = True
+    semantic_rerank_provider: str = "cohere"
     semantic_rerank_weight: float = 0.75
-    semantic_rerank_candidates: int = 24
+    semantic_rerank_candidates: int = 50
+    cohere_api_key: str | None = None
+    cohere_rerank_model: str = "rerank-v3.5"
+    cohere_rerank_timeout_seconds: float = 30.0
+    cohere_rerank_weight: float = 0.85
     retrieval_backend: str = "local"
     artifact_cache_root: str | None = None
     s3_endpoint_url: str = "http://localhost:4566"

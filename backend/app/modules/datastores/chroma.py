@@ -15,6 +15,7 @@ from app.modules.semantic_retrieval.service import (
     embedding_index_version,
     reciprocal_rank_fusion,
     rerank_evidence_chunks,
+    retrieval_candidate_count,
 )
 from app.modules.graphrag.evidence_scope import EvidenceScope
 from app.schemas.graphrag import EvidenceChunk
@@ -193,7 +194,7 @@ def retrieve_chroma(
     *,
     scope: EvidenceScope | None = None,
 ) -> list[EvidenceChunk]:
-    candidate_count = max(top_k, min(settings.semantic_rerank_candidates, top_k * 4))
+    candidate_count = retrieval_candidate_count(top_k)
     if scope and not scope.is_empty() and settings.graphrag_graph_guided_filter_enabled:
         return retrieve_chroma_graph_guided(query, top_k, scope=scope, candidate_count=candidate_count)
     chunks = _query_chroma(query, candidate_count)
@@ -208,7 +209,7 @@ def retrieve_chroma_graph_guided(
     scope: EvidenceScope,
     candidate_count: int | None = None,
 ) -> list[EvidenceChunk]:
-    candidate_count = candidate_count or max(top_k, min(settings.semantic_rerank_candidates, top_k * 4))
+    candidate_count = candidate_count or retrieval_candidate_count(top_k)
     where = scope.chroma_where()
     ranked_lists: list[list[EvidenceChunk]] = []
     if where:
@@ -261,7 +262,7 @@ def retrieve_chroma_multi_query(
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
     per_query_k = max(2, top_k // 2 + 2)
-    candidate_count = max(per_query_k, min(settings.semantic_rerank_candidates, per_query_k * 4))
+    candidate_count = retrieval_candidate_count(per_query_k)
     if scope and not scope.is_empty() and settings.graphrag_graph_guided_filter_enabled:
         ranked_lists = [
             retrieve_chroma_graph_guided(
