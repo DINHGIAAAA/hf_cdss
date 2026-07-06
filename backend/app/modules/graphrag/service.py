@@ -11,7 +11,11 @@ from typing import Any
 from app.core.config import settings
 from app.core.metrics import increment, observe
 from app.modules.chat.clinical_state import state_query_text
-from app.modules.graphrag.evidence_scope import EvidenceScope, resolve_evidence_scope
+from app.modules.graphrag.evidence_scope import (
+    EvidenceScope,
+    resolve_evidence_scope,
+    resolve_evidence_scope_from_chunk_ids,
+)
 from app.modules.graphrag.hyde_expansion import (
     build_semantic_retrieval_query,
     generate_hyde_document,
@@ -474,7 +478,7 @@ def retrieve_dynamic_graph_facts(chunks: list[EvidenceChunk], top_k: int = 5) ->
         ORDER BY co_occurrences DESC
         LIMIT 3
         """
-        return tx.run(query, entity_id=entity_id, entity_type_filter=entity_type_filter).data()
+        return tx.run(query, entity_id=entity_id, entity_type_filter=entity_type_filter, timeout=settings.neo4j_query_timeout_seconds).data()
 
     with driver.session() as session:
         for entity in top_entities:
@@ -611,12 +615,14 @@ def _build_graphrag_context_impl(
     queries = retrieval_queries or [semantic_query or request.query or " ".join(terms)]
     primary_query = semantic_query or request.query or " ".join(terms)
     evidence_scope = (
-        resolve_evidence_scope(terms)
+        resolve_evidence_scope(terms, chunk_ids=request.constraint_chunk_ids)
         if settings.graphrag_graph_guided_filter_enabled
-        else EvidenceScope()
+        else resolve_evidence_scope_from_chunk_ids(request.constraint_chunk_ids)
     )
     if evidence_scope and not evidence_scope.is_empty():
         retrieval_sources.append("graph_guided")
+        if request.constraint_chunk_ids:
+            retrieval_sources.append("constraint_scope")
 
     if settings.retrieval_backend in {"hybrid", "databases"}:
         try:

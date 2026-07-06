@@ -65,7 +65,7 @@ def test_graphrag_uses_graph_guided_scope(monkeypatch) -> None:
 
     captured: dict[str, object] = {}
 
-    def fake_scope(terms, *, top_k=24):
+    def fake_scope(terms, *, top_k=24, chunk_ids=None):
         return EvidenceScope(document_ids=("spironolactone_label",))
 
     def fake_chroma(query, top_k, *, scope=None):

@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import Any, Callable
 
 from app.core.config import settings
+from app.core.circuit_breaker import CircuitOpenError
+from app.core.governance_db import load_with_governance_guard
 
 
 logger = logging.getLogger(__name__)
@@ -102,7 +104,7 @@ class RuleCache:
             return self._cached_bundle
 
         try:
-            rows = self.db_loader()
+            rows = load_with_governance_guard(self.catalog_name, self.db_loader)
             if rows:
                 items = self.transform_rows(rows) if self.transform_rows else list(rows)
                 bundle = self._finalize_bundle(
@@ -115,6 +117,13 @@ class RuleCache:
                 self._cached_bundle = bundle
                 self._cache_timestamp = datetime.now()
                 return bundle
+        except CircuitOpenError:
+            logger.warning(
+                "Circuit open for %s; serving stale cache or bundled fallback",
+                self.catalog_name,
+            )
+            if self._cached_bundle is not None:
+                return self._cached_bundle
         except Exception as exc:
             logger.error("Could not load %s from Postgres: %s", self.catalog_name, exc, exc_info=True)
             if self._cached_bundle is not None:

@@ -32,7 +32,7 @@ def _semantic_drug_matches(record: dict) -> list[str]:
             matches.append(canonical)
             continue
         try:
-            score = max_similarity_to_prototypes(haystack, prototypes)
+            score = max_similarity_to_prototypes(haystack, tuple(prototypes))
         except Exception as exc:
             logger.warning("Drug section embedding failed for %s: %s", canonical, exc)
             continue
@@ -49,7 +49,7 @@ def _semantic_guideline_matches(record: dict) -> list[str]:
     matches: list[str] = []
     for topic, prototypes in GUIDELINE_TOPIC_PROTOTYPES.items():
         try:
-            score = max_similarity_to_prototypes(haystack, prototypes)
+            score = max_similarity_to_prototypes(haystack, tuple(prototypes))
         except Exception as exc:
             logger.warning("Guideline topic embedding failed for %s: %s", topic, exc)
             continue

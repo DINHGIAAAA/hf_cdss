@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import math
+from functools import lru_cache
 from typing import Sequence
 
 import httpx
@@ -69,8 +70,12 @@ def embeddings_available() -> bool:
 def max_similarity_to_prototypes(text: str, prototypes: list[str]) -> float:
     if not text.strip() or not prototypes:
         return 0.0
-    vectors = embed_texts([text, *prototypes])
-    if len(vectors) < 2:
-        return 0.0
-    text_vector = vectors[0]
-    return max(cosine_similarity(text_vector, prototype_vector) for prototype_vector in vectors[1:])
+    prototype_vectors = _prototype_vectors(prototypes)
+    text_vector = embed_texts([text])[0]
+    return max(cosine_similarity(text_vector, prototype_vector) for prototype_vector in prototype_vectors)
+
+
+@lru_cache(maxsize=256)
+def _prototype_vectors(prototypes: tuple[str, ...]) -> tuple[list[float], ...]:
+    vectors = embed_texts(list(prototypes))
+    return tuple(vectors)

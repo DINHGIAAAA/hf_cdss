@@ -5,6 +5,12 @@ import sys
 import time
 from pathlib import Path
 
+from scraper.orchestration.pipeline_checkpoint import (
+    default_checkpoint_path,
+    load_checkpoint,
+    save_checkpoint,
+    should_skip_step,
+)
 from scraper.paths import data_root, project_root
 
 ROOT = data_root()
@@ -15,7 +21,19 @@ if hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8")
 
 
-def run_step(name: str, command: list[str], dry_run: bool = False) -> None:
+def run_step(
+    name: str,
+    command: list[str],
+    *,
+    dry_run: bool = False,
+    run_id: str,
+    checkpoint_path: Path,
+    resume_from: str | None,
+    checkpoint: dict | None,
+) -> None:
+    if should_skip_step(name, resume_from=resume_from, checkpoint=checkpoint):
+        print(f"\n[{name}] skipped (checkpoint/resume)")
+        return
     printable = " ".join(command)
     print(f"\n[{name}] {printable}")
     if dry_run:
@@ -24,6 +42,7 @@ def run_step(name: str, command: list[str], dry_run: bool = False) -> None:
     existing_pythonpath = env.get("PYTHONPATH", "")
     env["PYTHONPATH"] = str(PROJECT_ROOT) if not existing_pythonpath else f"{PROJECT_ROOT}{os.pathsep}{existing_pythonpath}"
     subprocess.run(command, cwd=ROOT, check=True, env=env)
+    save_checkpoint(checkpoint_path, run_id=run_id, step_name=name)
 
 
 def main() -> None:
@@ -41,11 +60,26 @@ def main() -> None:
     parser.add_argument("--skip-guideline-parse", action="store_true")
     parser.add_argument("--skip-rules", action="store_true")
     parser.add_argument("--dry-run", action="store_true", help="Print the pipeline without executing steps.")
+    parser.add_argument(
+        "--resume-from",
+        default=None,
+        help="Skip steps before this checkpoint step name (see .pipeline_checkpoint.json).",
+    )
+    parser.add_argument(
+        "--checkpoint-file",
+        default=None,
+        type=Path,
+        help="Checkpoint file path (default: data_root/.pipeline_checkpoint.json).",
+    )
     args = parser.parse_args()
 
     python = sys.executable
     run_id = args.run_id or time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+    checkpoint_path = args.checkpoint_file or default_checkpoint_path(ROOT)
+    checkpoint = load_checkpoint(checkpoint_path)
     print(f"Pipeline run id: {run_id}")
+    if args.resume_from:
+        print(f"Resuming from step: {args.resume_from} (checkpoint={checkpoint_path})")
     if not args.skip_download:
         command = [
             python,
@@ -70,7 +104,15 @@ def main() -> None:
             command.append("--dry-run")
         if args.use_existing:
             command.append("--use-existing")
-        run_step("download", command, args.dry_run)
+        run_step(
+            "download",
+            command,
+            dry_run=args.dry_run,
+            run_id=run_id,
+            checkpoint_path=checkpoint_path,
+            resume_from=args.resume_from,
+            checkpoint=checkpoint,
+        )
 
     if not args.download_dry_run:
         run_step(
@@ -88,7 +130,11 @@ def main() -> None:
                 "--endpoint-url",
                 args.s3_endpoint_url,
             ],
-            args.dry_run,
+            dry_run=args.dry_run,
+            run_id=run_id,
+            checkpoint_path=checkpoint_path,
+            resume_from=args.resume_from,
+            checkpoint=checkpoint,
         )
 
     if not args.skip_guideline_parse:
@@ -111,7 +157,11 @@ def main() -> None:
                 "--workers",
                 "1",
             ],
-            args.dry_run,
+            dry_run=args.dry_run,
+            run_id=run_id,
+            checkpoint_path=checkpoint_path,
+            resume_from=args.resume_from,
+            checkpoint=checkpoint,
         )
         run_step(
             "parse_guideline_html",
@@ -126,7 +176,11 @@ def main() -> None:
                 "--sections-output",
                 "processed/sections/guideline_html_sections.jsonl",
             ],
-            args.dry_run,
+            dry_run=args.dry_run,
+            run_id=run_id,
+            checkpoint_path=checkpoint_path,
+            resume_from=args.resume_from,
+            checkpoint=checkpoint,
         )
 
     steps = [
@@ -170,8 +224,16 @@ def main() -> None:
         ]
     )
 
+    step_kwargs = {
+        "dry_run": args.dry_run,
+        "run_id": run_id,
+        "checkpoint_path": checkpoint_path,
+        "resume_from": args.resume_from,
+        "checkpoint": checkpoint,
+    }
+
     for name, command in steps:
-        run_step(name, command, args.dry_run)
+        run_step(name, command, **step_kwargs)
 
     run_step(
         "sync_processed_to_s3",
@@ -188,14 +250,14 @@ def main() -> None:
             "--run-id",
             run_id,
         ],
-        args.dry_run,
+        **step_kwargs,
     )
 
     if not args.skip_rules:
         run_step(
             "sync_governance_catalogs",
             [python, "-m", "scraper.process.sync_governance_catalog", "--catalog", "all"],
-            args.dry_run,
+            **step_kwargs,
         )
 
     print("\nPipeline complete. Rebuild datastore indexes with:")

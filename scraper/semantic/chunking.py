@@ -14,6 +14,51 @@ from scraper.transform.text_normalization import repair_pdf_flow_text
 
 logger = logging.getLogger(__name__)
 
+# Clinical-safe sentence splitter: avoids splitting on decimal numbers or units
+# - (?<=[.!?])\s+ : split after sentence-ending punctuation
+# - (?![a-zA-Z]{1,4}/) : negative lookahead prevents split if followed by unit like mL/, mg/
+# - (?<!\d\.) : negative lookbehind prevents split after decimal point (e.g., "5.5 mmol")
+# - (?=[A-Z0-9(]) : split before capital letter, number, or opening parenthesis
+_SENTENCE_SPLITTER = re.compile(
+    r"(?<=[.!?])\s+(?![a-zA-Z]{1,4}/)(?<!\d\.)\s*(?=[A-Z0-9(])"
+)
+
+
+def _safe_sentence_split(text: str) -> list[str]:
+    """Split text into sentences, preserving clinical units and decimals.
+
+    Handles patterns like:
+    - "eGFR < 30 mL/min/1.73m2" stays intact
+    - "serum potassium greater than 5.5 mmol/L" stays intact
+    - "Administer 100 mg daily. Monitor BP." splits correctly
+    """
+    # First protect common clinical patterns by temporarily replacing
+    protected: list[tuple[str, str]] = []
+    patterns = [
+        (r"\d+(?:\.\d+)?\s*(?:mL/min/1\.73\s*m\s*2|mL/min|mEq/L|mmol/L|mg/dL|mmHg|bpm)", "<PROTECTED_UNIT>"),
+        (r"\d+(?:\.\d+)?\s*(?:kg|m|mL|mg|mmol|mEq|%)", "<PROTECTED_UNIT>"),
+    ]
+
+    for pattern, replacement in patterns:
+        for match in re.finditer(pattern, text):
+            placeholder = f"__PROT_{len(protected)}__"
+            protected.append((placeholder, match.group(0)))
+            text = text[:match.start()] + placeholder + text[match.end():]
+
+    # Split sentences
+    sentences = _SENTENCE_SPLITTER.split(text)
+
+    # Restore protected patterns
+    result: list[str] = []
+    for sentence in sentences:
+        for placeholder, original in protected:
+            sentence = sentence.replace(placeholder, original)
+        cleaned = sentence.strip()
+        if cleaned:
+            result.append(cleaned)
+
+    return result
+
 
 def paragraph_blocks(text: str) -> list[str]:
     repaired = repair_pdf_flow_text(text or "")
@@ -28,7 +73,7 @@ def paragraph_blocks(text: str) -> list[str]:
         if block.startswith("# "):
             blocks.append(block)
             continue
-        sentences = re.split(r"(?<=[.!?])\s+(?=[A-Z0-9(])", block)
+        sentences = _safe_sentence_split(block)
         if len(sentences) <= 1:
             blocks.append(block)
             continue
@@ -54,9 +99,19 @@ def _merge_blocks(blocks: list[str], token_estimate: Callable[[str], int], max_t
     return merged
 
 
-def _semantic_breakpoints(blocks: list[str]) -> list[int]:
+def _semantic_breakpoints(
+    blocks: list[str],
+    *,
+    token_estimate: Callable[[str], int] | None = None,
+) -> list[int]:
     if len(blocks) <= 1:
         return []
+    if len(blocks) < config.SEMANTIC_CHUNK_MIN_BLOCKS:
+        return []
+    if token_estimate is not None:
+        total_tokens = sum(token_estimate(block) for block in blocks)
+        if total_tokens < config.SEMANTIC_CHUNK_MIN_TOKENS:
+            return []
 
     try:
         vectors = embed_texts(blocks)
@@ -107,7 +162,7 @@ def structure_semantic_chunk_text(
         else:
             sized_blocks.append(block)
 
-    breakpoints = _semantic_breakpoints(sized_blocks) if len(sized_blocks) > 1 else []
+    breakpoints = _semantic_breakpoints(sized_blocks, token_estimate=token_estimate) if len(sized_blocks) > 1 else []
     grouped = _group_by_breakpoints(sized_blocks, breakpoints)
     chunks = _merge_blocks(grouped, token_estimate, chunk_size)
     chunks.extend(oversized)
@@ -123,12 +178,12 @@ def _split_oversized_block(
     overlap: int,
     token_estimate: Callable[[str], int],
 ) -> list[str]:
-    sentences = re.split(r"(?<=[.!?])\s+(?=[A-Z0-9(])", block)
+    sentences = _safe_sentence_split(block)
     sentences = [sentence.strip() for sentence in sentences if sentence.strip()]
     if not sentences:
         return [block]
 
-    breakpoints = _semantic_breakpoints(sentences) if len(sentences) > 1 else []
+    breakpoints = _semantic_breakpoints(sentences, token_estimate=token_estimate) if len(sentences) > 1 else []
     groups = _group_by_breakpoints(sentences, breakpoints)
     return _merge_blocks(groups, token_estimate, chunk_size)
 

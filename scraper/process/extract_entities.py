@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from scraper.io.jsonl import read_jsonl, write_jsonl
+from scraper.semantic.threshold_parse import parse_threshold_entity
 
 
 ENTITY_PATTERNS = {
@@ -86,20 +87,23 @@ def extract_entities_from_chunk(chunk: dict[str, Any]) -> list[dict[str, Any]]:
         for pattern in patterns:
             for match in re.finditer(pattern, text, flags=re.IGNORECASE):
                 value = match.group(0)
-                entities.append(
-                    {
-                        "entity_id": entity_id(entity_type, value),
-                        "entity_type": entity_type,
-                        "value": value,
-                        "normalized_value": re.sub(r"\s+", " ", value.lower()).strip(),
-                        "chunk_id": chunk.get("chunk_id"),
-                        "document_id": chunk.get("document_id"),
-                        "source_section": chunk.get("section"),
-                        "source_type": chunk.get("source_type"),
-                        "start_char": match.start(),
-                        "end_char": match.end(),
-                    }
-                )
+                entity = {
+                    "entity_id": entity_id(entity_type, value),
+                    "entity_type": entity_type,
+                    "value": value,
+                    "normalized_value": re.sub(r"\s+", " ", value.lower()).strip(),
+                    "chunk_id": chunk.get("chunk_id"),
+                    "document_id": chunk.get("document_id"),
+                    "source_section": chunk.get("section"),
+                    "source_type": chunk.get("source_type"),
+                    "start_char": match.start(),
+                    "end_char": match.end(),
+                }
+                if entity_type == "threshold":
+                    parsed = parse_threshold_entity(value)
+                    if parsed:
+                        entity["parsed_threshold"] = parsed
+                entities.append(entity)
 
     return entities
 

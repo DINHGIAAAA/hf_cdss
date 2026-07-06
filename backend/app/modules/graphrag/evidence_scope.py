@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from functools import lru_cache
 from typing import Any
 
+from app.core.config import settings
 from app.modules.datastores.artifacts import sync_artifacts_from_processed_bucket
 from app.modules.datastores.common import DATA_ROOT, RELATIONSHIPS_PATH, read_jsonl
 
@@ -24,10 +26,11 @@ class EvidenceScope:
 
     def chroma_where(self) -> dict[str, Any] | None:
         clauses: list[dict[str, Any]] = []
+        max_filter_ids = settings.chroma_filter_max_ids
         if self.document_ids:
-            clauses.append({"document_id": {"$in": list(self.document_ids[:24])}})
+            clauses.append({"document_id": {"$in": list(self.document_ids[:max_filter_ids])}})
         if self.section_ids:
-            clauses.append({"section_id": {"$in": list(self.section_ids[:24])}})
+            clauses.append({"section_id": {"$in": list(self.section_ids[:max_filter_ids])}})
         if not clauses:
             return None
         if len(clauses) == 1:
@@ -167,17 +170,55 @@ def resolve_evidence_scope_local(terms: list[str], *, top_k: int = 20) -> Eviden
     return _scope_from_dict(scope)
 
 
-def resolve_evidence_scope(terms: list[str], *, top_k: int = 24) -> EvidenceScope:
-    if not terms:
+def resolve_evidence_scope_from_chunk_ids(chunk_ids: list[str]) -> EvidenceScope:
+    if not chunk_ids:
         return EvidenceScope()
+
+    scope: dict[str, set[str]] = {
+        "document_ids": set(),
+        "section_ids": set(),
+        "chunk_ids": set(),
+    }
+    chunk_index = _load_chunk_index()
+    for chunk_id in chunk_ids:
+        normalized = (chunk_id or "").strip()
+        if not normalized:
+            continue
+        scope["chunk_ids"].add(normalized)
+        record = chunk_index.get(normalized)
+        if not record:
+            continue
+        metadata = record.get("metadata") or {}
+        document_id = record.get("document_id") or metadata.get("source_document_id")
+        section_id = record.get("section_id") or metadata.get("section_id")
+        if document_id:
+            scope["document_ids"].add(str(document_id))
+        if section_id:
+            scope["section_ids"].add(str(section_id))
+    return _scope_from_dict(scope)
+
+
+@lru_cache(maxsize=1)
+def _load_chunk_index() -> dict[str, dict[str, Any]]:
+    from app.modules.datastores.common import CHUNKS_PATH, read_jsonl
+
+    if not CHUNKS_PATH.exists():
+        return {}
+    return {str(row["chunk_id"]): row for row in read_jsonl(CHUNKS_PATH) if row.get("chunk_id")}
+
+
+def resolve_evidence_scope(terms: list[str], *, top_k: int = 24, chunk_ids: list[str] | None = None) -> EvidenceScope:
+    constraint_scope = resolve_evidence_scope_from_chunk_ids(list(chunk_ids or []))
+    if not terms:
+        return constraint_scope
 
     try:
         from app.modules.datastores.neo4j import retrieve_evidence_scope_neo4j
 
-        scope = retrieve_evidence_scope_neo4j(terms, top_k=top_k)
-        if not scope.is_empty():
-            return scope
+        graph_scope = retrieve_evidence_scope_neo4j(terms, top_k=top_k)
+        if not graph_scope.is_empty():
+            return merge_evidence_scopes(constraint_scope, graph_scope)
     except Exception as exc:
         logger.warning("Neo4j evidence scope unavailable; using local relationship fallback: %s", exc)
 
-    return resolve_evidence_scope_local(terms, top_k=top_k)
+    return merge_evidence_scopes(constraint_scope, resolve_evidence_scope_local(terms, top_k=top_k))

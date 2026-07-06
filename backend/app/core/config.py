@@ -107,6 +107,13 @@ class Settings(BaseSettings):
     gdmt_policy_cache_ttl_seconds: int = 300
     dose_safety_warnings_cache_ttl_seconds: int = 300
     kg_dose_overlays_cache_ttl_seconds: int = 300
+    governance_circuit_breaker_enabled: bool = True
+    governance_db_timeout_seconds: float = 2.5
+    governance_circuit_failure_threshold: int = 3
+    governance_circuit_recovery_seconds: float = 30.0
+    constraint_chunk_fetch_limit: int = 50
+    chroma_filter_max_ids: int = 48
+    evidence_text_max_length: int = 1200
     hyde_retrieval_enabled: bool = True
     hyde_retrieval_model: str = "qwen2.5:1.5b"
     hyde_retrieval_timeout_seconds: float = 20.0
@@ -120,6 +127,7 @@ class Settings(BaseSettings):
     graphrag_chunk_window_size: int = 1
     graphrag_adaptive_top_k: bool = True
     graphrag_graph_guided_filter_enabled: bool = True
+    neo4j_query_timeout_seconds: float = 5.0
 
     model_config = SettingsConfigDict(env_prefix="HF_CDSS_", env_file=".env", extra="ignore")
 

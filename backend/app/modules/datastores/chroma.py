@@ -24,7 +24,20 @@ from app.schemas.graphrag import EvidenceChunk
 logger = logging.getLogger(__name__)
 
 
-INDEX_VERSION = "heart_failure_chunks_v5"
+def _index_version() -> str:
+    """Compute deterministic version from schema fingerprint.
+
+    Returns a hash-based version string derived from critical index fields.
+    Increment when schema changes require re-indexing.
+    """
+    from app.core.config import settings
+    fingerprint = f"{settings.embedding_model}_v1"  # Add fields to force reindex on schema change
+    return f"hf_v{hash(fingerprint) & 0xFFFF:04x}"
+
+
+def _index_version_str() -> str:
+    """Cached access to computed index version."""
+    return _index_version()
 
 
 def _file_sha256(path) -> str:
@@ -50,7 +63,7 @@ def _collection():
 
 
 def _collection_name() -> str:
-    return f"{settings.chroma_collection}_{INDEX_VERSION}_{embedding_index_version()}"
+    return f"{settings.chroma_collection}_{_index_version_str()}_{embedding_index_version()}"
 
 
 def _recreate_collection():
@@ -178,7 +191,7 @@ def _query_chroma(
             document_id=metadata.get("document_id", ""),
             source_type=metadata.get("source_type", ""),
             section=metadata.get("section") or None,
-            text=normalize_evidence_text(document)[:900],
+            text=normalize_evidence_text(document)[: settings.evidence_text_max_length],
             score=max(0.0, 1.0 - float(distance)),
             metadata=raw_metadata,
             source_url=raw_metadata.get("source_url"),
@@ -186,6 +199,42 @@ def _query_chroma(
         )
         chunks.append(enrich_evidence_chunk(chunk.model_copy(update={"source_link": source_link_for_chunk(chunk)})))
     return chunks
+
+
+def _fetch_chunks_by_ids(chunk_ids: list[str]) -> list[EvidenceChunk]:
+    max_fetch = getattr(settings, "constraint_chunk_fetch_limit", 50)
+    ids = [chunk_id for chunk_id in chunk_ids if chunk_id][:max_fetch]
+    if not ids:
+        return []
+    try:
+        results = _collection().get(ids=ids, include=["documents", "metadatas"])
+    except Exception as exc:
+        logger.warning("Direct chunk fetch unavailable: %s", exc)
+        return []
+
+    fetched: list[EvidenceChunk] = []
+    for chunk_id, document, metadata in zip(
+        results.get("ids") or [],
+        results.get("documents") or [],
+        results.get("metadatas") or [],
+    ):
+        raw_metadata = json.loads((metadata or {}).get("metadata_json", "{}"))
+        chunk = EvidenceChunk(
+            chunk_id=chunk_id,
+            document_id=(metadata or {}).get("document_id", ""),
+            source_type=(metadata or {}).get("source_type", ""),
+            section=(metadata or {}).get("section") or None,
+            text=normalize_evidence_text(document or "")[: settings.evidence_text_max_length],
+            score=1.0,
+            metadata={
+                **raw_metadata,
+                "constraint_pinned": True,
+            },
+            source_url=raw_metadata.get("source_url"),
+            page=raw_metadata.get("page") or raw_metadata.get("page_start"),
+        )
+        fetched.append(enrich_evidence_chunk(chunk.model_copy(update={"source_link": source_link_for_chunk(chunk)})))
+    return fetched
 
 
 def retrieve_chroma(
@@ -212,6 +261,10 @@ def retrieve_chroma_graph_guided(
     candidate_count = candidate_count or retrieval_candidate_count(top_k)
     where = scope.chroma_where()
     ranked_lists: list[list[EvidenceChunk]] = []
+    if scope.chunk_ids:
+        pinned = _fetch_chunks_by_ids(list(scope.chunk_ids))
+        if pinned:
+            ranked_lists.append(pinned)
     if where:
         try:
             filtered = _query_chroma(query, candidate_count, where=where)

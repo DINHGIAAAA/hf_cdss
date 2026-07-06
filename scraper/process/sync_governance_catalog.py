@@ -1,4 +1,11 @@
-"""Sync pipeline-generated governance catalogs into PostgreSQL."""
+"""Sync pipeline-generated governance catalogs into PostgreSQL.
+
+Governance workflow (Postgres-only):
+1. Ingestion pipeline writes draft JSONL artifacts under artifacts/rules/.
+2. Admin reviews and approves catalogs via /api/v1/admin/* endpoints.
+3. Runtime loaders read approved rows from Postgres (RuleCache + bundled JSON fallback).
+4. ``sync_governance_catalog`` upserts draft rows; it does not replace admin approval.
+"""
 
 from __future__ import annotations
 

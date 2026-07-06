@@ -8,6 +8,8 @@ from typing import Any
 from app.modules.drug_normalization.service import format_constraint_target
 from app.modules.evidence_linking.service import hydrate_constraint
 
+from app.core.circuit_breaker import CircuitOpenError
+from app.core.governance_db import load_with_governance_guard
 from app.modules.datastores.postgres import (
     read_approved_constraint_rules,
 )
@@ -93,9 +95,17 @@ def load_constraint_rules() -> list[dict[str, Any]]:
         return _cached_rules
 
     try:
-        _cached_rules = read_approved_constraint_rules()
+        _cached_rules = load_with_governance_guard("constraints", read_approved_constraint_rules)
         _CACHE_TIMESTAMP = datetime.now()
         return _cached_rules
+    except CircuitOpenError:
+        logger.warning("Constraint circuit open; serving stale cache or minimum fallback")
+        if _cached_rules is not None:
+            return _cached_rules
+        minimum = _minimum_safety_rules()
+        if minimum:
+            return minimum
+        return []
     except Exception as exc:
         logger.error(
             "CRITICAL: Could not load constraints from database: %s",

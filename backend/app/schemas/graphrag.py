@@ -37,6 +37,7 @@ class GraphRAGContextRequest(BaseModel):
     top_k: int = 6
     conversation_history: list[str] | None = None
     clinical_state: dict[str, Any] | None = None
+    constraint_chunk_ids: list[str] = Field(default_factory=list)
 
 
 class GraphRAGContextResponse(BaseModel):
