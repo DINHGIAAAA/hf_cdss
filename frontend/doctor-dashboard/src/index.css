@@ -1,0 +1,124 @@
+@import "tailwindcss";
+@import "./styles/base.css";
+@import "./styles/admin-legacy.css";
+@import "tw-shimmer";
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-sans: "Fira Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Fira Code", ui-monospace, monospace;
+
+  --color-background: #ffffff;
+  --color-foreground: #0d0d0d;
+  --color-card: #ffffff;
+  --color-card-foreground: #0d0d0d;
+  --color-popover: #ffffff;
+  --color-popover-foreground: #0d0d0d;
+  --color-primary: #10a37f;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #f7f7f8;
+  --color-secondary-foreground: #0d0d0d;
+  --color-muted: #f7f7f8;
+  --color-muted-foreground: #5d5d5d;
+  --color-accent: #ecfdf5;
+  --color-accent-foreground: #0d8c6d;
+  --color-destructive: #dc2626;
+  --color-destructive-foreground: #ffffff;
+  --color-border: #e3e3e3;
+  --color-input: #e3e3e3;
+  --color-ring: #10a37f;
+
+  --color-sidebar: #171717;
+  --color-sidebar-foreground: #ececec;
+  --color-sidebar-primary: #10a37f;
+  --color-sidebar-primary-foreground: #ffffff;
+  --color-sidebar-accent: #212121;
+  --color-sidebar-accent-foreground: #ececec;
+  --color-sidebar-border: #2f2f2f;
+  --color-sidebar-ring: #10a37f;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+}
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    @apply border-border;
+  }
+
+  html,
+  body,
+  #root {
+    @apply h-full min-h-0;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans text-[15px] leading-normal antialiased;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+@layer utilities {
+  .chat-column {
+    max-width: 48rem;
+  }
+
+  .chat-shell {
+    width: 100%;
+  }
+
+  @media (max-width: 1180px) {
+    .chat-shell {
+      grid-template-columns: minmax(0, 1fr) !important;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+    }
+
+    .chat-shell > aside:first-of-type {
+      max-height: 32vh;
+    }
+
+    .chat-shell > aside:last-of-type {
+      border-left: 0;
+      border-top: 1px solid var(--color-border);
+      max-height: 40vh;
+    }
+
+    .chat-shell > [role="separator"] {
+      display: none;
+    }
+  }
+
+  .typing-dot {
+    @apply inline-block h-1.5 w-1.5 rounded-full bg-muted-foreground/60;
+    animation: typing-bounce 1.2s infinite ease-in-out;
+  }
+
+  .typing-dot:nth-child(2) {
+    animation-delay: 0.15s;
+  }
+
+  .typing-dot:nth-child(3) {
+    animation-delay: 0.3s;
+  }
+}
+
+@keyframes typing-bounce {
+  0%,
+  80%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.45;
+  }
+  40% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}

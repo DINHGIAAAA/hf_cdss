@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "./auth/AuthContext";
 import { ProtectedRoute } from "./auth/ProtectedRoute";
 import { ADMIN_ROLES } from "./auth/roles";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { AdminLayout } from "./layouts/AdminLayout";
 import { ApiExplorerPage } from "./pages/ApiExplorerPage";
 import { AuditPage } from "./pages/AuditPage.jsx";
@@ -18,48 +19,41 @@ import { RulesPage } from "./pages/RulesPage";
 import { SystemPage } from "./pages/SystemPage";
 import { UsersPage } from "./pages/UsersPage";
 
-import "./styles/base.css";
-import "./styles/layout.css";
-import "./styles/sidebar.css";
-import "./styles/chat.css";
-import "./styles/clinical-panel.css";
-import "./styles/modal.css";
-import "./styles/admin.css";
-import "./styles/login.css";
-
 function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route element={<LoginPage />} path="/login" />
-          <Route element={<HomePage />} path="/" />
-          <Route element={<ProtectedRoute><ChatPage /></ProtectedRoute>} path="/chat" />
+      <TooltipProvider delayDuration={200}>
+        <BrowserRouter>
+          <Routes>
+            <Route element={<LoginPage />} path="/login" />
+            <Route element={<HomePage />} path="/" />
+            <Route element={<ProtectedRoute><ChatPage /></ProtectedRoute>} path="/chat" />
 
-          <Route
-            element={
-              <ProtectedRoute roles={ADMIN_ROLES}>
-                <AdminLayout />
-              </ProtectedRoute>
-            }
-            path="/admin"
-          >
-            <Route element={<Navigate replace to="rules" />} index />
-            <Route element={<RulesPage />} path="rules" />
-            <Route element={<DoseRulesPage />} path="dose-rules" />
-            <Route element={<DoseSafetyWarningsPage />} path="dose-safety-warnings" />
-            <Route element={<InteractionRulesPage />} path="interaction-rules" />
-            <Route element={<GdmtPoliciesPage />} path="gdmt-policies" />
-            <Route element={<EvidencePage />} path="evidence" />
-            <Route element={<SystemPage />} path="system" />
-            <Route element={<UsersPage />} path="users" />
-            <Route element={<AuditPage />} path="audit" />
-            <Route element={<ApiExplorerPage />} path="api" />
-          </Route>
+            <Route
+              element={
+                <ProtectedRoute roles={ADMIN_ROLES}>
+                  <AdminLayout />
+                </ProtectedRoute>
+              }
+              path="/admin"
+            >
+              <Route element={<Navigate replace to="rules" />} index />
+              <Route element={<RulesPage />} path="rules" />
+              <Route element={<DoseRulesPage />} path="dose-rules" />
+              <Route element={<DoseSafetyWarningsPage />} path="dose-safety-warnings" />
+              <Route element={<InteractionRulesPage />} path="interaction-rules" />
+              <Route element={<GdmtPoliciesPage />} path="gdmt-policies" />
+              <Route element={<EvidencePage />} path="evidence" />
+              <Route element={<SystemPage />} path="system" />
+              <Route element={<UsersPage />} path="users" />
+              <Route element={<AuditPage />} path="audit" />
+              <Route element={<ApiExplorerPage />} path="api" />
+            </Route>
 
-          <Route element={<Navigate replace to="/login" />} path="*" />
-        </Routes>
-      </BrowserRouter>
+            <Route element={<Navigate replace to="/login" />} path="*" />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
     </AuthProvider>
   );
 }

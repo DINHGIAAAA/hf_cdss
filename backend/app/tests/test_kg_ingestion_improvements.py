@@ -1,3 +1,4 @@
+import json
 import sys
 from pathlib import Path
 
@@ -5,7 +6,11 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from scraper.orchestration.pipeline_checkpoint import save_checkpoint, should_skip_step
+from scraper.orchestration.pipeline_checkpoint import (
+    resolve_auto_resume,
+    save_checkpoint,
+    should_skip_step,
+)
 from scraper.process.extract_entities import extract_entities_from_chunk
 from scraper.semantic.chunking import _safe_sentence_split, structure_semantic_chunk_text
 from scraper.semantic.dedup import dedupe_by_embedding
@@ -125,3 +130,64 @@ def test_pipeline_checkpoint_resume_skips_completed_step(tmp_path) -> None:
     checkpoint = {"last_completed_step": "chunk_sections"}
     assert should_skip_step("chunk_sections", resume_from="extract_entities", checkpoint=checkpoint) is True
     assert should_skip_step("extract_entities", resume_from="extract_entities", checkpoint=checkpoint) is False
+
+
+def test_checkpoint_does_not_regress(tmp_path) -> None:
+    checkpoint_path = tmp_path / ".pipeline_checkpoint.json"
+    save_checkpoint(checkpoint_path, run_id="run-1", step_name="extract_entities")
+    save_checkpoint(checkpoint_path, run_id="run-1", step_name="sync_sources_from_s3")
+    checkpoint = json.loads(checkpoint_path.read_text(encoding="utf-8"))
+    assert checkpoint["last_completed_step"] == "extract_entities"
+
+
+def test_auto_resume_uses_artifacts_when_checkpoint_regressed(tmp_path) -> None:
+    data_root = tmp_path / "heart_failure"
+    chunks = data_root / "artifacts" / "chunks" / "chunks.jsonl"
+    chunks.parent.mkdir(parents=True)
+    chunks.write_text("{}\n", encoding="utf-8")
+
+    checkpoint = {
+        "run_id": "run-1",
+        "last_completed_step": "sync_sources_from_s3",
+    }
+    resume_from = resolve_auto_resume(
+        resume_from=None,
+        auto_resume=True,
+        checkpoint=checkpoint,
+        run_id="run-1",
+        data_root=data_root,
+    )
+    assert resume_from == "extract_entities"
+
+
+def test_infer_last_completed_picks_furthest_artifact(tmp_path) -> None:
+    data_root = tmp_path / "heart_failure"
+    for relative in (
+        "processed/sections/guideline_sections.jsonl",
+        "processed/sections/important_sections.jsonl",
+        "artifacts/entities/entities.jsonl",
+    ):
+        path = data_root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("{}\n", encoding="utf-8")
+
+    from scraper.orchestration.pipeline_checkpoint import infer_last_completed_from_artifacts
+
+    assert infer_last_completed_from_artifacts(data_root) == "extract_entities"
+
+
+def test_auto_resume_skipped_for_new_run_id(tmp_path) -> None:
+    data_root = tmp_path / "heart_failure"
+    chunks = data_root / "artifacts" / "chunks" / "chunks.jsonl"
+    chunks.parent.mkdir(parents=True)
+    chunks.write_text("{}\n", encoding="utf-8")
+
+    checkpoint = {"run_id": "old-run", "last_completed_step": "chunk_sections"}
+    resume_from = resolve_auto_resume(
+        resume_from=None,
+        auto_resume=True,
+        checkpoint=checkpoint,
+        run_id="new-run",
+        data_root=data_root,
+    )
+    assert resume_from is None

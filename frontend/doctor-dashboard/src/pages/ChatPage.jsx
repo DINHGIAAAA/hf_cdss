@@ -2,15 +2,18 @@ import { useState } from "react";
 
 import { Sidebar } from "../components/Sidebar";
 import { PatientModal } from "../components/PatientModal";
-import { ChatMain } from "../components/ChatMain";
 import { ClinicalPanel } from "../components/ClinicalPanel";
+import { ClinicalChatRuntimeProvider } from "../components/ClinicalChatRuntime";
+import { ClinicalChatThread } from "../components/ClinicalChatThread";
 
-import { useConversations, useChat, useApiHealth, useLanguage, useHorizontalResize } from "../hooks";
-import { readClinicalFiles } from "../utils";
+import { useConversations, useApiHealth, useLanguage, useHorizontalResize } from "../hooks";
+import { cn } from "@/lib/utils";
 
 export function ChatPage() {
   const health = useApiHealth();
   const [showModal, setShowModal] = useState(false);
+  const [streamStatus, setStreamStatus] = useState("");
+  const [error, setError] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(() => localStorage.getItem("hf_sidebar") !== "0");
   const { language, setLanguage, languages } = useLanguage();
   const { width: panelWidth, isOpen: panelOpen, containerRef, onPointerDown } = useHorizontalResize({
@@ -32,21 +35,7 @@ export function ChatPage() {
   } = useConversations();
 
   const active = conversations.find((c) => c.id === activeId) || null;
-
-  const { chatInput, setChatInput, loading, streamStatus, error, setError, submitChat } = useChat({
-    active,
-    patchConversation,
-    language,
-  });
-
   const shouldShowModal = showModal || conversations.length === 0;
-
-  async function handleFiles(event) {
-    if (!active) return;
-    const parsed = await readClinicalFiles(event.target.files);
-    updateActive({ attachments: [...(active.attachments || []), ...parsed] });
-    event.target.value = "";
-  }
 
   function handleCreate(form, patientId, conversationName) {
     createConversation(form, patientId, conversationName);
@@ -56,9 +45,11 @@ export function ChatPage() {
 
   return (
     <main
-      className={["app-shell", sidebarOpen ? "" : "app-shell--sidebar-collapsed"].filter(Boolean).join(" ")}
+      className="chat-shell grid h-full min-h-0 overflow-hidden bg-background"
       ref={containerRef}
-      style={{ "--panel-width": `${panelWidth}px` }}
+      style={{
+        gridTemplateColumns: `${sidebarOpen ? 260 : 56}px minmax(0, 1fr) 4px ${panelOpen ? panelWidth : 0}px`,
+      }}
     >
       {shouldShowModal && (
         <PatientModal
@@ -82,25 +73,29 @@ export function ChatPage() {
         }}
       />
 
-      <ChatMain
+      <ClinicalChatRuntimeProvider
         active={active}
-        chatInput={chatInput}
         language={language}
-        languages={languages}
-        loading={loading}
-        onLanguageChange={setLanguage}
-        streamStatus={streamStatus}
-        sidebarOpen={sidebarOpen}
-        onToggleSidebar={() =>
-          setSidebarOpen((v) => {
-            localStorage.setItem("hf_sidebar", v ? "0" : "1");
-            return !v;
-          })
-        }
-        onFiles={handleFiles}
-        onSubmit={submitChat}
-        setChatInput={setChatInput}
-      />
+        onError={setError}
+        onStreamStatus={setStreamStatus}
+        patchConversation={patchConversation}
+        updateActive={updateActive}
+      >
+        <ClinicalChatThread
+          active={active}
+          language={language}
+          languages={languages}
+          onLanguageChange={setLanguage}
+          sidebarOpen={sidebarOpen}
+          onToggleSidebar={() =>
+            setSidebarOpen((value) => {
+              localStorage.setItem("hf_sidebar", value ? "0" : "1");
+              return !value;
+            })
+          }
+          streamStatus={streamStatus}
+        />
+      </ClinicalChatRuntimeProvider>
 
       <div
         aria-label="Resize evidence panel"
@@ -108,7 +103,10 @@ export function ChatPage() {
         aria-valuemax={520}
         aria-valuemin={0}
         aria-valuenow={Math.round(panelWidth)}
-        className="panel-resize-handle"
+        className={cn(
+          "group relative z-10 cursor-col-resize bg-border/60 transition-colors hover:bg-primary/30",
+          panelOpen ? "w-1" : "w-0",
+        )}
         onPointerDown={onPointerDown}
         role="separator"
         tabIndex={0}

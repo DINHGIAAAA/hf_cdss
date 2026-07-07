@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 
-import { apiHeaders, apiUrl } from "@shared/api/client.js";
+import { apiFetch } from "@shared/api/client.js";
 import { parseSseBlock } from "../utils";
 import { compactPatientForRequest } from "./patientPayload.js";
 
@@ -37,9 +37,9 @@ export function useChat({ active, patchConversation, language }) {
       }));
 
       try {
-        const response = await fetch(apiUrl("/chat/stream"), {
+        const response = await apiFetch("/chat/stream", {
           method: "POST",
-          headers: apiHeaders({ "Content-Type": "application/json" }),
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             message,
             conversation_id: conversationId,

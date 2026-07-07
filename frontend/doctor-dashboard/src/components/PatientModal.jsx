@@ -1,6 +1,16 @@
 import { useMemo, useState } from "react";
-import { X, UserRound } from "lucide-react";
+import { UserRound } from "lucide-react";
 import { makePatientId, slugify } from "../utils";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
 const EMPTY_PATIENT = {
   fullName: "",
@@ -21,18 +31,18 @@ const EMPTY_PATIENT = {
 
 function Field({ label, name, value, onChange, type = "text", placeholder = "" }) {
   return (
-    <label className="field">
-      <span>{label}</span>
-      <input name={name} onChange={onChange} placeholder={placeholder} type={type} value={value} />
+    <label className="space-y-1.5 text-sm">
+      <span className="font-medium text-foreground">{label}</span>
+      <Input name={name} onChange={onChange} placeholder={placeholder} type={type} value={value} />
     </label>
   );
 }
 
 function TextField({ label, name, value, onChange, placeholder = "" }) {
   return (
-    <label className="field wide">
-      <span>{label}</span>
-      <textarea name={name} onChange={onChange} placeholder={placeholder} value={value} />
+    <label className="col-span-full space-y-1.5 text-sm">
+      <span className="font-medium text-foreground">{label}</span>
+      <Textarea name={name} onChange={onChange} placeholder={placeholder} rows={2} value={value} />
     </label>
   );
 }
@@ -54,68 +64,55 @@ export function PatientModal({ onCreate, onClose }) {
   }
 
   return (
-    <div className="modal-backdrop">
-      <form className="patient-modal" onSubmit={submit}>
-        <div className="modal-head">
-          <div>
-            <h1>New Conversation</h1>
-            <p className="modal-subtitle">{conversationName}</p>
+    <Dialog onOpenChange={(open) => { if (!open && onClose) onClose(); }} open>
+      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto sm:max-w-3xl" showCloseButton={Boolean(onClose)}>
+        <DialogHeader>
+          <div className="flex items-start gap-3">
+            <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <UserRound size={20} />
+            </div>
+            <div>
+              <DialogTitle>New Conversation</DialogTitle>
+              <DialogDescription>{conversationName}</DialogDescription>
+            </div>
           </div>
-          {onClose ? (
-            <button aria-label="Close" className="modal-close" onClick={onClose} type="button">
-              <X size={18} />
-            </button>
-          ) : (
-            <UserRound size={22} />
-          )}
-        </div>
+        </DialogHeader>
 
-        <div className="modal-grid">
-          <Field label="Patient name" name="fullName" onChange={update} placeholder="Nguyen Van A" value={form.fullName} />
-          <Field label="Age" name="age" onChange={update} type="number" value={form.age} />
-          <label className="field">
-            <span>Sex</span>
-            <select name="sex" onChange={update} value={form.sex}>
-              <option value="">Unknown</option>
-              <option value="male">Male</option>
-              <option value="female">Female</option>
-            </select>
-          </label>
-          <Field label="Weight kg" name="weightKg" onChange={update} type="number" value={form.weightKg} />
-          <Field label="SBP mmHg" name="systolicBp" onChange={update} type="number" value={form.systolicBp} />
-          <Field label="Heart rate" name="heartRate" onChange={update} type="number" value={form.heartRate} />
-          <Field label="LVEF %" name="lvef" onChange={update} type="number" value={form.lvef} />
-          <Field label="eGFR" name="egfr" onChange={update} type="number" value={form.egfr} />
-          <Field label="K+ mmol/L" name="potassium" onChange={update} type="number" value={form.potassium} />
-          <Field label="NYHA" name="nyhaClass" onChange={update} placeholder="II, III..." value={form.nyhaClass} />
-          <TextField label="Conditions" name="conditions" onChange={update} placeholder="HFrEF, CKD..." value={form.conditions} />
-          <TextField
-            label="Current medications"
-            name="medications"
-            onChange={update}
-            placeholder="metoprolol, furosemide..."
-            value={form.medications}
-          />
-          <TextField
-            label="Allergies"
-            name="allergies"
-            onChange={update}
-            placeholder="penicillin, aspirin, no known drug allergies"
-            value={form.allergies}
-          />
-          <TextField
-            label="Red flags"
-            name="redFlags"
-            onChange={update}
-            placeholder="acute decompensation, chest pain, stable"
-            value={form.redFlags}
-          />
-        </div>
+        <form className="space-y-5" onSubmit={submit}>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Patient name" name="fullName" onChange={update} placeholder="Nguyen Van A" value={form.fullName} />
+            <Field label="Age" name="age" onChange={update} type="number" value={form.age} />
+            <label className="space-y-1.5 text-sm">
+              <span className="font-medium text-foreground">Sex</span>
+              <select
+                className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                name="sex"
+                onChange={update}
+                value={form.sex}
+              >
+                <option value="">Unknown</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+              </select>
+            </label>
+            <Field label="Weight kg" name="weightKg" onChange={update} type="number" value={form.weightKg} />
+            <Field label="SBP mmHg" name="systolicBp" onChange={update} type="number" value={form.systolicBp} />
+            <Field label="Heart rate" name="heartRate" onChange={update} type="number" value={form.heartRate} />
+            <Field label="LVEF %" name="lvef" onChange={update} type="number" value={form.lvef} />
+            <Field label="eGFR" name="egfr" onChange={update} type="number" value={form.egfr} />
+            <Field label="K+ mmol/L" name="potassium" onChange={update} type="number" value={form.potassium} />
+            <Field label="NYHA" name="nyhaClass" onChange={update} placeholder="II, III..." value={form.nyhaClass} />
+            <TextField label="Conditions" name="conditions" onChange={update} placeholder="HFrEF, CKD..." value={form.conditions} />
+            <TextField label="Current medications" name="medications" onChange={update} placeholder="metoprolol, furosemide..." value={form.medications} />
+            <TextField label="Allergies" name="allergies" onChange={update} placeholder="penicillin, aspirin, no known drug allergies" value={form.allergies} />
+            <TextField label="Red flags" name="redFlags" onChange={update} placeholder="acute decompensation, chest pain, stable" value={form.redFlags} />
+          </div>
 
-        <button className="primary-action" disabled={!form.fullName.trim()} type="submit">
-          Start conversation
-        </button>
-      </form>
-    </div>
+          <Button className="w-full sm:w-auto" disabled={!form.fullName.trim()} size="lg" type="submit">
+            Start conversation
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

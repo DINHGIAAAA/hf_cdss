@@ -24,6 +24,15 @@ export function apiHeaders(extra = {}) {
   return { ...extra };
 }
 
+export function apiFetch(path, options = {}) {
+  const { headers, ...rest } = options;
+  return fetch(apiUrl(path), {
+    credentials: "include",
+    ...rest,
+    headers: apiHeaders(headers),
+  });
+}
+
 async function parseResponse(response) {
   const text = await response.text();
   let data = null;

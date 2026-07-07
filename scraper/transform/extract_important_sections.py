@@ -1,10 +1,14 @@
 from scraper.io.jsonl import read_jsonl, write_jsonl
 import argparse
 import json
+import logging
 import re
 from pathlib import Path
 
 from scraper.transform.text_normalization import normalize_inline_text
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, format="%(message)s")
 
 DRUG_SECTION_ALIASES = {
     "INDICATIONS AND USAGE": {"INDICATIONS AND USAGE", "INDICATIONS & USAGE"},
@@ -97,8 +101,11 @@ def main() -> None:
 
     records: list[dict] = []
     for path in collect_section_files(args.sections_dir):
-        records.extend(read_jsonl(path))
+        loaded = read_jsonl(path)
+        records.extend(loaded)
+        logger.info("Loaded %s sections from %s", len(loaded), path.name)
     records = dedupe_sections(records)
+    logger.info("Total %s unique sections to filter", len(records))
 
     from scraper.semantic.section_filter import filter_important_sections
 

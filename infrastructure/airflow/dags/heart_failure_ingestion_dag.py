@@ -65,7 +65,7 @@ with DAG(
         task_id="run_kg_pipeline",
         execution_timeout=timedelta(hours=12),
         bash_command=(
-            f"{data_command(PYTHON + f' -m scraper.orchestration.run_ingestion_pipeline --registry {SOURCES_REGISTRY} --skip-download ')}"
+            f"{data_command(PYTHON + f' -m scraper.orchestration.run_ingestion_pipeline --registry {SOURCES_REGISTRY} --skip-download --auto-resume ')}"
             '--run-id "{{ run_id }}"'
         ),
     )

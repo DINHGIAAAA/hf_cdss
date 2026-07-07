@@ -58,8 +58,14 @@ def _semantic_guideline_matches(record: dict) -> list[str]:
 def filter_important_sections(records: list[dict]) -> list[dict]:
     warmup_prototype_vectors(DRUG_SECTION_PROTOTYPES, GUIDELINE_TOPIC_PROTOTYPES)
 
+    total = len(records)
     important: list[dict] = []
-    for record in records:
+    semantic_embed_calls = 0
+    progress_every = max(100, total // 20) if total else 100
+
+    logger.info("Filtering %s sections (keyword first, semantic embed only when needed)...", total)
+
+    for index, record in enumerate(records, start=1):
         keyword_matches: list[str] = []
         semantic_matches: list[str] = []
 
@@ -73,12 +79,14 @@ def filter_important_sections(records: list[dict]) -> list[dict]:
 
         if record.get("source_type") == "drug_label":
             keyword_matches = drug_matches(record)
-            # Skip semantic if keyword already matched - significant speedup
-            semantic_matches = [] if keyword_matches else _semantic_drug_matches(record)
+            if not keyword_matches:
+                semantic_embed_calls += 1
+                semantic_matches = _semantic_drug_matches(record)
         elif record.get("source_type") == "guideline":
             keyword_matches = guideline_matches(record)
-            # Skip semantic if keyword already matched - significant speedup
-            semantic_matches = [] if keyword_matches else _semantic_guideline_matches(record)
+            if not keyword_matches:
+                semantic_embed_calls += 1
+                semantic_matches = _semantic_guideline_matches(record)
 
         merged = sorted(set(keyword_matches) | set(semantic_matches))
         if merged:
@@ -88,4 +96,20 @@ def filter_important_sections(records: list[dict]) -> list[dict]:
                 "keyword+semantic" if keyword_matches and semantic_matches else "semantic" if semantic_matches else "keyword"
             )
             important.append(output)
+
+        if index == 1 or index % progress_every == 0 or index == total:
+            logger.info(
+                "Section filter progress: %s/%s processed, %s important so far, %s semantic embed calls",
+                index,
+                total,
+                len(important),
+                semantic_embed_calls,
+            )
+
+    logger.info(
+        "Section filter complete: %s/%s sections kept (%s semantic embed calls)",
+        len(important),
+        total,
+        semantic_embed_calls,
+    )
     return important

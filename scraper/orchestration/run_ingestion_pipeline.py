@@ -8,6 +8,7 @@ from pathlib import Path
 from scraper.orchestration.pipeline_checkpoint import (
     default_checkpoint_path,
     load_checkpoint,
+    resolve_auto_resume,
     save_checkpoint,
     should_skip_step,
 )
@@ -41,6 +42,7 @@ def run_step(
     env = os.environ.copy()
     existing_pythonpath = env.get("PYTHONPATH", "")
     env["PYTHONPATH"] = str(PROJECT_ROOT) if not existing_pythonpath else f"{PROJECT_ROOT}{os.pathsep}{existing_pythonpath}"
+    env["PYTHONUNBUFFERED"] = "1"
     subprocess.run(command, cwd=ROOT, check=True, env=env)
     save_checkpoint(checkpoint_path, run_id=run_id, step_name=name)
 
@@ -66,6 +68,11 @@ def main() -> None:
         help="Skip steps before this checkpoint step name (see .pipeline_checkpoint.json).",
     )
     parser.add_argument(
+        "--auto-resume",
+        action="store_true",
+        help="Resume from checkpoint/artifacts for the same --run-id (used by Airflow retries).",
+    )
+    parser.add_argument(
         "--checkpoint-file",
         default=None,
         type=Path,
@@ -77,9 +84,16 @@ def main() -> None:
     run_id = args.run_id or time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
     checkpoint_path = args.checkpoint_file or default_checkpoint_path(ROOT)
     checkpoint = load_checkpoint(checkpoint_path)
+    resume_from = resolve_auto_resume(
+        resume_from=args.resume_from,
+        auto_resume=args.auto_resume,
+        checkpoint=checkpoint,
+        run_id=run_id,
+        data_root=ROOT,
+    )
     print(f"Pipeline run id: {run_id}")
-    if args.resume_from:
-        print(f"Resuming from step: {args.resume_from} (checkpoint={checkpoint_path})")
+    if resume_from:
+        print(f"Resuming from step: {resume_from} (checkpoint={checkpoint_path})")
     if not args.skip_download:
         command = [
             python,
@@ -110,7 +124,7 @@ def main() -> None:
             dry_run=args.dry_run,
             run_id=run_id,
             checkpoint_path=checkpoint_path,
-            resume_from=args.resume_from,
+            resume_from=resume_from,
             checkpoint=checkpoint,
         )
 
@@ -133,7 +147,7 @@ def main() -> None:
             dry_run=args.dry_run,
             run_id=run_id,
             checkpoint_path=checkpoint_path,
-            resume_from=args.resume_from,
+            resume_from=resume_from,
             checkpoint=checkpoint,
         )
 
@@ -160,7 +174,7 @@ def main() -> None:
             dry_run=args.dry_run,
             run_id=run_id,
             checkpoint_path=checkpoint_path,
-            resume_from=args.resume_from,
+            resume_from=resume_from,
             checkpoint=checkpoint,
         )
         run_step(
@@ -179,7 +193,7 @@ def main() -> None:
             dry_run=args.dry_run,
             run_id=run_id,
             checkpoint_path=checkpoint_path,
-            resume_from=args.resume_from,
+            resume_from=resume_from,
             checkpoint=checkpoint,
         )
 
@@ -228,7 +242,7 @@ def main() -> None:
         "dry_run": args.dry_run,
         "run_id": run_id,
         "checkpoint_path": checkpoint_path,
-        "resume_from": args.resume_from,
+        "resume_from": resume_from,
         "checkpoint": checkpoint,
     }
 

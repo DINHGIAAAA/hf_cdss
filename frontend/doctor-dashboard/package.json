@@ -5,13 +5,31 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@assistant-ui/react": "^0.14.26",
+    "@assistant-ui/react-markdown": "^0.14.5",
+    "@radix-ui/react-avatar": "^1.2.2",
+    "@radix-ui/react-dialog": "^1.1.19",
+    "@radix-ui/react-dropdown-menu": "^2.1.20",
+    "@radix-ui/react-scroll-area": "^1.2.14",
+    "@radix-ui/react-separator": "^1.1.11",
+    "@radix-ui/react-slot": "^1.3.0",
+    "@radix-ui/react-tooltip": "^1.2.12",
     "@vitejs/plugin-react": "^4.2.1",
-    "vite": "^5.3.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.468.0",
+    "radix-ui": "^1.6.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.28.0",
-    "lucide-react": "^0.468.0"
+    "remark-gfm": "^4.0.1",
+    "tailwind-merge": "^3.6.0",
+    "tw-shimmer": "^0.4.11",
+    "vite": "^5.3.0",
+    "zustand": "^5.0.14"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.2",
+    "tailwindcss": "^4.3.2"
+  }
 }
-
