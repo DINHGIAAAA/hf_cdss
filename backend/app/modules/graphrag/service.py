@@ -40,6 +40,7 @@ from app.modules.semantic_retrieval.service import (
     reorder_evidence_chunks_for_llm,
     rerank_evidence_chunks,
 )
+from app.modules.semantic_retrieval.bm25 import BM25, build_bm25_index
 from app.schemas.graphrag import (
     EvidenceChunk,
     EvidenceSearchResponse,
@@ -317,48 +318,132 @@ def _score_text(text: str, terms: list[str]) -> float:
     return score
 
 
+# BM25 index - lazily initialized
+_bm25_index: BM25 | None = None
+_bm25_chunk_map: dict[str, dict[str, Any]] = {}
+
+
+def _get_bm25_index(published: bool = True) -> BM25:
+    """Get or build BM25 index for chunks."""
+    global _bm25_index, _bm25_chunk_map
+
+    # Rebuild if needed (cache invalidated by cache key change)
+    cache_key = "published" if published else "staging"
+    chunk_rows = load_published_chunks() if published else load_staging_chunks()
+
+    if _bm25_index is None or len(_bm25_chunk_map) != len(chunk_rows):
+        logger.info("Building BM25 index for %d chunks", len(chunk_rows))
+        # Build doc_id -> chunk mapping
+        _bm25_chunk_map = {chunk["chunk_id"]: chunk for chunk in chunk_rows}
+
+        # Build BM25 index
+        documents = []
+        doc_ids = []
+        for chunk in chunk_rows:
+            text = " ".join([
+                chunk.get("document_id", ""),
+                chunk.get("section", ""),
+                normalize_evidence_text(chunk.get("text", "")),
+            ])
+            documents.append(text)
+            doc_ids.append(chunk["chunk_id"])
+
+        _bm25_index = build_bm25_index(list(zip(doc_ids, documents)))
+
+    return _bm25_index
+
+
 def retrieve_evidence_chunks(
     terms: list[str],
     top_k: int,
     *,
     published: bool = True,
     patient: PatientProfile | None = None,
+    use_hybrid: bool = True,
+    bm25_top_k: int = 100,
 ) -> list[EvidenceChunk]:
+    """Retrieve evidence chunks with optional BM25 hybrid search.
+
+    Args:
+        terms: Search terms
+        top_k: Number of chunks to return
+        published: Use published vs staging chunks
+        patient: Patient profile for clinical boosting
+        use_hybrid: If True, use BM25 first then semantic fallback
+        bm25_top_k: Number of BM25 results to consider before semantic fallback
+    """
     chunk_rows = load_published_chunks() if published else load_staging_chunks()
+    query_str = " ".join(terms)
+
     scored: list[tuple[float, dict[str, Any]]] = []
-    for chunk in chunk_rows:
-        text = " ".join(
-            [
+
+    if use_hybrid and settings.hybrid_bm25_enabled:
+        # Stage 1: BM25 keyword search (fast)
+        bm25 = _get_bm25_index(published)
+        bm25_results = bm25.search(query_str, top_k=bm25_top_k)
+
+        # Get chunks from BM25 results
+        bm25_chunk_ids = set(doc_id for doc_id, _ in bm25_results)
+        bm25_scores = {doc_id: score for doc_id, score in bm25_results}
+
+        # Only use BM25 results if we have enough high-quality matches
+        if len(bm25_results) >= min(top_k, 10):
+            for chunk in chunk_rows:
+                if chunk["chunk_id"] in bm25_chunk_ids:
+                    score = bm25_scores[chunk["chunk_id"]]
+                    # Normalize BM25 score to 0-1 range
+                    normalized_score = min(score / 10.0, 1.0)
+                    scored.append((normalized_score, chunk))
+
+            logger.info("BM25 hybrid: found %d matching chunks", len(scored))
+        else:
+            # Stage 2: Fallback to keyword scoring if BM25 insufficient
+            logger.info("BM25 returned only %d results, using keyword fallback", len(bm25_results))
+            for chunk in chunk_rows:
+                text = " ".join([
+                    chunk.get("document_id", ""),
+                    chunk.get("source_type", ""),
+                    chunk.get("section", ""),
+                    normalize_evidence_text(chunk.get("text", "")),
+                    " ".join(str(v) for v in chunk.get("metadata", {}).values() if isinstance(v, str)),
+                ])
+                score = _score_text(text, terms)
+                if score > 0:
+                    scored.append((score, chunk))
+    else:
+        # Original keyword scoring
+        for chunk in chunk_rows:
+            text = " ".join([
                 chunk.get("document_id", ""),
                 chunk.get("source_type", ""),
                 chunk.get("section", ""),
                 normalize_evidence_text(chunk.get("text", "")),
-                " ".join(str(value) for value in chunk.get("metadata", {}).values() if isinstance(value, str)),
-            ]
-        )
-        score = _score_text(text, terms)
-        if score > 0:
-            scored.append((score, chunk))
+                " ".join(str(v) for v in chunk.get("metadata", {}).values() if isinstance(v, str)),
+            ])
+            score = _score_text(text, terms)
+            if score > 0:
+                scored.append((score, chunk))
 
     scored.sort(key=lambda item: item[0], reverse=True)
     chunks: list[EvidenceChunk] = []
     for score, chunk in scored[:top_k]:
         metadata = chunk.get("metadata", {})
+        original_text = normalize_evidence_text(chunk.get("text", ""))
         evidence_chunk = EvidenceChunk(
             chunk_id=chunk["chunk_id"],
             document_id=chunk["document_id"],
             source_type=chunk["source_type"],
             section=chunk.get("section"),
-            text=normalize_evidence_text(chunk["text"])[:900],
+            text=original_text[:900],
             score=score,
             metadata=metadata,
             source_url=metadata.get("source_url"),
             page=metadata.get("page") or metadata.get("page_start"),
         )
-        matched_terms = [term for term in terms if term.lower() in text.lower()]
+        matched_terms = [term for term in terms if term.lower() in original_text.lower()]
         evidence_chunk = evidence_chunk.model_copy(update={"source_link": source_link_for_chunk(evidence_chunk)})
         chunks.append(enrich_evidence_chunk(evidence_chunk, matched_terms, patient=patient))
-    ranked = rerank_evidence_chunks(" ".join(terms), chunks, max(top_k, len(chunks)))
+    ranked = rerank_evidence_chunks(query_str, chunks, max(top_k, len(chunks)))
 
     def rank_key(item: EvidenceChunk) -> tuple[float, float]:
         matched = matched_terms_for_chunk(item, terms)

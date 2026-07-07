@@ -22,6 +22,94 @@ logger = logging.getLogger(__name__)
 _SENTENCE_SPLITTER = re.compile(
     r"(?<=[.!?])\s+(?![a-zA-Z]{1,4}/)(?<!\d\.)\s*(?=[A-Z0-9(])"
 )
+_NUMBERED_LIST_LINE = re.compile(r"^\s*\d+\.\s")
+_BULLET_LIST_LINE = re.compile(r"^\s*(?:[-•*]|\u2022)\s")
+_INLINE_NUMBERED_ITEM = re.compile(r"(?:^|\s)(\d{1,2})\.\s+(?=[A-Za-z(])")
+_INLINE_BULLET_ITEM = re.compile(r"(?:^|\s)([-•*]|\u2022)\s+(?=[A-Za-z(])")
+_DOSING_LINE = re.compile(
+    r"\b(?:mg|mcg|g|units?|daily|twice|titrate|titration|dose|dosage|administer|starting dose|target dose)\b",
+    re.IGNORECASE,
+)
+
+
+def _is_clinical_list_or_dosing_line(line: str) -> bool:
+    stripped = line.strip()
+    if not stripped:
+        return False
+    return bool(
+        _NUMBERED_LIST_LINE.match(stripped)
+        or _BULLET_LIST_LINE.match(stripped)
+        or _DOSING_LINE.search(stripped)
+    )
+
+
+def _block_looks_like_clinical_list(block: str) -> bool:
+    lines = [line.strip() for line in block.splitlines() if line.strip()]
+    if len(lines) >= 2:
+        clinical_lines = sum(1 for line in lines if _is_clinical_list_or_dosing_line(line))
+        if clinical_lines >= 2:
+            return True
+    numbered_items = re.findall(r"(?:^|\n|\s)\d+\.\s+\S", block)
+    bullet_items = re.findall(r"(?:^|\n)\s*(?:[-•*]|\u2022)\s+\S", block)
+    return len(numbered_items) >= 2 or len(bullet_items) >= 2
+
+
+def _adjacent_blocks_should_stay_together(left: str, right: str) -> bool:
+    left_line = left.rsplit("\n", 1)[-1].strip()
+    right_line = right.split("\n", 1)[0].strip()
+    return _is_clinical_list_or_dosing_line(left_line) and _is_clinical_list_or_dosing_line(right_line)
+
+
+def _split_inline_numbered_items(text: str) -> list[str]:
+    """Split glued PDF text like '1. Start ... 2. Titrate ...' into list items."""
+    matches = list(_INLINE_NUMBERED_ITEM.finditer(text))
+    if len(matches) < 2:
+        return []
+
+    items: list[str] = []
+    for index, match in enumerate(matches):
+        start = match.start(1) if match.start(1) > 0 else match.start()
+        end = matches[index + 1].start(1) if index + 1 < len(matches) else len(text)
+        item = text[start:end].strip()
+        if item:
+            items.append(item)
+    return items
+
+
+def _split_inline_bullet_items(text: str) -> list[str]:
+    matches = list(_INLINE_BULLET_ITEM.finditer(text))
+    if len(matches) < 2:
+        return []
+
+    items: list[str] = []
+    for index, match in enumerate(matches):
+        start = match.start(1)
+        end = matches[index + 1].start(1) if index + 1 < len(matches) else len(text)
+        item = text[start:end].strip()
+        if item:
+            items.append(item)
+    return items
+
+
+def _clinical_list_items(block: str) -> list[str]:
+    """Return atomic list items; never split inside one numbered/bullet entry."""
+    block = block.strip()
+    if not block:
+        return []
+
+    lines = [line.strip() for line in block.splitlines() if line.strip()]
+    if len(lines) >= 2 and sum(1 for line in lines if _is_clinical_list_or_dosing_line(line)) >= 2:
+        return lines
+
+    inline_numbered = _split_inline_numbered_items(block)
+    if len(inline_numbered) >= 2:
+        return inline_numbered
+
+    inline_bullets = _split_inline_bullet_items(block)
+    if len(inline_bullets) >= 2:
+        return inline_bullets
+
+    return [block]
 
 
 def _safe_sentence_split(text: str) -> list[str]:
@@ -73,6 +161,13 @@ def paragraph_blocks(text: str) -> list[str]:
         if block.startswith("# "):
             blocks.append(block)
             continue
+        if _block_looks_like_clinical_list(block):
+            items = _clinical_list_items(block)
+            if len(items) == 1:
+                blocks.append(items[0])
+            else:
+                blocks.extend(items)
+            continue
         sentences = _safe_sentence_split(block)
         if len(sentences) <= 1:
             blocks.append(block)
@@ -89,7 +184,7 @@ def _merge_blocks(blocks: list[str], token_estimate: Callable[[str], int], max_t
     current = ""
     for block in blocks:
         candidate = f"{current}\n\n{block}".strip() if current else block
-        if current and token_estimate(candidate) > max_tokens:
+        if current and token_estimate(candidate) > max_tokens and not _adjacent_blocks_should_stay_together(current, block):
             merged.append(current)
             current = block
         else:
@@ -103,7 +198,10 @@ def _semantic_breakpoints(
     blocks: list[str],
     *,
     token_estimate: Callable[[str], int] | None = None,
+    use_semantic: bool = True,
 ) -> list[int]:
+    if not use_semantic:
+        return []
     if len(blocks) <= 1:
         return []
     if len(blocks) < config.SEMANTIC_CHUNK_MIN_BLOCKS:
@@ -121,6 +219,8 @@ def _semantic_breakpoints(
 
     breakpoints: list[int] = []
     for index in range(len(vectors) - 1):
+        if _adjacent_blocks_should_stay_together(blocks[index], blocks[index + 1]):
+            continue
         similarity = cosine_similarity(vectors[index], vectors[index + 1])
         if similarity < config.SEMANTIC_CHUNK_BREAKPOINT_THRESHOLD:
             breakpoints.append(index + 1)
@@ -149,6 +249,7 @@ def structure_semantic_chunk_text(
     chunk_size: int,
     overlap: int,
     token_estimate: Callable[[str], int],
+    use_semantic: bool = True,
 ) -> list[str]:
     blocks = paragraph_blocks(text)
     if not blocks:
@@ -158,11 +259,15 @@ def structure_semantic_chunk_text(
     sized_blocks: list[str] = []
     for block in blocks:
         if token_estimate(block) > chunk_size:
-            oversized.extend(_split_oversized_block(block, chunk_size, overlap, token_estimate))
+            oversized.extend(_split_oversized_block(block, chunk_size, overlap, token_estimate, use_semantic=use_semantic))
         else:
             sized_blocks.append(block)
 
-    breakpoints = _semantic_breakpoints(sized_blocks, token_estimate=token_estimate) if len(sized_blocks) > 1 else []
+    breakpoints = (
+        _semantic_breakpoints(sized_blocks, token_estimate=token_estimate, use_semantic=use_semantic)
+        if len(sized_blocks) > 1
+        else []
+    )
     grouped = _group_by_breakpoints(sized_blocks, breakpoints)
     chunks = _merge_blocks(grouped, token_estimate, chunk_size)
     chunks.extend(oversized)
@@ -177,13 +282,23 @@ def _split_oversized_block(
     chunk_size: int,
     overlap: int,
     token_estimate: Callable[[str], int],
+    *,
+    use_semantic: bool = True,
 ) -> list[str]:
+    if _block_looks_like_clinical_list(block):
+        items = _clinical_list_items(block)
+        return _merge_blocks(items, token_estimate, chunk_size)
+
     sentences = _safe_sentence_split(block)
     sentences = [sentence.strip() for sentence in sentences if sentence.strip()]
     if not sentences:
         return [block]
 
-    breakpoints = _semantic_breakpoints(sentences, token_estimate=token_estimate) if len(sentences) > 1 else []
+    breakpoints = (
+        _semantic_breakpoints(sentences, token_estimate=token_estimate, use_semantic=use_semantic)
+        if len(sentences) > 1
+        else []
+    )
     groups = _group_by_breakpoints(sentences, breakpoints)
     return _merge_blocks(groups, token_estimate, chunk_size)
 

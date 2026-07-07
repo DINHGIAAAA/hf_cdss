@@ -1,38 +1,38 @@
-/* ── Modal backdrop ─────────────────────────────────────────────────────── */
+/* ── Modal ──────────────────────────────────────────────────────────── */
 .modal-backdrop {
   align-items: center;
-  background: rgba(16, 24, 32, 0.55);
+  background: rgba(0, 0, 0, 0.45);
   display: grid;
   inset: 0;
-  padding: 18px;
+  padding: var(--space-md);
   place-items: center;
   position: fixed;
   z-index: 100;
 }
 
-/* ── Modal container ── */
 .patient-modal {
   background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
   border-radius: var(--radius-lg);
-  box-shadow: 0 24px 70px rgba(16, 24, 32, 0.28);
+  box-shadow: var(--shadow-lg);
   display: grid;
-  gap: 16px;
-  max-height: calc(100dvh - 36px);
+  gap: var(--space-md);
+  max-height: calc(100dvh - 32px);
   max-width: 740px;
   overflow-y: auto;
-  padding: 22px;
+  padding: var(--space-lg);
   width: 100%;
 }
 
 .patient-modal::-webkit-scrollbar {
   width: 5px;
 }
+
 .patient-modal::-webkit-scrollbar-thumb {
-  background: #d0d8de;
+  background: var(--color-border);
   border-radius: 4px;
 }
 
-/* ── Header ── */
 .modal-head {
   align-items: flex-start;
   display: flex;
@@ -41,36 +41,36 @@
 
 .modal-close {
   align-items: center;
-  background: #f3f6f8;
+  background: var(--color-bg-secondary);
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
-  color: var(--color-text-2);
+  color: var(--color-text-secondary);
   display: inline-flex;
-  height: 34px;
+  height: 36px;
   justify-content: center;
-  width: 34px;
+  transition: background var(--transition-fast), color var(--transition-fast);
+  width: 36px;
 }
 
 .modal-close:hover {
-  background: #e8edf1;
+  background: var(--color-surface-hover);
+  color: var(--color-text);
 }
 
 .modal-head h1 {
   font-size: 20px;
-  margin: 0;
 }
 
 .modal-subtitle {
   color: var(--color-text-muted);
+  font-family: var(--font-mono);
   font-size: 12px;
-  margin: 4px 0 0;
-  font-family: monospace;
+  margin-top: var(--space-xs);
 }
 
-/* ── Grid ── */
 .modal-grid {
   display: grid;
-  gap: 10px;
+  gap: var(--space-sm);
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
@@ -80,10 +80,9 @@
   }
 }
 
-/* ── Field ── */
 .field {
   display: grid;
-  gap: 5px;
+  gap: 6px;
 }
 
 .field.wide {
@@ -91,32 +90,7 @@
 }
 
 .field span {
-  color: var(--color-text-2);
+  color: var(--color-text-secondary);
   font-size: 12px;
-  font-weight: 650;
-}
-
-.field input,
-.field select,
-.field textarea {
-  background: #fbfcfd;
-  border: 1px solid #cbd5dc;
-  border-radius: var(--radius);
-  color: var(--color-text);
-  outline: none;
-  padding: 8px 10px;
-  transition: border-color 0.15s, box-shadow 0.15s;
-  width: 100%;
-}
-
-.field input:focus,
-.field select:focus,
-.field textarea:focus {
-  border-color: var(--color-brand);
-  box-shadow: 0 0 0 3px rgba(31, 111, 178, 0.12);
-}
-
-.field textarea {
-  min-height: 56px;
-  resize: vertical;
+  font-weight: 600;
 }

@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
 from scraper.semantic import config
@@ -136,10 +137,17 @@ def extract_claims_from_section(record: dict) -> list[dict]:
 
 
 def extract_claims_batch(records: list[dict]) -> list[dict]:
+    if not records:
+        return []
+
     claims: list[dict] = []
-    for record in records:
+    workers = max(1, config.LLM_CONCURRENCY)
+    progress_every = max(25, len(records) // 20)
+    completed = 0
+
+    def _extract(record: dict) -> list[dict]:
         try:
-            claims.extend(extract_claims_from_section(record))
+            return extract_claims_from_section(record)
         except Exception as exc:
             logger.warning(
                 "LLM claim extraction failed for %s/%s: %s",
@@ -147,4 +155,14 @@ def extract_claims_batch(records: list[dict]) -> list[dict]:
                 record.get("section"),
                 exc,
             )
+            return []
+
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        futures = {executor.submit(_extract, record): record for record in records}
+        for future in as_completed(futures):
+            claims.extend(future.result())
+            completed += 1
+            if completed == 1 or completed % progress_every == 0 or completed == len(records):
+                logger.info("LLM claim extraction progress: %s/%s sections", completed, len(records))
+
     return claims

@@ -26,11 +26,7 @@ def _semantic_drug_matches(record: dict) -> list[str]:
     if not haystack:
         return []
 
-    try:
-        haystack_vector = embed_text(haystack)
-    except Exception as exc:
-        logger.warning("Drug section haystack embedding failed: %s", exc)
-        return []
+    haystack_vector = embed_text(haystack)
 
     matches: list[str] = []
     for canonical, prototypes in DRUG_SECTION_PROTOTYPES.items():
@@ -38,11 +34,7 @@ def _semantic_drug_matches(record: dict) -> list[str]:
         if section in aliases:
             matches.append(canonical)
             continue
-        try:
-            score = max_similarity_vector_to_prototypes(haystack_vector, prototypes)
-        except Exception as exc:
-            logger.warning("Drug section embedding failed for %s: %s", canonical, exc)
-            continue
+        score = max_similarity_vector_to_prototypes(haystack_vector, prototypes)
         if score >= config.SECTION_SIMILARITY_THRESHOLD:
             matches.append(canonical)
     return matches
@@ -53,19 +45,11 @@ def _semantic_guideline_matches(record: dict) -> list[str]:
     if not haystack:
         return []
 
-    try:
-        haystack_vector = embed_text(haystack)
-    except Exception as exc:
-        logger.warning("Guideline haystack embedding failed: %s", exc)
-        return []
+    haystack_vector = embed_text(haystack)
 
     matches: list[str] = []
     for topic, prototypes in GUIDELINE_TOPIC_PROTOTYPES.items():
-        try:
-            score = max_similarity_vector_to_prototypes(haystack_vector, prototypes)
-        except Exception as exc:
-            logger.warning("Guideline topic embedding failed for %s: %s", topic, exc)
-            continue
+        score = max_similarity_vector_to_prototypes(haystack_vector, prototypes)
         if score >= config.SECTION_SIMILARITY_THRESHOLD:
             matches.append(topic)
     return matches
@@ -89,10 +73,12 @@ def filter_important_sections(records: list[dict]) -> list[dict]:
 
         if record.get("source_type") == "drug_label":
             keyword_matches = drug_matches(record)
-            semantic_matches = _semantic_drug_matches(record)
+            # Skip semantic if keyword already matched - significant speedup
+            semantic_matches = [] if keyword_matches else _semantic_drug_matches(record)
         elif record.get("source_type") == "guideline":
             keyword_matches = guideline_matches(record)
-            semantic_matches = _semantic_guideline_matches(record)
+            # Skip semantic if keyword already matched - significant speedup
+            semantic_matches = [] if keyword_matches else _semantic_guideline_matches(record)
 
         merged = sorted(set(keyword_matches) | set(semantic_matches))
         if merged:

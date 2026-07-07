@@ -77,6 +77,7 @@ def test_minhash_detects_near_duplicates() -> None:
 
 def test_minhash_prefilter_before_embedding_dedupe(monkeypatch) -> None:
     monkeypatch.setattr("scraper.semantic.dedup.config.MINHASH_DEDUP_ENABLED", True)
+    monkeypatch.setattr("scraper.semantic.dedup.config.EMBEDDING_DEDUP_ENABLED", False)
     monkeypatch.setattr("scraper.semantic.dedup.config.CHUNK_DEDUP_THRESHOLD", 0.95)
     monkeypatch.setattr(
         "scraper.semantic.dedup.embed_texts",

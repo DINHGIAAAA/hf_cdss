@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import logging
 import math
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import lru_cache
 from typing import Sequence
 
 import httpx
 
 from scraper.semantic import config
+from scraper.semantic.embedding_cache import partition_cached, write_vector
 
 logger = logging.getLogger(__name__)
 
@@ -25,46 +27,165 @@ def cosine_similarity(left: Sequence[float], right: Sequence[float]) -> float:
     return dot / (left_norm * right_norm)
 
 
+def _ollama_base_url() -> str:
+    return config.EMBEDDING_BASE_URL.rstrip("/")
+
+
+def _ollama_embed_url() -> str:
+    return f"{_ollama_base_url()}/api/embed"
+
+
 def _ollama_embeddings_url() -> str:
-    return f"{config.EMBEDDING_BASE_URL.rstrip('/')}/api/embeddings"
+    return f"{_ollama_base_url()}/api/embeddings"
 
 
-def embed_texts(texts: list[str], *, timeout: float | None = None) -> list[list[float]]:
+def _parse_embedding_vectors(payload: dict) -> list[list[float]]:
+    embeddings = payload.get("embeddings")
+    if isinstance(embeddings, list) and embeddings:
+        return [[float(value) for value in vector] for vector in embeddings]
+
+    embedding = payload.get("embedding")
+    if isinstance(embedding, list):
+        return [[float(value) for value in embedding]]
+
+    raise ValueError("Ollama embed response missing embedding vector(s)")
+
+
+def _embed_batch_ollama(texts: list[str], timeout: float) -> list[list[float]]:
+    """True batch embedding via Ollama /api/embed (input=list)."""
+    with httpx.Client(timeout=timeout) as client:
+        response = client.post(
+            _ollama_embed_url(),
+            json={"model": config.EMBEDDING_MODEL, "input": texts},
+        )
+        response.raise_for_status()
+        return _parse_embedding_vectors(response.json())
+
+
+def _embed_single_text(text: str, timeout: float) -> list[float]:
+    """Legacy single-text embedding via /api/embeddings."""
+    with httpx.Client(timeout=timeout) as client:
+        response = client.post(
+            _ollama_embeddings_url(),
+            json={"model": config.EMBEDDING_MODEL, "prompt": text},
+        )
+        response.raise_for_status()
+        return _parse_embedding_vectors(response.json())[0]
+
+
+def _embed_texts_remote(texts: list[str], *, timeout: float, fail_fast: bool) -> list[list[float]]:
+    if not texts:
+        return []
+
+    batch_size = max(1, config.EMBEDDING_BATCH_SIZE)
+
+    if len(texts) == 1:
+        try:
+            return _embed_batch_ollama(texts, timeout)
+        except Exception:
+            return [_embed_single_text(texts[0], timeout)]
+
+    all_vectors: list[list[float] | None] = [None] * len(texts)
+    errors: list[tuple[int, Exception]] = []
+
+    def _store_batch(start: int, vectors: list[list[float]]) -> None:
+        for offset, vector in enumerate(vectors):
+            all_vectors[start + offset] = vector
+
+    def _embed_batch_with_fallback(start: int, batch: list[str]) -> None:
+        try:
+            _store_batch(start, _embed_batch_ollama(batch, timeout))
+            return
+        except Exception as batch_exc:
+            logger.debug("Ollama /api/embed batch failed (%s texts): %s", len(batch), batch_exc)
+
+        max_workers = min(config.EMBEDDING_PARALLEL_WORKERS, len(batch))
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(_embed_single_text, text, timeout): start + offset
+                for offset, text in enumerate(batch)
+            }
+            for future in as_completed(futures):
+                idx = futures[future]
+                try:
+                    all_vectors[idx] = future.result()
+                except Exception as exc:
+                    errors.append((idx, exc))
+                    if fail_fast:
+                        raise RuntimeError(f"Embedding failed for text[{idx}]: {exc}") from exc
+
+    for start in range(0, len(texts), batch_size):
+        batch = texts[start : start + batch_size]
+        _embed_batch_with_fallback(start, batch)
+
+    if errors and not fail_fast:
+        error_msgs = [f"text[{i}]: {exc}" for i, exc in errors]
+        raise RuntimeError(f"Embedding failed for {len(errors)} texts: {'; '.join(error_msgs[:5])}")
+
+    missing = [i for i, vec in enumerate(all_vectors) if vec is None]
+    if missing:
+        raise RuntimeError(f"Missing embeddings for indices: {missing}")
+
+    return [vector for vector in all_vectors if vector is not None]  # type: ignore[misc]
+
+
+def _embed_uncached_texts(
+    indexed_texts: list[tuple[int, str]],
+    *,
+    timeout: float,
+    fail_fast: bool,
+) -> dict[int, list[float]]:
+    if not indexed_texts:
+        return {}
+
+    texts = [text for _, text in indexed_texts]
+    vectors = _embed_texts_remote(texts, timeout=timeout, fail_fast=fail_fast)
+    result: dict[int, list[float]] = {}
+    for (index, text), vector in zip(indexed_texts, vectors):
+        write_vector(text, vector)
+        result[index] = vector
+    return result
+
+
+def embed_texts(
+    texts: list[str],
+    *,
+    timeout: float | None = None,
+    fail_fast: bool = True,
+    use_cache: bool = True,
+) -> list[list[float]]:
+    """Embed texts using Ollama /api/embed batches, with parallel /api/embeddings fallback.
+
+    Args:
+        texts: List of texts to embed
+        timeout: Request timeout in seconds
+        fail_fast: If True, raise exception on first failure. If False, collect all errors.
+        use_cache: When True, read/write persistent embedding cache entries.
+    """
     if not texts:
         return []
 
     timeout = timeout or config.LLM_TIMEOUT_SECONDS
-    vectors: list[list[float]] = []
-    batch_size = max(1, config.EMBEDDING_BATCH_SIZE)
+    resolved: dict[int, list[float]] = {}
+    missing_indexed: list[tuple[int, str]] = [(index, text) for index, text in enumerate(texts)]
 
-    try:
-        with httpx.Client(timeout=timeout) as client:
-            for start in range(0, len(texts), batch_size):
-                batch = texts[start : start + batch_size]
-                for text in batch:
-                    response = client.post(
-                        _ollama_embeddings_url(),
-                        json={"model": config.EMBEDDING_MODEL, "prompt": text},
-                    )
-                    response.raise_for_status()
-                    payload = response.json()
-                    embedding = payload.get("embedding")
-                    if not isinstance(embedding, list):
-                        raise ValueError("Ollama embeddings response missing embedding vector")
-                    vectors.append([float(value) for value in embedding])
-    except Exception as exc:
-        logger.warning("Embedding request failed: %s", exc)
-        raise
+    if use_cache and config.EMBEDDING_CACHE_ENABLED:
+        missing_indexed, cached = partition_cached(texts)
+        resolved.update(cached)
+        if cached:
+            logger.debug("Embedding cache hit: %s/%s texts", len(cached), len(texts))
 
-    return vectors
+    if missing_indexed:
+        fetched = _embed_uncached_texts(missing_indexed, timeout=timeout, fail_fast=fail_fast)
+        resolved.update(fetched)
+
+    return [resolved[index] for index in range(len(texts))]
 
 
 def embeddings_available() -> bool:
-    try:
-        sample = embed_texts(["clinical guideline recommendation"], timeout=10.0)
-        return bool(sample and sample[0])
-    except Exception:
-        return False
+    """Check if Ollama embeddings are available. Fails if embedding service is down."""
+    sample = embed_texts(["clinical guideline recommendation"], timeout=10.0)
+    return bool(sample and sample[0])
 
 
 def max_similarity_vector_to_prototypes(

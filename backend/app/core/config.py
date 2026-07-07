@@ -62,6 +62,8 @@ class Settings(BaseSettings):
     semantic_rerank_provider: str = "cohere"
     semantic_rerank_weight: float = 0.75
     semantic_rerank_candidates: int = 50
+    hybrid_bm25_enabled: bool = True
+    hybrid_bm25_weight: float = 0.3
     cohere_api_key: str | None = None
     cohere_rerank_model: str = "rerank-v3.5"
     cohere_rerank_timeout_seconds: float = 30.0

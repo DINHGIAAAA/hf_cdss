@@ -1,4 +1,4 @@
-import { CheckCircle2, AlertTriangle, LayoutDashboard, MessageSquareText, Plus } from "lucide-react";
+import { CheckCircle2, AlertTriangle, LayoutDashboard, Plus, Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
 import { patientSummary } from "../utils";
 import { LanguageToggle } from "./LanguageToggle";
@@ -22,13 +22,13 @@ export function Sidebar({
   return (
     <aside className={`conversation-sidebar${open ? "" : " sidebar--collapsed"}`}>
       <div className="brand">
-        <MessageSquareText size={21} />
+        <Sparkles size={18} />
         {open && <strong>HF CDSS</strong>}
       </div>
 
       <button className="new-chat" onClick={onNew} type="button" title="New conversation">
-        <Plus size={17} />
-        {open && "New conversation"}
+        <Plus size={18} />
+        {open && (language === "vi" ? "Hội thoại mới" : "New chat")}
       </button>
 
       <nav className="conversation-list">

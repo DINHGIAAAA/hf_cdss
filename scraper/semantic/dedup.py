@@ -100,6 +100,9 @@ def dedupe_by_embedding(
         if len(working) <= 1:
             return working
 
+    if not config.EMBEDDING_DEDUP_ENABLED:
+        return working
+
     texts = [_text_from_record(record, text_field) for record in working]
     try:
         vectors = embed_texts(texts)

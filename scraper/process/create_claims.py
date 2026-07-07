@@ -187,31 +187,67 @@ def dedupe_claims_by_id(claims: list[dict]) -> list[dict]:
         unique.append(claim)
     return unique
 
+
+def pattern_match_count(record: dict) -> int:
+    haystack = (record.get("text") or "").lower()
+    if not haystack:
+        return 0
+    return sum(
+        1
+        for patterns in CLAIM_PATTERNS.values()
+        for pattern in patterns
+        if pattern in haystack
+    )
+
+
+def regex_claims_for_record(record: dict, max_claims_per_section: int) -> list[dict]:
+    claims: list[dict] = []
+    for index, sentence in enumerate(sentence_split(record.get("text", "")), start=1):
+        claim = create_claim_regex(record, sentence, index)
+        if claim:
+            claims.append(claim)
+        if len(claims) >= max_claims_per_section:
+            break
+    return claims
+
+
+def should_call_llm_for_section(record: dict, regex_claims: list[dict]) -> bool:
+    from scraper.semantic import config
+
+    if not config.CLAIM_LLM_ENABLED:
+        return False
+    min_matches = config.CLAIM_LLM_MIN_PATTERN_MATCHES
+    if len(regex_claims) >= min_matches:
+        return False
+    if pattern_match_count(record) >= min_matches:
+        return False
+    return True
+
+
 def claims_from_records(records: list[dict], max_claims_per_section: int) -> list[dict]:
     from scraper.semantic.claim_extraction import extract_claims_batch
     from scraper.semantic.dedup import dedupe_claims
 
-    claims = dedupe_claims(extract_claims_batch(records))
+    regex_claims: list[dict] = []
+    llm_records: list[dict] = []
+    regex_evidence: set[str] = set()
 
-    llm_evidence = {claim.get("evidence", "").lower().strip() for claim in claims}
     for record in records:
-        section_claims_count = sum(
-            1
-            for claim in claims
-            if claim.get("document_id") == record.get("document_id")
-            and claim.get("source_section") == record.get("section")
-        )
-        for index, sentence in enumerate(sentence_split(record.get("text", "")), start=1):
-            if sentence.lower().strip() in llm_evidence:
-                continue
-            claim = create_claim_regex(record, sentence, index)
-            if claim:
-                claims.append(claim)
-                section_claims_count += 1
-            if section_claims_count >= max_claims_per_section:
-                break
+        section_claims = regex_claims_for_record(record, max_claims_per_section)
+        regex_claims.extend(section_claims)
+        regex_evidence.update(claim.get("evidence", "").lower().strip() for claim in section_claims)
+        if should_call_llm_for_section(record, section_claims):
+            llm_records.append(record)
 
-    return dedupe_claims(dedupe_claims_by_id(claims))
+    llm_claims: list[dict] = []
+    if llm_records:
+        for claim in dedupe_claims(extract_claims_batch(llm_records)):
+            evidence = claim.get("evidence", "").lower().strip()
+            if evidence and evidence in regex_evidence:
+                continue
+            llm_claims.append(claim)
+
+    return dedupe_claims(dedupe_claims_by_id([*regex_claims, *llm_claims]))
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Create claims from important sections.")

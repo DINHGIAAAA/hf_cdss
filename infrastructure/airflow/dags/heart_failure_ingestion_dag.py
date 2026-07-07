@@ -4,7 +4,6 @@ import os
 from datetime import datetime, timedelta
 
 from airflow import DAG
-from airflow.models import Param
 
 try:
     from airflow.providers.standard.operators.bash import BashOperator
@@ -15,6 +14,10 @@ except ImportError:
 PROJECT_ROOT = os.environ.get("HF_CDSS_PROJECT_ROOT", "/opt/airflow/project")
 DATA_ROOT = f"{PROJECT_ROOT}/data/heart_failure"
 PYTHON = "python"
+
+# Defaults — override via docker-compose env, not the Airflow trigger UI.
+SOURCES_REGISTRY = os.environ.get("HF_CDSS_SOURCES_REGISTRY", "sources/sources.example.json")
+SKIP_DOWNLOAD = os.environ.get("HF_CDSS_INGESTION_SKIP_DOWNLOAD", "true").lower() in {"1", "true", "yes"}
 
 
 def data_command(command: str) -> str:
@@ -31,67 +34,39 @@ default_args = {
 
 with DAG(
     dag_id="heart_failure_kg_ingestion",
-    description="Download clinical sources to S3 raw, then run the full batch KG pipeline and publish artifacts to S3 processed.",
+    description="Ingest clinical sources and run the full KG pipeline (zero trigger config).",
     default_args=default_args,
     start_date=datetime(2026, 1, 1),
     schedule=None,
     catchup=False,
     max_active_runs=1,
     tags=["hf-cdss", "graphrag", "ingestion"],
-    params={
-        "registry": Param(
-            "sources/sources.example.json",
-            type="string",
-            description="Registry path relative to data/heart_failure.",
-        ),
-        "skip_download": Param(
-            False,
-            type="boolean",
-            description="Skip scraping when raw S3 already has registered sources.",
-        ),
-        "use_existing": Param(
-            True,
-            type="boolean",
-            description="Do not overwrite already downloaded raw objects.",
-        ),
-        "build_rules": Param(
-            True,
-            type="boolean",
-            description="Generate and classify rule artifacts.",
-        ),
-        "pipeline_run_id": Param(
-            "",
-            type="string",
-            description="Optional stable artifact run id. Leave empty to use the Airflow run id.",
-        ),
-    },
 ) as dag:
-    download_sources = BashOperator(
-        task_id="download_sources",
-        execution_timeout=timedelta(hours=3),
-        bash_command=(
-            "{% if params.skip_download %}"
-            "echo 'Skipping download.'"
-            "{% else %}"
-            f"{data_command(PYTHON + ' -m scraper.acquisition.download_sources --registry {{ params.registry }} ')}"
-            "--storage s3 "
-            "--s3-bucket ${HF_CDSS_RAW_BUCKET:-hf-cdss-raw} "
-            "--s3-prefix ${HF_CDSS_S3_PREFIX:-heart_failure} "
-            "--s3-endpoint-url ${HF_CDSS_S3_ENDPOINT_URL:-http://localstack:4566}"
-            " --timeout 180"
-            "{{ ' --use-existing' if params.use_existing else '' }}"
-            " --allow-failures"
-            "{% endif %}"
-        ),
-    )
+    if SKIP_DOWNLOAD:
+        download_sources = BashOperator(
+            task_id="download_sources",
+            bash_command="echo 'Skipping download (HF_CDSS_INGESTION_SKIP_DOWNLOAD=true). Raw sources expected in S3.'",
+        )
+    else:
+        download_sources = BashOperator(
+            task_id="download_sources",
+            execution_timeout=timedelta(hours=3),
+            bash_command=(
+                f"{data_command(PYTHON + f' -m scraper.acquisition.download_sources --registry {SOURCES_REGISTRY} ')}"
+                "--storage s3 "
+                "--s3-bucket ${HF_CDSS_RAW_BUCKET:-hf-cdss-raw} "
+                "--s3-prefix ${HF_CDSS_S3_PREFIX:-heart_failure} "
+                "--s3-endpoint-url ${HF_CDSS_S3_ENDPOINT_URL:-http://localstack:4566} "
+                "--timeout 180 --use-existing --allow-failures"
+            ),
+        )
 
     run_kg_pipeline = BashOperator(
         task_id="run_kg_pipeline",
-        execution_timeout=timedelta(hours=6),
+        execution_timeout=timedelta(hours=12),
         bash_command=(
-            f"{data_command(PYTHON + ' -m scraper.orchestration.run_ingestion_pipeline --registry {{ params.registry }} --skip-download ')}"
-            "{% if not params.build_rules %}--skip-rules {% endif %}"
-            '--run-id "{{ params.pipeline_run_id or run_id }}"'
+            f"{data_command(PYTHON + f' -m scraper.orchestration.run_ingestion_pipeline --registry {SOURCES_REGISTRY} --skip-download ')}"
+            '--run-id "{{ run_id }}"'
         ),
     )
 

@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -43,15 +45,50 @@ def llm_available() -> bool:
         return False
 
 
-def call_llm_json(system_prompt: str, user_prompt: str, *, max_tokens: int | None = None) -> dict[str, Any] | None:
-    max_tokens = max_tokens or config.LLM_MAX_TOKENS
+def _cache_dir() -> Path | None:
+    raw = config.INGESTION_LLM_CACHE_DIR.strip()
+    if not raw:
+        return None
+    path = Path(raw)
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _cache_key(system_prompt: str, user_prompt: str, *, max_tokens: int, model: str) -> str:
+    raw = f"{model}|{max_tokens}|{system_prompt}|||{user_prompt}"
+    return hashlib.sha1(raw.encode("utf-8")).hexdigest()
+
+
+def _read_cache(key: str) -> dict[str, Any] | None:
+    cache_root = _cache_dir()
+    if cache_root is None or not config.INGESTION_LLM_CACHE_ENABLED:
+        return None
+    cache_file = cache_root / f"{key}.json"
+    if not cache_file.exists():
+        return None
+    try:
+        payload = json.loads(cache_file.read_text(encoding="utf-8"))
+        return payload if isinstance(payload, dict) else None
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def _write_cache(key: str, payload: dict[str, Any]) -> None:
+    cache_root = _cache_dir()
+    if cache_root is None or not config.INGESTION_LLM_CACHE_ENABLED:
+        return
+    cache_file = cache_root / f"{key}.json"
+    cache_file.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+
+def _call_llm_json_raw(system_prompt: str, user_prompt: str, *, max_tokens: int) -> dict[str, Any] | None:
     try:
         with httpx.Client(timeout=config.LLM_TIMEOUT_SECONDS) as client:
             response = client.post(
                 f"{config.LLM_BASE_URL.rstrip('/')}/chat/completions",
                 headers={"Content-Type": "application/json"},
                 json={
-                    "model": config.LLM_MODEL,
+                    "model": config.INGESTION_LLM_MODEL,
                     "messages": [
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_prompt},
@@ -68,3 +105,17 @@ def call_llm_json(system_prompt: str, user_prompt: str, *, max_tokens: int | Non
         return None
 
     return extract_json_object(content)
+
+
+def call_llm_json(system_prompt: str, user_prompt: str, *, max_tokens: int | None = None) -> dict[str, Any] | None:
+    max_tokens = max_tokens or config.LLM_MAX_TOKENS
+    model = config.INGESTION_LLM_MODEL
+    cache_key = _cache_key(system_prompt, user_prompt, max_tokens=max_tokens, model=model)
+    cached = _read_cache(cache_key)
+    if cached is not None:
+        return cached
+
+    payload = _call_llm_json_raw(system_prompt, user_prompt, max_tokens=max_tokens)
+    if payload:
+        _write_cache(cache_key, payload)
+    return payload

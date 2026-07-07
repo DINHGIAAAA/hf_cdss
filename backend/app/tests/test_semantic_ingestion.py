@@ -112,6 +112,159 @@ def test_rule_tier_marks_unstructured_hard_block_for_refinement() -> None:
     assert rule_tier(rule) == "needs_condition_refinement"
 
 
+def test_embed_texts_uses_ollama_embed_batch(monkeypatch) -> None:
+    from scraper.semantic import embeddings
+
+    calls: list[tuple[str, object]] = []
+
+    class FakeResponse:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict:
+            return {"embeddings": [[1.0, 0.0], [0.0, 1.0]]}
+
+    class FakeClient:
+        def __init__(self, timeout: float) -> None:
+            self.timeout = timeout
+
+        def __enter__(self) -> "FakeClient":
+            return self
+
+        def __exit__(self, *args) -> None:
+            return None
+
+        def post(self, url: str, json: dict) -> FakeResponse:
+            calls.append((url, json.get("input")))
+            return FakeResponse()
+
+    monkeypatch.setattr(embeddings.httpx, "Client", FakeClient)
+
+    vectors = embeddings.embed_texts(["alpha", "beta"], timeout=5.0)
+    assert len(vectors) == 2
+    assert calls[0][0].endswith("/api/embed")
+    assert calls[0][1] == ["alpha", "beta"]
+
+
+def test_should_call_llm_for_section_skips_clear_regex_sections(monkeypatch) -> None:
+    from scraper.process.create_claims import regex_claims_for_record, should_call_llm_for_section
+
+    record = {
+        "source_type": "drug_label",
+        "section": "CONTRAINDICATIONS",
+        "text": (
+            "Drug X is contraindicated in pregnancy. "
+            "Use is not recommended in severe renal impairment with eGFR below 30."
+        ),
+        "metadata": {"drug": "drug_x"},
+    }
+    regex_claims = regex_claims_for_record(record, max_claims_per_section=40)
+    assert len(regex_claims) >= 2
+    assert should_call_llm_for_section(record, regex_claims) is False
+
+
+def test_call_llm_json_uses_disk_cache(tmp_path, monkeypatch) -> None:
+    from scraper.semantic import config
+    from scraper.semantic.llm_client import call_llm_json
+
+    monkeypatch.setattr(config, "INGESTION_LLM_CACHE_DIR", str(tmp_path))
+    monkeypatch.setattr(config, "INGESTION_LLM_CACHE_ENABLED", True)
+
+    calls = {"count": 0}
+
+    def fake_raw(system_prompt: str, user_prompt: str, *, max_tokens: int):
+        calls["count"] += 1
+        return {"claims": []}
+
+    monkeypatch.setattr("scraper.semantic.llm_client._call_llm_json_raw", fake_raw)
+
+    first = call_llm_json("system", "user")
+    second = call_llm_json("system", "user")
+    assert first == {"claims": []}
+    assert second == {"claims": []}
+    assert calls["count"] == 1
+
+
+def test_should_use_semantic_chunking_only_for_long_guidelines(monkeypatch) -> None:
+    from scraper.semantic import config
+    from scraper.transform.chunk_sections import should_use_semantic_chunking
+
+    monkeypatch.setattr(config, "SEMANTIC_CHUNK_MIN_SECTION_TOKENS", 600)
+
+    drug_label = {
+        "source_type": "drug_label",
+        "section": "CONTRAINDICATIONS",
+        "text": " ".join(["Use is contraindicated in severe renal impairment."] * 80),
+    }
+    assert should_use_semantic_chunking(drug_label, drug_label["text"]) is False
+
+    short_guideline = {
+        "source_type": "guideline",
+        "section": "Recommendations",
+        "text": "Initiate ACE inhibitor in HFrEF.",
+    }
+    assert should_use_semantic_chunking(short_guideline, short_guideline["text"]) is False
+
+    long_guideline = {
+        "source_type": "guideline",
+        "section": "Therapy",
+        "text": " ".join(["Recommendation about therapy and dosing."] * 120),
+    }
+    assert should_use_semantic_chunking(long_guideline, long_guideline["text"]) is True
+
+
+def test_paragraph_blocks_keep_clinical_lists_together() -> None:
+    from scraper.semantic.chunking import _clinical_list_items, paragraph_blocks
+
+    multiline = (
+        "Dosing recommendations:\n"
+        "1. Start 2.5 mg daily.\n"
+        "2. Titrate to 10 mg daily.\n"
+        "3. Monitor blood pressure."
+    )
+    blocks = paragraph_blocks(multiline)
+    assert len(blocks) >= 3
+    assert any("1. Start" in block for block in blocks)
+    assert any("3. Monitor" in block for block in blocks)
+
+    glued = (
+        "Dosing recommendations: "
+        "1. Start 2.5 mg daily. "
+        "2. Titrate to 10 mg daily. "
+        "3. Monitor blood pressure."
+    )
+    items = _clinical_list_items(glued)
+    assert len(items) == 3
+    assert items[0].startswith("1. Start")
+    assert "2.5 mg" in items[0]
+    assert items[2].startswith("3. Monitor")
+
+    blocks_glued = paragraph_blocks(glued)
+    assert len(blocks_glued) >= 3
+
+
+def test_embed_texts_uses_disk_cache(tmp_path, monkeypatch) -> None:
+    from scraper.semantic import config
+    from scraper.semantic import embeddings
+
+    monkeypatch.setattr(config, "EMBEDDING_CACHE_DIR", str(tmp_path))
+    monkeypatch.setattr(config, "EMBEDDING_CACHE_ENABLED", True)
+
+    calls = {"count": 0}
+
+    def fake_remote(texts: list[str], *, timeout: float, fail_fast: bool):
+        calls["count"] += 1
+        return [[1.0, 0.0] for _ in texts]
+
+    monkeypatch.setattr(embeddings, "_embed_texts_remote", fake_remote)
+
+    first = embeddings.embed_texts(["same text"])
+    second = embeddings.embed_texts(["same text"])
+    assert first == [[1.0, 0.0]]
+    assert second == [[1.0, 0.0]]
+    assert calls["count"] == 1
+
+
 def test_section_filter_embeds_haystack_once_per_record(monkeypatch) -> None:
     from scraper.semantic.embeddings import _embed_text_cached, _prototype_vectors
     from scraper.semantic.section_filter import filter_important_sections

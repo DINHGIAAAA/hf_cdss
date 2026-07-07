@@ -1,79 +1,86 @@
+/* ── Login Page ─────────────────────────────────────────────────────── */
 .login-page {
   align-items: center;
-  background: linear-gradient(180deg, #eef4f8 0%, var(--color-bg) 100%);
-  display: grid;
+  background: var(--color-bg-secondary);
+  display: flex;
+  justify-content: center;
   min-height: 100vh;
-  padding: 24px;
-  place-items: center;
+  padding: var(--space-lg);
 }
 
 .login-card {
   background: var(--color-surface);
   border: 1px solid var(--color-border-light);
   border-radius: var(--radius-lg);
-  box-shadow: 0 10px 30px rgba(23, 32, 38, 0.06);
+  box-shadow: var(--shadow-lg);
+  display: grid;
+  gap: var(--space-lg);
   max-width: 420px;
-  padding: 28px;
+  padding: var(--space-xl);
   width: 100%;
 }
 
 .login-brand {
   align-items: flex-start;
   display: flex;
-  gap: 12px;
-  margin-bottom: 20px;
+  gap: var(--space-md);
+}
+
+.login-brand svg {
+  color: var(--color-brand);
+  flex-shrink: 0;
+  margin-top: 2px;
 }
 
 .login-brand h1 {
-  font-size: 1.2rem;
-  margin: 0 0 4px;
+  font-size: 22px;
+  font-weight: 600;
+  margin-bottom: var(--space-xs);
 }
 
 .login-brand p {
-  color: var(--color-text-muted);
-  font-size: 0.9rem;
-  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  line-height: 1.45;
 }
 
 .login-form {
   display: grid;
-  gap: 10px;
+  gap: var(--space-sm);
 }
 
 .login-form label {
-  color: var(--color-text-2);
-  font-size: 0.85rem;
-}
-
-.login-form input {
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  min-height: 42px;
-  padding: 0 12px;
-}
-
-.login-form .primary-action {
-  gap: 8px;
-  margin-top: 6px;
+  color: var(--color-text);
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  margin-top: var(--space-xs);
 }
 
 .login-error {
+  background: var(--color-danger-bg);
+  border: 1px solid #fecaca;
+  border-radius: var(--radius);
   color: var(--color-danger);
-  font-size: 0.88rem;
-  margin: 0;
+  font-size: 14px;
+  padding: var(--space-sm) var(--space-md);
+  text-align: center;
 }
 
 .login-hint {
   color: var(--color-text-muted);
-  font-size: 0.8rem;
-  margin: 14px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
 }
 
-.login-back {
+.login-hint--inline {
   align-items: center;
+  color: var(--color-text-secondary);
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.login-hint--inline svg {
   color: var(--color-brand);
-  display: inline-flex;
-  gap: 8px;
-  margin-top: 16px;
-  text-decoration: none;
+  flex-shrink: 0;
 }

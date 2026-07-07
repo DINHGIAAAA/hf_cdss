@@ -56,23 +56,26 @@
   display: none;
 }
 
-.toggle-btn {
+.toggle-btn,
+.icon-btn {
   align-items: center;
   background: transparent;
-  border: 1px solid var(--color-border-light);
-  border-radius: var(--radius);
-  color: var(--color-text-muted);
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  cursor: pointer;
   display: flex;
   flex-shrink: 0;
-  height: 32px;
+  height: 36px;
   justify-content: center;
   padding: 0;
-  transition: background 0.12s, color 0.12s;
-  width: 32px;
+  transition: background var(--transition-fast), color var(--transition-fast);
+  width: 36px;
 }
 
-.toggle-btn:hover {
-  background: #ccfbf1;
+.toggle-btn:hover,
+.icon-btn:hover {
+  background: var(--color-bg-secondary);
   color: var(--color-text);
 }
 

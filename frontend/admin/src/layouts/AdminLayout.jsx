@@ -4,7 +4,7 @@ import {
   BookOpen,
   FileSearch,
   HeartPulse,
-  LayoutDashboard,
+  Sparkles,
   Link2,
   LogOut,
   MessageSquareText,
@@ -42,7 +42,7 @@ export function AdminLayout() {
     <div className="admin-shell">
       <aside className="admin-sidebar">
         <div className="admin-brand">
-          <LayoutDashboard size={22} />
+          <Sparkles size={22} />
           <div>
             <strong>HF CDSS Admin</strong>
             <span>Clinical knowledge governance</span>

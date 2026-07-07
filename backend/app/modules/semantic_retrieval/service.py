@@ -7,7 +7,6 @@ from functools import lru_cache
 from typing import TypeVar
 
 from app.core.config import settings
-from app.modules.datastores.common import hashing_embedding
 from app.modules.evidence_text import normalize_evidence_text
 from app.schemas.graphrag import EvidenceChunk
 
@@ -31,36 +30,35 @@ def embedding_index_version() -> str:
 def _langchain_embeddings():
     provider = settings.embedding_provider.lower().strip()
     if provider != "ollama":
-        return None
+        raise RuntimeError(f"Only Ollama embedding provider is supported, got: {provider}")
     try:
         from langchain_ollama import OllamaEmbeddings
 
         return OllamaEmbeddings(model=settings.embedding_model, base_url=settings.embedding_base_url)
+    except ImportError as exc:
+        raise RuntimeError(f"langchain_ollama not installed: {exc}") from exc
     except Exception as exc:
-        logger.warning("LangChain Ollama embeddings unavailable; using hashing fallback: %s", exc)
-        return None
+        raise RuntimeError(f"Failed to initialize Ollama embeddings: {exc}") from exc
 
 
 def embed_query(text: str) -> list[float]:
     normalized = normalize_evidence_text(text)
     embeddings = _langchain_embeddings()
-    if embeddings is not None:
-        try:
-            return [float(value) for value in embeddings.embed_query(normalized)]
-        except Exception as exc:
-            logger.warning("Semantic query embedding failed; using hashing fallback: %s", exc)
-    return hashing_embedding(normalized, settings.embedding_dimensions)
+    try:
+        return [float(value) for value in embeddings.embed_query(normalized)]
+    except Exception as exc:
+        raise RuntimeError(f"Failed to embed query '{normalized[:50]}...': {exc}") from exc
 
 
 def embed_documents(texts: list[str]) -> list[list[float]]:
+    if not texts:
+        return []
     normalized = [normalize_evidence_text(text) for text in texts]
     embeddings = _langchain_embeddings()
-    if embeddings is not None:
-        try:
-            return [[float(value) for value in row] for row in embeddings.embed_documents(normalized)]
-        except Exception as exc:
-            logger.warning("Semantic document embedding failed; using hashing fallback: %s", exc)
-    return [hashing_embedding(text, settings.embedding_dimensions) for text in normalized]
+    try:
+        return [[float(value) for value in row] for row in embeddings.embed_documents(normalized)]
+    except Exception as exc:
+        raise RuntimeError(f"Failed to embed {len(texts)} documents: {exc}") from exc
 
 
 def cosine_similarity(left: list[float], right: list[float]) -> float:

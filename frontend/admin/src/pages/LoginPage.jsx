@@ -50,6 +50,7 @@ export function LoginPage() {
           <label htmlFor="username">Username</label>
           <input
             autoComplete="username"
+            className="input"
             id="username"
             onChange={(e) => setUsername(e.target.value)}
             placeholder="ngovinh"
@@ -61,6 +62,7 @@ export function LoginPage() {
           <label htmlFor="password">Password</label>
           <input
             autoComplete="current-password"
+            className="input"
             id="password"
             onChange={(e) => setPassword(e.target.value)}
             placeholder="••••••••"
