@@ -46,10 +46,9 @@ def llm_available() -> bool:
 
 
 def _cache_dir() -> Path | None:
-    raw = config.INGESTION_LLM_CACHE_DIR.strip()
-    if not raw:
+    if not config.INGESTION_LLM_CACHE_ENABLED:
         return None
-    path = Path(raw)
+    path = Path(config.INGESTION_LLM_CACHE_DIR)
     path.mkdir(parents=True, exist_ok=True)
     return path
 

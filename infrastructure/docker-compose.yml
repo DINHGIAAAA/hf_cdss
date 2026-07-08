@@ -174,15 +174,18 @@ services:
       HF_CDSS_LLM_BASE_URL: ${HF_CDSS_LLM_BASE_URL:-http://ollama:11434/v1}
       HF_CDSS_LLM_MODEL: ${HF_CDSS_LLM_MODEL:-${OLLAMA_MODEL:-qwen2.5:7b}}
       HF_CDSS_LLM_API_TYPE: ${HF_CDSS_LLM_API_TYPE:-chat_completions}
-      HF_CDSS_LLM_TIMEOUT_SECONDS: ${HF_CDSS_LLM_TIMEOUT_SECONDS:-300}
+      HF_CDSS_LLM_TIMEOUT_SECONDS: ${HF_CDSS_LLM_TIMEOUT_SECONDS:-90}
       HF_CDSS_INGESTION_LLM_MODEL: ${HF_CDSS_INGESTION_LLM_MODEL:-${OLLAMA_AGENT_MODEL:-qwen2.5:1.5b}}
       HF_CDSS_LLM_CONCURRENCY: ${HF_CDSS_LLM_CONCURRENCY:-1}
-      HF_CDSS_LLM_MAX_RETRIES: ${HF_CDSS_LLM_MAX_RETRIES:-2}
-      HF_CDSS_MAX_LLM_SECTION_CHARS: ${HF_CDSS_MAX_LLM_SECTION_CHARS:-6000}
+      HF_CDSS_LLM_MAX_RETRIES: ${HF_CDSS_LLM_MAX_RETRIES:-1}
+      HF_CDSS_MAX_LLM_SECTION_CHARS: ${HF_CDSS_MAX_LLM_SECTION_CHARS:-4000}
+      HF_CDSS_MAX_LLM_CLAIMS_PER_SECTION: ${HF_CDSS_MAX_LLM_CLAIMS_PER_SECTION:-20}
+      HF_CDSS_CLAIM_LLM_MIN_PATTERN_MATCHES: ${HF_CDSS_CLAIM_LLM_MIN_PATTERN_MATCHES:-3}
+      HF_CDSS_EMBEDDING_PARALLEL_WORKERS: ${HF_CDSS_EMBEDDING_PARALLEL_WORKERS:-2}
       HF_CDSS_INGESTION_LLM_CACHE_DIR: ${HF_CDSS_INGESTION_LLM_CACHE_DIR:-/opt/airflow/project/data/heart_failure/.ingestion_llm_cache}
-      HF_CDSS_CLAIM_LLM_MIN_PATTERN_MATCHES: ${HF_CDSS_CLAIM_LLM_MIN_PATTERN_MATCHES:-2}
       HF_CDSS_SOURCES_REGISTRY: ${HF_CDSS_SOURCES_REGISTRY:-sources/sources.example.json}
       HF_CDSS_INGESTION_SKIP_DOWNLOAD: ${HF_CDSS_INGESTION_SKIP_DOWNLOAD:-true}
+      HF_CDSS_AIRFLOW_PIPELINE_TIMEOUT_HOURS: ${HF_CDSS_AIRFLOW_PIPELINE_TIMEOUT_HOURS:-48}
       HF_CDSS_DATA_STORAGE: ${HF_CDSS_DATA_STORAGE:-s3}
       HF_CDSS_S3_ENDPOINT_URL: ${HF_CDSS_S3_ENDPOINT_URL:-http://localstack:4566}
       HF_CDSS_RAW_BUCKET: ${HF_CDSS_RAW_BUCKET:-hf-cdss-raw}
@@ -205,6 +208,7 @@ services:
       # Mount code vào để các lệnh `python -m scraper...` có thể chạy
       - ../backend:/opt/airflow/project/backend
       - ../scraper:/opt/airflow/project/scraper
+      - ../data/heart_failure:/opt/airflow/project/data/heart_failure
       - ../data/heart_failure/sources:/opt/airflow/project/data/heart_failure/sources:ro
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8080/', timeout=5)\""]

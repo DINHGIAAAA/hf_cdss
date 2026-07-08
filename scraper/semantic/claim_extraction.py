@@ -6,6 +6,7 @@ import hashlib
 import json
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timedelta
 from typing import Any
 
 from scraper.semantic import config
@@ -147,6 +148,7 @@ def extract_claims_batch(records: list[dict]) -> list[dict]:
     progress_every = max(25, len(records) // 20)
     completed = 0
     llm_failures = 0
+    start_time = datetime.now()
 
     def _extract(record: dict) -> list[dict]:
         nonlocal llm_failures
@@ -171,10 +173,15 @@ def extract_claims_batch(records: list[dict]) -> list[dict]:
             claims.extend(future.result())
             completed += 1
             if completed == 1 or completed % progress_every == 0 or completed == len(records):
+                elapsed = (datetime.now() - start_time).total_seconds()
+                rate = completed / elapsed if elapsed > 0 else 0.0
+                remaining = (len(records) - completed) / rate if rate > 0 else 0.0
                 logger.info(
-                    "LLM claim extraction progress: %s/%s sections (%s empty/failed so far)",
+                    "LLM claim extraction progress: %s/%s sections | %.1fs/section | ETA %s (%s empty/failed)",
                     completed,
                     len(records),
+                    elapsed / completed if completed else 0.0,
+                    str(timedelta(seconds=int(remaining))),
                     llm_failures,
                 )
 

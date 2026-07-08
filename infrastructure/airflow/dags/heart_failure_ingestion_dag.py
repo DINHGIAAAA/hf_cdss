@@ -14,6 +14,7 @@ except ImportError:
 PROJECT_ROOT = os.environ.get("HF_CDSS_PROJECT_ROOT", "/opt/airflow/project")
 DATA_ROOT = f"{PROJECT_ROOT}/data/heart_failure"
 PYTHON = "python"
+PIPELINE_TIMEOUT_HOURS = int(os.environ.get("HF_CDSS_AIRFLOW_PIPELINE_TIMEOUT_HOURS", "48"))
 
 # Defaults — override via docker-compose env, not the Airflow trigger UI.
 SOURCES_REGISTRY = os.environ.get("HF_CDSS_SOURCES_REGISTRY", "sources/sources.example.json")
@@ -63,7 +64,7 @@ with DAG(
 
     run_kg_pipeline = BashOperator(
         task_id="run_kg_pipeline",
-        execution_timeout=timedelta(hours=12),
+        execution_timeout=timedelta(hours=PIPELINE_TIMEOUT_HOURS),
         bash_command=(
             f"{data_command(PYTHON + f' -m scraper.orchestration.run_ingestion_pipeline --registry {SOURCES_REGISTRY} --skip-download --auto-resume ')}"
             '--run-id "{{ run_id }}"'

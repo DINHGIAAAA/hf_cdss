@@ -7,12 +7,15 @@ from pathlib import Path
 
 from scraper.orchestration.pipeline_checkpoint import (
     default_checkpoint_path,
+    infer_last_completed_from_artifacts,
     load_checkpoint,
     resolve_auto_resume,
     save_checkpoint,
     should_skip_step,
 )
 from scraper.paths import data_root, project_root
+from scraper.store.sync_processed_from_s3 import restore_from_s3
+from scraper.store.sync_processed_to_s3 import upload_step_artifacts
 
 ROOT = data_root()
 PROJECT_ROOT = project_root()
@@ -31,6 +34,9 @@ def run_step(
     checkpoint_path: Path,
     resume_from: str | None,
     checkpoint: dict | None,
+    processed_bucket: str,
+    s3_prefix: str,
+    s3_endpoint_url: str,
 ) -> None:
     if should_skip_step(name, resume_from=resume_from, checkpoint=checkpoint):
         print(f"\n[{name}] skipped (checkpoint/resume)")
@@ -45,6 +51,15 @@ def run_step(
     env["PYTHONUNBUFFERED"] = "1"
     subprocess.run(command, cwd=ROOT, check=True, env=env)
     save_checkpoint(checkpoint_path, run_id=run_id, step_name=name)
+    uploaded = upload_step_artifacts(
+        name,
+        workspace=ROOT,
+        bucket=processed_bucket,
+        prefix=s3_prefix,
+        endpoint_url=s3_endpoint_url,
+    )
+    if uploaded:
+        print(f"[{name}] synced {uploaded} artifact file(s) to S3")
 
 
 def main() -> None:
@@ -84,6 +99,18 @@ def main() -> None:
     run_id = args.run_id or time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
     checkpoint_path = args.checkpoint_file or default_checkpoint_path(ROOT)
     checkpoint = load_checkpoint(checkpoint_path)
+    if args.auto_resume and not args.dry_run:
+        local_progress = infer_last_completed_from_artifacts(ROOT)
+        if local_progress is None:
+            print("No local pipeline artifacts found; attempting restore from processed S3...")
+            restored = restore_from_s3(
+                workspace=ROOT,
+                bucket=args.processed_bucket,
+                prefix=args.s3_prefix,
+                endpoint_url=args.s3_endpoint_url,
+            )
+            print(f"Restored {restored} file(s) from s3://{args.processed_bucket}/{args.s3_prefix}")
+            checkpoint = load_checkpoint(checkpoint_path)
     resume_from = resolve_auto_resume(
         resume_from=args.resume_from,
         auto_resume=args.auto_resume,
@@ -126,6 +153,9 @@ def main() -> None:
             checkpoint_path=checkpoint_path,
             resume_from=resume_from,
             checkpoint=checkpoint,
+            processed_bucket=args.processed_bucket,
+            s3_prefix=args.s3_prefix,
+            s3_endpoint_url=args.s3_endpoint_url,
         )
 
     if not args.download_dry_run:
@@ -149,6 +179,9 @@ def main() -> None:
             checkpoint_path=checkpoint_path,
             resume_from=resume_from,
             checkpoint=checkpoint,
+            processed_bucket=args.processed_bucket,
+            s3_prefix=args.s3_prefix,
+            s3_endpoint_url=args.s3_endpoint_url,
         )
 
     if not args.skip_guideline_parse:
@@ -176,6 +209,9 @@ def main() -> None:
             checkpoint_path=checkpoint_path,
             resume_from=resume_from,
             checkpoint=checkpoint,
+            processed_bucket=args.processed_bucket,
+            s3_prefix=args.s3_prefix,
+            s3_endpoint_url=args.s3_endpoint_url,
         )
         run_step(
             "parse_guideline_html",
@@ -195,6 +231,9 @@ def main() -> None:
             checkpoint_path=checkpoint_path,
             resume_from=resume_from,
             checkpoint=checkpoint,
+            processed_bucket=args.processed_bucket,
+            s3_prefix=args.s3_prefix,
+            s3_endpoint_url=args.s3_endpoint_url,
         )
 
     steps = [
@@ -244,6 +283,9 @@ def main() -> None:
         "checkpoint_path": checkpoint_path,
         "resume_from": resume_from,
         "checkpoint": checkpoint,
+        "processed_bucket": args.processed_bucket,
+        "s3_prefix": args.s3_prefix,
+        "s3_endpoint_url": args.s3_endpoint_url,
     }
 
     for name, command in steps:

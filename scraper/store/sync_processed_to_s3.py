@@ -39,6 +39,82 @@ def ensure_bucket(client, bucket: str) -> None:
         client.create_bucket(Bucket=bucket)
 
 
+def upload_paths(
+    *,
+    workspace: Path,
+    bucket: str,
+    prefix: str,
+    endpoint_url: str,
+    relative_paths: list[str],
+    dry_run: bool = False,
+) -> int:
+    client = s3_client(endpoint_url)
+    if not dry_run:
+        ensure_bucket(client, bucket)
+    uploaded = 0
+    for relative in relative_paths:
+        path = workspace / relative
+        if not path.is_file() or path.stat().st_size <= 0:
+            continue
+        key = s3_key(prefix, path, workspace)
+        print(f"{path} -> s3://{bucket}/{key}")
+        if dry_run:
+            uploaded += 1
+            continue
+        client.upload_file(
+            str(path),
+            bucket,
+            key,
+            ExtraArgs={"ContentType": content_type(path)},
+        )
+        uploaded += 1
+    return uploaded
+
+
+STEP_UPLOAD_PATHS: dict[str, list[str]] = {
+    "parse_guideline_pdf": [
+        "processed/documents/guideline_documents.jsonl",
+        "processed/sections/guideline_sections.jsonl",
+    ],
+    "parse_guideline_html": ["processed/sections/guideline_html_sections.jsonl"],
+    "parse_drug_label_xml": ["processed/sections/drug_label_sections.jsonl"],
+    "extract_important_sections": ["processed/sections/important_sections.jsonl"],
+    "chunk_sections": ["artifacts/chunks/chunks.jsonl"],
+    "extract_entities": ["artifacts/entities/entities.jsonl"],
+    "create_claims": ["artifacts/claims/claims.jsonl"],
+    "generate_rules": ["artifacts/rules/rules.jsonl"],
+    "classify_rules": [
+        "artifacts/rules/rules_classified.jsonl",
+        "artifacts/rules/usable_rules.jsonl",
+        "artifacts/rules/rejected_rules.jsonl",
+    ],
+    "derive_relationships": ["artifacts/relationships/relationships.jsonl"],
+}
+
+
+def upload_step_artifacts(
+    step_name: str,
+    *,
+    workspace: Path,
+    bucket: str,
+    prefix: str,
+    endpoint_url: str,
+    dry_run: bool = False,
+) -> int:
+    paths = list(STEP_UPLOAD_PATHS.get(step_name, []))
+    checkpoint = workspace / ".pipeline_checkpoint.json"
+    if checkpoint.is_file():
+        paths.append(".pipeline_checkpoint.json")
+    return upload_paths(
+        workspace=workspace,
+        bucket=bucket,
+        prefix=prefix,
+        endpoint_url=endpoint_url,
+        relative_paths=paths,
+        dry_run=dry_run,
+    )
+
+
 def iter_outputs(workspace: Path, run_id: str | None = None) -> list[Path]:
     paths: list[Path] = []
     processed_root = workspace / "processed"

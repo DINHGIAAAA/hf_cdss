@@ -92,10 +92,10 @@ def resolve_auto_resume(
         if checkpoint_step in ordered:
             last_completed = checkpoint_step
 
-        artifact_step = infer_last_completed_from_artifacts(data_root)
-        if artifact_step in ordered:
-            if last_completed is None or ordered.index(artifact_step) > ordered.index(last_completed):
-                last_completed = artifact_step
+    artifact_step = infer_last_completed_from_artifacts(data_root)
+    if artifact_step in ordered:
+        if last_completed is None or ordered.index(artifact_step) > ordered.index(last_completed):
+            last_completed = artifact_step
 
     if not last_completed:
         return None

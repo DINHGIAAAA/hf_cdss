@@ -27,3 +27,5 @@ backend/app/data/seed_users.json
 training/data/
 training/output/
 .venv-train/
+
+data/

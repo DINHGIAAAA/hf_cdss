@@ -176,7 +176,7 @@ def test_infer_last_completed_picks_furthest_artifact(tmp_path) -> None:
     assert infer_last_completed_from_artifacts(data_root) == "extract_entities"
 
 
-def test_auto_resume_skipped_for_new_run_id(tmp_path) -> None:
+def test_auto_resume_uses_artifacts_for_new_run_id(tmp_path) -> None:
     data_root = tmp_path / "heart_failure"
     chunks = data_root / "artifacts" / "chunks" / "chunks.jsonl"
     chunks.parent.mkdir(parents=True)
@@ -190,4 +190,30 @@ def test_auto_resume_skipped_for_new_run_id(tmp_path) -> None:
         run_id="new-run",
         data_root=data_root,
     )
-    assert resume_from is None
+    assert resume_from == "extract_entities"
+
+
+def test_embedding_cache_sqlite_roundtrip(tmp_path, monkeypatch) -> None:
+    from scraper.semantic import config
+    from scraper.semantic.embedding_cache import (
+        partition_cached,
+        read_vector,
+        reset_connection_for_tests,
+        write_vector,
+    )
+
+    cache_dir = tmp_path / "embeddings"
+    reset_connection_for_tests()
+    monkeypatch.setattr(config, "EMBEDDING_CACHE_DIR", str(cache_dir))
+    monkeypatch.setattr(config, "EMBEDDING_CACHE_ENABLED", True)
+    monkeypatch.setattr(config, "EMBEDDING_MODEL", "test-model")
+
+    write_vector("hello world", [0.1, 0.2, 0.3])
+    assert read_vector("hello world") == [0.1, 0.2, 0.3]
+
+    missing, cached = partition_cached(["hello world", "missing text"])
+    assert missing == [(1, "missing text")]
+    assert cached[0] == [0.1, 0.2, 0.3]
+    assert (cache_dir / "embeddings.db").exists()
+
+    reset_connection_for_tests()

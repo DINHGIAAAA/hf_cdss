@@ -27,28 +27,37 @@ def _env_int(key: str, default: int) -> int:
         return default
 
 
+def _resolved_cache_dir(env_key: str, subdir: str) -> str:
+    raw = os.environ.get(env_key, "").strip()
+    if raw:
+        return raw
+    from scraper.paths import data_root
+
+    return str(data_root() / ".cache" / subdir)
+
+
 LLM_BASE_URL = os.environ.get("HF_CDSS_LLM_BASE_URL", "http://localhost:11434/v1")
 LLM_MODEL = os.environ.get("HF_CDSS_LLM_MODEL", EXPLANATION_MODEL)
 INGESTION_LLM_MODEL = os.environ.get("HF_CDSS_INGESTION_LLM_MODEL", LLM_MODEL)
-LLM_TIMEOUT_SECONDS = _env_float("HF_CDSS_LLM_TIMEOUT_SECONDS", 120.0)
-LLM_MAX_RETRIES = _env_int("HF_CDSS_LLM_MAX_RETRIES", 2)
+LLM_TIMEOUT_SECONDS = _env_float("HF_CDSS_LLM_TIMEOUT_SECONDS", 90.0)
+LLM_MAX_RETRIES = _env_int("HF_CDSS_LLM_MAX_RETRIES", 1)
 LLM_MAX_TOKENS = _env_int("HF_CDSS_INGESTION_LLM_MAX_TOKENS", 1800)
-LLM_CONCURRENCY = _env_int("HF_CDSS_LLM_CONCURRENCY", 3)
+LLM_CONCURRENCY = _env_int("HF_CDSS_LLM_CONCURRENCY", 1)
 INGESTION_LLM_CACHE_ENABLED = os.environ.get("HF_CDSS_INGESTION_LLM_CACHE_ENABLED", "true").lower() in {
     "1",
     "true",
     "yes",
 }
-INGESTION_LLM_CACHE_DIR = os.environ.get("HF_CDSS_INGESTION_LLM_CACHE_DIR", "")
+INGESTION_LLM_CACHE_DIR = _resolved_cache_dir("HF_CDSS_INGESTION_LLM_CACHE_DIR", "llm_claims")
 CLAIM_LLM_ENABLED = os.environ.get("HF_CDSS_CLAIM_LLM_ENABLED", "true").lower() in {"1", "true", "yes"}
-CLAIM_LLM_MIN_PATTERN_MATCHES = _env_int("HF_CDSS_CLAIM_LLM_MIN_PATTERN_MATCHES", 2)
+CLAIM_LLM_MIN_PATTERN_MATCHES = _env_int("HF_CDSS_CLAIM_LLM_MIN_PATTERN_MATCHES", 3)
 
 EMBEDDING_BASE_URL = os.environ.get("HF_CDSS_EMBEDDING_BASE_URL", "http://localhost:11434")
 EMBEDDING_MODEL = os.environ.get("HF_CDSS_EMBEDDING_MODEL", EMBEDDING_MODEL)
 EMBEDDING_BATCH_SIZE = _env_int("HF_CDSS_EMBEDDING_BATCH_SIZE", 16)
-EMBEDDING_PARALLEL_WORKERS = _env_int("HF_CDSS_EMBEDDING_PARALLEL_WORKERS", 10)
+EMBEDDING_PARALLEL_WORKERS = _env_int("HF_CDSS_EMBEDDING_PARALLEL_WORKERS", 2)
 EMBEDDING_CACHE_ENABLED = os.environ.get("HF_CDSS_EMBEDDING_CACHE_ENABLED", "true").lower() in {"1", "true", "yes"}
-EMBEDDING_CACHE_DIR = os.environ.get("HF_CDSS_EMBEDDING_CACHE_DIR", "")
+EMBEDDING_CACHE_DIR = _resolved_cache_dir("HF_CDSS_EMBEDDING_CACHE_DIR", "embeddings")
 EMBEDDING_DEDUP_ENABLED = os.environ.get("HF_CDSS_EMBEDDING_DEDUP_ENABLED", "false").lower() in {"1", "true", "yes"}
 
 SEMANTIC_CHUNK_ENABLED = os.environ.get("HF_CDSS_SEMANTIC_CHUNK_ENABLED", "true").lower() in {"1", "true", "yes"}
@@ -66,5 +75,5 @@ MINHASH_NUM_BANDS = _env_int("HF_CDSS_MINHASH_NUM_BANDS", 8)
 
 DEFAULT_CHUNK_SIZE = _env_int("HF_CDSS_CHUNK_SIZE", 500)
 DEFAULT_CHUNK_OVERLAP = _env_int("HF_CDSS_CHUNK_OVERLAP", 75)
-MAX_LLM_SECTION_CHARS = _env_int("HF_CDSS_MAX_LLM_SECTION_CHARS", 12000)
-MAX_LLM_CLAIMS_PER_SECTION = _env_int("HF_CDSS_MAX_LLM_CLAIMS_PER_SECTION", 40)
+MAX_LLM_SECTION_CHARS = _env_int("HF_CDSS_MAX_LLM_SECTION_CHARS", 4000)
+MAX_LLM_CLAIMS_PER_SECTION = _env_int("HF_CDSS_MAX_LLM_CLAIMS_PER_SECTION", 20)
