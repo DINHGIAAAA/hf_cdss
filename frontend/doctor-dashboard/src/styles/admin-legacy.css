@@ -747,6 +747,12 @@
   padding: var(--space-md);
 }
 
+.gov-toolbar-filters {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
 .gov-toolbar-heading {
   align-items: center;
   color: var(--color-text);
@@ -793,9 +799,14 @@
 
 .gov-toolbar-actions {
   align-items: center;
+  border-top: 1px solid var(--color-border-light);
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-sm);
+  justify-content: flex-end;
+  margin-top: var(--space-xs);
+  padding-top: var(--space-md);
+  width: 100%;
 }
 
 .gov-bulk-bar {

@@ -102,10 +102,10 @@ def _build_claim(record: dict, payload: dict[str, Any], index: int) -> dict | No
     return output
 
 
-def extract_claims_from_section(record: dict) -> list[dict]:
+def extract_claims_from_section(record: dict) -> tuple[list[dict], bool]:
     text = (record.get("text") or "").strip()
     if not text:
-        return []
+        return [], False
 
     metadata = record.get("metadata") or {}
     user_prompt = json.dumps(
@@ -121,8 +121,10 @@ def extract_claims_from_section(record: dict) -> list[dict]:
     )
 
     payload = call_llm_json(CLAIM_EXTRACTION_SYSTEM_PROMPT, user_prompt)
+    if payload is None:
+        return [], True
     if not payload:
-        return []
+        return [], False
 
     claims: list[dict] = []
     for index, item in enumerate(payload.get("claims") or [], start=1):
@@ -133,7 +135,7 @@ def extract_claims_from_section(record: dict) -> list[dict]:
             claims.append(claim)
         if len(claims) >= config.MAX_LLM_CLAIMS_PER_SECTION:
             break
-    return claims
+    return claims, False
 
 
 def extract_claims_batch(records: list[dict]) -> list[dict]:
@@ -144,11 +146,17 @@ def extract_claims_batch(records: list[dict]) -> list[dict]:
     workers = max(1, config.LLM_CONCURRENCY)
     progress_every = max(25, len(records) // 20)
     completed = 0
+    llm_failures = 0
 
     def _extract(record: dict) -> list[dict]:
+        nonlocal llm_failures
         try:
-            return extract_claims_from_section(record)
+            section_claims, failed = extract_claims_from_section(record)
+            if failed:
+                llm_failures += 1
+            return section_claims
         except Exception as exc:
+            llm_failures += 1
             logger.warning(
                 "LLM claim extraction failed for %s/%s: %s",
                 record.get("document_id"),
@@ -163,6 +171,18 @@ def extract_claims_batch(records: list[dict]) -> list[dict]:
             claims.extend(future.result())
             completed += 1
             if completed == 1 or completed % progress_every == 0 or completed == len(records):
-                logger.info("LLM claim extraction progress: %s/%s sections", completed, len(records))
+                logger.info(
+                    "LLM claim extraction progress: %s/%s sections (%s empty/failed so far)",
+                    completed,
+                    len(records),
+                    llm_failures,
+                )
+
+    if llm_failures:
+        logger.warning(
+            "LLM claim extraction finished with %s/%s sections empty or failed",
+            llm_failures,
+            len(records),
+        )
 
     return claims

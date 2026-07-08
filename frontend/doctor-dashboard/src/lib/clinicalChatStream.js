@@ -1,14 +1,7 @@
 import { apiFetch } from "@shared/api/client.js";
+import { streamStatusLabel, translate } from "@/i18n/messages.js";
 import { parseSseBlock } from "../utils";
 import { compactPatientForRequest } from "../hooks/patientPayload.js";
-
-const STATUS_LABELS = {
-  received: "Opening streaming bundle...",
-  extracting_patient: "Collecting patient draft...",
-  building_recommendation: "Processing medication safety...",
-  verifying_evidence: "Retrieving and validating evidence...",
-  generating_answer: "Reasoning over the verified recommendation...",
-};
 
 export async function streamClinicalChat({
   message,
@@ -21,7 +14,6 @@ export async function streamClinicalChat({
   onVerification,
   onAnswerDelta,
   onDone,
-  onError,
 }) {
   const response = await apiFetch("/chat/stream", {
     method: "POST",
@@ -55,7 +47,7 @@ export async function streamClinicalChat({
     throw new Error(messageText);
   }
   if (!response.body) {
-    throw new Error("Chat API did not return a stream");
+    throw new Error(translate(language, "chat.stream.noStream"));
   }
 
   const reader = response.body.getReader();
@@ -75,21 +67,21 @@ export async function streamClinicalChat({
       const { eventName, data } = parseSseBlock(block);
 
       if (eventName === "status") {
-        onStatus?.(STATUS_LABELS[data?.step] || "Processing clinical context...");
+        onStatus?.(streamStatusLabel(language, data?.step));
       }
       if (eventName === "draft_ready") {
-        onStatus?.("Patient draft collected...");
+        onStatus?.(streamStatusLabel(language, "draft_ready"));
         onDraft?.(data);
       }
       if (eventName === "missing_check") {
-        onStatus?.("Checking required clinical fields...");
+        onStatus?.(streamStatusLabel(language, "missing_check"));
       }
       if (eventName === "recommendation_ready") {
-        onStatus?.("Recommendation bundle ready...");
+        onStatus?.(streamStatusLabel(language, "recommendation_ready"));
         onRecommendation?.(data);
       }
       if (eventName === "verification_ready") {
-        onStatus?.("Evidence bundle verified...");
+        onStatus?.(streamStatusLabel(language, "verification_ready"));
         onVerification?.(data);
       }
       if (eventName === "answer_delta" && data?.content) {
@@ -99,7 +91,7 @@ export async function streamClinicalChat({
         donePayload = data;
       }
       if (eventName === "error") {
-        throw new Error(data?.message || "Streaming chat failed");
+        throw new Error(data?.message || translate(language, "chat.stream.streamFailed"));
       }
     }
   }

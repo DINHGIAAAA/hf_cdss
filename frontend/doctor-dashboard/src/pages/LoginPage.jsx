@@ -4,12 +4,15 @@ import { LoaderCircle, LogIn, MessageSquareText, Shield } from "lucide-react";
 
 import { useAuth } from "../auth/AuthContext";
 import { resolvePostLoginPath } from "../auth/roles";
+import { LanguageToggle } from "../components/LanguageToggle";
+import { useLanguage } from "@/i18n/LanguageProvider.jsx";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 
 export function LoginPage() {
   const { isAuthenticated, user, login } = useAuth();
+  const { language, languages, setLanguage, t } = useLanguage();
   const navigate = useNavigate();
   const location = useLocation();
   const [username, setUsername] = useState("");
@@ -32,7 +35,7 @@ export function LoginPage() {
       const nextUser = data.user || user;
       navigate(resolvePostLoginPath(nextUser, location.state?.from), { replace: true });
     } catch (err) {
-      setError(err.message || "Login failed");
+      setError(err.message || t("login.failed"));
     } finally {
       setLoading(false);
     }
@@ -42,23 +45,30 @@ export function LoginPage() {
     <div className="flex min-h-full items-center justify-center bg-gradient-to-b from-accent/40 to-background px-4 py-10">
       <Card className="w-full max-w-md border-border/80 shadow-lg">
         <CardHeader className="space-y-4">
-          <div className="flex items-start gap-3">
-            <div className="flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
-              <Shield size={24} />
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div className="flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <Shield size={24} />
+              </div>
+              <div className="space-y-1">
+                <CardTitle className="text-2xl">HF CDSS</CardTitle>
+                <CardDescription>{t("login.description")}</CardDescription>
+              </div>
             </div>
-            <div className="space-y-1">
-              <CardTitle className="text-2xl">HF CDSS</CardTitle>
-              <CardDescription>
-                Sign in for clinical chat. Admin and clinical lead accounts are routed to the governance dashboard.
-              </CardDescription>
-            </div>
+            <LanguageToggle
+              compact
+              language={language}
+              languages={languages}
+              onChange={setLanguage}
+              variant="light"
+            />
           </div>
         </CardHeader>
 
         <CardContent>
           <form className="space-y-4" onSubmit={handleSubmit}>
             <div className="space-y-2">
-              <label className="text-sm font-medium" htmlFor="username">Username</label>
+              <label className="text-sm font-medium" htmlFor="username">{t("login.username")}</label>
               <Input
                 autoComplete="username"
                 id="username"
@@ -71,7 +81,7 @@ export function LoginPage() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium" htmlFor="password">Password</label>
+              <label className="text-sm font-medium" htmlFor="password">{t("login.password")}</label>
               <Input
                 autoComplete="current-password"
                 id="password"
@@ -91,18 +101,18 @@ export function LoginPage() {
 
             <Button className="w-full" disabled={loading} size="lg" type="submit">
               {loading ? <LoaderCircle className="animate-spin" size={18} /> : <LogIn size={18} />}
-              Sign in
+              {t("login.signIn")}
             </Button>
           </form>
 
           <p className="mt-5 text-sm text-muted-foreground">
-            Accounts are stored in PostgreSQL. Initial users can be seeded via{" "}
+            {t("login.seedHint")}{" "}
             <code className="rounded bg-muted px-1.5 py-0.5 text-xs">HF_CDSS_AUTH_SEED_USERS_JSON</code> on first bootstrap.
           </p>
 
           <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
             <MessageSquareText size={16} />
-            Clinical users continue to chat after sign-in. Admin users land on rule governance.
+            {t("login.routingHint")}
           </p>
         </CardContent>
       </Card>

@@ -2,8 +2,11 @@ from scraper.io.jsonl import read_jsonl, write_jsonl
 import argparse
 import hashlib
 import json
+import logging
 import re
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 CLAIM_PATTERNS = {
     "contraindication": (
@@ -238,6 +241,13 @@ def claims_from_records(records: list[dict], max_claims_per_section: int) -> lis
         regex_evidence.update(claim.get("evidence", "").lower().strip() for claim in section_claims)
         if should_call_llm_for_section(record, section_claims):
             llm_records.append(record)
+
+    if llm_records:
+        logger.info(
+            "create_claims: %s sections need LLM extraction (%s regex-only)",
+            len(llm_records),
+            len(records) - len(llm_records),
+        )
 
     llm_claims: list[dict] = []
     if llm_records:

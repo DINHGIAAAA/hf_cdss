@@ -22,6 +22,7 @@ import {
 import { TooltipIconButton } from "@/components/tooltip-icon-button";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/i18n/LanguageProvider.jsx";
 import {
   ActionBarMorePrimitive,
   ActionBarPrimitive,
@@ -137,10 +138,11 @@ const ThreadMessage = () => {
 };
 
 const ThreadScrollToBottom = () => {
+  const { t } = useLanguage();
   return (
     <ThreadPrimitive.ScrollToBottom asChild>
       <TooltipIconButton
-        tooltip="Scroll to bottom"
+        tooltip={t("thread.scrollToBottom")}
         variant="outline"
         className="aui-thread-scroll-to-bottom dark:border-border dark:bg-background dark:hover:bg-accent absolute -top-12 z-10 self-center rounded-full p-4 disabled:invisible">
         <ArrowDownIcon />
@@ -150,12 +152,13 @@ const ThreadScrollToBottom = () => {
 };
 
 const ThreadWelcome = () => {
+  const { t } = useLanguage();
   return (
     <div
       className="aui-thread-welcome-root mb-6 flex flex-col items-center px-4 text-center">
       <h1
         className="aui-thread-welcome-message-inner fade-in slide-in-from-bottom-1 animate-in fill-mode-both text-2xl font-semibold duration-200">
-        How can I help you today?
+        {t("thread.welcome")}
       </h1>
     </div>
   );
@@ -189,6 +192,7 @@ const ThreadSuggestionItem = () => {
 };
 
 const Composer = () => {
+  const { t } = useLanguage();
   return (
     <ComposerPrimitive.Root className="aui-composer-root relative flex w-full flex-col">
       <ComposerPrimitive.AttachmentDropzone asChild>
@@ -197,12 +201,12 @@ const Composer = () => {
           className="border-border/60 data-[dragging=true]:border-ring focus-within:border-border dark:border-muted-foreground/15 dark:focus-within:border-muted-foreground/30 flex w-full flex-col gap-2 rounded-(--composer-radius) border bg-(--composer-bg) p-(--composer-padding) shadow-[0_4px_16px_-8px_rgba(0,0,0,0.08),0_1px_2px_rgba(0,0,0,0.04)] transition-[border-color,box-shadow] focus-within:shadow-[0_6px_24px_-8px_rgba(0,0,0,0.12),0_1px_2px_rgba(0,0,0,0.05)] data-[dragging=true]:border-dashed data-[dragging=true]:bg-[color-mix(in_oklab,var(--color-accent)_50%,var(--color-background))] dark:shadow-none">
           <ComposerAttachments />
           <ComposerPrimitive.Input
-            placeholder="Hỏi về GDMT, an toàn thuốc, titration hoặc bằng chứng lâm sàng..."
+            placeholder={t("chat.composerPlaceholder")}
             className="aui-composer-input caret-primary placeholder:text-muted-foreground/80 max-h-32 min-h-10 w-full resize-none bg-transparent px-2.5 py-1 text-base outline-none"
             rows={1}
             autoFocus
             enterKeyHint="send"
-            aria-label="Message input" />
+            aria-label={t("thread.messageInput")} />
           <ComposerAction />
         </div>
       </ComposerPrimitive.AttachmentDropzone>
@@ -211,6 +215,7 @@ const Composer = () => {
 };
 
 const ComposerAction = () => {
+  const { t } = useLanguage();
   return (
     <div
       className="aui-composer-action-wrapper relative flex items-center justify-between">
@@ -220,13 +225,13 @@ const ComposerAction = () => {
           <AuiIf condition={(s) => s.composer.dictation == null}>
             <ComposerPrimitive.Dictate asChild>
               <TooltipIconButton
-                tooltip="Voice input"
+                tooltip={t("thread.voiceInput")}
                 side="bottom"
                 type="button"
                 variant="ghost"
                 size="icon"
                 className="aui-composer-dictate size-7 rounded-full"
-                aria-label="Start voice input">
+                aria-label={t("thread.startVoice")}>
                 <MicIcon className="aui-composer-dictate-icon size-4" />
               </TooltipIconButton>
             </ComposerPrimitive.Dictate>
@@ -234,13 +239,13 @@ const ComposerAction = () => {
           <AuiIf condition={(s) => s.composer.dictation != null}>
             <ComposerPrimitive.StopDictation asChild>
               <TooltipIconButton
-                tooltip="Stop dictation"
+                tooltip={t("thread.stopDictation")}
                 side="bottom"
                 type="button"
                 variant="ghost"
                 size="icon"
                 className="aui-composer-stop-dictation text-destructive size-7 rounded-full"
-                aria-label="Stop voice input">
+                aria-label={t("thread.stopVoice")}>
                 <SquareIcon
                   className="aui-composer-stop-dictation-icon size-3.5 animate-pulse fill-current" />
               </TooltipIconButton>
@@ -250,13 +255,13 @@ const ComposerAction = () => {
         <AuiIf condition={(s) => !s.thread.isRunning}>
           <ComposerPrimitive.Send asChild>
             <TooltipIconButton
-              tooltip="Send message"
+              tooltip={t("thread.sendMessage")}
               side="bottom"
               type="button"
               variant="default"
               size="icon"
               className="aui-composer-send size-7 rounded-full"
-              aria-label="Send message">
+              aria-label={t("thread.sendMessage")}>
               <ArrowUpIcon className="aui-composer-send-icon size-4.5" />
             </TooltipIconButton>
           </ComposerPrimitive.Send>
@@ -268,7 +273,7 @@ const ComposerAction = () => {
               variant="default"
               size="icon"
               className="aui-composer-cancel size-7 rounded-full"
-              aria-label="Stop generating">
+              aria-label={t("thread.stopGenerating")}>
               <SquareIcon className="aui-composer-cancel-icon size-3.5 fill-current" />
             </Button>
           </ComposerPrimitive.Cancel>
@@ -290,6 +295,7 @@ const MessageError = () => {
 };
 
 const AssistantMessage = () => {
+  const { t } = useLanguage();
   const {
     ToolFallback: ToolFallbackComponent = ToolFallback,
     ToolGroup,
@@ -358,7 +364,7 @@ const AssistantMessage = () => {
                   <span
                     data-slot="aui_assistant-message-indicator"
                     className="animate-pulse font-sans"
-                    aria-label="Assistant is working">
+                    aria-label={t("thread.assistantWorking")}>
                     {"●"}
                   </span>
                 );
@@ -380,13 +386,14 @@ const AssistantMessage = () => {
 };
 
 const AssistantActionBar = () => {
+  const { t } = useLanguage();
   return (
     <ActionBarPrimitive.Root
       hideWhenRunning
       autohide="not-last"
       className="aui-assistant-action-bar-root text-muted-foreground animate-in fade-in col-start-3 row-start-2 -ms-1 flex gap-1 duration-200">
       <ActionBarPrimitive.Copy asChild>
-        <TooltipIconButton tooltip="Copy">
+        <TooltipIconButton tooltip={t("thread.copy")}>
           <AuiIf condition={(s) => s.message.isCopied}>
             <CheckIcon className="animate-in zoom-in-50 fade-in duration-200 ease-out" />
           </AuiIf>
@@ -396,13 +403,13 @@ const AssistantActionBar = () => {
         </TooltipIconButton>
       </ActionBarPrimitive.Copy>
       <ActionBarPrimitive.Reload asChild>
-        <TooltipIconButton tooltip="Refresh">
+        <TooltipIconButton tooltip={t("thread.refresh")}>
           <RefreshCwIcon />
         </TooltipIconButton>
       </ActionBarPrimitive.Reload>
       <ActionBarMorePrimitive.Root>
         <ActionBarMorePrimitive.Trigger asChild>
-          <TooltipIconButton tooltip="More" className="data-[state=open]:bg-accent">
+          <TooltipIconButton tooltip={t("thread.more")} className="data-[state=open]:bg-accent">
             <MoreHorizontalIcon />
           </TooltipIconButton>
         </ActionBarMorePrimitive.Trigger>
@@ -415,7 +422,7 @@ const AssistantActionBar = () => {
             <ActionBarMorePrimitive.Item
               className="aui-action-bar-more-item hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm outline-none select-none">
               <DownloadIcon className="size-4" />
-              Export as Markdown
+              {t("thread.exportMarkdown")}
             </ActionBarMorePrimitive.Item>
           </ActionBarPrimitive.ExportMarkdown>
         </ActionBarMorePrimitive.Content>
@@ -449,13 +456,14 @@ const UserMessage = () => {
 };
 
 const UserActionBar = () => {
+  const { t } = useLanguage();
   return (
     <ActionBarPrimitive.Root
       hideWhenRunning
       autohide="not-last"
       className="aui-user-action-bar-root flex flex-col items-end">
       <ActionBarPrimitive.Edit asChild>
-        <TooltipIconButton tooltip="Edit" className="aui-user-action-edit">
+        <TooltipIconButton tooltip={t("thread.edit")} className="aui-user-action-edit">
           <PencilIcon />
         </TooltipIconButton>
       </ActionBarPrimitive.Edit>
@@ -464,6 +472,7 @@ const UserActionBar = () => {
 };
 
 const EditComposer = () => {
+  const { t } = useLanguage();
   return (
     <MessagePrimitive.Root data-slot="aui_edit-composer-wrapper" className="flex flex-col px-2">
       <ComposerPrimitive.Root
@@ -475,12 +484,12 @@ const EditComposer = () => {
           className="aui-edit-composer-footer mx-2.5 mb-2.5 flex items-center gap-1.5 self-end">
           <ComposerPrimitive.Cancel asChild>
             <Button variant="ghost" size="sm" className="h-8 rounded-full px-3.5">
-              Cancel
+              {t("thread.cancel")}
             </Button>
           </ComposerPrimitive.Cancel>
           <ComposerPrimitive.Send asChild>
             <Button size="sm" className="h-8 rounded-full px-3.5">
-              Update
+              {t("thread.update")}
             </Button>
           </ComposerPrimitive.Send>
         </div>
@@ -493,6 +502,7 @@ const BranchPicker = ({
   className,
   ...rest
 }) => {
+  const { t } = useLanguage();
   return (
     <BranchPickerPrimitive.Root
       hideWhenSingleBranch
@@ -502,7 +512,7 @@ const BranchPicker = ({
       )}
       {...rest}>
       <BranchPickerPrimitive.Previous asChild>
-        <TooltipIconButton tooltip="Previous">
+        <TooltipIconButton tooltip={t("thread.previous")}>
           <ChevronLeftIcon />
         </TooltipIconButton>
       </BranchPickerPrimitive.Previous>
@@ -510,7 +520,7 @@ const BranchPicker = ({
         <BranchPickerPrimitive.Number /> / <BranchPickerPrimitive.Count />
       </span>
       <BranchPickerPrimitive.Next asChild>
-        <TooltipIconButton tooltip="Next">
+        <TooltipIconButton tooltip={t("thread.next")}>
           <ChevronRightIcon />
         </TooltipIconButton>
       </BranchPickerPrimitive.Next>

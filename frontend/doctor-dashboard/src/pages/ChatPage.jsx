@@ -15,7 +15,7 @@ export function ChatPage() {
   const [streamStatus, setStreamStatus] = useState("");
   const [error, setError] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(() => localStorage.getItem("hf_sidebar") !== "0");
-  const { language, setLanguage, languages } = useLanguage();
+  const { language, t } = useLanguage();
   const { width: panelWidth, isOpen: panelOpen, containerRef, onPointerDown } = useHorizontalResize({
     collapseThreshold: 56,
     edge: "right",
@@ -62,9 +62,6 @@ export function ChatPage() {
         conversations={conversations}
         activeId={activeId}
         health={health}
-        language={language}
-        languages={languages}
-        onLanguageChange={setLanguage}
         open={sidebarOpen}
         onNew={() => setShowModal(true)}
         onSelect={(id) => {
@@ -83,9 +80,6 @@ export function ChatPage() {
       >
         <ClinicalChatThread
           active={active}
-          language={language}
-          languages={languages}
-          onLanguageChange={setLanguage}
           sidebarOpen={sidebarOpen}
           onToggleSidebar={() =>
             setSidebarOpen((value) => {
@@ -98,7 +92,7 @@ export function ChatPage() {
       </ClinicalChatRuntimeProvider>
 
       <div
-        aria-label="Resize evidence panel"
+        aria-label={t("chat.resizePanel")}
         aria-orientation="vertical"
         aria-valuemax={520}
         aria-valuemin={0}

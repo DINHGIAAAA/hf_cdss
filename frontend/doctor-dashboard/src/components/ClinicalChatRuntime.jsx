@@ -8,22 +8,8 @@ import {
 } from "@assistant-ui/react";
 
 import { streamClinicalChat } from "@/lib/clinicalChatStream";
+import { translate } from "@/i18n/messages.js";
 import { readClinicalFiles } from "@/utils";
-
-const WELCOME_SUGGESTIONS = {
-  vi: [
-    "Đánh giá GDMT hiện tại và còn thiếu gì",
-    "Có nên tiếp tục MRA với eGFR 24 và K+ 5.7?",
-    "Khuyến nghị titration beta-blocker an toàn",
-    "Tương tác thuốc và chống chỉ định cần lưu ý",
-  ],
-  en: [
-    "Review current GDMT and identify gaps",
-    "Should we continue MRA with eGFR 24 and K+ 5.7?",
-    "Safe beta-blocker titration recommendations",
-    "Drug interactions and contraindications to watch",
-  ],
-};
 
 function extractText(message) {
   const part = message.content?.find?.((item) => item.type === "text");
@@ -130,7 +116,7 @@ export function ClinicalChatRuntimeProvider({
         ],
       }));
       setIsRunning(true);
-      onStreamStatus?.("Preparing clinical stream...");
+      onStreamStatus?.(translate(language, "chat.stream.preparing"));
       onError?.("");
 
       try {
@@ -177,7 +163,7 @@ export function ClinicalChatRuntimeProvider({
         });
       } catch (err) {
         if (err.name === "AbortError") return;
-        const content = `API error: ${err.message}`;
+        const content = translate(language, "chat.stream.apiError", { message: err.message });
         onError?.(err.message);
         patchConversation(conversationId, (current) => {
           const updated = [...(current.messages || [])];
@@ -205,13 +191,11 @@ export function ClinicalChatRuntimeProvider({
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
-  const suggestions = useMemo(
-    () =>
-      (messages.length <= 1 ? WELCOME_SUGGESTIONS[language] || WELCOME_SUGGESTIONS.en : []).map((prompt) => ({
-        prompt,
-      })),
-    [language, messages.length],
-  );
+  const suggestions = useMemo(() => {
+    const prompts = translate(language, "chat.suggestions");
+    const list = Array.isArray(prompts) ? prompts : [];
+    return (messages.length <= 1 ? list : []).map((prompt) => ({ prompt }));
+  }, [language, messages.length]);
 
   const runtime = useExternalStoreRuntime({
     isDisabled: !active,

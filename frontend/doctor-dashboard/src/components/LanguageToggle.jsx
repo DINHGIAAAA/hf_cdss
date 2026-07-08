@@ -1,4 +1,5 @@
 import { Languages } from "lucide-react";
+import { useLanguage } from "@/i18n/LanguageProvider.jsx";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
@@ -10,10 +11,11 @@ export function LanguageToggle({
   variant = "sidebar",
   className,
 }) {
+  const { t } = useLanguage();
   const isSidebar = variant === "sidebar";
   return (
     <div
-      aria-label="Chat language"
+      aria-label={t("language.toggle")}
       className={cn(
         "inline-flex max-w-full items-center gap-1 rounded-full border p-1",
         isSidebar

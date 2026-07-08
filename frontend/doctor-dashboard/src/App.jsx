@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "./auth/AuthContext";
 import { ProtectedRoute } from "./auth/ProtectedRoute";
 import { ADMIN_ROLES } from "./auth/roles";
+import { LanguageProvider } from "./i18n/LanguageProvider.jsx";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AdminLayout } from "./layouts/AdminLayout";
 import { ApiExplorerPage } from "./pages/ApiExplorerPage";
@@ -22,7 +23,8 @@ import { UsersPage } from "./pages/UsersPage";
 function App() {
   return (
     <AuthProvider>
-      <TooltipProvider delayDuration={200}>
+      <LanguageProvider>
+        <TooltipProvider delayDuration={200}>
         <BrowserRouter>
           <Routes>
             <Route element={<LoginPage />} path="/login" />
@@ -54,6 +56,7 @@ function App() {
           </Routes>
         </BrowserRouter>
       </TooltipProvider>
+      </LanguageProvider>
     </AuthProvider>
   );
 }

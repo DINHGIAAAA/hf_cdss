@@ -1,9 +1,10 @@
-import { CheckCircle2, AlertTriangle, LayoutDashboard, Plus, Sparkles } from "lucide-react";
-import { Link } from "react-router-dom";
+import { CheckCircle2, AlertTriangle, LayoutDashboard, LogOut, Plus, Sparkles } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
 import { patientSummary } from "../utils";
 import { LanguageToggle } from "./LanguageToggle";
 import { useAuth } from "../auth/AuthContext";
 import { isAdminUser } from "../auth/roles";
+import { useLanguage } from "@/i18n/LanguageProvider.jsx";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -15,12 +16,16 @@ export function Sidebar({
   onNew,
   health,
   open,
-  language,
-  languages,
-  onLanguageChange,
 }) {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+  const { language, languages, setLanguage, t } = useLanguage();
+  const navigate = useNavigate();
   const showAdminLink = isAdminUser(user);
+
+  async function handleLogout() {
+    await logout();
+    navigate("/login");
+  }
 
   return (
     <aside
@@ -38,14 +43,14 @@ export function Sidebar({
         <Button
           className={cn("w-full justify-start gap-2", !open && "h-9 w-9 justify-center px-0")}
           onClick={onNew}
-          title={language === "vi" ? "Hội thoại mới" : "New chat"}
+          title={t("sidebar.newChat")}
           type="button"
           variant="secondary"
         >
           <Plus className="shrink-0" size={18} />
           {open && (
             <span className="min-w-0 truncate">
-              {language === "vi" ? "Hội thoại mới" : "New chat"}
+              {t("sidebar.newChat")}
             </span>
           )}
         </Button>
@@ -110,11 +115,11 @@ export function Sidebar({
               "flex min-w-0 items-center gap-2 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/90 transition-colors hover:bg-sidebar-accent",
               !open && "h-9 w-9 justify-center px-0",
             )}
-            title="Admin dashboard"
+            title={t("sidebar.adminDashboard")}
             to="/admin/rules"
           >
             <LayoutDashboard className="shrink-0" size={17} />
-            {open && <span className="truncate">Admin dashboard</span>}
+            {open && <span className="truncate">{t("sidebar.adminDashboard")}</span>}
           </Link>
         )}
 
@@ -123,7 +128,7 @@ export function Sidebar({
           compact={!open}
           language={language}
           languages={languages}
-          onChange={onLanguageChange}
+          onChange={setLanguage}
         />
 
         <Separator className="bg-sidebar-border" />
@@ -134,15 +139,30 @@ export function Sidebar({
             health === "ok" ? "text-emerald-300" : "text-amber-300",
             !open && "h-9 w-9 justify-center px-0",
           )}
-          title={`API ${health}`}
+          title={t("sidebar.apiStatus", { status: health })}
         >
           {health === "ok" ? (
             <CheckCircle2 className="shrink-0" size={16} />
           ) : (
             <AlertTriangle className="shrink-0" size={16} />
           )}
-          {open && <span className="truncate">API {health}</span>}
+          {open && <span className="truncate">{t("sidebar.apiStatus", { status: health })}</span>}
         </div>
+
+        <Button
+          className={cn("w-full justify-start gap-2", !open && "h-9 w-9 justify-center px-0")}
+          onClick={handleLogout}
+          title={t("sidebar.signOut")}
+          type="button"
+          variant="ghost"
+        >
+          <LogOut className="shrink-0" size={17} />
+          {open && (
+            <span className="min-w-0 truncate">
+              {t("sidebar.signOut")}
+            </span>
+          )}
+        </Button>
       </div>
     </aside>
   );

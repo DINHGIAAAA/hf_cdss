@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { UserRound } from "lucide-react";
 import { makePatientId, slugify } from "../utils";
+import { useLanguage } from "@/i18n/LanguageProvider.jsx";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -48,6 +49,7 @@ function TextField({ label, name, value, onChange, placeholder = "" }) {
 }
 
 export function PatientModal({ onCreate, onClose }) {
+  const { t } = useLanguage();
   const [form, setForm] = useState(EMPTY_PATIENT);
   const patientId = useMemo(() => makePatientId(form.fullName), [form.fullName]);
   const conversationName = `${slugify(form.fullName)}_${patientId.split("_").at(-1)}`;
@@ -72,7 +74,7 @@ export function PatientModal({ onCreate, onClose }) {
               <UserRound size={20} />
             </div>
             <div>
-              <DialogTitle>New Conversation</DialogTitle>
+              <DialogTitle>{t("patientModal.title")}</DialogTitle>
               <DialogDescription>{conversationName}</DialogDescription>
             </div>
           </div>
@@ -80,36 +82,36 @@ export function PatientModal({ onCreate, onClose }) {
 
         <form className="space-y-5" onSubmit={submit}>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Patient name" name="fullName" onChange={update} placeholder="Nguyen Van A" value={form.fullName} />
-            <Field label="Age" name="age" onChange={update} type="number" value={form.age} />
+            <Field label={t("patientModal.patientName")} name="fullName" onChange={update} placeholder={t("patientModal.patientNamePlaceholder")} value={form.fullName} />
+            <Field label={t("patientModal.age")} name="age" onChange={update} type="number" value={form.age} />
             <label className="space-y-1.5 text-sm">
-              <span className="font-medium text-foreground">Sex</span>
+              <span className="font-medium text-foreground">{t("patientModal.sex")}</span>
               <select
                 className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
                 name="sex"
                 onChange={update}
                 value={form.sex}
               >
-                <option value="">Unknown</option>
-                <option value="male">Male</option>
-                <option value="female">Female</option>
+                <option value="">{t("patientModal.sexUnknown")}</option>
+                <option value="male">{t("patientModal.sexMale")}</option>
+                <option value="female">{t("patientModal.sexFemale")}</option>
               </select>
             </label>
-            <Field label="Weight kg" name="weightKg" onChange={update} type="number" value={form.weightKg} />
-            <Field label="SBP mmHg" name="systolicBp" onChange={update} type="number" value={form.systolicBp} />
-            <Field label="Heart rate" name="heartRate" onChange={update} type="number" value={form.heartRate} />
-            <Field label="LVEF %" name="lvef" onChange={update} type="number" value={form.lvef} />
-            <Field label="eGFR" name="egfr" onChange={update} type="number" value={form.egfr} />
-            <Field label="K+ mmol/L" name="potassium" onChange={update} type="number" value={form.potassium} />
-            <Field label="NYHA" name="nyhaClass" onChange={update} placeholder="II, III..." value={form.nyhaClass} />
-            <TextField label="Conditions" name="conditions" onChange={update} placeholder="HFrEF, CKD..." value={form.conditions} />
-            <TextField label="Current medications" name="medications" onChange={update} placeholder="metoprolol, furosemide..." value={form.medications} />
-            <TextField label="Allergies" name="allergies" onChange={update} placeholder="penicillin, aspirin, no known drug allergies" value={form.allergies} />
-            <TextField label="Red flags" name="redFlags" onChange={update} placeholder="acute decompensation, chest pain, stable" value={form.redFlags} />
+            <Field label={t("patientModal.weightKg")} name="weightKg" onChange={update} type="number" value={form.weightKg} />
+            <Field label={t("patientModal.sbp")} name="systolicBp" onChange={update} type="number" value={form.systolicBp} />
+            <Field label={t("patientModal.heartRate")} name="heartRate" onChange={update} type="number" value={form.heartRate} />
+            <Field label={t("patientModal.lvef")} name="lvef" onChange={update} type="number" value={form.lvef} />
+            <Field label={t("patientModal.egfr")} name="egfr" onChange={update} type="number" value={form.egfr} />
+            <Field label={t("patientModal.potassium")} name="potassium" onChange={update} type="number" value={form.potassium} />
+            <Field label={t("patientModal.nyha")} name="nyhaClass" onChange={update} placeholder={t("patientModal.nyhaPlaceholder")} value={form.nyhaClass} />
+            <TextField label={t("patientModal.conditions")} name="conditions" onChange={update} placeholder={t("patientModal.conditionsPlaceholder")} value={form.conditions} />
+            <TextField label={t("patientModal.medications")} name="medications" onChange={update} placeholder={t("patientModal.medicationsPlaceholder")} value={form.medications} />
+            <TextField label={t("patientModal.allergies")} name="allergies" onChange={update} placeholder={t("patientModal.allergiesPlaceholder")} value={form.allergies} />
+            <TextField label={t("patientModal.redFlags")} name="redFlags" onChange={update} placeholder={t("patientModal.redFlagsPlaceholder")} value={form.redFlags} />
           </div>
 
           <Button className="w-full sm:w-auto" disabled={!form.fullName.trim()} size="lg" type="submit">
-            Start conversation
+            {t("patientModal.start")}
           </Button>
         </form>
       </DialogContent>

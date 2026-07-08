@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/dialog";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { TooltipIconButton } from "@/components/tooltip-icon-button";
+import { useLanguage } from "@/i18n/LanguageProvider.jsx";
 import { cn } from "@/lib/utils";
 
 const useFileSrc = (file) => {
@@ -64,11 +65,12 @@ const useAttachmentSrc = () => {
 };
 
 const AttachmentPreview = ({ src }) => {
+  const { t } = useLanguage();
   const [isLoaded, setIsLoaded] = useState(false);
   return (
     <img
       src={src}
-      alt="Attachment preview"
+      alt={t("thread.attachmentPreview")}
       className={cn("block h-auto max-h-[80vh] w-auto max-w-full object-contain", isLoaded
         ? "aui-attachment-preview-image-loaded"
         : "aui-attachment-preview-image-loading invisible")}
@@ -103,13 +105,14 @@ const AttachmentPreviewDialog = ({ children }) => {
 };
 
 const AttachmentThumb = () => {
+  const { t } = useLanguage();
   const src = useAttachmentSrc();
 
   return (
     <Avatar className="aui-attachment-tile-avatar h-full w-full rounded-none">
       <AvatarImage
         src={src}
-        alt="Attachment preview"
+        alt={t("thread.attachmentPreview")}
         className="aui-attachment-tile-image object-cover" />
       <AvatarFallback>
         <FileText
@@ -120,23 +123,24 @@ const AttachmentThumb = () => {
 };
 
 const AttachmentUI = () => {
+  const { t } = useLanguage();
   const aui = useAui();
   const isComposer = aui.attachment.source !== "message";
 
   const isImage = useAuiState((s) => s.attachment.type === "image");
-  const typeLabel = useAuiState((s) => {
-    const type = s.attachment.type;
-    switch (type) {
+  const attachmentType = useAuiState((s) => s.attachment.type);
+  const typeLabel = (() => {
+    switch (attachmentType) {
       case "image":
-        return "Image";
+        return t("thread.image");
       case "document":
-        return "Document";
+        return t("thread.document");
       case "file":
-        return "File";
+        return t("thread.file");
       default:
-        return type;
+        return attachmentType;
     }
-  });
+  })();
 
   const uploadState = useAuiState((s) =>
     s.attachment.status.type === "running"
@@ -194,10 +198,11 @@ const AttachmentUI = () => {
 };
 
 const AttachmentRemove = () => {
+  const { t } = useLanguage();
   return (
     <AttachmentPrimitive.Remove asChild>
       <TooltipIconButton
-        tooltip="Remove file"
+        tooltip={t("thread.removeFile")}
         className="aui-attachment-tile-remove text-muted-foreground hover:[&_svg]:text-destructive absolute end-1.5 top-1.5 size-3.5 rounded-full bg-white opacity-100 shadow-sm hover:bg-white! [&_svg]:text-black"
         side="top">
         <XIcon className="aui-attachment-remove-icon size-3 dark:stroke-[2.5px]" />
@@ -229,15 +234,16 @@ export const ComposerAttachments = () => {
 };
 
 export const ComposerAddAttachment = () => {
+  const { t } = useLanguage();
   return (
     <ComposerPrimitive.AddAttachment asChild>
       <TooltipIconButton
-        tooltip="Add Attachment"
+        tooltip={t("thread.addAttachment")}
         side="bottom"
         variant="ghost"
         size="icon"
         className="aui-composer-add-attachment hover:bg-muted-foreground/15 dark:border-muted-foreground/15 dark:hover:bg-muted-foreground/30 size-7 rounded-full p-1 text-xs font-semibold"
-        aria-label="Add Attachment">
+        aria-label={t("thread.addAttachment")}>
         <PlusIcon className="aui-attachment-add-icon size-4.5 stroke-[1.5px]" />
       </TooltipIconButton>
     </ComposerPrimitive.AddAttachment>
