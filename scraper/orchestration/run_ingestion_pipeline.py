@@ -13,7 +13,7 @@ from scraper.orchestration.pipeline_checkpoint import (
     save_checkpoint,
     should_skip_step,
 )
-from scraper.paths import data_root, project_root
+from scraper.paths import data_root, project_root, python_import_path
 from scraper.store.sync_processed_from_s3 import restore_from_s3
 from scraper.store.sync_processed_to_s3 import upload_step_artifacts
 
@@ -47,7 +47,8 @@ def run_step(
         return
     env = os.environ.copy()
     existing_pythonpath = env.get("PYTHONPATH", "")
-    env["PYTHONPATH"] = str(PROJECT_ROOT) if not existing_pythonpath else f"{PROJECT_ROOT}{os.pathsep}{existing_pythonpath}"
+    import_path = python_import_path()
+    env["PYTHONPATH"] = import_path if not existing_pythonpath else f"{import_path}{os.pathsep}{existing_pythonpath}"
     env["PYTHONUNBUFFERED"] = "1"
     subprocess.run(command, cwd=ROOT, check=True, env=env)
     save_checkpoint(checkpoint_path, run_id=run_id, step_name=name)

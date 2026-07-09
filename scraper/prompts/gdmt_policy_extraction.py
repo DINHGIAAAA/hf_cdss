@@ -1,4 +1,4 @@
-"""LLM prompts for structured GDMT recommendation policy extraction."""
+"""System prompt for structured GDMT recommendation policy extraction during ingestion."""
 
 STRUCTURED_GDMT_POLICY_EXTRACTION_SYSTEM_PROMPT = """You extract structured GDMT (guideline-directed medical therapy) recommendation policies for heart failure from clinical guidelines.
 

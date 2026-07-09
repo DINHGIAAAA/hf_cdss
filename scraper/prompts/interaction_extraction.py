@@ -1,4 +1,4 @@
-"""LLM prompts for structured drug-drug interaction extraction."""
+"""System prompt for structured drug-drug interaction extraction during ingestion."""
 
 STRUCTURED_INTERACTION_EXTRACTION_SYSTEM_PROMPT = """You extract structured, checker-ready drug-drug interaction rules from FDA drug labels and cardiology guidelines.
 Return ONLY valid JSON with this shape:

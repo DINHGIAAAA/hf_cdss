@@ -9,7 +9,7 @@ import re
 from typing import Any
 
 from scraper.semantic import config
-from scraper.semantic.interaction_prompts import STRUCTURED_INTERACTION_EXTRACTION_SYSTEM_PROMPT
+from scraper.prompts.interaction_extraction import STRUCTURED_INTERACTION_EXTRACTION_SYSTEM_PROMPT
 from scraper.semantic.llm_client import call_llm_json
 
 logger = logging.getLogger(__name__)

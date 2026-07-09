@@ -12,7 +12,7 @@ from typing import Any
 from scraper.semantic import config
 from scraper.semantic.conditions import infer_action_from_text, normalize_conditions
 from scraper.semantic.llm_client import call_llm_json
-from scraper.semantic.prompts import CLAIM_EXTRACTION_SYSTEM_PROMPT
+from scraper.prompts.claim_extraction import CLAIM_EXTRACTION_SYSTEM_PROMPT
 
 logger = logging.getLogger(__name__)
 

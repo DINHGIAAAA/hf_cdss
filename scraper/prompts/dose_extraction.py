@@ -1,4 +1,4 @@
-"""Prompts for structured dose-rule extraction from clinical sources."""
+"""System prompt for structured dose-rule extraction during ingestion."""
 
 STRUCTURED_DOSE_EXTRACTION_SYSTEM_PROMPT = """You extract structured, calculator-ready dose rules from FDA drug labels and cardiology guidelines.
 Return ONLY valid JSON with this shape:

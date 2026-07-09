@@ -61,7 +61,7 @@ def main() -> None:
     import os
     from pathlib import Path
 
-    from scraper.paths import data_root, project_root
+    from scraper.paths import data_root, python_import_path
 
     parser = argparse.ArgumentParser(description="Run governance catalog extract/generate/classify steps.")
     parser.add_argument("--catalog", choices=[c.name for c in GOVERNANCE_CATALOGS], default=None)
@@ -70,8 +70,8 @@ def main() -> None:
     python = sys.executable
     root = data_root()
     env = os.environ.copy()
-    project = str(project_root())
-    env["PYTHONPATH"] = project if not env.get("PYTHONPATH") else f"{project}{os.pathsep}{env['PYTHONPATH']}"
+    import_path = python_import_path()
+    env["PYTHONPATH"] = import_path if not env.get("PYTHONPATH") else f"{import_path}{os.pathsep}{env['PYTHONPATH']}"
 
     catalogs = [c for c in GOVERNANCE_CATALOGS if c.name == args.catalog] if args.catalog else list(GOVERNANCE_CATALOGS)
     for catalog in catalogs:

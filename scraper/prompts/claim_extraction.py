@@ -1,4 +1,4 @@
-"""English system prompts for scraper semantic LLM steps."""
+"""System prompt for prescriptive clinical claim extraction during ingestion."""
 
 CLAIM_EXTRACTION_SYSTEM_PROMPT = """You extract prescriptive clinical claims from FDA drug labels and cardiology guidelines.
 Return ONLY valid JSON with this shape:

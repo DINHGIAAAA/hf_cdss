@@ -9,7 +9,7 @@ import re
 from typing import Any
 
 from scraper.semantic import config
-from scraper.semantic.dose_prompts import STRUCTURED_DOSE_EXTRACTION_SYSTEM_PROMPT
+from scraper.prompts.dose_extraction import STRUCTURED_DOSE_EXTRACTION_SYSTEM_PROMPT
 from scraper.semantic.llm_client import call_llm_json
 
 logger = logging.getLogger(__name__)

@@ -20,8 +20,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY ./scraper /app/scraper
 COPY ./backend /app/backend
 
-# Set the python path so imports from 'app' (in backend) work correctly
-ENV PYTHONPATH=/app
+# Repo root for scraper.* imports; backend/ for app.* (prompts, shared services).
+ENV PYTHONPATH=/app:/app/backend
 
 # Default command (can be overridden in docker-compose)
 CMD ["echo", "Scraper service container running..."]

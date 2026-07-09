@@ -8,7 +8,7 @@ import re
 from typing import Any
 
 from scraper.semantic.llm_client import call_llm_json
-from scraper.semantic.gdmt_policy_prompts import STRUCTURED_GDMT_POLICY_EXTRACTION_SYSTEM_PROMPT
+from scraper.prompts.gdmt_policy_extraction import STRUCTURED_GDMT_POLICY_EXTRACTION_SYSTEM_PROMPT
 
 GDMT_KEYWORDS = (
     "guideline-directed",

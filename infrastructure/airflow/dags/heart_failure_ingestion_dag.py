@@ -12,6 +12,7 @@ except ImportError:
 
 
 PROJECT_ROOT = os.environ.get("HF_CDSS_PROJECT_ROOT", "/opt/airflow/project")
+BACKEND_ROOT = f"{PROJECT_ROOT}/backend"
 DATA_ROOT = f"{PROJECT_ROOT}/data/heart_failure"
 PYTHON = "python"
 PIPELINE_TIMEOUT_HOURS = int(os.environ.get("HF_CDSS_AIRFLOW_PIPELINE_TIMEOUT_HOURS", "48"))
@@ -22,7 +23,7 @@ SKIP_DOWNLOAD = os.environ.get("HF_CDSS_INGESTION_SKIP_DOWNLOAD", "true").lower(
 
 
 def data_command(command: str) -> str:
-    return f"mkdir -p {DATA_ROOT} && cd {DATA_ROOT} && PYTHONPATH={PROJECT_ROOT} {command}"
+    return f"mkdir -p {DATA_ROOT} && cd {DATA_ROOT} && PYTHONPATH={PROJECT_ROOT}:{BACKEND_ROOT} {command}"
 
 
 default_args = {
