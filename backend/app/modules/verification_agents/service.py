@@ -411,7 +411,7 @@ async def verify_recommendation(
         final_result = final_fallback
     agent_results.append(final_result)
 
-    citation_validation = validate_citations(response, context)
+    citation_validation = validate_citations(response, context, patient=request.patient)
     enriched_response, prioritized_context = attach_linked_evidence(response, context, citation_validation)
 
     result = VerificationResponse(

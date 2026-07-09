@@ -1,4 +1,5 @@
 import json
+import hashlib
 import logging
 import time
 import asyncio
@@ -23,7 +24,7 @@ from app.modules.graphrag.hyde_expansion import (
 from app.modules.graphrag.query_decomposition import decompose_retrieval_queries
 from app.modules.citation_validation.service import source_link_for_chunk
 from app.modules.datastores.artifacts import sync_artifacts_from_processed_bucket
-from app.modules.datastores.chroma import retrieve_chroma, retrieve_chroma_multi_query
+from app.modules.datastores.chroma import retrieve_chroma_candidates
 from app.modules.datastores.common import CHUNKS_PATH, DATA_ROOT, RELATIONSHIPS_PATH
 from app.modules.datastores.neo4j import neo4j_driver as get_driver, retrieve_neo4j
 from app.modules.evidence_text import normalize_evidence_text
@@ -39,6 +40,7 @@ from app.modules.semantic_retrieval.service import (
     reciprocal_rank_fusion,
     reorder_evidence_chunks_for_llm,
     rerank_evidence_chunks,
+    retrieval_candidate_count,
 )
 from app.modules.semantic_retrieval.bm25 import BM25, build_bm25_index
 from app.schemas.graphrag import (
@@ -241,27 +243,6 @@ def expand_chunk_windows(
     return ordered
 
 
-def _retrieve_evidence_from_chroma(
-    queries: list[str],
-    *,
-    primary_query: str,
-    top_k: int,
-    scope: EvidenceScope | None = None,
-    patient: PatientProfile | None = None,
-    terms: list[str] | None = None,
-) -> list[EvidenceChunk]:
-    if len(queries) > 1 and settings.graphrag_multi_query_enabled:
-        return retrieve_chroma_multi_query(
-            queries,
-            top_k,
-            primary_query=primary_query,
-            scope=scope,
-            patient=patient,
-            terms=terms,
-        )
-    return retrieve_chroma(primary_query or queries[0], top_k, scope=scope, patient=patient, terms=terms)
-
-
 def _retrieve_graph_facts_parallel(
     terms: list[str],
     top_k: int,
@@ -293,10 +274,7 @@ def _merge_evidence_rankings(
 ) -> list[EvidenceChunk]:
     if not ranked_lists:
         return []
-    if len(ranked_lists) == 1:
-        merged = ranked_lists[0]
-    else:
-        merged = reciprocal_rank_fusion(ranked_lists)
+    merged = reciprocal_rank_fusion(ranked_lists) if len(ranked_lists) > 1 else ranked_lists[0]
     pool_k = max(top_k, min(len(merged), top_k * 2))
     ranked = rerank_evidence_chunks(query, merged, pool_k)
 
@@ -307,6 +285,75 @@ def _merge_evidence_rankings(
 
     ordered = sorted(ranked, key=rank_key, reverse=True)
     return filter_evidence_chunks(ordered, patient=patient, terms=terms, top_k=top_k)
+
+
+def _fetch_chroma_candidates(
+    queries: list[str],
+    pool_k: int,
+    *,
+    scope: EvidenceScope | None = None,
+) -> list[EvidenceChunk]:
+    try:
+        return retrieve_chroma_candidates(queries, pool_k, scope=scope)
+    except Exception as exc:
+        logger.warning("ChromaDB candidate retrieval unavailable: %s", exc)
+        return []
+
+
+def retrieve_hybrid_evidence_chunks(
+    terms: list[str],
+    top_k: int,
+    *,
+    queries: list[str] | None = None,
+    primary_query: str | None = None,
+    scope: EvidenceScope | None = None,
+    patient: PatientProfile | None = None,
+    published: bool = True,
+) -> tuple[list[EvidenceChunk], list[str]]:
+    """Single retrieval flow: ChromaDB + BM25 in parallel, merged with RRF, then rerank/filter."""
+    if not terms:
+        return [], []
+
+    query = primary_query or " ".join(terms)
+    retrieval_queries = queries or [query]
+    pool_k = max(top_k * 2, retrieval_candidate_count(top_k))
+    sources: list[str] = []
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        chroma_future = pool.submit(
+            _fetch_chroma_candidates,
+            retrieval_queries,
+            pool_k,
+            scope=scope,
+        )
+        bm25_future = pool.submit(
+            retrieve_bm25_evidence_chunks,
+            terms,
+            pool_k,
+            published=published,
+            patient=patient,
+        )
+        chroma_chunks = chroma_future.result()
+        bm25_chunks = bm25_future.result()
+
+    if chroma_chunks:
+        sources.append("chromadb")
+    if bm25_chunks:
+        sources.append("bm25")
+
+    ranked_lists = [chunk_list for chunk_list in (chroma_chunks, bm25_chunks) if chunk_list]
+    if not ranked_lists:
+        return [], sources
+
+    sources.append("hybrid_rrf")
+    merged = _merge_evidence_rankings(
+        ranked_lists,
+        query=query,
+        top_k=top_k,
+        patient=patient,
+        terms=terms,
+    )
+    return merged, sources
 
 
 def _score_text(text: str, terms: list[str]) -> float:
@@ -321,24 +368,28 @@ def _score_text(text: str, terms: list[str]) -> float:
 # BM25 index - lazily initialized
 _bm25_index: BM25 | None = None
 _bm25_chunk_map: dict[str, dict[str, Any]] = {}
+_bm25_fingerprint: str | None = None
+
+
+def _chunks_fingerprint(chunk_rows: list[dict[str, Any]]) -> str:
+    digest = hashlib.sha256()
+    for chunk in sorted(chunk_rows, key=lambda row: row["chunk_id"]):
+        digest.update(chunk["chunk_id"].encode("utf-8"))
+    return digest.hexdigest()
 
 
 def _get_bm25_index(published: bool = True) -> BM25:
     """Get or build BM25 index for chunks."""
-    global _bm25_index, _bm25_chunk_map
+    global _bm25_index, _bm25_chunk_map, _bm25_fingerprint
 
-    # Rebuild if needed (cache invalidated by cache key change)
-    cache_key = "published" if published else "staging"
     chunk_rows = load_published_chunks() if published else load_staging_chunks()
+    fingerprint = _chunks_fingerprint(chunk_rows)
 
-    if _bm25_index is None or len(_bm25_chunk_map) != len(chunk_rows):
+    if _bm25_index is None or _bm25_fingerprint != fingerprint:
         logger.info("Building BM25 index for %d chunks", len(chunk_rows))
-        # Build doc_id -> chunk mapping
         _bm25_chunk_map = {chunk["chunk_id"]: chunk for chunk in chunk_rows}
-
-        # Build BM25 index
-        documents = []
-        doc_ids = []
+        documents: list[str] = []
+        doc_ids: list[str] = []
         for chunk in chunk_rows:
             text = " ".join([
                 chunk.get("document_id", ""),
@@ -349,8 +400,71 @@ def _get_bm25_index(published: bool = True) -> BM25:
             doc_ids.append(chunk["chunk_id"])
 
         _bm25_index = build_bm25_index(list(zip(doc_ids, documents)))
+        _bm25_fingerprint = fingerprint
 
     return _bm25_index
+
+
+def _evidence_chunk_from_row(
+    chunk: dict[str, Any],
+    *,
+    score: float,
+    terms: list[str],
+    patient: PatientProfile | None = None,
+) -> EvidenceChunk:
+    metadata = chunk.get("metadata") or {}
+    original_text = normalize_evidence_text(chunk.get("text", ""))
+    evidence_chunk = EvidenceChunk(
+        chunk_id=chunk["chunk_id"],
+        document_id=chunk["document_id"],
+        source_type=chunk["source_type"],
+        section=chunk.get("section"),
+        text=original_text[:900],
+        score=score,
+        metadata=metadata,
+        source_url=metadata.get("source_url"),
+        page=metadata.get("page") or metadata.get("page_start"),
+    )
+    matched_terms = [term for term in terms if term.lower() in original_text.lower()]
+    evidence_chunk = evidence_chunk.model_copy(update={"source_link": source_link_for_chunk(evidence_chunk)})
+    return enrich_evidence_chunk(evidence_chunk, matched_terms, patient=patient)
+
+
+def retrieve_bm25_evidence_chunks(
+    terms: list[str],
+    top_k: int,
+    *,
+    published: bool = True,
+    patient: PatientProfile | None = None,
+    bm25_top_k: int | None = None,
+) -> list[EvidenceChunk]:
+    """Retrieve evidence chunks using BM25 keyword search with batch-relative score normalization."""
+    if not terms:
+        return []
+
+    query_str = " ".join(terms)
+    bm25 = _get_bm25_index(published)
+    pool_k = bm25_top_k or max(top_k * 2, 20)
+    bm25_results = bm25.search(query_str, top_k=pool_k)
+    if not bm25_results:
+        return []
+
+    max_score = max(score for _, score in bm25_results) or 1.0
+    chunks: list[EvidenceChunk] = []
+    for doc_id, score in bm25_results:
+        row = _bm25_chunk_map.get(doc_id)
+        if not row:
+            continue
+        normalized_score = score / max_score
+        chunks.append(
+            _evidence_chunk_from_row(
+                row,
+                score=normalized_score,
+                terms=terms,
+                patient=patient,
+            )
+        )
+    return chunks
 
 
 def retrieve_evidence_chunks(
@@ -362,96 +476,16 @@ def retrieve_evidence_chunks(
     use_hybrid: bool = True,
     bm25_top_k: int = 100,
 ) -> list[EvidenceChunk]:
-    """Retrieve evidence chunks with optional BM25 hybrid search.
-
-    Args:
-        terms: Search terms
-        top_k: Number of chunks to return
-        published: Use published vs staging chunks
-        patient: Patient profile for clinical boosting
-        use_hybrid: If True, use BM25 first then semantic fallback
-        bm25_top_k: Number of BM25 results to consider before semantic fallback
-    """
-    chunk_rows = load_published_chunks() if published else load_staging_chunks()
-    query_str = " ".join(terms)
-
-    scored: list[tuple[float, dict[str, Any]]] = []
-
-    if use_hybrid and settings.hybrid_bm25_enabled:
-        # Stage 1: BM25 keyword search (fast)
-        bm25 = _get_bm25_index(published)
-        bm25_results = bm25.search(query_str, top_k=bm25_top_k)
-
-        # Get chunks from BM25 results
-        bm25_chunk_ids = set(doc_id for doc_id, _ in bm25_results)
-        bm25_scores = {doc_id: score for doc_id, score in bm25_results}
-
-        # Only use BM25 results if we have enough high-quality matches
-        if len(bm25_results) >= min(top_k, 10):
-            for chunk in chunk_rows:
-                if chunk["chunk_id"] in bm25_chunk_ids:
-                    score = bm25_scores[chunk["chunk_id"]]
-                    # Normalize BM25 score to 0-1 range
-                    normalized_score = min(score / 10.0, 1.0)
-                    scored.append((normalized_score, chunk))
-
-            logger.info("BM25 hybrid: found %d matching chunks", len(scored))
-        else:
-            # Stage 2: Fallback to keyword scoring if BM25 insufficient
-            logger.info("BM25 returned only %d results, using keyword fallback", len(bm25_results))
-            for chunk in chunk_rows:
-                text = " ".join([
-                    chunk.get("document_id", ""),
-                    chunk.get("source_type", ""),
-                    chunk.get("section", ""),
-                    normalize_evidence_text(chunk.get("text", "")),
-                    " ".join(str(v) for v in chunk.get("metadata", {}).values() if isinstance(v, str)),
-                ])
-                score = _score_text(text, terms)
-                if score > 0:
-                    scored.append((score, chunk))
-    else:
-        # Original keyword scoring
-        for chunk in chunk_rows:
-            text = " ".join([
-                chunk.get("document_id", ""),
-                chunk.get("source_type", ""),
-                chunk.get("section", ""),
-                normalize_evidence_text(chunk.get("text", "")),
-                " ".join(str(v) for v in chunk.get("metadata", {}).values() if isinstance(v, str)),
-            ])
-            score = _score_text(text, terms)
-            if score > 0:
-                scored.append((score, chunk))
-
-    scored.sort(key=lambda item: item[0], reverse=True)
-    chunks: list[EvidenceChunk] = []
-    for score, chunk in scored[:top_k]:
-        metadata = chunk.get("metadata", {})
-        original_text = normalize_evidence_text(chunk.get("text", ""))
-        evidence_chunk = EvidenceChunk(
-            chunk_id=chunk["chunk_id"],
-            document_id=chunk["document_id"],
-            source_type=chunk["source_type"],
-            section=chunk.get("section"),
-            text=original_text[:900],
-            score=score,
-            metadata=metadata,
-            source_url=metadata.get("source_url"),
-            page=metadata.get("page") or metadata.get("page_start"),
-        )
-        matched_terms = [term for term in terms if term.lower() in original_text.lower()]
-        evidence_chunk = evidence_chunk.model_copy(update={"source_link": source_link_for_chunk(evidence_chunk)})
-        chunks.append(enrich_evidence_chunk(evidence_chunk, matched_terms, patient=patient))
-    ranked = rerank_evidence_chunks(query_str, chunks, max(top_k, len(chunks)))
-
-    def rank_key(item: EvidenceChunk) -> tuple[float, float]:
-        matched = matched_terms_for_chunk(item, terms)
-        quality = quality_score_for_chunk(item, matched, patient=patient)
-        return quality, item.score
-
-    ordered = sorted(ranked, key=rank_key, reverse=True)
-    return filter_evidence_chunks(ordered, patient=patient, terms=terms, top_k=top_k)
+    """Retrieve evidence via the unified ChromaDB + BM25 hybrid flow."""
+    del use_hybrid, bm25_top_k
+    chunks, _ = retrieve_hybrid_evidence_chunks(
+        terms,
+        top_k,
+        primary_query=" ".join(terms),
+        patient=patient,
+        published=published,
+    )
+    return chunks
 
 
 def get_top_entities_from_chunks(chunks: list[EvidenceChunk], top_n: int = 3) -> list[dict]:
@@ -666,34 +700,19 @@ def _build_graphrag_context_impl(
         if request.constraint_chunk_ids:
             retrieval_sources.append("constraint_scope")
 
+    evidence_chunks, hybrid_sources = retrieve_hybrid_evidence_chunks(
+        terms,
+        top_k,
+        queries=queries,
+        primary_query=primary_query,
+        scope=evidence_scope,
+        patient=request.patient,
+    )
+    retrieval_sources.extend(hybrid_sources)
+    if hyde_used and "chromadb" in hybrid_sources:
+        retrieval_sources.append("hyde")
+
     if settings.retrieval_backend in {"hybrid", "databases"}:
-        try:
-            evidence_chunks = _retrieve_evidence_from_chroma(
-                queries,
-                primary_query=primary_query,
-                top_k=top_k,
-                scope=evidence_scope,
-                patient=request.patient,
-                terms=terms,
-            )
-            if evidence_chunks:
-                retrieval_sources.append("chromadb")
-                if hyde_used:
-                    retrieval_sources.append("hyde")
-        except Exception as exc:
-            logger.warning("ChromaDB retrieval unavailable; using local evidence fallback: %s", exc)
-
-        if not evidence_chunks:
-            local_chunks = retrieve_evidence_chunks(terms, top_k, patient=request.patient)
-            evidence_chunks = _merge_evidence_rankings(
-                [local_chunks],
-                query=primary_query,
-                top_k=top_k,
-                patient=request.patient,
-                terms=terms,
-            )
-            retrieval_sources.append("local_chunks")
-
         graph_facts, dynamic_graph_facts = _retrieve_graph_facts_parallel(terms, top_k, evidence_chunks)
         if graph_facts:
             retrieval_sources.append("neo4j")
@@ -704,9 +723,6 @@ def _build_graphrag_context_impl(
     if not graph_facts:
         graph_facts = retrieve_graph_facts(terms, top_k)
         retrieval_sources.append("local_relationships")
-    if not evidence_chunks:
-        evidence_chunks = retrieve_evidence_chunks(terms, top_k, patient=request.patient)
-        retrieval_sources.append("local_chunks")
 
     if evidence_chunks and settings.graphrag_chunk_window_size > 0:
         evidence_chunks = expand_chunk_windows(evidence_chunks)

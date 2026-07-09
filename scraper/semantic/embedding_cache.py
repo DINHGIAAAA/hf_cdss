@@ -25,10 +25,10 @@ def cache_key(text: str) -> str:
 def _db_path() -> Path | None:
     if not config.EMBEDDING_CACHE_ENABLED:
         return None
-    raw = config.EMBEDDING_CACHE_DIR.strip()
-    if not raw:
-        return None
-    path = Path(raw)
+    from scraper.paths import data_root
+
+    raw = (config.EMBEDDING_CACHE_DIR or "").strip()
+    path = Path(raw) if raw else data_root() / ".cache" / "embeddings"
     path.mkdir(parents=True, exist_ok=True)
     return path / "embeddings.db"
 

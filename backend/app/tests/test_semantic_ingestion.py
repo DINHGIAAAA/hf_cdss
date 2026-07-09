@@ -266,11 +266,10 @@ def test_embed_texts_uses_disk_cache(tmp_path, monkeypatch) -> None:
 
 
 def test_section_filter_embeds_haystack_once_per_record(monkeypatch) -> None:
-    from scraper.semantic.embeddings import _embed_text_cached, _prototype_vectors
+    from scraper.semantic.embeddings import clear_embedding_caches
     from scraper.semantic.section_filter import filter_important_sections
 
-    _embed_text_cached.cache_clear()
-    _prototype_vectors.cache_clear()
+    clear_embedding_caches()
 
     haystack_embed_calls: list[str] = []
 

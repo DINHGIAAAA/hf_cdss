@@ -49,10 +49,9 @@ def test_build_table_section_records_produces_markdown_sections() -> None:
 
 
 def test_extracted_table_sections_always_pass_important_filter(monkeypatch) -> None:
-    from scraper.semantic.embeddings import _embed_text_cached, _prototype_vectors
+    from scraper.semantic.embeddings import clear_embedding_caches
 
-    _embed_text_cached.cache_clear()
-    _prototype_vectors.cache_clear()
+    clear_embedding_caches()
     monkeypatch.setattr(
         "scraper.semantic.embeddings.embed_texts",
         lambda texts, **kwargs: [[1.0, 0.0] for _ in texts],

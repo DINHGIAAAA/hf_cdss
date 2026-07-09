@@ -151,6 +151,115 @@ def test_expand_chunk_windows_adds_neighbors(monkeypatch) -> None:
     }
 
 
+def test_bm25_scores_normalize_relative_to_batch_max(monkeypatch) -> None:
+    class FakeBM25:
+        def search(self, _query: str, top_k: int) -> list[tuple[str, float]]:
+            return [("chunk-a", 2.0), ("chunk-b", 8.0)][:top_k]
+
+    monkeypatch.setattr(settings, "hybrid_bm25_enabled", True)
+    monkeypatch.setattr(
+        graphrag_service,
+        "load_published_chunks",
+        lambda: [
+            {
+                "chunk_id": "chunk-a",
+                "document_id": "spironolactone",
+                "source_type": "drug_label",
+                "section": "RENAL",
+                "text": "Use caution when eGFR is below 30.",
+                "metadata": {},
+            },
+            {
+                "chunk_id": "chunk-b",
+                "document_id": "spironolactone",
+                "source_type": "drug_label",
+                "section": "RENAL",
+                "text": "Contraindicated in severe renal impairment.",
+                "metadata": {},
+            },
+        ],
+    )
+    graphrag_service._bm25_index = FakeBM25()
+    graphrag_service._bm25_chunk_map = {
+        row["chunk_id"]: row for row in graphrag_service.load_published_chunks()
+    }
+    graphrag_service._bm25_fingerprint = graphrag_service._chunks_fingerprint(
+        graphrag_service.load_published_chunks()
+    )
+
+    chunks = graphrag_service.retrieve_bm25_evidence_chunks(["renal", "egfr"], top_k=2)
+
+    scores = {chunk.chunk_id: chunk.score for chunk in chunks}
+    assert scores["chunk-b"] == 1.0
+    assert scores["chunk-a"] == 0.25
+
+
+def test_build_graphrag_context_merges_chroma_and_bm25(monkeypatch) -> None:
+    monkeypatch.setattr(settings, "retrieval_backend", "databases")
+    monkeypatch.setattr(settings, "hybrid_bm25_enabled", True)
+    monkeypatch.setattr(settings, "hyde_retrieval_enabled", False)
+    monkeypatch.setattr(settings, "graphrag_multi_query_enabled", False)
+
+    chroma_chunk = EvidenceChunk(
+        chunk_id="chroma-only",
+        document_id="doc",
+        source_type="guideline",
+        section="RENAL",
+        text="Chroma semantic renal guidance.",
+        score=0.9,
+    )
+    bm25_chunk = EvidenceChunk(
+        chunk_id="bm25-only",
+        document_id="doc",
+        source_type="guideline",
+        section="POTASSIUM",
+        text="BM25 keyword potassium guidance.",
+        score=0.95,
+    )
+    shared_chunk = EvidenceChunk(
+        chunk_id="shared",
+        document_id="doc",
+        source_type="guideline",
+        section="MRA",
+        text="Shared MRA guidance.",
+        score=0.85,
+    )
+
+    def fake_chroma(*_args, **_kwargs):
+        return [chroma_chunk, shared_chunk]
+
+    def fake_bm25(*_args, **_kwargs):
+        return [bm25_chunk, shared_chunk]
+
+    monkeypatch.setattr("app.modules.graphrag.service._fetch_chroma_candidates", fake_chroma)
+    monkeypatch.setattr("app.modules.graphrag.service.retrieve_bm25_evidence_chunks", fake_bm25)
+    monkeypatch.setattr("app.modules.graphrag.service.resolve_evidence_scope", lambda *_args, **_kwargs: EvidenceScope())
+    monkeypatch.setattr("app.modules.graphrag.service.retrieve_neo4j", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr("app.modules.graphrag.service.retrieve_graph_facts", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr("app.modules.graphrag.service.expand_chunk_windows", lambda chunks, **kwargs: chunks)
+    monkeypatch.setattr(
+        "app.modules.graphrag.service.rerank_evidence_chunks",
+        lambda _query, chunks, top_k: chunks[:top_k],
+    )
+    monkeypatch.setattr(
+        "app.modules.graphrag.service.filter_evidence_chunks",
+        lambda chunks, **kwargs: chunks[: kwargs.get("top_k")],
+    )
+
+    response = build_graphrag_context(
+        GraphRAGContextRequest(
+            patient=hfref_patient(),
+            query="mra potassium renal",
+            top_k=3,
+        )
+    )
+
+    assert "hybrid_rrf" in response.retrieval_sources
+    assert "bm25" in response.retrieval_sources
+    assert "chromadb" in response.retrieval_sources
+    assert {chunk.chunk_id for chunk in response.evidence_chunks} == {"shared", "chroma-only", "bm25-only"}
+
+
 def test_build_graphrag_context_sync_uses_hyde_when_loop_running(monkeypatch) -> None:
     monkeypatch.setattr(settings, "hyde_retrieval_enabled", True)
     monkeypatch.setattr(settings, "llm_api_type", "chat_completions")
@@ -160,7 +269,7 @@ def test_build_graphrag_context_sync_uses_hyde_when_loop_running(monkeypatch) ->
     async def fake_hyde(*_args, **_kwargs):
         return "Mineralocorticoid receptor antagonists require potassium monitoring."
 
-    def fake_multi_query(queries: list[str], top_k: int, **kwargs):
+    def fake_chroma_candidates(queries: list[str], pool_k: int, **kwargs):
         captured["queries"] = queries
         return [
             EvidenceChunk(
@@ -174,11 +283,19 @@ def test_build_graphrag_context_sync_uses_hyde_when_loop_running(monkeypatch) ->
         ]
 
     monkeypatch.setattr("app.modules.graphrag.service.generate_hyde_document", fake_hyde)
-    monkeypatch.setattr("app.modules.graphrag.service._retrieve_evidence_from_chroma", fake_multi_query)
+    monkeypatch.setattr("app.modules.graphrag.service._fetch_chroma_candidates", fake_chroma_candidates)
+    monkeypatch.setattr("app.modules.graphrag.service.retrieve_bm25_evidence_chunks", lambda *_args, **_kwargs: [])
     monkeypatch.setattr("app.modules.graphrag.service.resolve_evidence_scope", lambda *_args, **_kwargs: EvidenceScope())
     monkeypatch.setattr("app.modules.graphrag.service.retrieve_neo4j", lambda *_args, **_kwargs: [])
     monkeypatch.setattr("app.modules.graphrag.service.retrieve_graph_facts", lambda *_args, **_kwargs: [])
-    monkeypatch.setattr("app.modules.graphrag.service.retrieve_evidence_chunks", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(
+        "app.modules.graphrag.service.rerank_evidence_chunks",
+        lambda _query, chunks, top_k: chunks[:top_k],
+    )
+    monkeypatch.setattr(
+        "app.modules.graphrag.service.filter_evidence_chunks",
+        lambda chunks, **kwargs: chunks[: kwargs.get("top_k")],
+    )
 
     async def run_in_loop() -> None:
         response = build_graphrag_context(
@@ -203,7 +320,7 @@ def test_build_graphrag_context_async_uses_multi_query(monkeypatch) -> None:
     async def fake_hyde(*_args, **_kwargs):
         return "HyDE document about potassium and renal function."
 
-    def fake_multi_query(queries: list[str], top_k: int, **kwargs):
+    def fake_chroma_candidates(queries: list[str], pool_k: int, **kwargs):
         captured["queries"] = queries
         return [
             EvidenceChunk(
@@ -217,11 +334,20 @@ def test_build_graphrag_context_async_uses_multi_query(monkeypatch) -> None:
         ]
 
     monkeypatch.setattr("app.modules.graphrag.service.generate_hyde_document", fake_hyde)
-    monkeypatch.setattr("app.modules.graphrag.service._retrieve_evidence_from_chroma", fake_multi_query)
+    monkeypatch.setattr("app.modules.graphrag.service._fetch_chroma_candidates", fake_chroma_candidates)
+    monkeypatch.setattr("app.modules.graphrag.service.retrieve_bm25_evidence_chunks", lambda *_args, **_kwargs: [])
     monkeypatch.setattr("app.modules.graphrag.service.resolve_evidence_scope", lambda *_args, **_kwargs: EvidenceScope())
     monkeypatch.setattr("app.modules.graphrag.service.retrieve_neo4j", lambda *_args, **_kwargs: [])
     monkeypatch.setattr("app.modules.graphrag.service.retrieve_graph_facts", lambda *_args, **_kwargs: [])
     monkeypatch.setattr("app.modules.graphrag.service.expand_chunk_windows", lambda chunks, **kwargs: chunks)
+    monkeypatch.setattr(
+        "app.modules.graphrag.service.rerank_evidence_chunks",
+        lambda _query, chunks, top_k: chunks[:top_k],
+    )
+    monkeypatch.setattr(
+        "app.modules.graphrag.service.filter_evidence_chunks",
+        lambda chunks, **kwargs: chunks[: kwargs.get("top_k")],
+    )
 
     response = asyncio.run(
         build_graphrag_context_async(

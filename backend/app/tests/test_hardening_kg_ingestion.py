@@ -133,15 +133,15 @@ def test_graphrag_merges_constraint_scope(monkeypatch) -> None:
             document_ids=("kdigo_2024_ckd_guideline",),
         )
 
-    def fake_chroma(query, top_k, *, scope=None):
+    def fake_chroma_candidates(queries, pool_k, *, scope=None, **_kwargs):
         captured["scope"] = scope
         return []
 
     monkeypatch.setattr("app.modules.graphrag.service.resolve_evidence_scope", fake_scope)
-    monkeypatch.setattr("app.modules.graphrag.service.retrieve_chroma", fake_chroma)
+    monkeypatch.setattr("app.modules.graphrag.service._fetch_chroma_candidates", fake_chroma_candidates)
+    monkeypatch.setattr("app.modules.graphrag.service.retrieve_bm25_evidence_chunks", lambda *_args, **_kwargs: [])
     monkeypatch.setattr("app.modules.graphrag.service.retrieve_neo4j", lambda *_args, **_kwargs: [])
     monkeypatch.setattr("app.modules.graphrag.service.retrieve_graph_facts", lambda *_args, **_kwargs: [])
-    monkeypatch.setattr("app.modules.graphrag.service.retrieve_evidence_chunks", lambda *_args, **_kwargs: [])
 
     response = asyncio.run(
         build_graphrag_context_async(

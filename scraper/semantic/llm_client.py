@@ -48,7 +48,10 @@ def llm_available() -> bool:
 def _cache_dir() -> Path | None:
     if not config.INGESTION_LLM_CACHE_ENABLED:
         return None
-    path = Path(config.INGESTION_LLM_CACHE_DIR)
+    from scraper.paths import data_root
+
+    raw = (config.INGESTION_LLM_CACHE_DIR or "").strip()
+    path = Path(raw) if raw else data_root() / ".cache" / "llm_claims"
     path.mkdir(parents=True, exist_ok=True)
     return path
 

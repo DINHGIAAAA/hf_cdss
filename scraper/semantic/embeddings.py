@@ -1,4 +1,9 @@
-"""Ollama embedding helpers for ingestion-time semantic steps."""
+"""Ollama embedding helpers for ingestion-time semantic steps.
+
+Cache layers (outer → inner):
+1. ``embed_text`` — in-process LRU for repeated strings within one pipeline run.
+2. ``embed_texts`` — SQLite disk cache (cross-run) then Ollama HTTP.
+"""
 
 from __future__ import annotations
 
@@ -199,20 +204,28 @@ def max_similarity_vector_to_prototypes(
 
 
 @lru_cache(maxsize=2048)
-def _embed_text_cached(text: str) -> tuple[float, ...]:
-    if not text.strip():
+def _in_process_embedding(text: str) -> tuple[float, ...]:
+    """Memoize single-text embeddings for the current process (delegates to embed_texts)."""
+    if not text:
         return tuple()
     return tuple(embed_texts([text])[0])
 
 
 def embed_text(text: str) -> list[float]:
-    return list(_embed_text_cached(text))
+    """Embed one text: LRU (this run) → SQLite (disk) → Ollama."""
+    return list(_in_process_embedding(text.strip()))
+
+
+def clear_embedding_caches() -> None:
+    """Clear in-process embedding memoization (for tests and pipeline restarts)."""
+    _in_process_embedding.cache_clear()
+    _prototype_vectors.cache_clear()
 
 
 def max_similarity_to_prototypes(text: str, prototypes: Sequence[str]) -> float:
     if not text.strip() or not prototypes:
         return 0.0
-    return max_similarity_vector_to_prototypes(_embed_text_cached(text), prototypes)
+    return max_similarity_vector_to_prototypes(embed_text(text), prototypes)
 
 
 @lru_cache(maxsize=256)

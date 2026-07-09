@@ -38,6 +38,23 @@ def test_local_evidence_retrieval_preserves_provenance_metadata(monkeypatch) -> 
             }
         ],
     )
+    monkeypatch.setattr(graphrag_service, "_fetch_chroma_candidates", lambda *_args, **_kwargs: [])
+
+    def fake_bm25(terms, top_k, **kwargs):
+        row = graphrag_service.load_published_chunks()[0]
+        return [graphrag_service._evidence_chunk_from_row(row, score=1.0, terms=terms)]
+
+    monkeypatch.setattr(graphrag_service, "retrieve_bm25_evidence_chunks", fake_bm25)
+    monkeypatch.setattr(
+        graphrag_service,
+        "rerank_evidence_chunks",
+        lambda _query, chunks, top_k: chunks[:top_k],
+    )
+    monkeypatch.setattr(
+        graphrag_service,
+        "filter_evidence_chunks",
+        lambda chunks, **kwargs: chunks[: kwargs.get("top_k")],
+    )
 
     chunks = graphrag_service.retrieve_evidence_chunks(["bleeding"], top_k=1)
 

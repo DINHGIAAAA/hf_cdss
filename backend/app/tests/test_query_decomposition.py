@@ -123,14 +123,14 @@ def test_build_graphrag_context_marks_query_decomposition_source(monkeypatch) ->
     monkeypatch.setattr(settings, "graphrag_query_decomposition_enabled", True)
     monkeypatch.setattr(settings, "retrieval_backend", "databases")
 
-    def fake_multi_query(queries: list[str], top_k: int, **kwargs):
+    def fake_chroma_candidates(queries: list[str], pool_k: int, **kwargs):
         return []
 
-    monkeypatch.setattr("app.modules.graphrag.service._retrieve_evidence_from_chroma", fake_multi_query)
+    monkeypatch.setattr("app.modules.graphrag.service._fetch_chroma_candidates", fake_chroma_candidates)
+    monkeypatch.setattr("app.modules.graphrag.service.retrieve_bm25_evidence_chunks", lambda *_args, **_kwargs: [])
     monkeypatch.setattr("app.modules.graphrag.service.resolve_evidence_scope", lambda *_args, **_kwargs: None)
     monkeypatch.setattr("app.modules.graphrag.service.retrieve_neo4j", lambda *_args, **_kwargs: [])
     monkeypatch.setattr("app.modules.graphrag.service.retrieve_graph_facts", lambda *_args, **_kwargs: [])
-    monkeypatch.setattr("app.modules.graphrag.service.retrieve_evidence_chunks", lambda *_args, **_kwargs: [])
     monkeypatch.setattr("app.modules.graphrag.service.expand_chunk_windows", lambda chunks, **kwargs: chunks)
 
     response = asyncio.run(

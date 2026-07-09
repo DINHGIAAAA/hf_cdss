@@ -9,6 +9,7 @@ from app.schemas.graphrag import (
 )
 from app.core.metrics import increment
 from app.modules.evidence_quality import quality_score_for_chunk
+from app.schemas.patient import PatientProfile
 from app.schemas.recommendation import RecommendationResponse
 
 
@@ -93,6 +94,8 @@ def _match_chunks(
     required_terms: list[str],
     evidence_refs: list[str] | None = None,
     top_k: int = 3,
+    *,
+    patient: PatientProfile | None = None,
 ) -> list[EvidenceMatch]:
     matches: list[EvidenceMatch] = []
     evidence_refs = evidence_refs or []
@@ -103,7 +106,7 @@ def _match_chunks(
         ref_matched = [term for term in ref_terms if _contains(text, term)]
         if not matched and not ref_matched:
             continue
-        quality = quality_score_for_chunk(chunk, matched + ref_matched)
+        quality = quality_score_for_chunk(chunk, matched + ref_matched, patient=patient)
         score = len(set(matched)) + (len(set(ref_matched)) * 0.75) + _quality_bonus(chunk) + quality
         matches.append(EvidenceMatch(chunk=chunk, matched_terms=matched, score=score))
     return sorted(matches, key=lambda item: (item.score, item.chunk.score), reverse=True)[:top_k]
@@ -122,12 +125,19 @@ def _safety_terms(text: str) -> list[str]:
     return terms
 
 
-def _support_status(matches: list[EvidenceMatch], required_terms: list[str]) -> tuple[str, str, str, float]:
+def _support_status(
+    matches: list[EvidenceMatch],
+    required_terms: list[str],
+    *,
+    patient: PatientProfile | None = None,
+) -> tuple[str, str, str, float]:
     if not matches:
         return "missing", "missing_citation", "No retrieved evidence chunk matched the target terms.", 0.0
     all_matched = {term for match in matches for term in match.matched_terms}
     coverage = len(all_matched) / max(len(set(required_terms)), 1)
-    best_quality = max(quality_score_for_chunk(match.chunk, match.matched_terms) for match in matches)
+    best_quality = max(
+        quality_score_for_chunk(match.chunk, match.matched_terms, patient=patient) for match in matches
+    )
     has_authoritative_source = any(match.chunk.source_type in {"guideline", "drug_label"} for match in matches)
     confidence = round(min((coverage * 0.65) + (best_quality * 0.35), 1.0), 3)
     if coverage >= 0.5 and has_authoritative_source and best_quality >= 0.55:
@@ -144,11 +154,16 @@ def _citation_support(
     required_terms: list[str],
     chunks: list[EvidenceChunk],
     evidence_refs: list[str] | None = None,
+    *,
+    patient: PatientProfile | None = None,
 ) -> CitationSupport:
     unique_terms = sorted({term.lower() for term in required_terms if term})
-    matches = _match_chunks(chunks, unique_terms, evidence_refs=evidence_refs)
-    status, verdict, message, confidence = _support_status(matches, unique_terms)
-    best_quality = max((quality_score_for_chunk(match.chunk, match.matched_terms) for match in matches), default=0.0)
+    matches = _match_chunks(chunks, unique_terms, evidence_refs=evidence_refs, patient=patient)
+    status, verdict, message, confidence = _support_status(matches, unique_terms, patient=patient)
+    best_quality = max(
+        (quality_score_for_chunk(match.chunk, match.matched_terms, patient=patient) for match in matches),
+        default=0.0,
+    )
     return CitationSupport(
         target_id=target_id,
         target_type=target_type,
@@ -167,6 +182,8 @@ def _citation_support(
 def validate_citations(
     response: RecommendationResponse,
     context: GraphRAGContextResponse,
+    *,
+    patient: PatientProfile | None = None,
 ) -> CitationValidation:
     supports: list[CitationSupport] = []
     chunks = context.evidence_chunks
@@ -182,6 +199,7 @@ def validate_citations(
                 required_terms=terms,
                 chunks=chunks,
                 evidence_refs=refs,
+                patient=patient,
             )
         )
 
@@ -195,6 +213,7 @@ def validate_citations(
                 required_terms=terms,
                 chunks=chunks,
                 evidence_refs=[constraint.evidence_ref or constraint.constraint_id],
+                patient=patient,
             )
         )
 
@@ -208,6 +227,7 @@ def validate_citations(
                 required_terms=terms,
                 chunks=chunks,
                 evidence_refs=[getattr(warning, "evidence_ref", None) or warning.warning_id],
+                patient=patient,
             )
         )
 

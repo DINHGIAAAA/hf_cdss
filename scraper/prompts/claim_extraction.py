@@ -27,4 +27,29 @@ Rules:
 - Use null/omit condition fields when not stated.
 - confidence between 0.5 and 1.0 based on clarity of the statement.
 - Do not invent thresholds or drugs not present in the text.
+
+Example input:
+"Spironolactone is contraindicated when eGFR < 30 mL/min/1.73 m2. Monitor serum potassium."
+
+Example output:
+{
+  "claims": [
+    {
+      "claim_type": "renal_constraint",
+      "evidence": "Spironolactone is contraindicated when eGFR < 30 mL/min/1.73 m2.",
+      "drug": "spironolactone",
+      "action": "contraindicated",
+      "confidence": 0.95,
+      "conditions": {"egfr": {"op": "<", "value": 30}}
+    },
+    {
+      "claim_type": "hyperkalemia_risk",
+      "evidence": "Monitor serum potassium.",
+      "drug": "spironolactone",
+      "action": "monitor",
+      "confidence": 0.8,
+      "conditions": {}
+    }
+  ]
+}
 """

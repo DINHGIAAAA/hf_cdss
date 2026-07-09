@@ -104,21 +104,24 @@ def test_build_graphrag_context_async_uses_hyde_for_chroma(monkeypatch) -> None:
     async def fake_hyde(*_args, **_kwargs):
         return "Mineralocorticoid receptor antagonists require potassium and renal monitoring in HFrEF."
 
-    def fake_chroma(query: str, top_k: int, **_kwargs):
-        captured["query"] = query
-        return [_evidence_chunk()]
-
-    def fake_multi_query(queries: list[str], top_k: int, *, primary_query: str | None = None, **_kwargs):
-        captured["query"] = primary_query or queries[0]
+    def fake_chroma_candidates(queries: list[str], pool_k: int, **_kwargs):
+        captured["query"] = queries[0]
         return [_evidence_chunk()]
 
     monkeypatch.setattr("app.modules.graphrag.service.generate_hyde_document", fake_hyde)
-    monkeypatch.setattr("app.modules.graphrag.service.retrieve_chroma", fake_chroma)
-    monkeypatch.setattr("app.modules.graphrag.service.retrieve_chroma_multi_query", fake_multi_query)
+    monkeypatch.setattr("app.modules.graphrag.service._fetch_chroma_candidates", fake_chroma_candidates)
+    monkeypatch.setattr("app.modules.graphrag.service.retrieve_bm25_evidence_chunks", lambda *_args, **_kwargs: [])
     monkeypatch.setattr("app.modules.graphrag.service.retrieve_neo4j", lambda *_args, **_kwargs: [])
     monkeypatch.setattr("app.modules.graphrag.service.retrieve_graph_facts", lambda *_args, **_kwargs: [])
-    monkeypatch.setattr("app.modules.graphrag.service.retrieve_evidence_chunks", lambda *_args, **_kwargs: [])
     monkeypatch.setattr("app.modules.graphrag.service.expand_chunk_windows", lambda chunks, **kwargs: chunks)
+    monkeypatch.setattr(
+        "app.modules.graphrag.service.rerank_evidence_chunks",
+        lambda _query, chunks, top_k: chunks[:top_k],
+    )
+    monkeypatch.setattr(
+        "app.modules.graphrag.service.filter_evidence_chunks",
+        lambda chunks, **kwargs: chunks[: kwargs.get("top_k")],
+    )
 
     response = asyncio.run(
         build_graphrag_context_async(

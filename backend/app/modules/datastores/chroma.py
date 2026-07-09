@@ -321,6 +321,80 @@ def retrieve_chroma_graph_guided(
     return _rank_chunks(merged, query, top_k, patient=patient, terms=terms)
 
 
+def _chroma_graph_guided_candidates(
+    query: str,
+    candidate_count: int,
+    *,
+    scope: EvidenceScope,
+) -> list[EvidenceChunk]:
+    where = scope.chroma_where()
+    ranked_lists: list[list[EvidenceChunk]] = []
+    if scope.chunk_ids:
+        pinned = _fetch_chunks_by_ids(list(scope.chunk_ids))
+        if pinned:
+            ranked_lists.append(pinned)
+    if where:
+        try:
+            filtered = _query_chroma(query, candidate_count, where=where)
+            if filtered:
+                ranked_lists.append(filtered)
+        except Exception as exc:
+            logger.warning("Graph-guided Chroma filter failed; falling back to open search: %s", exc)
+
+    try:
+        ranked_lists.append(_query_chroma(query, candidate_count))
+    except Exception:
+        if not ranked_lists:
+            raise
+
+    if len(ranked_lists) == 1:
+        return ranked_lists[0]
+    return reciprocal_rank_fusion(ranked_lists)
+
+
+def retrieve_chroma_candidates(
+    queries: list[str],
+    pool_k: int,
+    *,
+    scope: EvidenceScope | None = None,
+) -> list[EvidenceChunk]:
+    """Return ChromaDB candidate chunks without rerank/filter (for hybrid RRF merge)."""
+    unique_queries = dedupe_strings(queries)
+    if not unique_queries:
+        return []
+
+    candidate_count = max(pool_k, retrieval_candidate_count(max(1, pool_k // 2)))
+
+    if len(unique_queries) == 1:
+        query = unique_queries[0]
+        if scope and not scope.is_empty() and settings.graphrag_graph_guided_filter_enabled:
+            return _chroma_graph_guided_candidates(query, candidate_count, scope=scope)
+        return _query_chroma(query, candidate_count)
+
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    ranked_lists: list[list[EvidenceChunk]] = []
+    with ThreadPoolExecutor(max_workers=min(len(unique_queries), 4)) as pool:
+        if scope and not scope.is_empty() and settings.graphrag_graph_guided_filter_enabled:
+            futures = [
+                pool.submit(_chroma_graph_guided_candidates, query, candidate_count, scope=scope)
+                for query in unique_queries
+            ]
+        else:
+            futures = [pool.submit(_query_chroma, query, candidate_count) for query in unique_queries]
+        for future in as_completed(futures):
+            try:
+                ranked_lists.append(future.result())
+            except Exception:
+                continue
+
+    if not ranked_lists:
+        return []
+    if len(ranked_lists) == 1:
+        return ranked_lists[0]
+    return reciprocal_rank_fusion(ranked_lists)
+
+
 def retrieve_chroma_multi_query(
     queries: list[str],
     top_k: int,
