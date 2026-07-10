@@ -15,6 +15,27 @@ This document defines which source families the thesis MVP will use for guidelin
 | P2 | Published trial summaries | Evidence snippets for explanation | Deferred |
 | P3 | EHR extracts | Real-world validation if permitted | Out of scope for MVP |
 
+## Registry expansion (v4)
+
+**Single source of truth:** `data/heart_failure/sources/sources.example.json` — chỉnh sửa trực tiếp file JSON này (không khai báo source trong script Python).
+
+Validate / thống kê registry:
+
+```powershell
+python -m scraper.scripts.sources_registry
+```
+
+Sau khi sửa JSON, re-download và re-run ingestion:
+
+```powershell
+python -m scraper.acquisition.download_sources --registry data/heart_failure/sources/sources.example.json --storage s3 --allow-failures
+python -m scraper.orchestration.run_ingestion_pipeline --skip-download
+```
+
+**Expected chunk corpus after full ingest:** ~1,800–2,500 chunks (up from ~700), improving hybrid retrieval candidate pools and rerank quality.
+
+**Chunking note:** long drug-label SPL sections (≥600 tokens) now use the same semantic breakpoint strategy as guidelines.
+
 ## Guideline Sources
 
 Primary guideline families:

@@ -51,7 +51,7 @@ Dùng **Impact** (H/M/L) và **Effort** (H/M/L) để chọn thứ tự làm.
 | Postgres seed | Governance sync | Warm cache at bootstrap (đã có) | Read-through cache in app layer |
 | BM25 (runtime) | Index build on first query | Fingerprint cache (đã có) | Persist BM25 index to disk |
 
-**Mục tiêu bootstrap:** < 30 phút sau ingestion mới (736 chunks scale).
+**Mục tiêu bootstrap:** < 45 phút sau ingestion mới (~2k chunks scale).
 
 ---
 

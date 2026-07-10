@@ -185,18 +185,25 @@ def test_call_llm_json_uses_disk_cache(tmp_path, monkeypatch) -> None:
     assert calls["count"] == 1
 
 
-def test_should_use_semantic_chunking_only_for_long_guidelines(monkeypatch) -> None:
+def test_should_use_semantic_chunking_for_long_guidelines_and_drug_labels(monkeypatch) -> None:
     from scraper.semantic import config
     from scraper.transform.chunk_sections import should_use_semantic_chunking
 
     monkeypatch.setattr(config, "SEMANTIC_CHUNK_MIN_SECTION_TOKENS", 600)
 
-    drug_label = {
+    short_drug_label = {
+        "source_type": "drug_label",
+        "section": "CONTRAINDICATIONS",
+        "text": "Use is contraindicated in severe renal impairment.",
+    }
+    assert should_use_semantic_chunking(short_drug_label, short_drug_label["text"]) is False
+
+    long_drug_label = {
         "source_type": "drug_label",
         "section": "CONTRAINDICATIONS",
         "text": " ".join(["Use is contraindicated in severe renal impairment."] * 80),
     }
-    assert should_use_semantic_chunking(drug_label, drug_label["text"]) is False
+    assert should_use_semantic_chunking(long_drug_label, long_drug_label["text"]) is True
 
     short_guideline = {
         "source_type": "guideline",

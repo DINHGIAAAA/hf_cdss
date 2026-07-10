@@ -57,7 +57,7 @@ def recursive_chunk_text(text: str, chunk_size: int, overlap: int) -> list[str]:
 def should_use_semantic_chunking(record: dict, text: str) -> bool:
     if not config.SEMANTIC_CHUNK_ENABLED:
         return False
-    if record.get("source_type") != "guideline":
+    if record.get("source_type") not in {"guideline", "drug_label"}:
         return False
     if is_extracted_table_section(record):
         return False
