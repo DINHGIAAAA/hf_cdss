@@ -83,22 +83,50 @@ def _write_cache(key: str, payload: dict[str, Any]) -> None:
     cache_file.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
 
 
+def _shrink_user_prompt(user_prompt: str) -> str:
+    """Halve section text on timeout retry so small models can finish."""
+    try:
+        data = json.loads(user_prompt)
+    except json.JSONDecodeError:
+        return user_prompt[: max(800, len(user_prompt) // 2)]
+    if not isinstance(data, dict):
+        return user_prompt[: max(800, len(user_prompt) // 2)]
+    text = data.get("text")
+    if isinstance(text, str) and text:
+        data["text"] = text[: max(800, len(text) // 2)]
+        return json.dumps(data, ensure_ascii=False)
+    return user_prompt[: max(800, len(user_prompt) // 2)]
+
+
+def _http_timeout(seconds: float) -> httpx.Timeout:
+    read = max(30.0, seconds)
+    return httpx.Timeout(connect=10.0, read=read, write=30.0, pool=30.0)
+
+
 def _call_llm_json_raw(system_prompt: str, user_prompt: str, *, max_tokens: int) -> dict[str, Any] | None:
     url = f"{config.LLM_BASE_URL.rstrip('/')}/chat/completions"
-    payload = {
-        "model": config.INGESTION_LLM_MODEL,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-        "temperature": 0,
-        "max_tokens": max_tokens,
-    }
     max_attempts = max(1, config.LLM_MAX_RETRIES + 1)
+    current_prompt = user_prompt
+    current_max_tokens = max(256, max_tokens)
+    timeout_seconds = config.INGESTION_LLM_TIMEOUT_SECONDS
 
     for attempt in range(1, max_attempts + 1):
+        payload = {
+            "model": config.INGESTION_LLM_MODEL,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": current_prompt},
+            ],
+            "temperature": 0,
+            "max_tokens": current_max_tokens,
+            # Keep Ollama generation bounded so CPU runs finish before client timeout.
+            "options": {
+                "num_predict": current_max_tokens,
+                "num_ctx": 4096,
+            },
+        }
         try:
-            with httpx.Client(timeout=config.LLM_TIMEOUT_SECONDS) as client:
+            with httpx.Client(timeout=_http_timeout(timeout_seconds)) as client:
                 response = client.post(
                     url,
                     headers={"Content-Type": "application/json"},
@@ -111,11 +139,16 @@ def _call_llm_json_raw(system_prompt: str, user_prompt: str, *, max_tokens: int)
         except Exception as exc:
             retryable = isinstance(exc, httpx.TimeoutException) or "timed out" in str(exc).lower()
             if retryable and attempt < max_attempts:
+                current_prompt = _shrink_user_prompt(current_prompt)
+                current_max_tokens = max(256, current_max_tokens // 2)
                 logger.warning(
-                    "LLM request timed out (attempt %s/%s, model=%s); retrying",
+                    "LLM request timed out (attempt %s/%s, model=%s, timeout=%.0fs); "
+                    "retrying with shorter prompt (max_tokens=%s)",
                     attempt,
                     max_attempts,
                     config.INGESTION_LLM_MODEL,
+                    timeout_seconds,
+                    current_max_tokens,
                 )
                 continue
             logger.warning("LLM request failed: %s", exc)

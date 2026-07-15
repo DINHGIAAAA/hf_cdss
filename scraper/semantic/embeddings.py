@@ -152,6 +152,13 @@ def _embed_uncached_texts(
     return result
 
 
+def _truncate_embed_input(text: str) -> str:
+    max_chars = max(512, config.EMBEDDING_MAX_INPUT_CHARS)
+    if len(text) <= max_chars:
+        return text
+    return text[:max_chars]
+
+
 def embed_texts(
     texts: list[str],
     *,
@@ -170,6 +177,7 @@ def embed_texts(
     if not texts:
         return []
 
+    texts = [_truncate_embed_input(text) for text in texts]
     timeout = timeout or config.LLM_TIMEOUT_SECONDS
     resolved: dict[int, list[float]] = {}
     missing_indexed: list[tuple[int, str]] = [(index, text) for index, text in enumerate(texts)]
@@ -184,6 +192,12 @@ def embed_texts(
         fetched = _embed_uncached_texts(missing_indexed, timeout=timeout, fail_fast=fail_fast)
         resolved.update(fetched)
 
+    missing_resolved = [index for index in range(len(texts)) if index not in resolved]
+    if missing_resolved:
+        raise KeyError(
+            f"Missing embedding vectors for indices {missing_resolved[:8]} "
+            f"(batch size={len(texts)}, cached/fetched={len(resolved)})"
+        )
     return [resolved[index] for index in range(len(texts))]
 
 

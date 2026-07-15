@@ -13,6 +13,9 @@ try:
     from transformers import AutoTokenizer
 
     _tokenizer = AutoTokenizer.from_pretrained(EMBEDDING_TOKENIZER)
+    # Counting-only: do not enforce BGE model_max_length (8192) or transformers
+    # warns "Token indices sequence length is longer than ..." on long sections.
+    _tokenizer.model_max_length = 10**9
 except Exception as exc:
     print(f"WARNING: tokenizer unavailable, falling back to estimate: {exc}")
     _tokenizer = None
@@ -31,7 +34,13 @@ def token_estimate(text: str) -> int:
     if not text:
         return 0
     if _tokenizer:
-        return len(_tokenizer.encode(text, add_special_tokens=False))
+        return len(
+            _tokenizer.encode(
+                text,
+                add_special_tokens=False,
+                truncation=False,
+            )
+        )
     return max(1, int(len(re.findall(r"\S+", text)) * 1.3))
 
 

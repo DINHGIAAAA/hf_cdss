@@ -42,6 +42,22 @@ GUIDELINE_TOPIC_PROTOTYPES: dict[str, list[str]] = {
         "Pharmacologic treatment options including ACE inhibitors, beta blockers, and SGLT2 inhibitors.",
         "Initiation and optimization of heart failure drug therapy.",
     ],
+    "dosing": [
+        "Starting dose, titration schedule, and target doses for heart failure medications.",
+        "Dose adjustment based on blood pressure, heart rate, or renal function.",
+    ],
+    "monitoring": [
+        "Laboratory monitoring of eGFR, electrolytes, and potassium during therapy.",
+        "Safety follow-up after initiating or titrating guideline-directed medical therapy.",
+    ],
+    "drug interactions": [
+        "Clinically important drug-drug interactions with concomitant heart failure therapies.",
+        "Avoid co-administration of interacting medications that increase adverse risk.",
+    ],
+    "warnings": [
+        "Boxed warnings, precautions, and serious treatment-related risks.",
+        "Clinicians should be aware of black-box warnings and high-risk adverse effects.",
+    ],
     "contraindications": [
         "Treatment is contraindicated in patients with specific comorbidities.",
     ],
@@ -50,6 +66,7 @@ GUIDELINE_TOPIC_PROTOTYPES: dict[str, list[str]] = {
     ],
     "renal dysfunction": [
         "Therapy adjustments when eGFR declines or chronic kidney disease is present.",
+        "Dosing considerations in renal impairment and hepatic impairment.",
     ],
     "hyperkalemia": [
         "Serum potassium thresholds and hyperkalemia risk with RAAS inhibitors or MRA.",

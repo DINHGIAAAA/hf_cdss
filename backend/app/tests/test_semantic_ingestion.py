@@ -85,6 +85,24 @@ def test_structure_chunking_without_remote_embeddings(monkeypatch) -> None:
     assert all("Paragraph" in chunk or "renal" in chunk for chunk in chunks)
 
 
+def test_semantic_breakpoints_skip_when_too_many_blocks(monkeypatch) -> None:
+    from scraper.semantic import chunking, config
+
+    monkeypatch.setattr(config, "SEMANTIC_CHUNK_MAX_BLOCKS", 3)
+    monkeypatch.setattr(config, "SEMANTIC_CHUNK_MIN_BLOCKS", 2)
+
+    def boom(_texts):
+        raise AssertionError("embed_texts should not run when block cap is exceeded")
+
+    monkeypatch.setattr(chunking, "embed_texts", boom)
+    points = chunking._semantic_breakpoints(
+        ["a", "b", "c", "d"],
+        token_estimate=lambda value: 50,
+        use_semantic=True,
+    )
+    assert points == []
+
+
 def test_extract_json_object_from_fenced_response() -> None:
     payload = extract_json_object('Here is JSON:\n{"claims": [{"evidence": "test"}]}')
     assert payload == {"claims": [{"evidence": "test"}]}

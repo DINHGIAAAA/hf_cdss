@@ -194,6 +194,13 @@ def _merge_blocks(blocks: list[str], token_estimate: Callable[[str], int], max_t
     return merged
 
 
+def _truncate_for_embed(text: str) -> str:
+    max_chars = max(512, config.EMBEDDING_MAX_INPUT_CHARS)
+    if len(text) <= max_chars:
+        return text
+    return text[:max_chars]
+
+
 def _semantic_breakpoints(
     blocks: list[str],
     *,
@@ -206,15 +213,37 @@ def _semantic_breakpoints(
         return []
     if len(blocks) < config.SEMANTIC_CHUNK_MIN_BLOCKS:
         return []
+    if len(blocks) > config.SEMANTIC_CHUNK_MAX_BLOCKS:
+        logger.info(
+            "Semantic chunk breakpoints skipped: %s blocks > max %s (structure-only)",
+            len(blocks),
+            config.SEMANTIC_CHUNK_MAX_BLOCKS,
+        )
+        return []
     if token_estimate is not None:
         total_tokens = sum(token_estimate(block) for block in blocks)
         if total_tokens < config.SEMANTIC_CHUNK_MIN_TOKENS:
             return []
 
     try:
-        vectors = embed_texts(blocks)
+        vectors = embed_texts([_truncate_for_embed(block) for block in blocks])
     except Exception as exc:
-        logger.warning("Semantic chunk breakpoints unavailable, using structure-only chunking: %s", exc)
+        logger.warning(
+            "Semantic chunk breakpoints unavailable (%s: %s); "
+            "using structure-only chunking for %s blocks",
+            type(exc).__name__,
+            exc,
+            len(blocks),
+        )
+        return []
+
+    if len(vectors) != len(blocks):
+        logger.warning(
+            "Semantic chunk breakpoints unavailable (vector count %s != blocks %s); "
+            "using structure-only chunking",
+            len(vectors),
+            len(blocks),
+        )
         return []
 
     breakpoints: list[int] = []

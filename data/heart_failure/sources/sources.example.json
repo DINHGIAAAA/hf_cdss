@@ -923,6 +923,26 @@
       "license_note": "DailyMed public drug label data."
     },
     {
+      "source_id": "ferric_carboxymaltose_dailymed_label",
+      "title": "Ferric Carboxymaltose DailyMed SPL",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "DailyMed",
+      "topic": "drug_label",
+      "slug": "ferric_carboxymaltose",
+      "query": "FERRIC CARBOXYMALTOSE",
+      "required_terms": [
+        "FERRIC",
+        "CARBOXYMALTOSE"
+      ],
+      "excluded_terms": [
+        "AND"
+      ],
+      "target_path": "raw/drug_labels/ferric_carboxymaltose/ferric_carboxymaltose_label.xml",
+      "companion_pdf_target_path": "raw/drug_labels/ferric_carboxymaltose/ferric_carboxymaltose_label.pdf",
+      "license_note": "DailyMed public drug label data."
+    },
+    {
       "source_id": "finerenone_dailymed_label",
       "title": "Finerenone DailyMed SPL",
       "source_type": "drug_label_xml",
@@ -1200,6 +1220,26 @@
       "license_note": "DailyMed public drug label data."
     },
     {
+      "source_id": "nebivolol_dailymed_label",
+      "title": "Nebivolol DailyMed SPL",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "DailyMed",
+      "topic": "drug_label",
+      "slug": "nebivolol",
+      "query": "NEBIVOLOL",
+      "required_terms": [
+        "NEBIVOLOL",
+        "TABLET"
+      ],
+      "excluded_terms": [
+        " AND "
+      ],
+      "target_path": "raw/drug_labels/nebivolol/nebivolol_label.xml",
+      "companion_pdf_target_path": "raw/drug_labels/nebivolol/nebivolol_label.pdf",
+      "license_note": "DailyMed public drug label data."
+    },
+    {
       "source_id": "patiromer_dailymed_label",
       "title": "Patiromer DailyMed SPL",
       "source_type": "drug_label_xml",
@@ -1365,6 +1405,26 @@
       "license_note": "DailyMed public drug label data."
     },
     {
+      "source_id": "tolvaptan_dailymed_label",
+      "title": "Tolvaptan DailyMed SPL",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "DailyMed",
+      "topic": "drug_label",
+      "slug": "tolvaptan",
+      "query": "TOLVAPTAN",
+      "required_terms": [
+        "TOLVAPTAN",
+        "TABLET"
+      ],
+      "excluded_terms": [
+        " AND "
+      ],
+      "target_path": "raw/drug_labels/tolvaptan/tolvaptan_label.xml",
+      "companion_pdf_target_path": "raw/drug_labels/tolvaptan/tolvaptan_label.pdf",
+      "license_note": "DailyMed public drug label data."
+    },
+    {
       "source_id": "torsemide_dailymed_label",
       "title": "Torsemide DailyMed SPL",
       "source_type": "drug_label_xml",
@@ -1470,14 +1530,14 @@
     }
   ],
   "source_summary": {
-    "total": 92,
+    "total": 95,
     "by_type": {
-      "drug_label_xml": 44,
+      "drug_label_xml": 47,
       "guideline_html": 24,
       "guideline_pdf": 24
     },
     "by_topic": {
-      "drug_label": 44,
+      "drug_label": 47,
       "diabetes": 18,
       "heart_failure": 5,
       "ascvd_prevention": 3,
@@ -1498,6 +1558,6 @@
       "valvular_heart_disease": 1
     },
     "guideline_count": 48,
-    "drug_label_count": 44
+    "drug_label_count": 47
   }
 }

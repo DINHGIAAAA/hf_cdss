@@ -216,4 +216,20 @@ def test_embedding_cache_sqlite_roundtrip(tmp_path, monkeypatch) -> None:
     assert cached[0] == [0.1, 0.2, 0.3]
     assert (cache_dir / "embeddings.db").exists()
 
+    # Duplicate sentences must map the cached vector to every original index.
+    write_vector("repeated clinical sentence", [0.4, 0.5, 0.6])
+    missing_dup, cached_dup = partition_cached(
+        [
+            "repeated clinical sentence",
+            "unique blocker",
+            "repeated clinical sentence",
+            "repeated clinical sentence",
+        ]
+    )
+    assert missing_dup == [(1, "unique blocker")]
+    assert cached_dup[0] == [0.4, 0.5, 0.6]
+    assert cached_dup[2] == [0.4, 0.5, 0.6]
+    assert cached_dup[3] == [0.4, 0.5, 0.6]
+    assert 1 not in cached_dup
+
     reset_connection_for_tests()

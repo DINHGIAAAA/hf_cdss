@@ -140,22 +140,24 @@ def _lookup_keys(keys: list[str]) -> dict[str, list[float]]:
 
 
 def partition_cached(texts: list[str]) -> tuple[list[tuple[int, str]], dict[int, list[float]]]:
-    """Return (missing indexed texts, cached vectors by original index)."""
+    """Return (missing indexed texts, cached vectors by original index).
+
+    Duplicate texts in one batch share a cache key; every original index that hits
+    must receive the vector (not only the last occurrence).
+    """
     if not texts:
         return [], {}
 
     keys = [cache_key(text) for text in texts]
-    key_to_index = {key: index for index, key in enumerate(keys)}
-    cached_vectors = _lookup_keys(keys)
+    cached_vectors = _lookup_keys(list(dict.fromkeys(keys)))
 
     cached: dict[int, list[float]] = {}
-    for key, vector in cached_vectors.items():
-        cached[key_to_index[key]] = vector
-
     missing: list[tuple[int, str]] = []
     for index, text in enumerate(texts):
         key = keys[index]
-        if key in cached_vectors:
+        vector = cached_vectors.get(key)
+        if vector is not None:
+            cached[index] = vector
             continue
         legacy = _import_legacy_json(key)
         if legacy is not None:
