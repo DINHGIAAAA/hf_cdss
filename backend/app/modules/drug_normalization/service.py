@@ -7,12 +7,17 @@ call invalidate_drug_catalog_cache() or restart the backend worker.
 from __future__ import annotations
 
 import json
+import logging
 import re
+from difflib import SequenceMatcher
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
 from app.modules.datastores.common import DATA_ROOT
+
+
+logger = logging.getLogger(__name__)
 
 _REPO_DATA_ROOT = Path(__file__).resolve().parents[4] / "data" / "heart_failure"
 
@@ -61,12 +66,35 @@ def _alias_index() -> dict[str, str]:
     return index
 
 
+FUZZY_THRESHOLD = 0.75
+
+
+def _fuzzy_match(normalized: str, threshold: float = FUZZY_THRESHOLD) -> tuple[str | None, float]:
+    """Find best fuzzy match for normalized drug name.
+
+    Returns (pipeline_id, score) tuple or (None, 0.0) if no match above threshold.
+    """
+    best_match: str | None = None
+    best_score = 0.0
+
+    for alias, pipeline_id in _alias_index().items():
+        if len(alias) < 3:
+            continue
+        score = SequenceMatcher(None, normalized, alias).ratio()
+        if score > best_score and score >= threshold:
+            best_score = score
+            best_match = pipeline_id
+
+    return best_match, best_score
+
+
 def normalize_drug_name(value: str | None) -> str | None:
     if not value:
         return None
     normalized = _normalize_token(value)
     if not normalized:
         return None
+
     if normalized in _alias_index():
         return _alias_index()[normalized]
 
@@ -75,6 +103,18 @@ def normalize_drug_name(value: str | None) -> str | None:
             continue
         if re.search(rf"(?<![a-z0-9]){re.escape(alias)}(?![a-z0-9])", normalized):
             return pipeline_id
+
+    fuzzy_match, score = _fuzzy_match(normalized)
+    if fuzzy_match:
+        logger.info(
+            "Drug normalization fuzzy matched '%s' -> '%s' (score: %.2f)",
+            value,
+            fuzzy_match,
+            score,
+        )
+        return fuzzy_match
+
+    logger.warning("Drug normalization failed to match: '%s' (normalized: '%s')", value, normalized)
     return normalized.replace(" ", "_")
 
 

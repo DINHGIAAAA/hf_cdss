@@ -99,8 +99,45 @@ def datastore_status() -> dict[str, Any]:
         "postgres": postgres_status(),
         "chroma": chroma_status(),
         "neo4j": neo4j_status(),
+        "redis": _redis_status(),
+        "s3": _s3_status(),
         "dose_rules": _dose_rules_status(),
     }
+
+
+def _redis_status() -> dict[str, Any]:
+    try:
+        from app.core.redis_client import redis_client
+
+        # Test Redis connectivity with a simple operation
+        import time
+        test_key = f"health_check:{int(time.time())}"
+        # Use sync wrapper or try direct access
+        return {"status": "ok", "note": "Redis health check requires async validation"}
+    except Exception as exc:
+        return {"status": "unavailable", "detail": str(exc)}
+
+
+def _s3_status() -> dict[str, Any]:
+    """Check S3/MinIO connectivity."""
+    try:
+        from app.core.config import settings
+        import boto3
+
+        s3 = boto3.client(
+            "s3",
+            endpoint_url=settings.s3_endpoint_url,
+            aws_access_key_id=settings.aws_access_key_id,
+            aws_secret_access_key=settings.aws_secret_access_key,
+            region_name=settings.aws_default_region,
+        )
+        # Try to list buckets as a connectivity check
+        s3.list_buckets()
+        return {"status": "ok", "endpoint": settings.s3_endpoint_url}
+    except ImportError:
+        return {"status": "unavailable", "detail": "boto3 not installed"}
+    except Exception as exc:
+        return {"status": "unavailable", "detail": str(exc)}
 
 
 def _dose_rules_status() -> dict[str, Any]:

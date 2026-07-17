@@ -1,4 +1,5 @@
 import logging
+import re
 from functools import lru_cache
 from typing import Any
 
@@ -7,6 +8,53 @@ from app.core.request_context import current_request_id
 
 
 logger = logging.getLogger(__name__)
+
+
+def _escape_like(value: str) -> str:
+    """Escape %, _, and \ characters for SQL LIKE/ILIKE patterns to prevent injection."""
+    return re.sub(r"([%_\\])", r"\\\1", value)
+
+
+# PHI fields that should be redacted from audit logs
+_PHI_FIELDS = frozenset(
+    {
+        "message",
+        "first_name",
+        "last_name",
+        "full_name",
+        "email",
+        "phone",
+        "address",
+        "date_of_birth",
+        "ssn",
+        "insurance_id",
+        "mrn",
+        "medical_record_number",
+    }
+)
+
+
+def _redact_phi(data: Any, depth: int = 0) -> Any:
+    """Recursively redact PHI fields from a data structure for safe audit logging."""
+    if depth > 10:
+        return "[MAX_DEPTH_EXCEEDED]"
+    if isinstance(data, dict):
+        result = {}
+        for key, value in data.items():
+            if key.lower() in _PHI_FIELDS or any(phi in key.lower() for phi in ["name", "email", "phone", "address"]):
+                result[key] = "[REDACTED]"
+            else:
+                result[key] = _redact_phi(value, depth + 1)
+        return result
+    elif isinstance(data, list):
+        return [_redact_phi(item, depth + 1) for item in data]
+    else:
+        return data
+
+
+def redact_phi_for_audit(payload: dict[str, Any]) -> dict[str, Any]:
+    """Redact PHI fields from audit payload before logging."""
+    return _redact_phi(payload)
 
 
 @lru_cache(maxsize=1)
@@ -397,7 +445,9 @@ def initialize_postgres() -> dict[str, Any]:
 def write_audit_event(case_id: str, event_type: str, payload: dict[str, Any]) -> bool:
     if not settings.postgres_audit_enabled:
         return False
-    payload.setdefault(
+    # Redact PHI before logging
+    safe_payload = redact_phi_for_audit(payload)
+    safe_payload.setdefault(
         "audit_metadata",
         {
             "schema_version": settings.audit_schema_version,
@@ -413,7 +463,7 @@ def write_audit_event(case_id: str, event_type: str, payload: dict[str, Any]) ->
             with connection.cursor() as cursor:
                 cursor.execute(
                     "INSERT INTO cdss_audit_events (case_id, event_type, payload) VALUES (%s, %s, %s)",
-                    (case_id, event_type, psycopg.types.json.Jsonb(payload)),
+                    (case_id, event_type, psycopg.types.json.Jsonb(safe_payload)),
                 )
         return True
     except Exception as exc:
@@ -683,13 +733,13 @@ def _constraint_list_filters(
         params.append(status)
     if target_drug_class:
         conditions.append("target_drug_class ILIKE %s")
-        params.append(f"%{target_drug_class}%")
+        params.append(f"%{_escape_like(target_drug_class)}%")
     if action:
         conditions.append("action ILIKE %s")
-        params.append(f"%{action}%")
+        params.append(f"%{_escape_like(action)}%")
     if q:
         conditions.append("constraint_id ILIKE %s")
-        params.append(f"%{q}%")
+        params.append(f"%{_escape_like(q)}%")
     return conditions, params
 
 
@@ -765,13 +815,13 @@ def list_draft_constraint_rule_ids(
         params.append(rule_ids)
     if target_drug_class:
         conditions.append("target_drug_class ILIKE %s")
-        params.append(f"%{target_drug_class}%")
+        params.append(f"%{_escape_like(target_drug_class)}%")
     if action:
         conditions.append("action ILIKE %s")
-        params.append(f"%{action}%")
+        params.append(f"%{_escape_like(action)}%")
     if q:
         conditions.append("constraint_id ILIKE %s")
-        params.append(f"%{q}%")
+        params.append(f"%{_escape_like(q)}%")
     params.append(limit)
     with postgres_pool().connection() as connection:
         with connection.cursor() as cursor:
@@ -1547,16 +1597,16 @@ def read_dose_rules_filtered(
         params.append(status)
     if drug_class:
         conditions.append("drug_class ILIKE %s")
-        params.append(f"%{drug_class}%")
+        params.append(f"%{_escape_like(drug_class)}%")
     if calculation_type:
         conditions.append("calculation_type ILIKE %s")
-        params.append(f"%{calculation_type}%")
+        params.append(f"%{_escape_like(calculation_type)}%")
     if safety_tier:
         conditions.append("safety_tier = %s")
         params.append(safety_tier)
     if q:
         conditions.append("dose_rule_id ILIKE %s")
-        params.append(f"%{q}%")
+        params.append(f"%{_escape_like(q)}%")
     where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
     params.append(limit)
     with postgres_pool().connection() as connection:
@@ -1616,16 +1666,16 @@ def list_draft_dose_rule_ids(
         params.append(rule_ids)
     if drug_class:
         conditions.append("drug_class ILIKE %s")
-        params.append(f"%{drug_class}%")
+        params.append(f"%{_escape_like(drug_class)}%")
     if calculation_type:
         conditions.append("calculation_type ILIKE %s")
-        params.append(f"%{calculation_type}%")
+        params.append(f"%{_escape_like(calculation_type)}%")
     if safety_tier:
         conditions.append("safety_tier = %s")
         params.append(safety_tier)
     if q:
         conditions.append("dose_rule_id ILIKE %s")
-        params.append(f"%{q}%")
+        params.append(f"%{_escape_like(q)}%")
     params.append(limit)
     with postgres_pool().connection() as connection:
         with connection.cursor() as cursor:

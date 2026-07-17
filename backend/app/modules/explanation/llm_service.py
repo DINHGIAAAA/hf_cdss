@@ -91,11 +91,97 @@ def _compact_recommendation(payload: LLMAnswerRequest) -> dict[str, Any]:
     }
 
 
+# Multi-language fallback templates for graceful degradation
+FALLBACK_TEMPLATES: dict[str, dict[str, str]] = {
+    "vi": {
+        "conclusion": "Kết luận",
+        "medications": "Thuốc và liều gợi ý",
+        "evidence": "Bằng chứng và lý do",
+        "available_data": "Thông tin hiện có",
+        "system_warning": "Cảnh báo hệ thống",
+        "dose_check": "Cách tính/kiểm tra liều",
+        "monitoring": "Theo dõi và cảnh báo",
+        "avoid_msg": "Cần tránh hoặc hoãn {drugs} cho đến khi xử lý được yếu tố rủi ro.",
+        "caution_msg": "Cần thận trọng với {drugs}; vui lòng kiểm tra kỹ chống chỉ định.",
+        "consider_msg": "Có thể cân nhắc {drugs} nếu đủ điều kiện lâm sàng.",
+        "no_recommendations": "Không có khuyến nghị thuốc mới nổi bật từ đầu ra CDSS có cấu trúc.",
+        "no_medications": "Chưa có nhóm thuốc mới được CDSS đề xuất từ dữ liệu hiện tại.",
+        "missing_data": "Bổ sung dữ liệu còn thiếu",
+        "default_monitoring": "Theo dõi triệu chứng, huyết áp, nhịp tim, điện giải đồ và chức năng thận sau mỗi lần thay đổi liều.",
+        "safety_note": "Đây là dự phòng an toàn khi dịch vụ sinh giải thích AI đang bận. Quyết định cuối cùng luôn cần được bác sĩ xác nhận.",
+        "context_fallback": "dữ liệu lâm sàng đã nhập",
+    },
+    "en": {
+        "conclusion": "Conclusion",
+        "medications": "Medications and Dosages",
+        "evidence": "Evidence and Rationale",
+        "available_data": "Available data",
+        "system_warning": "System warnings",
+        "dose_check": "Dose Calculation/Review",
+        "monitoring": "Monitoring and Alerts",
+        "avoid_msg": "Avoid or delay {drugs} until risk factors are addressed.",
+        "caution_msg": "Use caution with {drugs}; verify contraindications carefully.",
+        "consider_msg": "Consider {drugs} if clinically appropriate.",
+        "no_recommendations": "No notable new medication recommendations from structured CDSS output.",
+        "no_medications": "No new medication classes recommended by CDSS from current data.",
+        "missing_data": "Missing data to supplement",
+        "default_monitoring": "Monitor symptoms, blood pressure, heart rate, electrolytes, and renal function after each dose change.",
+        "safety_note": "This is a safety fallback while AI explanation service is unavailable. Final decisions always require physician confirmation.",
+        "context_fallback": "available clinical data",
+    },
+    "zh": {
+        "conclusion": "结论",
+        "medications": "药物和剂量建议",
+        "evidence": "证据和理由",
+        "available_data": "现有数据",
+        "system_warning": "系统警告",
+        "dose_check": "剂量计算/检查",
+        "monitoring": "监测和警示",
+        "avoid_msg": "需要避免或延迟 {drugs}，直至风险因素得到处理。",
+        "caution_msg": "使用 {drugs} 需谨慎；请仔细核实禁忌症。",
+        "consider_msg": "如临床适用，可考虑 {drugs}。",
+        "no_recommendations": "结构化 CDSS 输出中无新的重要药物建议。",
+        "no_medications": "当前数据尚无 CDSS 推荐的新药物类别。",
+        "missing_data": "补充缺失数据",
+        "default_monitoring": "每次剂量调整后，监测症状、血压、心率、电解质和肾功能。",
+        "safety_note": "这是 AI 解释服务不可用时的安全备用方案。最终决定必须由医生确认。",
+        "context_fallback": "现有临床数据",
+    },
+    "ja": {
+        "conclusion": "結論",
+        "medications": "薬剤と用量推奨",
+        "evidence": "根拠と理由",
+        "available_data": "利用可能なデータ",
+        "system_warning": "システム警告",
+        "dose_check": "用量計算/確認",
+        "monitoring": "モニタリングとアラート",
+        "avoid_msg": "{drugs} はリスク因子が解決されるまで回避または延期する必要があります。",
+        "caution_msg": "{drugs} の使用には注意が必要 です。禁忌を慎重に確認してください。",
+        "consider_msg": "臨床的に適切であれば、{drugs} を検討できます。",
+        "no_recommendations": "構造化 CDSS 出力からの新しい重要な薬剤推奨はありません。",
+        "no_medications": "現在のデータから CDSS が推奨する新しい薬剤クラスはありません。",
+        "missing_data": "補足する欠落データ",
+        "default_monitoring": "用量変更後は、症状、血圧、心拍数、電解質、腎機能をモニタリングしてください。",
+        "safety_note": "これは AI 説明サービスが利用できない場合の安全フォールバックです。最終決定は常に医師の確認が必要です。",
+        "context_fallback": "利用可能な臨床データ",
+    },
+}
+
+
+def _get_fallback_template(language: str) -> dict[str, str]:
+    """Get fallback template for the specified language, defaulting to English."""
+    return FALLBACK_TEMPLATES.get(language, FALLBACK_TEMPLATES["en"])
+
+
 def fallback_answer(payload: LLMAnswerRequest) -> str:
     blocked = [item for item in payload.recommendation.recommendations if item.status == "avoid"]
     caution = [item for item in payload.recommendation.recommendations if item.status == "consider_with_caution"]
     consider = [item for item in payload.recommendation.recommendations if item.status == "consider"]
     missing = [risk.name.replace("missing_", "") for risk in payload.recommendation.risk_flags if risk.name.startswith("missing_")]
+
+    # Get language-specific template
+    lang = payload.language or "vi"
+    t = _get_fallback_template(lang)
 
     facts = [
         f"LVEF {payload.patient.lvef}%" if payload.patient.lvef is not None else None,
@@ -104,44 +190,41 @@ def fallback_answer(payload: LLMAnswerRequest) -> str:
         f"SBP {payload.patient.systolic_bp} mmHg" if payload.patient.systolic_bp is not None else None,
         f"HR {payload.patient.heart_rate} bpm" if payload.patient.heart_rate is not None else None,
     ]
-    context = ", ".join(item for item in facts if item) or "dữ liệu lâm sàng đã nhập"
+    context = ", ".join(item for item in facts if item) or t["context_fallback"]
     action_items = list(dict.fromkeys(item for rec in [*blocked, *caution, *consider] for item in rec.action_items))[:4]
     monitoring = list(dict.fromkeys(item for rec in [*blocked, *caution, *consider] for item in rec.monitoring))[:4]
 
     warnings = list(dict.fromkeys(item for rec in [*blocked, *caution, *consider] for item in rec.warnings))[:4]
 
-    lines = ["Kết luận"]
+    lines = [t["conclusion"]]
     if blocked:
-        lines.append(
-            f"Cần tránh hoặc hoãn {', '.join(item.drug_class for item in blocked)} cho đến khi xử lý được yếu tố rủi ro."
-        )
+        drugs_str = ", ".join(item.drug_class for item in blocked)
+        lines.append(t["avoid_msg"].format(drugs=drugs_str))
     if caution:
-        lines.append(
-            f"Cần thận trọng với {', '.join(item.drug_class for item in caution)}; vui lòng kiểm tra kỹ chống chỉ định."
-        )
+        drugs_str = ", ".join(item.drug_class for item in caution)
+        lines.append(t["caution_msg"].format(drugs=drugs_str))
     if consider:
-        lines.append(
-            f"Có thể cân nhắc {', '.join(item.drug_class for item in consider)} nếu đủ điều kiện lâm sàng."
-        )
+        drugs_str = ", ".join(item.drug_class for item in consider)
+        lines.append(t["consider_msg"].format(drugs=drugs_str))
     if not blocked and not caution and not consider:
-        lines.append("Không có khuyến nghị thuốc mới nổi bật từ đầu ra CDSS có cấu trúc.")
+        lines.append(t["no_recommendations"])
 
-    lines.append("\nThuốc và liều gợi ý")
+    lines.append(f"\n{t['medications']}")
     if blocked or caution or consider:
         for item in [*blocked, *caution, *consider]:
             lines.append(f"- {item.drug_class}: {item.rationale or item.status}")
     else:
-        lines.append("- Chưa có nhóm thuốc mới được CDSS đề xuất từ dữ liệu hiện tại.")
+        lines.append(f"- {t['no_medications']}")
 
-    lines.append("\nBằng chứng và lý do")
-    lines.append(f"- Thông tin hiện có: {context}.")
+    lines.append(f"\n{t['evidence']}")
+    lines.append(f"- {t['available_data']}: {context}.")
     if payload.recommendation.constraints:
         lines.append(
-            "- Cảnh báo hệ thống: "
+            f"- {t['system_warning']}: "
             + "; ".join(constraint.reason for constraint in payload.recommendation.constraints[:3])
         )
 
-    lines.append("\nCách tính/kiểm tra liều")
+    lines.append(f"\n{t['dose_check']}")
     if payload.recommendation.dose_plans:
         for plan in payload.recommendation.dose_plans[:4]:
             if plan.recommended_dose:
@@ -157,21 +240,20 @@ def fallback_answer(payload: LLMAnswerRequest) -> str:
     elif action_items:
         lines.extend(f"- {item}" for item in action_items)
     else:
-        lines.append("- Đối chiếu liều hiện tại, mục tiêu điều trị và chống chỉ định trước khi thay đổi.")
-    if missing:
-        lines.append(f"- Bổ sung dữ liệu còn thiếu: {', '.join(missing)}.")
+        lines.append("- Review current dose, treatment goals, and contraindications before making changes.")
 
-    lines.append("\nTheo dõi và cảnh báo")
+    if missing:
+        lines.append(f"- {t['missing_data']}: {', '.join(missing)}.")
+
+    lines.append(f"\n{t['monitoring']}")
     if monitoring:
         lines.extend(f"- {item}" for item in monitoring)
     if warnings:
         lines.extend(f"- {item}" for item in warnings)
     if not monitoring and not warnings:
-        lines.append("- Theo dõi triệu chứng, huyết áp, nhịp tim, điện giải đồ và chức năng thận sau mỗi lần thay đổi liều.")
+        lines.append(f"- {t['default_monitoring']}")
 
-    lines.append(
-        "\nLưu ý: Đây là dự phòng an toàn khi dịch vụ sinh giải thích AI đang bận. Quyết định cuối cùng luôn cần được bác sĩ xác nhận."
-    )
+    lines.append(f"\n{t['safety_note']}")
     return "\n\n".join(lines)
 
 

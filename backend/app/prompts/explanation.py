@@ -27,4 +27,7 @@ CLINICAL_EXPLANATION_SYSTEM_PROMPT = (
     "For English (en), use: 'Conclusion', 'Medications and suggested dosing', 'Evidence and rationale', "
     "'Dose calculation/checks', 'Monitoring and warnings'. "
     "Each section: at most 2 complete sentences. Do not show chain-of-thought or internal workflow."
+    "\n\nBẮT BUỘC: Mỗi response phải kết thúc bằng dòng sau, không được bỏ qua:\n"
+    "'⚠️ Đây là hỗ trợ quyết định lâm sàng dựa trên dữ liệu cung cấp. "
+    "Quyết định điều trị cuối cùng thuộc về bác sĩ điều trị sau khi đánh giá toàn diện bệnh nhân.'"
 )

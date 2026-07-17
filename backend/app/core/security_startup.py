@@ -1,4 +1,5 @@
 import logging
+import os
 
 from app.core.config import settings
 
@@ -16,12 +17,24 @@ INSECURE_JWT_SECRETS = frozenset(
 
 
 def validate_security_configuration() -> None:
+    """Validate security configuration and fail hard in production if insecure settings detected."""
     if settings.environment != "production":
+        logger.info("Security validation skipped (non-production environment)")
         return
 
+    errors: list[str] = []
+
     if settings.jwt_secret_key in INSECURE_JWT_SECRETS:
-        logger.error(
-            "HF_CDSS_JWT_SECRET_KEY is using a known insecure default in production environment"
+        errors.append(
+            "HF_CDSS_JWT_SECRET_KEY is using a known insecure default in production environment. "
+            "Set a strong, unique secret via HF_CDSS_JWT_SECRET_KEY environment variable."
+        )
+
+    if not settings.jwt_cookie_secure:
+        errors.append(
+            "HF_CDSS_JWT_COOKIE_SECURE is False in production. "
+            "Cookies should be set with Secure flag to prevent interception. "
+            "Set HF_CDSS_JWT_COOKIE_SECURE=true."
         )
 
     if settings.auth_login_enabled and not settings.auth_seed_users_json.strip():
@@ -32,3 +45,18 @@ def validate_security_configuration() -> None:
 
     if settings.api_keys.strip() in {"", "change-me"}:
         logger.warning("HF_CDSS_API_KEYS is using a placeholder value in production environment")
+
+    if errors:
+        for error in errors:
+            logger.error("SECURITY VALIDATION FAILED: %s", error)
+        logger.critical(
+            "Application startup aborted due to %d security error(s) in production. "
+            "Fix the issues above before deploying.",
+            len(errors),
+        )
+        os._exit(1)  # noqa: PLW6091
+
+
+def check_security_startup() -> None:
+    """Alias for validate_security_configuration() for backward compatibility."""
+    validate_security_configuration()

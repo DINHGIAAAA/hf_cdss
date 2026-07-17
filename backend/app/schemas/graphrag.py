@@ -98,9 +98,18 @@ class VerificationRequest(BaseModel):
     query: str | None = None
 
 
+class ClarificationRequest(BaseModel):
+    field_name: str
+    field_display: str
+    current_value: str | None = None
+    current_confidence: float
+    message: str
+
+
 class VerificationResponse(BaseModel):
     case_id: str
     context: GraphRAGContextResponse
     agent_results: list[AgentResult]
     final_verdict: str
     citation_validation: CitationValidation | None = None
+    clarification_requests: list[ClarificationRequest] = Field(default_factory=list)

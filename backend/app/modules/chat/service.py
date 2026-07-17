@@ -1,11 +1,14 @@
 import uuid
 import asyncio
 import json
+import logging
+import hashlib
 from collections.abc import AsyncIterator
 from datetime import datetime, timezone
 from typing import Any
 
 from app.core.config import settings
+from app.core.redis_client import redis_client
 from app.modules.clinical_intake_extraction.service import extract_patient_from_message
 from app.modules.chat.clinical_state import build_clinical_state, state_query_text
 from app.modules.datastores.postgres import (
@@ -28,8 +31,133 @@ from app.schemas.patient import ClinicalDocument, PatientIdentity, PatientProfil
 from app.schemas.recommendation import RecommendationRequest
 
 
+logger = logging.getLogger(__name__)
+
+# In-memory fallback caches (used when Redis is unavailable)
 _drafts: dict[str, PatientDraft] = {}
 _messages: dict[str, list[ChatMessage]] = {}
+
+# TTL for Redis cache (24 hours for drafts/messages)
+_CHAT_CACHE_TTL_SECONDS = 86400
+
+# Idempotency cache
+_idempotency_cache: dict[str, ChatResponse] = {}
+_IDEMPOTENCY_TTL_SECONDS = 3600  # 1 hour
+
+
+def _idempotency_key_hash(key: str) -> str:
+    """Create a deterministic hash for the idempotency key."""
+    return hashlib.sha256(key.encode("utf-8")).hexdigest()[:32]
+
+
+def _get_idempotent_response(idempotency_key: str) -> ChatResponse | None:
+    """Get cached response for an idempotency key if it exists and is not expired."""
+    key_hash = _idempotency_key_hash(idempotency_key)
+
+    # Try Redis first
+    try:
+        cached = redis_client.get(f"idempotency:{key_hash}")
+        if cached:
+            return ChatResponse.model_validate_json(cached)
+    except Exception:
+        pass
+
+    # Fallback to in-memory cache
+    return _idempotency_cache.get(key_hash)
+
+
+async def _cache_idempotent_response_async(idempotency_key: str, response: ChatResponse) -> None:
+    """Cache a response for an idempotency key (async for Redis)."""
+    key_hash = _idempotency_key_hash(idempotency_key)
+
+    # Cache in Redis
+    try:
+        await redis_client.setex(
+            f"idempotency:{key_hash}",
+            _IDEMPOTENCY_TTL_SECONDS,
+            response.model_dump_json(),
+        )
+    except Exception:
+        pass
+
+    # Also cache in-memory as fallback
+    _idempotency_cache[key_hash] = response
+    if len(_idempotency_cache) > 1000:
+        keys_to_remove = list(_idempotency_cache.keys())[:100]
+        for k in keys_to_remove:
+            del _idempotency_cache[k]
+
+
+def _cache_idempotent_response(idempotency_key: str, response: ChatResponse) -> None:
+    """Sync wrapper for idempotency caching (fire-and-forget)."""
+    asyncio.create_task(_cache_idempotent_response_async(idempotency_key, response))
+
+
+# Draft caching functions
+async def _get_cached_draft(conversation_id: str) -> PatientDraft | None:
+    """Get draft from Redis cache, falling back to in-memory."""
+    # Try Redis first
+    try:
+        cached = redis_client.get(f"draft:{conversation_id}")
+        if cached:
+            return PatientDraft.model_validate_json(cached)
+    except Exception:
+        pass
+
+    # Fallback to in-memory
+    return _drafts.get(conversation_id)
+
+
+async def _cache_draft_async(draft: PatientDraft) -> None:
+    """Cache draft in Redis (async)."""
+    try:
+        await redis_client.setex(
+            f"draft:{draft.conversation_id}",
+            _CHAT_CACHE_TTL_SECONDS,
+            draft.model_dump_json(),
+        )
+    except Exception:
+        pass
+
+
+def _cache_draft(draft: PatientDraft) -> None:
+    """Cache draft in both Redis and in-memory."""
+    _drafts[draft.conversation_id] = draft
+    asyncio.create_task(_cache_draft_async(draft))
+
+
+def _get_cached_messages(conversation_id: str) -> list[ChatMessage]:
+    """Get cached messages from Redis or in-memory."""
+    # Try Redis first
+    try:
+        cached = redis_client.get(f"messages:{conversation_id}")
+        if cached:
+            data = json.loads(cached)
+            return [ChatMessage.model_validate(msg) for msg in data]
+    except Exception:
+        pass
+
+    # Fallback to in-memory
+    return _messages.get(conversation_id, [])
+
+
+async def _cache_messages_async(conversation_id: str, messages: list[ChatMessage]) -> None:
+    """Cache messages in Redis (async)."""
+    try:
+        data = [msg.model_dump_json() for msg in messages]
+        await redis_client.setex(
+            f"messages:{conversation_id}",
+            _CHAT_CACHE_TTL_SECONDS,
+            json.dumps(data),
+        )
+    except Exception:
+        pass
+
+
+def _cache_messages(conversation_id: str, messages: list[ChatMessage]) -> None:
+    """Cache messages in both Redis and in-memory."""
+    _messages[conversation_id] = messages
+    asyncio.create_task(_cache_messages_async(conversation_id, messages))
 
 
 def _now() -> datetime:
@@ -334,6 +462,14 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
 
 async def process_chat(request: ChatRequest) -> ChatResponse:
     conversation_id = request.conversation_id or str(uuid.uuid4())
+
+    # Check idempotency key to prevent duplicate processing
+    if request.idempotency_key:
+        cached = _get_idempotent_response(request.idempotency_key)
+        if cached:
+            logger.info("Returning cached response for idempotency key: %s", request.idempotency_key)
+            return cached
+
     _append_message(_message(conversation_id, "user", request.message))
 
     current = _load_draft(conversation_id)
@@ -389,7 +525,7 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
                 "missing_check": missing_check.model_dump(mode="json"),
             },
         )
-        return ChatResponse(
+        response = ChatResponse(
             conversation_id=conversation_id,
             status="needs_more_information",
             assistant_message=assistant_message,
@@ -397,6 +533,10 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
             missing_check=missing_check,
             tool_outputs=tool_outputs,
         )
+        # Cache idempotent response
+        if request.idempotency_key:
+            _cache_idempotent_response(request.idempotency_key, response)
+        return response
 
     recommendation = build_recommendation(
         RecommendationRequest(patient=merged, clinical_state=clinical_state)
@@ -459,7 +599,7 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
             "assistant": llm_answer.model_dump(mode="json"),
         },
     )
-    return ChatResponse(
+    response = ChatResponse(
         conversation_id=conversation_id,
         status="completed",
         assistant_message=assistant_message,
@@ -470,6 +610,10 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
         llm_answer=llm_answer,
         tool_outputs=tool_outputs,
     )
+    # Cache idempotent response
+    if request.idempotency_key:
+        _cache_idempotent_response(request.idempotency_key, response)
+    return response
 
 
 def get_chat_history(conversation_id: str) -> tuple[list[ChatMessage], PatientDraft | None]:

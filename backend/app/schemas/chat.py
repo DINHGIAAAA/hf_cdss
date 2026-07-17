@@ -43,6 +43,11 @@ class ChatRequest(BaseModel):
     patient: PatientProfile | None = None
     language: str = "vi"
     clinical_attachments: list[ClinicalAttachment] = Field(default_factory=list)
+    idempotency_key: str | None = Field(
+        default=None,
+        description="Optional idempotency key to prevent duplicate message processing. "
+        "If provided, repeated requests with the same key will return the cached response.",
+    )
 
 
 class ChatMessage(BaseModel):

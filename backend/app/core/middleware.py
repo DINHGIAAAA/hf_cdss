@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from app.core.auth_credentials import is_authorized_request
 from app.core.config import settings
 from app.core.metrics import increment, observe
+from app.core.redis_client import redis_client
 from app.core.request_context import request_id_var
 from app.schemas.common import ErrorDetail, ErrorResponse
 
@@ -50,9 +51,12 @@ LOGIN_RATE_LIMIT_PATHS = (
     f"{API_PREFIX}/auth/login",
     "/api/auth/login",
 )
+
+# Fallback in-memory rate limiting (used when Redis is unavailable)
 _rate_windows: dict[str, deque[float]] = defaultdict(deque)
 _admin_rate_windows: dict[str, deque[float]] = defaultdict(deque)
 _login_rate_windows: dict[str, deque[float]] = defaultdict(deque)
+_use_redis_fallback = False
 
 
 def _error(status_code: int, code: str, message: str, request_id: str | None = None) -> JSONResponse:
@@ -93,12 +97,33 @@ def _safe_client_id(request: Request) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()[:16]
 
 
-def _is_admin_rate_limited(request: Request) -> bool:
+def _rate_limit_key(prefix: str, request: Request) -> str:
+    """Generate rate limit key with prefix."""
+    return f"ratelimit:{prefix}:{_safe_client_id(request)}:{request.url.path}"
+
+
+async def _is_admin_rate_limited(request: Request) -> bool:
     if not any(
         request.url.path == path or request.url.path.startswith(f"{path}/") for path in ADMIN_RATE_LIMIT_PATHS
     ):
         return False
 
+    window = max(1, settings.admin_rate_limit_window_seconds)
+    limit = max(1, settings.admin_rate_limit_requests)
+    key = _rate_limit_key("admin", request)
+
+    try:
+        count, _ = await redis_client.incr_with_expiry(key, window)
+        return count > limit
+    except Exception:
+        # Fallback to in-memory if Redis fails
+        return _is_admin_rate_limited_memory(request)
+
+
+def _is_admin_rate_limited_memory(request: Request) -> bool:
+    """In-memory fallback for admin rate limiting."""
+    global _use_redis_fallback
+    _use_redis_fallback = True
     now = time.monotonic()
     window = max(1, settings.admin_rate_limit_window_seconds)
     limit = max(1, settings.admin_rate_limit_requests)
@@ -112,10 +137,26 @@ def _is_admin_rate_limited(request: Request) -> bool:
     return False
 
 
-def _is_rate_limited(request: Request) -> bool:
+async def _is_rate_limited(request: Request) -> bool:
     if not any(request.url.path == path or request.url.path.startswith(f"{path}/") for path in RATE_LIMIT_PATHS):
         return False
 
+    window = max(1, settings.rate_limit_window_seconds)
+    limit = max(1, settings.rate_limit_requests)
+    key = _rate_limit_key("api", request)
+
+    try:
+        count, _ = await redis_client.incr_with_expiry(key, window)
+        return count > limit
+    except Exception:
+        # Fallback to in-memory if Redis fails
+        return _is_rate_limited_memory(request)
+
+
+def _is_rate_limited_memory(request: Request) -> bool:
+    """In-memory fallback for API rate limiting."""
+    global _use_redis_fallback
+    _use_redis_fallback = True
     now = time.monotonic()
     window = max(1, settings.rate_limit_window_seconds)
     limit = max(1, settings.rate_limit_requests)
@@ -129,10 +170,26 @@ def _is_rate_limited(request: Request) -> bool:
     return False
 
 
-def _is_login_rate_limited(request: Request) -> bool:
+async def _is_login_rate_limited(request: Request) -> bool:
     if not any(request.url.path == path or request.url.path.startswith(f"{path}/") for path in LOGIN_RATE_LIMIT_PATHS):
         return False
 
+    window = max(1, settings.auth_login_rate_limit_window_seconds)
+    limit = max(1, settings.auth_login_rate_limit_requests)
+    key = _rate_limit_key("login", request)
+
+    try:
+        count, _ = await redis_client.incr_with_expiry(key, window)
+        return count > limit
+    except Exception:
+        # Fallback to in-memory if Redis fails
+        return _is_login_rate_limited_memory(request)
+
+
+def _is_login_rate_limited_memory(request: Request) -> bool:
+    """In-memory fallback for login rate limiting."""
+    global _use_redis_fallback
+    _use_redis_fallback = True
     now = time.monotonic()
     window = max(1, settings.auth_login_rate_limit_window_seconds)
     limit = max(1, settings.auth_login_rate_limit_requests)
@@ -171,15 +228,15 @@ async def production_guard_middleware(
                     request_id,
                 )
 
-        if _is_login_rate_limited(request):
+        if await _is_login_rate_limited(request):
             status_code = 429
             return _error(429, "rate_limited", "Too many login attempts. Please retry later.", request_id)
 
-        if _is_admin_rate_limited(request):
+        if await _is_admin_rate_limited(request):
             status_code = 429
             return _error(429, "rate_limited", "Too many admin requests. Please retry later.", request_id)
 
-        if _is_rate_limited(request):
+        if await _is_rate_limited(request):
             status_code = 429
             return _error(429, "rate_limited", "Too many requests. Please retry later.", request_id)
 
@@ -198,6 +255,7 @@ async def production_guard_middleware(
                 "status_code": status_code,
                 "duration_ms": round(elapsed * 1000, 2),
                 "client": _safe_client_id(request),
+                "ratelimit_fallback": _use_redis_fallback,
             },
         )
         metric_labels = {"method": request.method, "path": request.url.path, "status": str(status_code)}

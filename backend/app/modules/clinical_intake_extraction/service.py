@@ -4,7 +4,7 @@ import unicodedata
 from typing import Any
 
 from app.core.config import settings
-from app.core.http_client import get_async_client
+from app.core.http_client import get_async_client, request_with_retry, _build_retry_config
 from app.core.llm_runtime import chat_completions_url, llm_auth_headers, llm_chat_completions_enabled
 from app.modules.drug_normalization.service import medications_catalog_for_intake
 from app.prompts.clinical_intake import CLINICAL_INTAKE_SYSTEM_PROMPT
@@ -47,6 +47,46 @@ RED_FLAGS: dict[str, tuple[str, ...]] = {
         "suy tim mat bu",
     ),
 }
+
+# Prompt injection patterns to detect and remove
+_PROMPT_INJECTION_PATTERNS = [
+    r"ignore\s+(previous|all|above)\s+(instructions?|prompts?|context)",
+    r"(disregard|forget)\s+(previous|all|above)\s+(instructions?|prompts?|context)",
+    r"(you\s+are\s+now|pretend\s+to\s+be|act\s+as)\s+(a\s+)?different",
+    r"(system|assistant)\s*:\s*",
+    r"#\s*(instructions?|system|prompt)",
+    r"<\s*system\s*>",
+    r"new\s+system\s+prompt",
+    r"override\s+(safety|restrictions?|guidelines?)",
+    r"ignore\s+safety",
+    r"(ignore|disregard)\s+the\s+(rules?|constraints?)",
+]
+
+_COMPILED_INJECTION_PATTERNS = [re.compile(p, re.IGNORECASE) for p in _PROMPT_INJECTION_PATTERNS]
+
+
+def _sanitize_llm_input(text: str) -> str:
+    """
+    Sanitize user input before sending to LLM to prevent prompt injection attacks.
+    Removes potential prompt injection patterns while preserving clinical content.
+    """
+    if not text:
+        return text
+
+    # Truncate to max length first
+    sanitized = text[:12000]
+
+    # Remove prompt injection patterns
+    for pattern in _COMPILED_INJECTION_PATTERNS:
+        sanitized = pattern.sub("[CONTENT REDACTED]", sanitized)
+
+    # Normalize Unicode characters (防止 homoglyph attacks)
+    sanitized = unicodedata.normalize("NFKC", sanitized)
+
+    # Remove excessive whitespace that might be used for obfuscation
+    sanitized = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", sanitized)
+
+    return sanitized.strip()
 
 NO_RED_FLAG_TERMS = (
     "no acute instability",
@@ -369,18 +409,28 @@ async def _call_llm_extractor(message: str) -> dict[str, Any] | None:
             settings.clinical_intake_llm_timeout_seconds,
             max_connections=4,
         )
-        response = await client.post(
+        # Use retry logic for LLM calls
+        retry_config = _build_retry_config(
+            max_retries=2,  # 3 attempts total
+            base_delay=1.0,
+            max_delay=10.0,
+            retry_on_status={500, 502, 503, 504, 429},  # Retry on server errors and rate limits
+        )
+        response = await request_with_retry(
+            client,
+            "POST",
             chat_completions_url(),
             headers=llm_auth_headers(),
             json={
                 "model": settings.llm_model,
                 "messages": [
                     {"role": "system", "content": CLINICAL_INTAKE_SYSTEM_PROMPT},
-                    {"role": "user", "content": message[:12000]},
+                    {"role": "user", "content": _sanitize_llm_input(message)},
                 ],
                 "temperature": 0,
                 "max_tokens": settings.clinical_intake_llm_max_tokens,
             },
+            retry_config=retry_config,
         )
         response.raise_for_status()
         choices = response.json().get("choices", [])
