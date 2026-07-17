@@ -5,6 +5,33 @@ Dùng **Impact** (H/M/L) và **Effort** (H/M/L) để chọn thứ tự làm.
 
 ---
 
+## ⚠️ XÁC NHẬN TRƯỚC KHI THỰC HIỆN
+
+Đánh dấu `[x]` các item bạn muốn implement. File này sẽ được update sau mỗi buổi confirm.
+
+### P0 — Ưu tiên cao nhất
+- [ ] **O1**: LLM claim extraction — tăng regex coverage + model nhỏ
+- [ ] **O2**: Embedding batch + cache
+- [ ] **O3**: Pipeline retry checkpoint
+- [ ] **O4**: Chroma incremental upsert
+- [ ] **O5**: Rerank tối ưu (cross-encoder hoặc giảm candidates)
+
+### P1 — Ưu tiên trung bình
+- [ ] **O6**: HyDE conditional gate
+- [ ] **O7**: GraphRAG cache
+- [ ] **O8**: Verification agent mode defaults
+- [ ] **O9**: Governance parallel catalogs
+- [ ] **O10**: Negative filter tuning
+- [ ] **O11**: Explanation payload slim
+- [ ] **O15**: Ollama/GPU split
+
+### P2 — Ưu tiên thấp
+- [ ] **O12**: Prompt consistency
+- [ ] **O13**: Neo4j incremental
+- [ ] **O14**: Lost-in-the-middle reorder eval
+
+---
+
 ## 1. Ma trận tổng hợp (P0 → P2)
 
 | ID | Pha | Vấn đề / cơ hội | Hiện trạng | Hành động đề xuất | Impact | Effort | Ưu tiên |
@@ -114,24 +141,26 @@ Dùng **Impact** (H/M/L) và **Effort** (H/M/L) để chọn thứ tự làm.
 
 ## 8. Kế hoạch thực hiện đề xuất (4 sprint)
 
+> **Hướng dẫn:** Mỗi sprint, confirm các item bạn muốn làm. Sau khi implement xong, update `[ ]` → `[x]`.
+
 ### Sprint 1 — Ingestion throughput (P0)
-- [ ] O1: Tune regex vs LLM gate + model nhỏ cho extract
-- [ ] O2: Embedding batch + cache hit monitoring
-- [ ] O3: Verify auto-resume end-to-end trên Airflow
+- [ ] **O1**: Tune regex vs LLM gate + model nhỏ cho extract
+- [ ] **O2**: Embedding batch + cache hit monitoring
+- [ ] **O3**: Verify auto-resume end-to-end trên Airflow
 
 ### Sprint 2 — Query latency (P0)
-- [ ] O5: Cross-encoder rerank hoặc giảm candidates
-- [ ] O6: HyDE conditional gate
-- [ ] O7: GraphRAG response cache
+- [ ] **O5**: Cross-encoder rerank hoặc giảm candidates
+- [ ] **O6**: HyDE conditional gate
+- [ ] **O7**: GraphRAG response cache
 
 ### Sprint 3 — Quality calibration (P1)
-- [ ] O10: Negative filter eval + threshold tune
-- [ ] O8: Verification agent mode defaults
-- [ ] O11: Explanation payload slim + Redis
+- [ ] **O10**: Negative filter eval + threshold tune
+- [ ] **O8**: Verification agent mode defaults
+- [ ] **O11**: Explanation payload slim + Redis
 
 ### Sprint 4 — Index & ops (P1/P2)
-- [ ] O4: Incremental Chroma upsert
-- [ ] O15: Ollama/GPU or split embed service
+- [ ] **O4**: Incremental Chroma upsert
+- [ ] **O15**: Ollama/GPU or split embed service
 - [ ] Metrics dashboard
 
 ---
@@ -150,6 +179,16 @@ Dùng **Impact** (H/M/L) và **Effort** (H/M/L) để chọn thứ tự làm.
 | Verification fail rate (false fail) | ___ % | -3% |
 
 Điền baseline bằng cách chạy một DAG run + 20 chat queries synthetic trước khi optimize.
+
+---
+
+---
+
+## 📝 Session Log
+
+| Date | Confirmed Items | Status |
+|------|-----------------|--------|
+| 2026-07-17 | Initial setup — confirmation checkboxes added | ✅ |
 
 ---
 
