@@ -45,6 +45,10 @@ def _connection() -> sqlite3.Connection | None:
                 "CREATE TABLE IF NOT EXISTS vectors ("
                 "key TEXT PRIMARY KEY, model TEXT NOT NULL, vector TEXT NOT NULL)"
             )
+            # WAL mode improves concurrent read/write performance
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA synchronous=NORMAL")
+            conn.execute("PRAGMA cache_size=-64000")  # 64MB cache
             conn.commit()
             _conn = conn
     return _conn

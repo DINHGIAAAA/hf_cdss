@@ -1,6 +1,5 @@
 import argparse
 import hashlib
-import re
 from functools import lru_cache
 from pathlib import Path
 
@@ -29,8 +28,13 @@ from scraper.transform.table_sections import is_extracted_table_section
 from scraper.transform.text_normalization import repair_pdf_flow_text
 
 
-@lru_cache(maxsize=8192)
+@lru_cache(maxsize=16384)
 def token_estimate(text: str) -> int:
+    """Estimate token count for a text string.
+
+    Uses BGE-M3 tokenizer when available (most accurate for embedding model),
+    falls back to optimized word-based estimation.
+    """
     if not text:
         return 0
     if _tokenizer:
@@ -41,7 +45,8 @@ def token_estimate(text: str) -> int:
                 truncation=False,
             )
         )
-    return max(1, int(len(re.findall(r"\S+", text)) * 1.3))
+    # Optimized fallback: avoid regex overhead
+    return max(1, int(len(text.split()) * 1.3))
 
 
 def chunk_id(record: dict, index: int, text: str) -> str:

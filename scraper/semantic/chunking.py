@@ -31,6 +31,14 @@ _DOSING_LINE = re.compile(
     re.IGNORECASE,
 )
 
+# Pre-compiled patterns for _safe_sentence_split (avoids re-compilation per call)
+_UNIT_PATTERN_LONG = re.compile(r"\d+(?:\.\d+)?\s*(?:mL/min/1\.73\s*m\s*2|mL/min|mEq/L|mmol/L|mg/dL|mmHg|bpm)")
+_UNIT_PATTERN_SHORT = re.compile(r"\d+(?:\.\d+)?\s*(?:kg|m|mL|mg|mmol|mEq|%)")
+
+# Pre-compiled patterns for _block_looks_like_clinical_list (avoids re-compilation per call)
+_NUMBERED_ITEM_PATTERN = re.compile(r"(?:^|\n|\s)\d+\.\s+\S")
+_BULLET_ITEM_PATTERN = re.compile(r"(?:^|\n)\s*(?:[-•*]|•)\s+\S")
+
 
 def _is_clinical_list_or_dosing_line(line: str) -> bool:
     stripped = line.strip()
@@ -49,8 +57,8 @@ def _block_looks_like_clinical_list(block: str) -> bool:
         clinical_lines = sum(1 for line in lines if _is_clinical_list_or_dosing_line(line))
         if clinical_lines >= 2:
             return True
-    numbered_items = re.findall(r"(?:^|\n|\s)\d+\.\s+\S", block)
-    bullet_items = re.findall(r"(?:^|\n)\s*(?:[-•*]|\u2022)\s+\S", block)
+    numbered_items = _NUMBERED_ITEM_PATTERN.findall(block)
+    bullet_items = _BULLET_ITEM_PATTERN.findall(block)
     return len(numbered_items) >= 2 or len(bullet_items) >= 2
 
 
@@ -123,12 +131,12 @@ def _safe_sentence_split(text: str) -> list[str]:
     # First protect common clinical patterns by temporarily replacing
     protected: list[tuple[str, str]] = []
     patterns = [
-        (r"\d+(?:\.\d+)?\s*(?:mL/min/1\.73\s*m\s*2|mL/min|mEq/L|mmol/L|mg/dL|mmHg|bpm)", "<PROTECTED_UNIT>"),
-        (r"\d+(?:\.\d+)?\s*(?:kg|m|mL|mg|mmol|mEq|%)", "<PROTECTED_UNIT>"),
+        (_UNIT_PATTERN_LONG, "<PROTECTED_UNIT>"),
+        (_UNIT_PATTERN_SHORT, "<PROTECTED_UNIT>"),
     ]
 
-    for pattern, replacement in patterns:
-        for match in re.finditer(pattern, text):
+    for compiled_pattern, replacement in patterns:
+        for match in compiled_pattern.finditer(text):
             placeholder = f"__PROT_{len(protected)}__"
             protected.append((placeholder, match.group(0)))
             text = text[:match.start()] + placeholder + text[match.end():]

@@ -217,7 +217,7 @@ def max_similarity_vector_to_prototypes(
     return max(cosine_similarity(text_vector, prototype_vector) for prototype_vector in prototype_vectors)
 
 
-@lru_cache(maxsize=2048)
+@lru_cache(maxsize=8192)
 def _in_process_embedding(text: str) -> tuple[float, ...]:
     """Memoize single-text embeddings for the current process (delegates to embed_texts)."""
     if not text:

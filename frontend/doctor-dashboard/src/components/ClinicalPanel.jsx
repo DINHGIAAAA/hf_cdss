@@ -11,6 +11,7 @@ import {
   recommendationDetailLines,
   recommendationLead,
 } from "@/lib/recommendationDisplay";
+import { DosePlanDisplay } from "@/components/DosePlanDisplay";
 import { useLanguage } from "@/i18n/LanguageProvider.jsx";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -355,6 +356,17 @@ export function ClinicalPanel({ active, error, open }) {
                       />
                     ))}
                   </div>
+
+                  {/* Dose Plans Section */}
+                  {active.recommendation.dose_plans && active.recommendation.dose_plans.length > 0 && (
+                    <>
+                      <Separator />
+                      <DosePlanDisplay
+                        dosePlans={active.recommendation.dose_plans}
+                        version={active.recommendation.dose_rules_version}
+                      />
+                    </>
+                  )}
                 </section>
               )}
 

@@ -135,27 +135,66 @@ def initialize_chroma() -> dict[str, Any]:
 
     collection = _recreate_collection()
     batch_size = max(1, settings.embedding_batch_size)
-    for start in range(0, len(chunks), batch_size):
-        batch = chunks[start : start + batch_size]
-        end = min(start + batch_size, len(chunks))
-        print(f"[datastore-bootstrap] chroma upsert batch {start + 1}-{end}/{len(chunks)}", flush=True)
+    num_batches = (len(chunks) + batch_size - 1) // batch_size
+
+    # Parallel embedding generation + Chroma upsert
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    def _process_batch(batch_start: int) -> tuple[int, list, list, list]:
+        """Generate embeddings and prepare upsert data for one batch."""
+        batch = chunks[batch_start : batch_start + batch_size]
         searchable_documents = [_embed_text_for_chunk(chunk) for chunk in batch]
+        embeddings = embed_documents(searchable_documents)
+        ids = [chunk["chunk_id"] for chunk in batch]
+        documents = [chunk.get("text", "") for chunk in batch]
+        metadatas = [
+            {
+                "document_id": chunk.get("document_id", ""),
+                "source_type": chunk.get("source_type", ""),
+                "section": chunk.get("section") or "",
+                "section_id": chunk.get("section_id")
+                or (chunk.get("metadata") or {}).get("section_id")
+                or "",
+                "metadata_json": json.dumps(chunk.get("metadata", {}), ensure_ascii=False),
+            }
+            for chunk in batch
+        ]
+        return batch_start, ids, documents, embeddings, metadatas
+
+    # Use parallel workers for embedding generation, sequential upsert to Chroma
+    # (ChromaDB client is not thread-safe for upsert operations)
+    max_workers = min(4, num_batches)
+    processed_batches: list[tuple[int, list, list, list, list]] = []
+
+    if num_batches > 1 and max_workers > 1:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(_process_batch, start): start
+                for start in range(0, len(chunks), batch_size)
+            }
+            for future in as_completed(futures):
+                try:
+                    result = future.result()
+                    processed_batches.append(result)
+                except Exception as exc:
+                    logger.warning("Batch processing failed: %s", exc)
+
+        # Sort by batch start index to maintain order
+        processed_batches.sort(key=lambda x: x[0])
+    else:
+        # Single batch or parallel disabled - process sequentially
+        for start in range(0, len(chunks), batch_size):
+            result = _process_batch(start)
+            processed_batches.append(result)
+
+    # Upsert to Chroma (sequential due to client thread-safety)
+    for batch_idx, (_, ids, documents, embeddings, metadatas) in enumerate(processed_batches, 1):
+        print(f"[datastore-bootstrap] chroma upsert batch {batch_idx}/{num_batches}", flush=True)
         collection.upsert(
-            ids=[chunk["chunk_id"] for chunk in batch],
-            documents=[chunk.get("text", "") for chunk in batch],
-            embeddings=embed_documents(searchable_documents),
-            metadatas=[
-                {
-                    "document_id": chunk.get("document_id", ""),
-                    "source_type": chunk.get("source_type", ""),
-                    "section": chunk.get("section") or "",
-                    "section_id": chunk.get("section_id")
-                    or (chunk.get("metadata") or {}).get("section_id")
-                    or "",
-                    "metadata_json": json.dumps(chunk.get("metadata", {}), ensure_ascii=False),
-                }
-                for chunk in batch
-            ],
+            ids=ids,
+            documents=documents,
+            embeddings=embeddings,
+            metadatas=metadatas,
         )
     collection.modify(
         metadata={

@@ -287,3 +287,164 @@
   padding: var(--space-lg) 0;
   text-align: center;
 }
+
+/* Dose Plan Display Styles */
+.dose-plan-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.dose-plan-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.dose-plan-table th {
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 8px 12px;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.dose-plan-table td {
+  border-bottom: 1px solid var(--color-border-light);
+  padding: 10px 12px;
+  vertical-align: top;
+}
+
+.dose-plan-table tr:last-child td {
+  border-bottom: none;
+}
+
+.dose-plan-table tbody tr:hover {
+  background: var(--color-surface);
+}
+
+.dose-plan-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.dose-plan-card-header {
+  align-items: center;
+  display: flex;
+  gap: var(--space-sm);
+  justify-content: space-between;
+  padding: 10px 12px;
+}
+
+.dose-plan-card-body {
+  border-top: 1px solid var(--color-border-light);
+  padding: 12px;
+}
+
+.dose-comparison {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.dose-comparison-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.dose-comparison-arrow {
+  color: var(--color-text-muted);
+}
+
+.dose-amount {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.dose-amount-label {
+  color: var(--color-text-muted);
+  font-size: 11px;
+}
+
+.hold-alert {
+  background: var(--color-warning-bg);
+  border: 1px solid var(--color-warning);
+  border-radius: var(--radius);
+  color: var(--color-warning);
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.hold-alert-title {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.calculation-details {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius);
+  font-size: 12px;
+  padding: 8px;
+}
+
+.calculation-step {
+  display: flex;
+  gap: var(--space-sm);
+  padding: 4px 0;
+}
+
+.calculation-step:not(:last-child) {
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.step-number {
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-full);
+  color: var(--color-brand);
+  font-size: 10px;
+  font-weight: 700;
+  height: 18px;
+  line-height: 18px;
+  text-align: center;
+  width: 18px;
+  flex-shrink: 0;
+}
+
+.titration-steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.titration-step {
+  display: flex;
+  gap: var(--space-sm);
+  font-size: 13px;
+}
+
+.monitoring-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.monitoring-item {
+  align-items: flex-start;
+  display: flex;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.monitoring-icon {
+  color: var(--color-success);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
