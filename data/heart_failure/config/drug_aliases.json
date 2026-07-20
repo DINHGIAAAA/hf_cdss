@@ -1,110 +1,380 @@
 {
   "metformin": {
     "pipeline_id": "metformin",
-    "gdmt_class": null,
+    "gdmt_class": "diabetes",
     "display_name": "metformin",
-    "aliases": ["metformin", "glucophage"]
+    "aliases": ["metformin", "glucophage", "metformin hcl", "metformin hydrochloride"]
   },
   "empagliflozin": {
     "pipeline_id": "empagliflozin",
     "gdmt_class": "SGLT2i",
     "display_name": "empagliflozin",
-    "aliases": ["empagliflozin", "jardiance"]
+    "aliases": ["empagliflozin", "jardiance", "empagliflozin 10mg", "empagliflozin 25mg"]
   },
   "dapagliflozin": {
     "pipeline_id": "dapagliflozin",
     "gdmt_class": "SGLT2i",
     "display_name": "dapagliflozin",
-    "aliases": ["dapagliflozin", "farxiga", "forxiga"]
+    "aliases": ["dapagliflozin", "farxiga", "forxiga", "dapagliflozin 10mg"]
+  },
+  "canagliflozin": {
+    "pipeline_id": "canagliflozin",
+    "gdmt_class": "SGLT2i",
+    "display_name": "canagliflozin",
+    "aliases": ["canagliflozin", "invokana"]
+  },
+  "ertugliflozin": {
+    "pipeline_id": "ertugliflozin",
+    "gdmt_class": "SGLT2i",
+    "display_name": "ertugliflozin",
+    "aliases": ["ertugliflozin", "steglatro"]
   },
   "sacubitril_and_valsartan": {
     "pipeline_id": "sacubitril_and_valsartan",
     "gdmt_class": "ARNI",
     "display_name": "sacubitril/valsartan",
-    "aliases": ["sacubitril/valsartan", "sacubitril valsartan", "sacubitril and valsartan", "entresto"]
+    "aliases": ["sacubitril/valsartan", "sacubitril valsartan", "sacubitril and valsartan", "entresto", "sacubitril valsartan 24/26", "sacubitril valsartan 97/103"]
   },
   "spironolactone": {
     "pipeline_id": "spironolactone",
     "gdmt_class": "MRA",
     "display_name": "spironolactone",
-    "aliases": ["spironolactone", "aldactone"]
+    "aliases": ["spironolactone", "aldactone", "spironolactone 25mg", "spironolactone 50mg"]
   },
   "eplerenone": {
     "pipeline_id": "eplerenone",
     "gdmt_class": "MRA",
     "display_name": "eplerenone",
-    "aliases": ["eplerenone", "inspra"]
+    "aliases": ["eplerenone", "inspra", "eplerenone 25mg", "eplerenone 50mg"]
   },
   "finerenone": {
     "pipeline_id": "finerenone",
     "gdmt_class": "MRA",
     "display_name": "finerenone",
-    "aliases": ["finerenone", "kerendia"]
+    "aliases": ["finerenone", "kerendia", "finerenone 10mg", "finerenone 20mg"]
   },
   "metoprolol_succinate": {
     "pipeline_id": "metoprolol_succinate",
     "gdmt_class": "beta_blocker",
     "display_name": "metoprolol succinate",
-    "aliases": ["metoprolol succinate", "metoprolol", "toprol", "toprol-xl"]
+    "aliases": ["metoprolol succinate", "metoprolol", "toprol", "toprol-xl", "metoprolol succinate er", "toprol xl"]
   },
   "bisoprolol_fumarate": {
     "pipeline_id": "bisoprolol_fumarate",
     "gdmt_class": "beta_blocker",
     "display_name": "bisoprolol",
-    "aliases": ["bisoprolol", "bisoprolol fumarate", "zebeta"]
+    "aliases": ["bisoprolol", "bisoprolol fumarate", "zebeta", "bisoprolol 5mg", "bisoprolol 10mg"]
   },
   "carvedilol": {
     "pipeline_id": "carvedilol",
     "gdmt_class": "beta_blocker",
     "display_name": "carvedilol",
-    "aliases": ["carvedilol", "coreg"]
+    "aliases": ["carvedilol", "coreg", "carvedilol 6.25mg", "carvedilol 12.5mg", "carvedilol 25mg"]
+  },
+  "nebivolol": {
+    "pipeline_id": "nebivolol",
+    "gdmt_class": "beta_blocker",
+    "display_name": "nebivolol",
+    "aliases": ["nebivolol", "bystolic", "nebivolol 5mg", "nebivolol 10mg", "nebivolol 20mg"]
+  },
+  "atenolol": {
+    "pipeline_id": "atenolol",
+    "gdmt_class": "beta_blocker",
+    "display_name": "atenolol",
+    "aliases": ["atenolol", "tenormin", "atenolol 25mg", "atenolol 50mg", "atenolol 100mg"]
+  },
+  "propranolol": {
+    "pipeline_id": "propranolol",
+    "gdmt_class": "beta_blocker",
+    "display_name": "propranolol",
+    "aliases": ["propranolol", "inderal", "propranolol 10mg", "propranolol 20mg", "propranolol 40mg", "propranolol 80mg"]
+  },
+  "metoprolol_tartrate": {
+    "pipeline_id": "metoprolol_tartrate",
+    "gdmt_class": "beta_blocker",
+    "display_name": "metoprolol tartrate",
+    "aliases": ["metoprolol tartrate", "lopressor", "metoprolol tartrate 25mg", "metoprolol tartrate 50mg", "metoprolol tartrate 100mg"]
   },
   "enalapril_maleate": {
     "pipeline_id": "enalapril_maleate",
     "gdmt_class": "ACEi",
     "display_name": "enalapril",
-    "aliases": ["enalapril", "enalapril maleate", "vasotec"]
+    "aliases": ["enalapril", "enalapril maleate", "vasotec", "enalapril 2.5mg", "enalapril 5mg", "enalapril 10mg", "enalapril 20mg"]
   },
   "lisinopril": {
     "pipeline_id": "lisinopril",
     "gdmt_class": "ACEi",
     "display_name": "lisinopril",
-    "aliases": ["lisinopril", "zestril", "prinivil"]
+    "aliases": ["lisinopril", "zestril", "prinivil", "lisinopril 5mg", "lisinopril 10mg", "lisinopril 20mg", "lisinopril 40mg"]
+  },
+  "ramipril": {
+    "pipeline_id": "ramipril",
+    "gdmt_class": "ACEi",
+    "display_name": "ramipril",
+    "aliases": ["ramipril", "altace", "ramipril 1.25mg", "ramipril 2.5mg", "ramipril 5mg", "ramipril 10mg"]
+  },
+  "quinapril": {
+    "pipeline_id": "quinapril",
+    "gdmt_class": "ACEi",
+    "display_name": "quinapril",
+    "aliases": ["quinapril", "accupril", "quinapril 5mg", "quinapril 10mg", "quinapril 20mg", "quinapril 40mg"]
+  },
+  "benazepril": {
+    "pipeline_id": "benazepril",
+    "gdmt_class": "ACEi",
+    "display_name": "benazepril",
+    "aliases": ["benazepril", "lotensin", "benazepril 5mg", "benazepril 10mg", "benazepril 20mg", "benazepril 40mg"]
+  },
+  "captopril": {
+    "pipeline_id": "captopril",
+    "gdmt_class": "ACEi",
+    "display_name": "captopril",
+    "aliases": ["captopril", "capoten", "captopril 12.5mg", "captopril 25mg", "captopril 50mg", "captopril 100mg"]
+  },
+  "fosinopril": {
+    "pipeline_id": "fosinopril",
+    "gdmt_class": "ACEi",
+    "display_name": "fosinopril",
+    "aliases": ["fosinopril", "monopril", "fosinopril 10mg", "fosinopril 20mg", "fosinopril 40mg"]
+  },
+  "trandolapril": {
+    "pipeline_id": "trandolapril",
+    "gdmt_class": "ACEi",
+    "display_name": "trandolapril",
+    "aliases": ["trandolapril", "mavik", "trandolapril 1mg", "trandolapril 2mg", "trandolapril 4mg"]
+  },
+  "perindopril": {
+    "pipeline_id": "perindopril",
+    "gdmt_class": "ACEi",
+    "display_name": "perindopril",
+    "aliases": ["perindopril", "aceon", "perindopril 2mg", "perindopril 4mg", "perindopril 8mg"]
+  },
+  "moexipril": {
+    "pipeline_id": "moexipril",
+    "gdmt_class": "ACEi",
+    "display_name": "moexipril",
+    "aliases": ["moexipril", "univasc", "moexipril 7.5mg", "moexipril 15mg"]
   },
   "losartan_potassium": {
     "pipeline_id": "losartan_potassium",
     "gdmt_class": "ARB",
     "display_name": "losartan",
-    "aliases": ["losartan", "losartan potassium", "cozaar"]
+    "aliases": ["losartan", "losartan potassium", "cozaar", "losartan 25mg", "losartan 50mg", "losartan 100mg"]
   },
   "valsartan": {
     "pipeline_id": "valsartan",
     "gdmt_class": "ARB",
     "display_name": "valsartan",
-    "aliases": ["valsartan", "diovan"]
+    "aliases": ["valsartan", "diovan", "valsartan 40mg", "valsartan 80mg", "valsartan 160mg", "valsartan 320mg"]
   },
   "candesartan_cilexetil": {
     "pipeline_id": "candesartan_cilexetil",
     "gdmt_class": "ARB",
     "display_name": "candesartan",
-    "aliases": ["candesartan", "candesartan cilexetil", "atacand"]
+    "aliases": ["candesartan", "candesartan cilexetil", "atacand", "candesartan 4mg", "candesartan 8mg", "candesartan 16mg", "candesartan 32mg"]
+  },
+  "telmisartan": {
+    "pipeline_id": "telmisartan",
+    "gdmt_class": "ARB",
+    "display_name": "telmisartan",
+    "aliases": ["telmisartan", "micardis", "telmisartan 20mg", "telmisartan 40mg", "telmisartan 80mg"]
+  },
+  "olmesartan_medoxomil": {
+    "pipeline_id": "olmesartan_medoxomil",
+    "gdmt_class": "ARB",
+    "display_name": "olmesartan",
+    "aliases": ["olmesartan", "olmesartan medoxomil", "benicar", "olmesartan 5mg", "olmesartan 20mg", "olmesartan 40mg"]
+  },
+  "irbesartan": {
+    "pipeline_id": "irbesartan",
+    "gdmt_class": "ARB",
+    "display_name": "irbesartan",
+    "aliases": ["irbesartan", "avapro", "irbesartan 75mg", "irbesartan 150mg", "irbesartan 300mg"]
+  },
+  "azilsartan_medoxomil": {
+    "pipeline_id": "azilsartan_medoxomil",
+    "gdmt_class": "ARB",
+    "display_name": "azilsartan",
+    "aliases": ["azilsartan", "azilsartan medoxomil", "edarbi", "azilsartan 40mg", "azilsartan 80mg"]
+  },
+  "eprosartan": {
+    "pipeline_id": "eprosartan",
+    "gdmt_class": "ARB",
+    "display_name": "eprosartan",
+    "aliases": ["eprosartan", "teveten", "eprosartan 400mg", "eprosartan 600mg"]
   },
   "furosemide": {
     "pipeline_id": "furosemide",
     "gdmt_class": "loop_diuretic",
     "display_name": "furosemide",
-    "aliases": ["furosemide", "lasix"]
+    "aliases": ["furosemide", "lasix", "furosemide 20mg", "furosemide 40mg", "furosemide 80mg"]
+  },
+  "bumetanide": {
+    "pipeline_id": "bumetanide",
+    "gdmt_class": "loop_diuretic",
+    "display_name": "bumetanide",
+    "aliases": ["bumetanide", "bumex", "bumetanide 0.5mg", "bumetanide 1mg", "bumetanide 2mg"]
+  },
+  "torsemide": {
+    "pipeline_id": "torsemide",
+    "gdmt_class": "loop_diuretic",
+    "display_name": "torsemide",
+    "aliases": ["torsemide", "demadex", "torsemide 5mg", "torsemide 10mg", "torsemide 20mg", "torsemide 40mg", "torsemide 100mg"]
+  },
+  "ethacrynic_acid": {
+    "pipeline_id": "ethacrynic_acid",
+    "gdmt_class": "loop_diuretic",
+    "display_name": "ethacrynic acid",
+    "aliases": ["ethacrynic acid", "edecrin", "ethacrynate"]
   },
   "apixaban": {
     "pipeline_id": "apixaban",
     "gdmt_class": "anticoagulant",
     "display_name": "apixaban",
-    "aliases": ["apixaban", "eliquis"]
+    "aliases": ["apixaban", "eliquis", "apixaban 2.5mg", "apixaban 5mg", "apixaban 10mg"]
+  },
+  "rivaroxaban": {
+    "pipeline_id": "rivaroxaban",
+    "gdmt_class": "anticoagulant",
+    "display_name": "rivaroxaban",
+    "aliases": ["rivaroxaban", "xarelto", "rivaroxaban 10mg", "rivaroxaban 15mg", "rivaroxaban 20mg"]
+  },
+  "edoxaban": {
+    "pipeline_id": "edoxaban",
+    "gdmt_class": "anticoagulant",
+    "display_name": "edoxaban",
+    "aliases": ["edoxaban", "savaysa", "lixiana", "edoxaban 15mg", "edoxaban 30mg", "edoxaban 60mg"]
+  },
+  "dabigatran_etexilate": {
+    "pipeline_id": "dabigatran_etexilate",
+    "gdmt_class": "anticoagulant",
+    "display_name": "dabigatran",
+    "aliases": ["dabigatran", "dabigatran etexilate", "pradaxa", "dabigatran 75mg", "dabigatran 110mg", "dabigatran 150mg"]
   },
   "warfarin_sodium": {
     "pipeline_id": "warfarin_sodium",
     "gdmt_class": "anticoagulant",
     "display_name": "warfarin",
-    "aliases": ["warfarin", "warfarin sodium", "coumadin"]
+    "aliases": ["warfarin", "warfarin sodium", "coumadin", "warfarin 1mg", "warfarin 2mg", "warfarin 2.5mg", "warfarin 3mg", "warfarin 4mg", "warfarin 5mg", "warfarin 6mg", "warfarin 7.5mg", "warfarin 10mg"]
+  },
+  "digoxin": {
+    "pipeline_id": "digoxin",
+    "gdmt_class": "cardiac_glycoside",
+    "display_name": "digoxin",
+    "aliases": ["digoxin", "lanoxin", "digoxin 0.125mg", "digoxin 0.25mg", "digoxin 0.5mg"]
+  },
+  "ivabradine": {
+    "pipeline_id": "ivabradine",
+    "gdmt_class": "heart_rate_reducing",
+    "display_name": "ivabradine",
+    "aliases": ["ivabradine", "corlanor", "ivabradine 5mg", "ivabradine 7.5mg"]
+  },
+  "hydralazine": {
+    "pipeline_id": "hydralazine",
+    "gdmt_class": "vasodilator",
+    "display_name": "hydralazine",
+    "aliases": ["hydralazine", "apresoline", "hydralazine 10mg", "hydralazine 25mg", "hydralazine 50mg", "hydralazine 100mg"]
+  },
+  "isosorbide_dinitrate": {
+    "pipeline_id": "isosorbide_dinitrate",
+    "gdmt_class": "vasodilator",
+    "display_name": "isosorbide dinitrate",
+    "aliases": ["isosorbide dinitrate", "isosorbide dinitrate", "isordil", "isosorbide 5mg", "isosorbide 10mg", "isosorbide 20mg", "isosorbide 30mg", "isosorbide 40mg"]
+  },
+  "isosorbide_mononitrate": {
+    "pipeline_id": "isosorbide_mononitrate",
+    "gdmt_class": "vasodilator",
+    "display_name": "isosorbide mononitrate",
+    "aliases": ["isosorbide mononitrate", "imdur", "monoket", "isosorbide mononitrate 30mg", "isosorbide mononitrate 60mg", "isosorbide mononitrate 120mg"]
+  },
+  "nitroglycerin": {
+    "pipeline_id": "nitroglycerin",
+    "gdmt_class": "vasodilator",
+    "display_name": "nitroglycerin",
+    "aliases": ["nitroglycerin", "nitrostat", "nitroglycerin 0.3mg", "nitroglycerin 0.4mg", "nitroglycerin 0.6mg", "ntg"]
+  },
+  "vericiguat": {
+    "pipeline_id": "vericiguat",
+    "gdmt_class": "sGC_stimulator",
+    "display_name": "vericiguat",
+    "aliases": ["vericiguat", "verquvo", "vericiguat 2.5mg", "vericiguat 5mg", "vericiguat 10mg"]
+  },
+  "omecamtiv_mecarbil": {
+    "pipeline_id": "omecamtiv_mecarbil",
+    "gdmt_class": "myosin_activator",
+    "display_name": "omecamtiv mecarbil",
+    "aliases": ["omecamtiv mecarbil", "CK-03774557", "CK Est", "omecamtiv mecarbil 25mg"]
+  },
+  "hydralazine_and_isosorbide_dinitrate": {
+    "pipeline_id": "hydralazine_and_isosorbide_dinitrate",
+    "gdmt_class": "vasodilator_combo",
+    "display_name": "hydralazine/isosorbide dinitrate",
+    "aliases": ["hydralazine and isosorbide dinitrate", "hydralazine/isosorbide", "biDil", "hydralazine isosorbide dinitrate", "bi dil"]
+  },
+  "amiodarone": {
+    "pipeline_id": "amiodarone",
+    "gdmt_class": "antiarrhythmic",
+    "display_name": "amiodarone",
+    "aliases": ["amiodarone", "cordarone", "pacerone", "amiodarone 100mg", "amiodarone 200mg", "amiodarone 400mg"]
+  },
+  "sotalol": {
+    "pipeline_id": "sotalol",
+    "gdmt_class": "antiarrhythmic",
+    "display_name": "sotalol",
+    "aliases": ["sotalol", "betapace", "sotalol 80mg", "sotalol 120mg", "sotalol 160mg", "sotalol 240mg"]
+  },
+  "dofetilide": {
+    "pipeline_id": "dofetilide",
+    "gdmt_class": "antiarrhythmic",
+    "display_name": "dofetilide",
+    "aliases": ["dofetilide", "tikosyn", "dofetilide 125mcg", "dofetilide 250mcg", "dofetilide 500mcg"]
+  },
+  "propafenone": {
+    "pipeline_id": "propafenone",
+    "gdmt_class": "antiarrhythmic",
+    "display_name": "propafenone",
+    "aliases": ["propafenone", "rhythmol", "propafenone 150mg", "propafenone 225mg", "propafenone 300mg"]
+  },
+  "flecainide": {
+    "pipeline_id": "flecainide",
+    "gdmt_class": "antiarrhythmic",
+    "display_name": "flecainide",
+    "aliases": ["flecainide", "tambocor", "flecainide 50mg", "flecainide 100mg", "flecainide 150mg"]
+  },
+  "potassium_chloride": {
+    "pipeline_id": "potassium_chloride",
+    "gdmt_class": "electrolyte",
+    "display_name": "potassium chloride",
+    "aliases": ["potassium chloride", "k-dur", "klor-con", "k+", "potassium", "potassium 10meq", "potassium 20meq"]
+  },
+  "spironolactone_and_hydrochlorothiazide": {
+    "pipeline_id": "spironolactone_and_hydrochlorothiazide",
+    "gdmt_class": "MRA_diuretic_combo",
+    "display_name": "spironolactone/hydrochlorothiazide",
+    "aliases": ["spironolactone hydrochlorothiazide", "aldactazide"]
+  },
+  "chlorthalidone": {
+    "pipeline_id": "chlorthalidone",
+    "gdmt_class": "thiazide_diuretic",
+    "display_name": "chlorthalidone",
+    "aliases": ["chlorthalidone", "thalitone", "hygroton", "chlorthalidone 12.5mg", "chlorthalidone 25mg", "chlorthalidone 50mg"]
+  },
+  "hydrochlorothiazide": {
+    "pipeline_id": "hydrochlorothiazide",
+    "gdmt_class": "thiazide_diuretic",
+    "display_name": "hydrochlorothiazide",
+    "aliases": ["hydrochlorothiazide", "hctz", "hydrodiuril", "microzide", "hct 12.5mg", "hct 25mg", "hct 50mg"]
+  },
+  "chlorthalidone_and_clonidine": {
+    "pipeline_id": "chlorthalidone_and_clonidine",
+    "gdmt_class": "antihypertensive_combo",
+    "display_name": "chlorthalidone/clonidine",
+    "aliases": ["chlorthalidone clonidine", "clorpres"]
+  },
+  "warfarin_and_atorvastatin": {
+    "pipeline_id": "warfarin_and_atorvastatin",
+    "gdmt_class": "anticoagulant_statin_combo",
+    "display_name": "warfarin/atorvastatin",
+    "aliases": ["warfarin atorvastatin", "simcor"]
   }
 }

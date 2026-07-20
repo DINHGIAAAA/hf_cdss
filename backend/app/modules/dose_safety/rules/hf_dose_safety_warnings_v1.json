@@ -4,7 +4,7 @@
   "warnings": [
     {
       "dose_safety_warning_id": "dose_digoxin_renal_review",
-      "drug_keys": ["digoxin"],
+      "drug_keys": ["digoxin", "lanoxin"],
       "target": "digoxin",
       "default_severity": "moderate",
       "rule_body": {
@@ -23,7 +23,7 @@
     },
     {
       "dose_safety_warning_id": "dose_mra_renal_potassium_review",
-      "drug_keys": ["spironolactone", "eplerenone", "finerenone"],
+      "drug_keys": ["spironolactone", "eplerenone", "finerenone", "aldactone", "inspra", "kerendia"],
       "target": "MRA",
       "default_severity": "high",
       "rule_body": {
@@ -43,7 +43,7 @@
     },
     {
       "dose_safety_warning_id": "dose_loop_diuretic_lab_monitoring",
-      "drug_keys": ["furosemide", "bumetanide", "torsemide"],
+      "drug_keys": ["furosemide", "bumetanide", "torsemide", "lasix", "bumex", "demadex", "ethacrynic acid"],
       "target": "loop_diuretic",
       "default_severity": "low",
       "rule_body": {
@@ -60,7 +60,7 @@
     },
     {
       "dose_safety_warning_id": "dose_beta_blocker_hr_review",
-      "drug_keys": ["metoprolol", "bisoprolol", "carvedilol", "metoprolol_succinate", "bisoprolol_fumarate"],
+      "drug_keys": ["metoprolol", "bisoprolol", "carvedilol", "metoprolol_succinate", "bisoprolol_fumarate", "nebivolol", "atenolol", "propranolol", "metoprolol_tartrate", "toprol", "zebeta", "coreg", "bystolic", "tenormin", "inderal"],
       "target": "beta_blocker",
       "default_severity": "moderate",
       "rule_body": {
@@ -74,6 +74,172 @@
         "related_observation_fields": ["heart_rate"]
       },
       "evidence_ref": "week7_dose_rule:BETA_BLOCKER_HR_REVIEW"
+    },
+    {
+      "dose_safety_warning_id": "dose_acei_arb_renal_potassium_review",
+      "drug_keys": ["enalapril", "lisinopril", "ramipril", "captopril", "quinapril", "benazepril", "fosinopril", "trandolapril", "perindopril", "moexipril", "losartan", "valsartan", "candesartan", "telmisartan", "olmesartan", "irbesartan", "azilsartan", "eprosartan", "vasotec", "zestril", "altace", "cozaar", "diovan", "atacand"],
+      "target": "ACEi_ARB",
+      "default_severity": "moderate",
+      "rule_body": {
+        "message": "ACEi/ARB therapy requires potassium and renal function review. Monitor for hyperkalemia and eGFR decline.",
+        "trigger": {
+          "condition_groups": [
+            [{ "field": "egfr", "operator": "missing_or_lt", "value": 30 }],
+            [{ "field": "potassium", "operator": "gte", "value": 5.0 }]
+          ]
+        },
+        "severity_rules": [
+          { "field": "potassium", "operator": "gte", "value": 5.5, "severity": "high" },
+          { "field": "egfr", "operator": "lt", "value": 30, "severity": "high" }
+        ],
+        "related_observation_fields": ["egfr", "potassium"]
+      },
+      "evidence_ref": "safety_warning:ACEI_ARB_RENAL_K_REVIEW"
+    },
+    {
+      "dose_safety_warning_id": "dose_arni_renal_hypotension_review",
+      "drug_keys": ["sacubitril/valsartan", "sacubitril valsartan", "entresto", "sacubitril_and_valsartan"],
+      "target": "ARNI",
+      "default_severity": "high",
+      "rule_body": {
+        "message": "ARNI initiation requires renal function, potassium, and blood pressure review. Ensure 36-hour ACEi washout if switching from ACEi.",
+        "trigger": {
+          "condition_groups": [
+            [{ "field": "egfr", "operator": "missing_or_lt", "value": 30 }],
+            [{ "field": "potassium", "operator": "gte", "value": 5.5 }],
+            [{ "field": "systolic_bp", "operator": "missing_or_lt", "value": 100 }]
+          ]
+        },
+        "severity_rules": [
+          { "field": "systolic_bp", "operator": "lt", "value": 90, "severity": "critical" }
+        ],
+        "related_observation_fields": ["egfr", "potassium", "systolic_bp"]
+      },
+      "evidence_ref": "safety_warning:ARNI_RENAL_BP_REVIEW"
+    },
+    {
+      "dose_safety_warning_id": "dose_sglt2i_renal_review",
+      "drug_keys": ["dapagliflozin", "empagliflozin", "canagliflozin", "ertugliflozin", "farxiga", "jardiance", "invokana", "steglatro"],
+      "target": "SGLT2i",
+      "default_severity": "moderate",
+      "rule_body": {
+        "message": "SGLT2i therapy requires eGFR assessment. Not recommended when eGFR is below approved threshold for indication.",
+        "trigger": {
+          "condition_groups": [
+            [{ "field": "egfr", "operator": "missing_or_lt", "value": 20 }]
+          ]
+        },
+        "severity_rules": [
+          { "field": "egfr", "operator": "lt", "value": 20, "severity": "high" }
+        ],
+        "related_observation_fields": ["egfr"]
+      },
+      "evidence_ref": "safety_warning:SGLT2I_RENAL_REVIEW"
+    },
+    {
+      "dose_safety_warning_id": "dose_anticoagulant_bleeding_risk",
+      "drug_keys": ["apixaban", "rivaroxaban", "edoxaban", "dabigatran", "warfarin", "eliquis", "xarelto", "savaysa", "pradaxa", "coumadin"],
+      "target": "anticoagulant",
+      "default_severity": "high",
+      "rule_body": {
+        "message": "Oral anticoagulants require bleeding risk assessment. Review HAS-BLED score and renal function.",
+        "trigger": {
+          "condition_groups": [
+            [{ "field": "creatinine", "operator": "missing" }],
+            [{ "field": "egfr", "operator": "missing" }]
+          ]
+        },
+        "severity_rules": [],
+        "related_observation_fields": ["creatinine", "egfr"]
+      },
+      "evidence_ref": "safety_warning:ANTICOAG_BLEEDING_RISK"
+    },
+    {
+      "dose_safety_warning_id": "dose_ivabradine_hr_review",
+      "drug_keys": ["ivabradine", "corlanor"],
+      "target": "ivabradine",
+      "default_severity": "high",
+      "rule_body": {
+        "message": "Ivabradine is indicated only when heart rate is ≥70 bpm. Contraindicated if heart rate <60 bpm or in atrial fibrillation.",
+        "trigger": {
+          "condition_groups": [
+            [{ "field": "heart_rate", "operator": "missing_or_lt", "value": 70 }]
+          ]
+        },
+        "severity_rules": [
+          { "field": "heart_rate", "operator": "lt", "value": 60, "severity": "critical" }
+        ],
+        "related_observation_fields": ["heart_rate"]
+      },
+      "evidence_ref": "safety_warning:IVABRADINE_HR_REVIEW"
+    },
+    {
+      "dose_safety_warning_id": "dose_antiarrhythmic_qt_review",
+      "drug_keys": ["amiodarone", "sotalol", "dofetilide", "cordarone", "betapace", "tikosyn"],
+      "target": "antiarrhythmic",
+      "default_severity": "high",
+      "rule_body": {
+        "message": "Antiarrhythmic drugs may prolong QT interval. Baseline and periodic ECG monitoring required.",
+        "trigger": {
+          "condition_groups": [
+            [{ "operator": "always" }]
+          ]
+        },
+        "severity_rules": [],
+        "related_observation_fields": []
+      },
+      "evidence_ref": "safety_warning:ANTIARRHYTHMIC_QT_REVIEW"
+    },
+    {
+      "dose_safety_warning_id": "dose_thiazide_electrolyte_review",
+      "drug_keys": ["hydrochlorothiazide", "chlorthalidone", "hctz", "thalitone", "hygroton", "hydrodiuril"],
+      "target": "thiazide_diuretic",
+      "default_severity": "moderate",
+      "rule_body": {
+        "message": "Thiazide diuretics can cause electrolyte abnormalities (hypokalemia, hyponatremia, hypomagnesemia) and hyperuricemia.",
+        "trigger": {
+          "condition_groups": [
+            [{ "operator": "always" }]
+          ]
+        },
+        "severity_rules": [],
+        "related_observation_fields": ["potassium", "sodium", "magnesium", "uric_acid"]
+      },
+      "evidence_ref": "safety_warning:THIAZIDE_ELECTROLYTE_REVIEW"
+    },
+    {
+      "dose_safety_warning_id": "dose_hydralazine_lupus_review",
+      "drug_keys": ["hydralazine", "hydralazine and isosorbide dinitrate", "biDil", "apresoline"],
+      "target": "hydralazine",
+      "default_severity": "moderate",
+      "rule_body": {
+        "message": "Hydralazine is associated with drug-induced lupus erythematosus (DIL) and peripheral neuropathy. Monitor for related symptoms.",
+        "trigger": {
+          "condition_groups": [
+            [{ "operator": "always" }]
+          ]
+        },
+        "severity_rules": [],
+        "related_observation_fields": []
+      },
+      "evidence_ref": "safety_warning:HYDRALAZINE_LUPUS_REVIEW"
+    },
+    {
+      "dose_safety_warning_id": "dose_amiodarone_multiorgan_review",
+      "drug_keys": ["amiodarone", "cordarone", "pacerone"],
+      "target": "amiodarone",
+      "default_severity": "high",
+      "rule_body": {
+        "message": "Amiodarone has significant multi-organ toxicity. Requires thyroid, pulmonary, hepatic, ophthalmic, and dermatologic monitoring.",
+        "trigger": {
+          "condition_groups": [
+            [{ "operator": "always" }]
+          ]
+        },
+        "severity_rules": [],
+        "related_observation_fields": []
+      },
+      "evidence_ref": "safety_warning:AMIODARONE_MULTIORGAN_REVIEW"
     }
   ]
 }

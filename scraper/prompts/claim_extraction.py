@@ -13,8 +13,15 @@ Return ONLY valid JSON with this shape:
       "conditions": {
         "egfr": {"op": "<|<=|>|>=", "value": 30},
         "potassium": {"op": ">", "value": 5.5},
-        "indication": "heart_failure|glycemic_control|hypertension|atrial_fibrillation|chronic_kidney_disease",
-        "diabetes_type": "type_1|type_2"
+        "creatinine": {"op": "<|<=|>|>=", "value": 1.5},
+        "systolic_bp": {"op": "<|<=|>|>=", "value": 100},
+        "heart_rate": {"op": "<|<=|>|>=", "value": 60},
+        "weight_kg": {"op": "<|<=|>|>=", "value": 70},
+        "indication": "heart_failure|glycemic_control|hypertension|atrial_fibrillation|chronic_kidney_disease|diabetes",
+        "diabetes_type": "type_1|type_2",
+        "hfref": true,
+        "atrial_fibrillation": true,
+        "race": "black"
       }
     }
   ]

@@ -253,6 +253,349 @@
         "Bleeding signs and drug/food interactions",
         "Maintain stable vitamin K intake"
       ]
+    },
+    {
+      "rule_id": "nebivolol_hf_titration",
+      "drug_keys": ["nebivolol", "bystolic"],
+      "drug_class": "beta_blocker",
+      "calculation_type": "fixed_titration",
+      "evidence_refs": ["nebivolol_label", "aha_acc_hfsa_2022_gdmt"],
+      "starting_dose": {"value": 2.5, "unit": "mg", "frequency": "once daily"},
+      "target_dose": {"value": 10, "unit": "mg", "frequency": "once daily"},
+      "step_multiplier": 2.0,
+      "step_interval_weeks": 2,
+      "hold_if": {"heart_rate_lt": 60, "systolic_bp_lt": 100},
+      "monitoring": ["Heart rate and blood pressure", "Symptoms of hypotension"]
+    },
+    {
+      "rule_id": "atenolol_hf_titration",
+      "drug_keys": ["atenolol", "tenormin"],
+      "drug_class": "beta_blocker",
+      "calculation_type": "fixed_titration",
+      "evidence_refs": ["atenolol_label", "aha_acc_hfsa_2022_gdmt"],
+      "starting_dose": {"value": 12.5, "unit": "mg", "frequency": "once daily"},
+      "target_dose": {"value": 50, "unit": "mg", "frequency": "once daily"},
+      "max_dose": {"value": 100, "unit": "mg", "frequency": "once daily"},
+      "step_multiplier": 2.0,
+      "step_interval_weeks": 2,
+      "hold_if": {"heart_rate_lt": 60, "systolic_bp_lt": 100},
+      "monitoring": ["Heart rate and blood pressure", "Renal function (renally cleared)"]
+    },
+    {
+      "rule_id": "propranolol_hf_titration",
+      "drug_keys": ["propranolol", "inderal"],
+      "drug_class": "beta_blocker",
+      "calculation_type": "weight_adjusted_target",
+      "evidence_refs": ["propranolol_label", "aha_acc_hfsa_2022_gdmt"],
+      "starting_dose": {"value": 10, "unit": "mg", "frequency": "twice daily"},
+      "target_dose_standard": {"value": 40, "unit": "mg", "frequency": "twice daily"},
+      "target_dose_high_weight": {"value": 80, "unit": "mg", "frequency": "twice daily"},
+      "weight_threshold_kg": 75,
+      "step_interval_weeks": 2,
+      "hold_if": {"heart_rate_lt": 55, "systolic_bp_lt": 100},
+      "monitoring": ["Heart rate, blood pressure", "Symptoms of bradycardia or hypotension"]
+    },
+    {
+      "rule_id": "ramipril_acei_titration",
+      "drug_keys": ["ramipril", "altace"],
+      "drug_class": "ACEi",
+      "calculation_type": "step_titration",
+      "evidence_refs": ["ramipril_label", "aha_acc_hfsa_2022_gdmt"],
+      "starting_dose": {"value": 1.25, "unit": "mg", "frequency": "once daily"},
+      "target_dose": {"value": 5, "unit": "mg", "frequency": "twice daily"},
+      "step_interval_weeks": 2,
+      "hold_if": {"systolic_bp_lt": 100, "potassium_gte": 5.5, "egfr_lt": 30},
+      "monitoring": ["Blood pressure", "Potassium", "Creatinine/eGFR within 1-2 weeks"]
+    },
+    {
+      "rule_id": "quinapril_acei_titration",
+      "drug_keys": ["quinapril", "accupril"],
+      "drug_class": "ACEi",
+      "calculation_type": "step_titration",
+      "evidence_refs": ["quinapril_label", "aha_acc_hfsa_2022_gdmt"],
+      "starting_dose": {"value": 5, "unit": "mg", "frequency": "once daily"},
+      "target_dose": {"value": 20, "unit": "mg", "frequency": "twice daily"},
+      "max_dose": {"value": 40, "unit": "mg", "frequency": "once daily"},
+      "step_interval_weeks": 2,
+      "hold_if": {"systolic_bp_lt": 100, "potassium_gte": 5.5, "egfr_lt": 30},
+      "monitoring": ["Blood pressure", "Potassium", "Creatinine/eGFR"]
+    },
+    {
+      "rule_id": "candesartan_arb_titration",
+      "drug_keys": ["candesartan", "candesartan cilexetil", "candesartan_cilexetil", "atacand"],
+      "drug_class": "ARB",
+      "calculation_type": "step_titration",
+      "evidence_refs": ["candesartan_label", "aha_acc_hfsa_2022_gdmt"],
+      "starting_dose": {"value": 4, "unit": "mg", "frequency": "once daily"},
+      "target_dose": {"value": 32, "unit": "mg", "frequency": "once daily"},
+      "step_interval_weeks": 2,
+      "hold_if": {"systolic_bp_lt": 100, "potassium_gte": 5.5, "egfr_lt": 30},
+      "monitoring": ["Blood pressure", "Potassium", "Renal function"]
+    },
+    {
+      "rule_id": "telmisartan_arb_titration",
+      "drug_keys": ["telmisartan", "micardis"],
+      "drug_class": "ARB",
+      "calculation_type": "step_titration",
+      "evidence_refs": ["telmisartan_label", "aha_acc_hfsa_2022_gdmt"],
+      "starting_dose": {"value": 20, "unit": "mg", "frequency": "once daily"},
+      "target_dose": {"value": 80, "unit": "mg", "frequency": "once daily"},
+      "step_interval_weeks": 2,
+      "hold_if": {"systolic_bp_lt": 100, "potassium_gte": 5.5, "egfr_lt": 30},
+      "monitoring": ["Blood pressure", "Potassium", "Renal function"]
+    },
+    {
+      "rule_id": "olmesartan_arb_titration",
+      "drug_keys": ["olmesartan", "olmesartan medoxomil", "olmesartan_medoxomil", "benicar"],
+      "drug_class": "ARB",
+      "calculation_type": "step_titration",
+      "evidence_refs": ["olmesartan_label", "aha_acc_hfsa_2022_gdmt"],
+      "starting_dose": {"value": 5, "unit": "mg", "frequency": "once daily"},
+      "target_dose": {"value": 20, "unit": "mg", "frequency": "once daily"},
+      "max_dose": {"value": 40, "unit": "mg", "frequency": "once daily"},
+      "step_interval_weeks": 2,
+      "hold_if": {"systolic_bp_lt": 100, "potassium_gte": 5.5, "egfr_lt": 30},
+      "monitoring": ["Blood pressure", "Potassium", "Renal function"]
+    },
+    {
+      "rule_id": "irbesartan_arb_titration",
+      "drug_keys": ["irbesartan", "avapro"],
+      "drug_class": "ARB",
+      "calculation_type": "step_titration",
+      "evidence_refs": ["irbesartan_label", "aha_acc_hfsa_2022_gdmt"],
+      "starting_dose": {"value": 75, "unit": "mg", "frequency": "once daily"},
+      "target_dose": {"value": 300, "unit": "mg", "frequency": "once daily"},
+      "step_interval_weeks": 2,
+      "hold_if": {"systolic_bp_lt": 100, "potassium_gte": 5.5, "egfr_lt": 30},
+      "monitoring": ["Blood pressure", "Potassium", "Renal function"]
+    },
+    {
+      "rule_id": "bumetanide_loop_diuretic",
+      "drug_keys": ["bumetanide", "bumex"],
+      "drug_class": "loop_diuretic",
+      "calculation_type": "congestion_range",
+      "evidence_refs": ["bumetanide_label", "aha_acc_hfsa_2022_diuretic"],
+      "dose_range": {"min": 0.5, "max": 4, "unit": "mg", "frequency": "once or twice daily"},
+      "furosemide_equivalent_ratio": 40,
+      "monitoring": ["Weight", "Volume status", "Electrolytes", "Renal function", "Blood pressure"]
+    },
+    {
+      "rule_id": "torsemide_loop_diuretic",
+      "drug_keys": ["torsemide", "demadex"],
+      "drug_class": "loop_diuretic",
+      "calculation_type": "congestion_range",
+      "evidence_refs": ["torsemide_label", "aha_acc_hfsa_2022_diuretic"],
+      "dose_range": {"min": 5, "max": 40, "unit": "mg", "frequency": "once or twice daily"},
+      "furosemide_equivalent_ratio": 20,
+      "monitoring": ["Weight", "Volume status", "Electrolytes", "Renal function", "Blood pressure"]
+    },
+    {
+      "rule_id": "ivabradine_hf_titration",
+      "drug_keys": ["ivabradine", "corlanor"],
+      "drug_class": "heart_rate_reducing",
+      "calculation_type": "fixed_titration",
+      "evidence_refs": ["ivabradine_label", "shift_hf_trial", "aha_acc_hfsa_2022_gdmt"],
+      "starting_dose": {"value": 5, "unit": "mg", "frequency": "twice daily"},
+      "target_dose": {"value": 7.5, "unit": "mg", "frequency": "twice daily"},
+      "hold_if": {"heart_rate_lt": 60, "atrial_fibrillation": true},
+      "monitoring": [
+        "Heart rate (evaluate after 2 weeks)",
+        "Atrial fibrillation symptoms",
+        "Visual disturbances (phosphenes)"
+      ]
+    },
+    {
+      "rule_id": "hydralazine_isosorbide_hf",
+      "drug_keys": ["hydralazine", "isosorbide dinitrate", "hydralazine and isosorbide dinitrate", "biDil"],
+      "drug_class": "vasodilator",
+      "calculation_type": "fixed_dose",
+      "evidence_refs": ["hydralazine_isosorbide_label", "a-heft_trial", "aha_acc_hfsa_2022_gdmt"],
+      "note": "Used as alternative when ACEi/ARB/ARNI not tolerated or as adjunct therapy in Black patients.",
+      "recommended_dose": {
+        "hydralazine": {"value": 37.5, "unit": "mg", "frequency": "3-4 times daily"},
+        "isosorbide_dinitrate": {"value": 20, "unit": "mg", "frequency": "3-4 times daily"}
+      },
+      "monitoring": ["Blood pressure", "Symptoms of hypotension", "Lupus-like syndrome (hydralazine)"]
+    },
+    {
+      "rule_id": "vericiguat_hf_titration",
+      "drug_keys": ["vericiguat", "verquvo"],
+      "drug_class": "sGC_stimulator",
+      "calculation_type": "step_titration",
+      "evidence_refs": ["vericiguat_label", "victoria_trial", "aha_acc_hfsa_2022_gdmt"],
+      "starting_dose": {"value": 2.5, "unit": "mg", "frequency": "once daily"},
+      "target_dose": {"value": 10, "unit": "mg", "frequency": "once daily"},
+      "step_interval_weeks": 2,
+      "hold_if": {"systolic_bp_lt": 100},
+      "monitoring": ["Blood pressure", "Symptoms of hypotension", "Anemia"]
+    },
+    {
+      "rule_id": "omecamtiv_mecarbil_hf",
+      "drug_keys": ["omecamtiv mecarbil", "CK-03774557"],
+      "drug_class": "myosin_activator",
+      "calculation_type": "weight_adjusted_fixed",
+      "evidence_refs": ["omecamtiv_label", "galactic_hf_trial"],
+      "dose_levels": [
+        {"weight_under_68_kg": {"value": 25, "unit": "mg", "frequency": "once daily"}},
+        {"weight_68_to_84_kg": {"value": 37.5, "unit": "mg", "frequency": "once daily"}},
+        {"weight_84_to_111_kg": {"value": 50, "unit": "mg", "frequency": "once daily"}},
+        {"weight_over_111_kg": {"value": 62.5, "unit": "mg", "frequency": "once daily"}}
+      ],
+      "monitoring": ["Troponin (may increase)", "Heart failure symptoms", "Blood pressure"]
+    },
+    {
+      "rule_id": "digoxin_af_rate_control",
+      "drug_keys": ["digoxin"],
+      "drug_class": "cardiac_glycoside",
+      "calculation_type": "crcl_bracket",
+      "evidence_refs": ["digoxin_label", "rate_control_af_guideline"],
+      "requires": ["age", "weight_kg", "creatinine"],
+      "af_dose": {"value": 0.125, "unit": "mg", "frequency": "once daily"},
+      "crcl_note": "Adjust for renal impairment; reduce or avoid in elderly with low muscle mass.",
+      "monitoring": ["Digoxin level", "Potassium", "Renal function", "Bradycardia or arrhythmia symptoms"]
+    },
+    {
+      "rule_id": "amiodarone_maintenance",
+      "drug_keys": ["amiodarone", "cordarone", "pacerone"],
+      "drug_class": "antiarrhythmic",
+      "calculation_type": "loading_then_fixed",
+      "evidence_refs": ["amiodarone_label", "af_antiarrhythmic_guideline"],
+      "loading_phase": {
+        "dose": {"value": 400, "unit": "mg", "frequency": "3 times daily"},
+        "duration_days": 5,
+        "then": {"value": 400, "unit": "mg", "frequency": "twice daily"},
+        "duration_days_2": 4
+      },
+      "maintenance_dose": {"value": 200, "unit": "mg", "frequency": "once daily"},
+      "monitoring": [
+        "Thyroid function (T3, T4, TSH at baseline and every 6 months)",
+        "Pulmonary function",
+        "Liver function",
+        "Eye exam",
+        "ECG",
+        "Blood pressure and heart rate"
+      ]
+    },
+    {
+      "rule_id": "sotalol_af_maintenance",
+      "drug_keys": ["sotalol", "betapace"],
+      "drug_class": "antiarrhythmic",
+      "calculation_type": "crcl_bracket",
+      "evidence_refs": ["sotalol_label", "af_antiarrhythmic_guideline"],
+      "requires": ["creatinine"],
+      "crcl_brackets": [
+        {"crcl_min": 60, "dose": {"value": 80, "unit": "mg", "frequency": "twice daily"}, "max_dose": {"value": 160, "unit": "mg", "frequency": "twice daily"}},
+        {"crcl_min": 30, "max": 59, "dose": {"value": 80, "unit": "mg", "frequency": "once daily"}, "max_dose": {"value": 160, "unit": "mg", "frequency": "once daily"}},
+        {"crcl_min": 0, "dose": null, "note": "Avoid sotalol in CrCl < 30 mL/min."}
+      ],
+      "monitoring": [
+        "ECG (QTc) before and during therapy",
+        "Renal function",
+        "Heart rate and blood pressure",
+        "Signs of proarrhythmia"
+      ]
+    },
+    {
+      "rule_id": "dofetilide_af_maintenance",
+      "drug_keys": ["dofetilide", "tikosyn"],
+      "drug_class": "antiarrhythmic",
+      "calculation_type": "crcl_bracket",
+      "evidence_refs": ["dofetilide_label", "af_antiarrhythmic_guideline"],
+      "requires": ["creatinine"],
+      "crcl_brackets": [
+        {"crcl_min": 60, "dose": {"value": 500, "unit": "mcg", "frequency": "twice daily"}},
+        {"crcl_min": 40, "max": 59, "dose": {"value": 250, "unit": "mcg", "frequency": "twice daily"}},
+        {"crcl_min": 20, "max": 39, "dose": {"value": 125, "unit": "mcg", "frequency": "twice daily"}},
+        {"crcl_min": 0, "dose": null, "note": "Contraindicated when CrCl < 20 mL/min."}
+      ],
+      "monitoring": [
+        "ECG (QTc) - baseline and after each dose adjustment",
+        "Renal function",
+        "Electrolytes (K+, Mg2+)",
+        "Signs of proarrhythmia"
+      ]
+    },
+    {
+      "rule_id": "flecainide_af_maintenance",
+      "drug_keys": ["flecainide", "tambocor"],
+      "drug_class": "antiarrhythmic",
+      "calculation_type": "weight_adjusted_fixed",
+      "evidence_refs": ["flecainide_label", "af_antiarrhythmic_guideline"],
+      "starting_dose": {"value": 50, "unit": "mg", "frequency": "twice daily"},
+      "target_dose": {"value": 100, "unit": "mg", "frequency": "twice daily"},
+      "max_dose_standard": {"value": 150, "unit": "mg", "frequency": "twice daily"},
+      "weight_threshold_kg": 70,
+      "max_dose_low_weight": {"value": 100, "unit": "mg", "frequency": "twice daily"},
+      "contraindicated_if": ["structural_heart_disease", "ischemic_heart_disease", "heart_failure_reduced"],
+      "monitoring": [
+        "ECG (PR, QRS, QTc)",
+        "Heart rate and blood pressure",
+        "Proarrhythmia assessment"
+      ]
+    },
+    {
+      "rule_id": "propafenone_af_maintenance",
+      "drug_keys": ["propafenone", "rhythmol"],
+      "drug_class": "antiarrhythmic",
+      "calculation_type": "weight_adjusted_fixed",
+      "evidence_refs": ["propafenone_label", "af_antiarrhythmic_guideline"],
+      "starting_dose": {"value": 150, "unit": "mg", "frequency": "3 times daily"},
+      "target_dose": {"value": 225, "unit": "mg", "frequency": "3 times daily"},
+      "max_dose": {"value": 300, "unit": "mg", "frequency": "3 times daily"},
+      "weight_threshold_kg": 70,
+      "contraindicated_if": ["structural_heart_disease", "ischemic_heart_disease", "heart_failure_reduced", "bronchospastic_asthma"],
+      "monitoring": [
+        "ECG (PR, QRS, QTc)",
+        "Liver function",
+        "Heart rate and blood pressure",
+        "Proarrhythmia assessment"
+      ]
+    },
+    {
+      "rule_id": "chlorthalidone_hypertension",
+      "drug_keys": ["chlorthalidone", "thalitone", "hygroton"],
+      "drug_class": "thiazide_diuretic",
+      "calculation_type": "step_titration",
+      "evidence_refs": ["chlorthalidone_label", "jnc_hypertension_guideline"],
+      "starting_dose": {"value": 12.5, "unit": "mg", "frequency": "once daily"},
+      "target_dose": {"value": 25, "unit": "mg", "frequency": "once daily"},
+      "max_dose": {"value": 50, "unit": "mg", "frequency": "once daily"},
+      "monitoring": [
+        "Blood pressure",
+        "Electrolytes (K+, Na+, Mg2+)",
+        "Renal function",
+        "Blood glucose",
+        "Uric acid"
+      ]
+    },
+    {
+      "rule_id": "hydrochlorothiazide_hypertension",
+      "drug_keys": ["hydrochlorothiazide", "hctz", "hydrodiuril"],
+      "drug_class": "thiazide_diuretic",
+      "calculation_type": "step_titration",
+      "evidence_refs": ["hctz_label", "jnc_hypertension_guideline"],
+      "starting_dose": {"value": 12.5, "unit": "mg", "frequency": "once daily"},
+      "target_dose": {"value": 25, "unit": "mg", "frequency": "once daily"},
+      "max_dose": {"value": 50, "unit": "mg", "frequency": "once daily"},
+      "monitoring": [
+        "Blood pressure",
+        "Electrolytes (K+, Na+, Mg2+)",
+        "Renal function",
+        "Blood glucose"
+      ]
+    },
+    {
+      "rule_id": "potassium_replacement",
+      "drug_keys": ["potassium chloride", "potassium", "k-dur", "klor-con"],
+      "drug_class": "electrolyte",
+      "calculation_type": "crcl_bracket",
+      "evidence_refs": ["potassium_label", "electrolyte_replacement_guideline"],
+      "requires": ["potassium_level", "creatinine"],
+      "crcl_brackets": [
+        {"crcl_min": 30, "dose_note": "KCl 20-40 mEq/day in divided doses"},
+        {"crcl_min": 0, "max": 29, "dose_note": "Use with caution; monitor closely"}
+      ],
+      "monitoring": ["Serum potassium", "ECG", "Renal function", "GI tolerance"]
     }
   ]
 }

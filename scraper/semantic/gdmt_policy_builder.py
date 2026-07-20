@@ -92,7 +92,10 @@ def _merge_policy_body(existing: dict[str, Any], incoming: dict[str, Any]) -> di
     merged = dict(existing)
     for key, value in incoming.items():
         if key == "guidance" and isinstance(value, dict):
-            guidance = dict(merged.get("guidance") or {})
+            existing_guidance = merged.get("guidance")
+            if not isinstance(existing_guidance, dict):
+                existing_guidance = {}
+            guidance = dict(existing_guidance)
             for guidance_key, guidance_value in value.items():
                 if isinstance(guidance_value, list) and isinstance(guidance.get(guidance_key), list):
                     combined = list(guidance.get(guidance_key) or [])

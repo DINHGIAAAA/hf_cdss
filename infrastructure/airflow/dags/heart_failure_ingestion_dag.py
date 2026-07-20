@@ -17,9 +17,30 @@ DATA_ROOT = f"{PROJECT_ROOT}/data/heart_failure"
 PYTHON = "python"
 PIPELINE_TIMEOUT_HOURS = int(os.environ.get("HF_CDSS_AIRFLOW_PIPELINE_TIMEOUT_HOURS", "48"))
 
-# Defaults — override via docker-compose env, not the Airflow trigger UI.
-SOURCES_REGISTRY = os.environ.get("HF_CDSS_SOURCES_REGISTRY", "sources/sources.example.json")
-SKIP_DOWNLOAD = os.environ.get("HF_CDSS_INGESTION_SKIP_DOWNLOAD", "true").lower() in {"1", "true", "yes"}
+# Defaults — check S3 for existing raw data before deciding to skip
+SOURCES_REGISTRY = os.environ.get("HF_CDSS_SOURCES_REGISTRY", f"{DATA_ROOT}/sources/sources.example.json")
+_AIRFLOW_HOME = os.environ.get("AIRFLOW_HOME", "/home/airflow")
+
+
+def _check_raw_data_exists():
+    """Check if raw data already exists in S3, if so skip download."""
+    try:
+        import subprocess
+        result = subprocess.run(
+            ["aws", "s3", "ls", "s3://hf-cdss-raw/heart_failure/"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            env={**os.environ, "AWS_ENDPOINT_URL": "http://localstack:4566"}
+        )
+        # If any files exist in the S3 prefix, skip download
+        return result.returncode == 0 and len(result.stdout.strip()) > 0
+    except Exception:
+        # If check fails, don't skip (run download)
+        return False
+
+
+SKIP_DOWNLOAD = _check_raw_data_exists()
 
 
 def data_command(command: str) -> str:
@@ -72,4 +93,15 @@ with DAG(
         ),
     )
 
-    download_sources >> run_kg_pipeline
+    upload_governance_catalogs = BashOperator(
+        task_id="upload_governance_catalogs",
+        execution_timeout=timedelta(minutes=10),
+        bash_command=(
+            f"{data_command(PYTHON + ' -m scraper.store.upload_governance_catalogs_to_s3 ')}"
+            "--bucket ${HF_CDSS_PROCESSED_BUCKET:-hf-cdss-processed} "
+            "--prefix ${HF_CDSS_S3_PREFIX:-heart_failure} "
+            "--endpoint-url ${HF_CDSS_S3_ENDPOINT_URL:-http://localstack:4566}"
+        ),
+    )
+
+    download_sources >> run_kg_pipeline >> upload_governance_catalogs

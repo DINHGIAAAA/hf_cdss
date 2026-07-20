@@ -21,6 +21,52 @@ RULE_WORTHY_TYPES = {
 
 HARD_BLOCK_ACTIONS = {"contraindicated", "avoid", "not_recommended"}
 
+# Heart failure and cardiology drug patterns for extracting drug names from guideline text
+HF_DRUG_PATTERNS_RULE = [
+    (r'\b(?:sacubitril/valsartan|Entresto)\b', 'sacubitril_valsartan'),
+    (r'\b(?:dapagliflozin|Forxiga)\b', 'dapagliflozin'),
+    (r'\b(?:empagliflozin|Jardiance)\b', 'empagliflozin'),
+    (r'\b(?:sotagliflozin|Inpefa)\b', 'sotagliflozin'),
+    (r'\bSGLT2[iI]\b', 'sglt2i'),
+    (r'\b(?:metoprolol|Lopressor|Toprol)\b', 'metoprolol'),
+    (r'\b(?:carvedilol|Coreg)\b', 'carvedilol'),
+    (r'\b(?:bisoprolol|Zebeta)\b', 'bisoprolol'),
+    (r'\b(?:lisinopril|Prinivil|Zestril)\b', 'lisinopril'),
+    (r'\b(?:enalapril|Vasotec)\b', 'enalapril'),
+    (r'\b(?:ramipril|Altace)\b', 'ramipril'),
+    (r'\bACE\s*[-]?I\b', 'ace_inhibitor'),
+    (r'\b(?:valsartan|Diovan)\b', 'valsartan'),
+    (r'\b(?:losartan|Cozaar)\b', 'losartan'),
+    (r'\b(?:candesartan|Atacand)\b', 'candesartan'),
+    (r'\bARB\b', 'arb'),
+    (r'\b(?:spironolactone|Aldactone)\b', 'spironolactone'),
+    (r'\b(?:eplerenone|Inspra)\b', 'eplerenone'),
+    (r'\bMRA\b', 'mra'),
+    (r'\b(?:furosemide|Lasix)\b', 'furosemide'),
+    (r'\b(?:bumetanide|Bumex)\b', 'bumetanide'),
+    (r'\b(?:torsemide|Demadex)\b', 'torsemide'),
+    (r'\b(?:hydralazine|Apresoline)\b', 'hydralazine'),
+    (r'\b(?:isosorbide dinitrate|Isordil)\b', 'isosorbide_dinitrate'),
+    (r'\b(?:digoxin|Lanoxin)\b', 'digoxin'),
+    (r'\b(?:warfarin|Coumadin)\b', 'warfarin'),
+    (r'\b(?:apixaban|Eliquis)\b', 'apixaban'),
+    (r'\b(?:rivaroxaban|Xarelto)\b', 'rivaroxaban'),
+    (r'\b(?:dabigatran|Pradaxa)\b', 'dabigatran'),
+    (r'\b(?:amiodarone|Cordarone)\b', 'amiodarone'),
+    (r'\b(?:vericiguat|Verquvo)\b', 'vericiguat'),
+    (r'\b(?:ivabradine|Coralan)\b', 'ivabradine'),
+]
+
+
+def _extract_drug_from_text(text: str) -> str | None:
+    """Extract heart failure drug name from text using patterns."""
+    import re
+    text_lower = text.lower()
+    for pattern, drug_name in HF_DRUG_PATTERNS_RULE:
+        if re.search(pattern, text_lower, re.IGNORECASE):
+            return drug_name
+    return None
+
 
 def slug(value: str) -> str:
     value = re.sub(r"[^a-zA-Z0-9]+", "_", value or "").strip("_").lower()
@@ -73,7 +119,11 @@ def build_rule_from_claim(claim: dict) -> dict | None:
     if claim_type not in RULE_WORTHY_TYPES:
         return None
 
+    # Try to get drug from claim, or from text as fallback
     drug = claim.get("drug")
+    if not drug:
+        # Try to extract drug from text for guideline sources
+        drug = _extract_drug_from_text(text)
     if not drug:
         return None
 
@@ -89,13 +139,21 @@ def build_rule_from_claim(claim: dict) -> dict | None:
     ):
         return None
 
+    # Relax condition requirements for guideline sources
+    source_type = claim.get("source_type", "")
+    is_guideline_source = source_type in ("guideline", "guideline_html")
+
     if not condition and claim_type not in {"contraindication", "drug_interaction", "population_constraint"}:
         if action not in HARD_BLOCK_ACTIONS:
-            return None
+            # For guideline sources, be more lenient and accept guideline_recommendation type
+            if not is_guideline_source:
+                return None
 
     if action == "review" and not ({"egfr", "potassium"} & set(condition)):
         if claim_type not in {"contraindication", "drug_interaction", "population_constraint"}:
-            return None
+            # For guideline sources with drug mentions, be more lenient
+            if not is_guideline_source:
+                return None
 
     source_refs = {
         "claim_id": claim.get("claim_id"),

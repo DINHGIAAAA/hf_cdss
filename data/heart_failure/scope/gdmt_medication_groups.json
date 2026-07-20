@@ -1,32 +1,116 @@
 [
   {
-    "group_id": "gdmt_arni_acei_arb",
-    "name": "Renin-angiotensin system inhibition",
-    "examples": ["sacubitril/valsartan", "enalapril", "lisinopril", "losartan", "valsartan"],
-    "week1_use": "Core HFrEF therapy class for future constraint and retrieval logic."
+    "group_id": "gdmt_arni",
+    "name": "Angiotensin receptor-neprilysin inhibitor (ARNI)",
+    "examples": ["sacubitril/valsartan", "entresto"],
+    "aliases": ["ARNI", "sacubitril valsartan", "LCZ696"],
+    "week1_use": "Core HFrEF therapy class. Requires 36-hour ACEi/ARB washout before initiation."
+  },
+  {
+    "group_id": "gdmt_acei",
+    "name": "ACE inhibitor",
+    "examples": ["enalapril", "lisinopril", "ramipril", "captopril", "quinapril", "benazepril", "fosinopril", "trandolapril", "perindopril", "moexipril"],
+    "aliases": ["ACE inhibitor", "ACEi", "ACE-inhibitor"],
+    "week1_use": "Core HFrEF therapy class for RAS blockade when ARNI not used."
+  },
+  {
+    "group_id": "gdmt_arb",
+    "name": "Angiotensin receptor blocker",
+    "examples": ["losartan", "valsartan", "candesartan", "telmisartan", "olmesartan", "irbesartan", "azilsartan", "eprosartan"],
+    "aliases": ["ARB", "Angiotensin receptor blocker"],
+    "week1_use": "Alternative RAS blockade when ACEi/ARNI not tolerated."
   },
   {
     "group_id": "gdmt_beta_blocker",
-    "name": "Evidence-based beta blocker",
-    "examples": ["bisoprolol", "carvedilol", "metoprolol succinate"],
+    "name": "Evidence-based beta blocker for HFrEF",
+    "examples": ["bisoprolol", "carvedilol", "metoprolol succinate", "nebivolol", "atenolol", "propranolol"],
+    "aliases": ["beta-blocker", "beta blocker", "BB"],
+    "note": "Only bisoprolol, carvedilol, and metoprolol succinate proven mortality benefit in HFrEF trials.",
     "week1_use": "Core HFrEF therapy class with blood pressure and heart-rate safety checks."
   },
   {
     "group_id": "gdmt_mra",
-    "name": "Mineralocorticoid receptor antagonist",
-    "examples": ["spironolactone", "eplerenone"],
+    "name": "Mineralocorticoid receptor antagonist (MRA)",
+    "examples": ["spironolactone", "eplerenone", "finerenone"],
+    "aliases": ["MRA", "aldosterone antagonist", "potassium-sparing diuretic"],
     "week1_use": "Core HFrEF therapy class requiring potassium and renal function constraints."
   },
   {
     "group_id": "gdmt_sglt2i",
     "name": "SGLT2 inhibitor",
-    "examples": ["dapagliflozin", "empagliflozin"],
+    "examples": ["dapagliflozin", "empagliflozin", "canagliflozin", "ertugliflozin"],
+    "aliases": ["SGLT2 inhibitor", "gliflozin", "flozin"],
+    "note": "Dapagliflozin and empagliflozin have HFrEF indication regardless of diabetes status.",
     "week1_use": "Core HFrEF therapy class requiring renal eligibility and diabetes-aware checks."
   },
   {
     "group_id": "symptom_loop_diuretic",
     "name": "Loop diuretic",
-    "examples": ["furosemide", "torsemide", "bumetanide"],
+    "examples": ["furosemide", "torsemide", "bumetanide", "ethacrynic acid"],
+    "aliases": ["loop diuretic", "furosemide", "Lasix", "bumex", "demadex"],
     "week1_use": "Symptom and congestion management class for later reasoning."
+  },
+  {
+    "group_id": "symptom_thiazide_diuretic",
+    "name": "Thiazide and thiazide-like diuretic",
+    "examples": ["hydrochlorothiazide", "chlorthalidone", "metolazone"],
+    "aliases": ["thiazide diuretic", "HCTZ", "HCT", "thiazide"],
+    "week1_use": "Adjunct diuretic therapy, often used with loop diuretics for diuretic resistance."
+  },
+  {
+    "group_id": "gdmt_vasodilator_combo",
+    "name": "Hydralazine/isosorbide dinitrate combination",
+    "examples": ["hydralazine/isosorbide dinitrate", "biDil"],
+    "aliases": ["hydralazine isosorbide", "BiDil", "H-ISDN"],
+    "week1_use": "Alternative for HFrEF when ACEi/ARB/ARNI not tolerated; recommended for self-identified Black patients."
+  },
+  {
+    "group_id": "gdmt_ivabradine",
+    "name": "If channel blocker (Ivabradine)",
+    "examples": ["ivabradine", "corlanor"],
+    "aliases": ["ivabradine", "Corlanor", "If inhibitor"],
+    "week1_use": "HFrEF with elevated resting heart rate despite beta-blocker therapy."
+  },
+  {
+    "group_id": "gdmt_vericiguat",
+    "name": "Soluble guanylate cyclase (sGC) stimulator",
+    "examples": ["vericiguat", "verquvo"],
+    "aliases": ["vericiguat", "Verquvo", "sGC stimulator"],
+    "week1_use": "HFrEF with recent HF hospitalization or IV diuretic use (high-risk HFrEF)."
+  },
+  {
+    "group_id": "gdmt_omecamtiv",
+    "name": "Cardiac myosin activator (Omecamtiv mecarbil)",
+    "examples": ["omecamtiv mecarbil"],
+    "aliases": ["omecamtiv mecarbil", "CK Est", "myosin activator"],
+    "week1_use": "HFrEF with reduced LVEF and elevated NT-proBNP; systolic dysfunction."
+  },
+  {
+    "group_id": "anticoagulant",
+    "name": "Oral anticoagulant",
+    "examples": ["apixaban", "rivaroxaban", "edoxaban", "dabigatran", "warfarin"],
+    "aliases": ["anticoagulant", "DOAC", "NOAC", "blood thinner", "eliquis", "xarelto", "savaysa", "pradaxa", "coumadin"],
+    "week1_use": "AF stroke prevention; dose adjustment by renal function and patient factors."
+  },
+  {
+    "group_id": "antiarrhythmic",
+    "name": "Antiarrhythmic drugs",
+    "examples": ["amiodarone", "sotalol", "dofetilide", "flecainide", "propafenone"],
+    "aliases": ["antiarrhythmic", "AAD", "rhythm control"],
+    "week1_use": "Rate or rhythm control in atrial fibrillation; contraindicated in some structural heart diseases."
+  },
+  {
+    "group_id": "cardiac_glycoside",
+    "name": "Cardiac glycoside",
+    "examples": ["digoxin", "lanoxin"],
+    "aliases": ["digoxin", "digitalis", "lanoxin"],
+    "week1_use": "AF rate control; symptom improvement in HFrEF (not mortality benefit)."
+  },
+  {
+    "group_id": "electrolyte",
+    "name": "Electrolyte replacement",
+    "examples": ["potassium chloride", "potassium", "magnesium sulfate"],
+    "aliases": ["potassium", "KCl", "electrolyte"],
+    "week1_use": "Electrolyte correction; monitor K+ especially with MRA use."
   }
 ]

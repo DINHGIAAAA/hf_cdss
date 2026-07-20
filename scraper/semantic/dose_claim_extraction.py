@@ -40,6 +40,49 @@ DOSE_SECTION_KEYWORDS = (
     "target dose",
 )
 
+# Extended keywords for heart failure dose detection
+DOSE_HF_KEYWORDS = (
+    "mg daily",
+    "mg twice",
+    "mg once",
+    "mg per day",
+    "mg bid",
+    "mg tid",
+    "mg qd",
+    "starting dose",
+    "target dose",
+    "maximum dose",
+    "maximum dose",
+    "renal dose",
+    "adjust dose",
+    "reduce dose",
+    "increase dose",
+    "50% of",
+    "25 mg",
+    "12.5 mg",
+    "6.25 mg",
+    "100 mg",
+    "200 mg",
+    "400 mg",
+    "37.5 mg",
+    "escalation",
+)
+
+# Heart failure drug class patterns for broader detection
+HF_DRUG_CLASS_PATTERNS = (
+    "beta blocker",
+    "ace inhibitor",
+    "acei",
+    "arb",
+    "arni",
+    "mra",
+    "sglt2",
+    "diuretic",
+    "hydralazine",
+    "nitrate",
+    "digoxin",
+)
+
 
 def _claim_id(record: dict, evidence: str, index: int) -> str:
     raw = f"{record.get('document_id')}|{record.get('section')}|dose|{index}|{evidence}"
@@ -170,11 +213,45 @@ def _build_structured_claim(record: dict, payload: dict[str, Any], index: int) -
 def is_dose_relevant_section(record: dict) -> bool:
     section = str(record.get("section") or record.get("source_section") or "").lower()
     text = str(record.get("text") or "").lower()
-    haystack = f"{section} {text[:400]}"
+    haystack = f"{section} {text[:600]}"  # Increased from 400 to 600 chars
+
+    # Check standard keywords
     if any(keyword in haystack for keyword in DOSE_SECTION_KEYWORDS):
         return True
+
+    # Check extended HF keywords
+    if any(keyword in haystack for keyword in DOSE_HF_KEYWORDS):
+        return True
+
+    # Check HF drug class patterns
+    for pattern in HF_DRUG_CLASS_PATTERNS:
+        if pattern in haystack:
+            # Check if this section also has recommendation/warning keywords
+            if any(kw in haystack for kw in ("recommended", "suggest", "should", "contraindicated", "avoid", "monitor", "adjust")):
+                return True
+
+    # Check metadata topics
     topics = (record.get("metadata") or {}).get("matched_important_topics") or []
-    return any(re.search(r"dose|dosage|titration|administration", str(topic), flags=re.I) for topic in topics)
+    if any(re.search(r"dose|dosage|titration|administration|heart failure", str(topic), flags=re.I) for topic in topics):
+        return True
+
+    # Check for specific HF drug mentions
+    hf_drugs = (
+        "metoprolol", "carvedilol", "bisoprolol",
+        "lisinopril", "enalapril", "ramipril", "captopril",
+        "valsartan", "losartan", "candesartan",
+        "sacubitril", "spironolactone", "eplerenone",
+        "dapagliflozin", "empagliflozin", "sotagliflozin",
+        "furosemide", "bumetanide", "torsemide",
+        "digoxin", "hydralazine", "isosorbide",
+        "warfarin", "apixaban", "rivaroxaban", "dabigatran",
+        "amiodarone", "sotalol",
+    )
+    for drug in hf_drugs:
+        if drug in haystack:
+            return True
+
+    return False
 
 
 def extract_structured_dose_claims_from_section(record: dict) -> list[dict]:

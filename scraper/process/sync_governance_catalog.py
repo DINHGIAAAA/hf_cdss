@@ -24,10 +24,25 @@ def _content_hash(content: dict[str, Any]) -> str:
     return hashlib.sha256(json.dumps(content, sort_keys=True).encode("utf-8")).hexdigest()
 
 
-def _usable_only(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    if any(row.get("safety_tier") for row in rows):
-        return [row for row in rows if row.get("safety_tier") == "usable_rules"]
-    return rows
+def _has_required_fields_for_sync(row: dict[str, Any], record_type: str) -> bool:
+    """Check if row has minimum required fields to be synced to Postgres."""
+    if record_type == "interaction_rules":
+        return bool(row.get("drug_set_a")) and bool(row.get("drug_set_b"))
+    if record_type == "dose_rules":
+        return bool(row.get("drug_keys")) and bool(row.get("calculation_type"))
+    if record_type == "gdmt_policies":
+        return bool(row.get("gdmt_policy_id"))
+    if record_type == "dose_safety_warnings":
+        return bool(row.get("dose_safety_warning_id"))
+    return True
+
+
+def _usable_only(rows: list[dict[str, Any]], record_type: str = "") -> list[dict[str, Any]]:
+    """Filter rows to sync - include usable_rules, needs_refinement, AND rejected_rules for admin review.
+
+    All rules are synced with status='draft' so admin can review and approve/reject.
+    """
+    return [row for row in rows if _has_required_fields_for_sync(row, record_type)]
 
 
 def _sync_versioned_rows(
@@ -254,12 +269,11 @@ def sync_dose_rules(rules_path: Path | None = None) -> dict[str, Any]:
         ),
     )
     synced = _sync_versioned_rows(
-        _usable_only(read_jsonl(resolved)),
+        _usable_only(read_jsonl(resolved), "dose_rules"),
         convert=_convert_dose_rule,
         record_id=lambda row: row["dose_rule_id"],
         get_latest=get_latest_dose_rule_version,
         insert=insert_dose_rule,
-        should_skip=lambda rule: not rule.get("drug_keys") or not rule.get("calculation_type"),
     )
     return {"status": "ok", "rules_path": str(resolved), "synced": synced}
 
@@ -280,12 +294,11 @@ def sync_interaction_rules(rules_path: Path | None = None) -> dict[str, Any]:
         ),
     )
     synced = _sync_versioned_rows(
-        _usable_only(read_jsonl(resolved)),
+        _usable_only(read_jsonl(resolved), "interaction_rules"),
         convert=_convert_interaction_rule,
         record_id=lambda row: row["interaction_rule_id"],
         get_latest=get_latest_interaction_rule_version,
         insert=insert_interaction_rule,
-        should_skip=lambda rule: not rule.get("drug_set_a") or not rule.get("drug_set_b"),
     )
     return {"status": "ok", "rules_path": str(resolved), "synced": synced}
 
@@ -303,7 +316,7 @@ def sync_gdmt_policies(policies_path: Path | None = None) -> dict[str, Any]:
         ),
     )
     synced = _sync_versioned_rows(
-        _usable_only(read_jsonl(resolved)),
+        _usable_only(read_jsonl(resolved), "gdmt_policies"),
         convert=_convert_gdmt_policy,
         record_id=lambda row: row["gdmt_policy_id"],
         get_latest=get_latest_gdmt_policy_version,
@@ -328,7 +341,7 @@ def sync_dose_safety_warnings(warnings_path: Path | None = None) -> dict[str, An
         ),
     )
     synced = _sync_versioned_rows(
-        _usable_only(read_jsonl(resolved)),
+        _usable_only(read_jsonl(resolved), "dose_safety_warnings"),
         convert=_convert_dose_safety_warning,
         record_id=lambda row: row["dose_safety_warning_id"],
         get_latest=get_latest_dose_safety_warning_version,

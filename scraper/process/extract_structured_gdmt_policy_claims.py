@@ -1,7 +1,8 @@
-from scraper.io.jsonl import read_jsonl, write_jsonl
+from __future__ import annotations
+
 """Extract structured GDMT policy claims from chunks via semantic LLM."""
 
-from __future__ import annotations
+from scraper.io.jsonl import read_jsonl, write_jsonl
 
 import argparse
 import json

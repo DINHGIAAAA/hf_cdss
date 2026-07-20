@@ -95,6 +95,7 @@ def build_interaction_rule_from_structured_claim(claim: dict[str, Any]) -> dict[
         "drug_set_a": set_a,
         "drug_set_b": set_b,
         "severity": severity,
+        "message": message,  # Top-level for classify_interaction_rules compatibility
         "rule_body": rule_body,
         "source_refs": [
             {

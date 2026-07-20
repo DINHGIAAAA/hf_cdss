@@ -8,6 +8,89 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+# Heart failure and cardiology drug patterns for extracting drug names from guideline text
+HF_DRUG_PATTERNS = [
+    # ARNI
+    (r'\b(?:sacubitril/valsartan|Entresto|lusinapan|LCZ696)\b', 'sacubitril_valsartan'),
+    # SGLT2i
+    (r'\b(?:dapagliflozin|Forxiga)\b', 'dapagliflozin'),
+    (r'\b(?:empagliflozin|Jardiance)\b', 'empagliflozin'),
+    (r'\b(?:sotagliflozin|Inpefa|Zynquista)\b', 'sotagliflozin'),
+    (r'\b(?:canagliflozin|Invokana)\b', 'canagliflozin'),
+    (r'\bSGLT2[iI]\b', 'sglt2i'),  # Class reference
+    # Beta blockers
+    (r'\b(?:metoprolol(?: succinate| tartrate)?|Lopressor|Toprol)\b', 'metoprolol'),
+    (r'\b(?:carvedilol|Coreg)\b', 'carvedilol'),
+    (r'\b(?:bisoprolol|Zebeta)\b', 'bisoprolol'),
+    (r'\bbisoprolol/hydrochlorothiazide\b', 'bisoprolol_hctz'),
+    # ACEi
+    (r'\b(?:lisinopril|Prinivil|Zestril)\b', 'lisinopril'),
+    (r'\b(?:enalapril|Vasotec)\b', 'enalapril'),
+    (r'\b(?:ramipril|Altace)\b', 'ramipril'),
+    (r'\b(?:captopril|Capoten)\b', 'captopril'),
+    (r'\bACE\s*[-]?I\b', 'ace_inhibitor'),
+    # ARB
+    (r'\b(?:valsartan|Diovan)\b', 'valsartan'),
+    (r'\b(?:losartan|Cozaar)\b', 'losartan'),
+    (r'\b(?:candesartan|Atacand)\b', 'candesartan'),
+    (r'\b(?:olmesartan|Benicar)\b', 'olmesartan'),
+    (r'\bARB\b', 'arb'),
+    # MRA
+    (r'\b(?:spironolactone|Aldactone)\b', 'spironolactone'),
+    (r'\b(?:eplerenone|Inspra)\b', 'eplerenone'),
+    (r'\bmineralocorticoid receptor antagonist\b', 'mra'),
+    (r'\bMRA\b', 'mra'),
+    # Diuretics
+    (r'\b(?:furosemide|Lasix)\b', 'furosemide'),
+    (r'\b(?:bumetanide|Bumex)\b', 'bumetanide'),
+    (r'\b(?:torsemide|Demadex)\b', 'torsemide'),
+    (r'\b(?:hydrochlorothiazide|HCTZ)\b', 'hydrochlorothiazide'),
+    (r'\b(?:chlorthalidone)\b', 'chlorthalidone'),
+    (r'\bloop diuretic\b', 'loop_diuretic'),
+    # Hydralazine/Nitrate
+    (r'\b(?:hydralazine|Apresoline)\b', 'hydralazine'),
+    (r'\b(?:isosorbide dinitrate|Isordil)\b', 'isosorbide_dinitrate'),
+    (r'\bhydralazine[\s-]and[\s-]isosorbide\b', 'hydralazine_isosorbide'),
+    # Cardiac glycosides
+    (r'\b(?:digoxin|Lanoxin)\b', 'digoxin'),
+    # Anticoagulants
+    (r'\b(?:warfarin|Coumadin|Jantoven)\b', 'warfarin'),
+    (r'\b(?:apixaban|Eliquis)\b', 'apixaban'),
+    (r'\b(?:rivaroxaban|Xarelto)\b', 'rivaroxaban'),
+    (r'\b(?:dabigatran|Pradaxa)\b', 'dabigatran'),
+    (r'\b(?:edoxaban|Savaysa)\b', 'edoxaban'),
+    # Antiplatelets
+    (r'\b(?:aspirin|Bayer|Ecotrin)\b', 'aspirin'),
+    (r'\b(?:clopidogrel|Plavix)\b', 'clopidogrel'),
+    (r'\b(?:prasugrel|Effient)\b', 'prasugrel'),
+    (r'\b(?:ticagrelor|Brilinta)\b', 'ticagrelor'),
+    # Statins
+    (r'\b(?:atorvastatin|Lipitor)\b', 'atorvastatin'),
+    (r'\b(?:rosuvastatin|Crestor)\b', 'rosuvastatin'),
+    (r'\b(?:simvastatin|Zocor)\b', 'simvastatin'),
+    # Antiarrhythmics
+    (r'\b(?:amiodarone|Cordarone)\b', 'amiodarone'),
+    (r'\b(?:sotalol|Betapace)\b', 'sotalol'),
+    # Iron
+    (r'\b(?:ferric carboxymaltose|Injecdfer)\b', 'ferric_carboxymaltose'),
+    (r'\b(?:iron sucrose|Venofer)\b', 'iron_sucrose'),
+    # Vericiguat
+    (r'\b(?:vericiguat|Verquvo)\b', 'vericiguat'),
+    # Omecamtiv
+    (r'\b(?:omecamtiv mecarbil|CK 037825|AMC|meacarb)\b', 'omecamtiv_mecarbil'),
+    # Ivabradine
+    (r'\b(?:ivabradine|Coralan)\b', 'ivabradine'),
+]
+
+
+def extract_drug_from_text(text: str) -> str | None:
+    """Extract heart failure drug name from guideline text using patterns."""
+    text_lower = text.lower()
+    for pattern, drug_name in HF_DRUG_PATTERNS:
+        if re.search(pattern, text_lower, re.IGNORECASE):
+            return drug_name
+    return None
+
 CLAIM_PATTERNS = {
     "contraindication": (
         "contraindicated",
@@ -139,16 +222,34 @@ def create_claim_regex(record: dict, sentence: str, index: int) -> dict | None:
         return None
 
     metadata = record.get("metadata") or {}
+    source_type = record.get("source_type", "")
+
+    # For drug_label sources, use the drug from metadata
+    # For guideline sources, try to extract drug from text
+    drug = None
+    if source_type == "drug_label":
+        drug = metadata.get("drug")
+        if not drug:
+            # drug_label without drug = general monitoring, not useful for rules
+            return None
+    else:
+        # For guidelines, extract drug from the sentence/text
+        drug = extract_drug_from_text(sentence)
+        if not drug:
+            # Also try the full text of the chunk for context
+            drug = extract_drug_from_text(record.get("text", ""))
+
     output = {
         "claim_id": claim_id(record, sentence, index),
         "document_id": metadata.get("source_id") or record.get("document_id"),
-        "source_type": record.get("source_type"),
+        "source_type": source_type,
         "claim": sentence,
         "claim_type": claim_type,
         "source_section": record.get("section"),
         "evidence": sentence,
-        "confidence": confidence(sentence, claim_type, record.get("source_type", "")),
+        "confidence": confidence(sentence, claim_type, source_type),
         "conditions": {},
+        "drug": drug,
         "metadata": {
             "source_id": metadata.get("source_id") or record.get("document_id"),
             "source": metadata.get("source"),
@@ -163,13 +264,7 @@ def create_claim_regex(record: dict, sentence: str, index: int) -> dict | None:
         },
     }
 
-    if record.get("source_type") == "drug_label":
-        drug = metadata.get("drug")
-        if drug:
-            output["drug"] = drug
-        else:
-            output["drug"] = None
-            output["claim_type"] = "general_monitoring"
+    if source_type == "drug_label":
         output["metadata"]["published_date"] = metadata.get("published_date")
         output["metadata"]["setid"] = metadata.get("setid")
     else:
