@@ -6,7 +6,7 @@ import threading
 import time
 
 from app.core.config import settings
-from app.modules.citation_validation.service import validate_citations
+from app.modules.citation_validation.service import apply_citation_guardrails, validate_citations
 from app.modules.evidence_linking.service import attach_linked_evidence
 from app.modules.graphrag.service import build_graphrag_context, build_graphrag_context_async
 from app.modules.reasoning.service import build_recommendation
@@ -14,11 +14,13 @@ from app.modules.verification_agents.llm_runtime import run_llm_agent
 from app.modules.verification_agents.tools import AGENT_TOOL_NAMES, build_agent_tools
 from app.schemas.graphrag import (
     AgentResult,
+    CitationValidation,
     GraphRAGContextRequest,
     GraphRAGContextResponse,
     VerificationRequest,
     VerificationResponse,
 )
+from app.schemas.patient import PatientProfile
 from app.schemas.recommendation import RecommendationRequest, RecommendationResponse
 
 
@@ -126,16 +128,30 @@ def guideline_alignment_agent(response: RecommendationResponse) -> AgentResult:
     )
 
 
-def citation_validator_agent(response: RecommendationResponse, context: GraphRAGContextResponse) -> AgentResult:
-    validation = validate_citations(response, context)
+def citation_validator_agent(
+    response: RecommendationResponse,
+    context: GraphRAGContextResponse,
+    *,
+    patient: PatientProfile | None = None,
+    citation_validation: CitationValidation | None = None,
+) -> AgentResult:
+    validation = citation_validation or validate_citations(response, context, patient=patient)
     missing = [item for item in validation.supports if item.evidence_status == "missing"]
     weak = [item for item in validation.supports if item.evidence_status == "weak"]
     refs = [ref for item in validation.supports for ref in item.evidence_refs][:8]
+    rec_status = validation.recommendation_status or validation.status
+    safety_status = validation.safety_status
+    detail = f" Recommendations={rec_status}"
+    if safety_status:
+        detail += f"; safety={safety_status}"
     if missing:
         return AgentResult(
             agent_name="citation_validator_agent",
             verdict="warning",
-            message=f"{len(missing)} recommendation or safety item(s) have no supporting retrieved citation.",
+            message=(
+                f"{len(missing)} recommendation or safety item(s) have no supporting retrieved citation."
+                f"{detail}."
+            ),
             evidence_refs=refs,
             tools_used=["validate_citations"],
         )
@@ -143,14 +159,14 @@ def citation_validator_agent(response: RecommendationResponse, context: GraphRAG
         return AgentResult(
             agent_name="citation_validator_agent",
             verdict="warning",
-            message=f"{len(weak)} recommendation or safety item(s) have weak citation coverage.",
+            message=f"{len(weak)} recommendation or safety item(s) have weak citation coverage.{detail}.",
             evidence_refs=refs,
             tools_used=["validate_citations"],
         )
     return AgentResult(
         agent_name="citation_validator_agent",
         verdict="pass",
-        message="All recommendation and safety items have retrieved citation support.",
+        message=f"All recommendation and safety items have retrieved citation support.{detail}.",
         evidence_refs=refs,
         tools_used=["validate_citations"],
     )
@@ -385,12 +401,22 @@ async def verify_recommendation(
             )
         )
 
+    citation_validation = validate_citations(response, context, patient=request.patient)
+
     fallbacks: list[tuple[str, AgentResult]] = [
         ("safety_agent", safety_agent(response)),
         ("missing_data_agent", missing_data_agent(response)),
         ("evidence_agent", evidence_agent(request, response, context)),
         ("guideline_alignment_agent", guideline_alignment_agent(response)),
-        ("citation_validator_agent", citation_validator_agent(response, context)),
+        (
+            "citation_validator_agent",
+            citation_validator_agent(
+                response,
+                context,
+                patient=request.patient,
+                citation_validation=citation_validation,
+            ),
+        ),
     ]
 
     llm_agents = _llm_agent_names()
@@ -411,8 +437,8 @@ async def verify_recommendation(
         final_result = final_fallback
     agent_results.append(final_result)
 
-    citation_validation = validate_citations(response, context, patient=request.patient)
     enriched_response, prioritized_context = attach_linked_evidence(response, context, citation_validation)
+    _ = apply_citation_guardrails(enriched_response, citation_validation)
 
     result = VerificationResponse(
         case_id=request.patient.case_id,

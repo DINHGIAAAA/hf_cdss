@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from app.modules.citation_validation.service import source_link_for_chunk
+from app.modules.citation_validation.links import source_link_for_chunk
 from app.modules.graphrag.service import load_chunks
 from app.schemas.clinical import Constraint
 from app.schemas.graphrag import CitationValidation, EvidenceChunk, GraphRAGContextResponse
@@ -29,19 +29,9 @@ def chunk_by_id(chunk_id: str) -> dict | None:
 
 
 def evidence_chunk_from_record(record: dict) -> EvidenceChunk:
-    metadata = record.get("metadata") or {}
-    chunk = EvidenceChunk(
-        chunk_id=record["chunk_id"],
-        document_id=record.get("document_id", ""),
-        source_type=record.get("source_type", ""),
-        section=record.get("section"),
-        text=record.get("text", "")[:900],
-        score=1.0,
-        metadata=metadata,
-        source_url=metadata.get("source_url"),
-        page=metadata.get("page") or metadata.get("page_start"),
-    )
-    return chunk.model_copy(update={"source_link": source_link_for_chunk(chunk)})
+    from app.modules.citation_validation.links import evidence_chunk_from_record as _from_record
+
+    return _from_record(record)
 
 
 def hydrate_constraint(constraint: Constraint, rule_metadata: dict | None = None) -> Constraint:

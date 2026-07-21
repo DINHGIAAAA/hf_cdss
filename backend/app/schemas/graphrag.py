@@ -78,15 +78,19 @@ class CitationSupport(BaseModel):
     message: str
     required_terms: list[str] = Field(default_factory=list)
     matched_terms: list[str] = Field(default_factory=list)
+    unmatched_terms: list[str] = Field(default_factory=list)
     evidence_refs: list[str] = Field(default_factory=list)
     source_links: list[str] = Field(default_factory=list)
     evidence_verdict: str | None = None
     confidence: float | None = None
     quality_score: float | None = None
+    explanation: str | None = None
 
 
 class CitationValidation(BaseModel):
     status: str
+    recommendation_status: str | None = None
+    safety_status: str | None = None
     supports: list[CitationSupport] = Field(default_factory=list)
 
 

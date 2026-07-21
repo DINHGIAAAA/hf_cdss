@@ -19,6 +19,7 @@ from app.modules.datastores.postgres import (
     write_audit_event,
 )
 from app.modules.explanation.llm_service import build_llm_answer, stream_llm_answer
+from app.modules.citation_validation.service import apply_citation_guardrails
 from app.modules.evidence_linking.service import collect_constraint_chunk_ids, enrich_recommendation_evidence
 from app.modules.missing_fields.service import build_missing_fields_prompt, check_missing_fields
 from app.modules.reasoning.service import build_recommendation
@@ -397,6 +398,7 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
         prefetched_context=await graphrag_prefetch,
     )
     recommendation = enrich_recommendation_evidence(recommendation, verification.citation_validation)
+    recommendation = apply_citation_guardrails(recommendation, verification.citation_validation)
     tool_outputs.append({"tool": "recommendation", "result": recommendation.model_dump(mode="json")})
     yield _sse("recommendation_ready", recommendation.model_dump(mode="json"))
     tool_outputs.append({"tool": "verification", "result": verification.model_dump(mode="json")})
@@ -562,6 +564,7 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
         prefetched_context=graphrag_context,
     )
     recommendation = enrich_recommendation_evidence(recommendation, verification.citation_validation)
+    recommendation = apply_citation_guardrails(recommendation, verification.citation_validation)
     llm_answer = await build_llm_answer(
         LLMAnswerRequest(
             user_input=request.message,
