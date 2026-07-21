@@ -82,21 +82,32 @@ def build_interaction_rule_from_structured_claim(claim: dict[str, Any]) -> dict[
         severity = "moderate"
 
     rule_id = interaction_rule_id([",".join(sorted(set_a)), ",".join(sorted(set_b)), message[:60]])
+    monitoring = [m for m in list(claim.get("monitoring") or []) if str(m).strip().lower() not in {"", "string"}]
     rule_body = {
         "message": message,
         "action": claim.get("action") or "review",
         "target": claim.get("target") or _infer_target(set_a, set_b),
         "escalation": list(claim.get("escalation") or []),
-        "monitoring": list(claim.get("monitoring") or []),
+        "monitoring": monitoring,
     }
+
+    evidence_ref = claim.get("evidence_ref")
+    if not evidence_ref:
+        doc = claim.get("document_id")
+        if claim.get("source_type") == "drug_label" and doc:
+            evidence_ref = f"fda_label:{doc}:drug_interactions"
+        else:
+            evidence_ref = claim.get("claim_id")
 
     return {
         "rule_id": rule_id,
+        "interaction_rule_id": rule_id,
         "drug_set_a": set_a,
         "drug_set_b": set_b,
         "severity": severity,
         "message": message,  # Top-level for classify_interaction_rules compatibility
         "rule_body": rule_body,
+        "evidence_ref": evidence_ref,
         "source_refs": [
             {
                 "claim_id": claim.get("claim_id"),
@@ -110,6 +121,7 @@ def build_interaction_rule_from_structured_claim(claim: dict[str, Any]) -> dict[
         ],
         "extraction_method": (claim.get("metadata") or {}).get("extraction_method", "llm_structured_interaction"),
         "source_confidence": claim.get("confidence"),
+        "partner_matched": bool(((claim.get("metadata") or {}).get("partner_resolve") or {}).get("matched", True)),
     }
 
 

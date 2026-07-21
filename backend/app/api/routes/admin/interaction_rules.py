@@ -67,6 +67,7 @@ class BulkApproveRequest(BaseModel):
     target: str | None = None
     safety_tier: str | None = None
     q: str | None = None
+    extraction_method: str | None = None
     limit: int = Field(default=100, ge=1, le=200)
     dry_run: bool = Field(default=False, description="Preview candidate ids without approving")
 
@@ -134,10 +135,11 @@ def list_interaction_rules(
     target: str | None = Query(default=None),
     safety_tier: str | None = Query(default=None),
     q: str | None = Query(default=None),
+    extraction_method: str | None = Query(default=None),
     limit: int = Query(default=100, ge=1, le=500),
     _: AdminUser = Depends(require_admin_reader),
 ) -> InteractionRuleListResponse:
-    has_filters = any([severity, target, safety_tier, q])
+    has_filters = any([severity, target, safety_tier, q, extraction_method])
     if has_filters or status:
         items_raw = read_interaction_rules_filtered(
             status=status,
@@ -145,6 +147,7 @@ def list_interaction_rules(
             target=target,
             safety_tier=safety_tier,
             q=q,
+            extraction_method=extraction_method,
             limit=limit,
         )
     else:
@@ -175,6 +178,7 @@ def bulk_approve_interaction_rules_endpoint(
         target=payload.target,
         safety_tier=payload.safety_tier,
         q=payload.q,
+        extraction_method=payload.extraction_method,
         limit=payload.limit,
         dry_run=payload.dry_run,
     )

@@ -5,19 +5,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from app.modules.dose_calculator.rule_validation import validate_bundle_file
-
 BUNDLED_CATALOGS = [
     {
         "path": Path("app/modules/constraint_builder/rules/constraints_v1.json"),
         "list_key": None,
         "id_key": "constraint_id",
-        "min_count": 1,
-    },
-    {
-        "path": Path("app/modules/dose_calculator/rules/hf_dose_rules_v1.json"),
-        "list_key": "rules",
-        "id_key": "rule_id",
         "min_count": 1,
     },
     {
@@ -59,5 +51,12 @@ def test_bundled_fallback_catalogs_are_present_and_valid() -> None:
             assert catalog["id_key"] in item and item[catalog["id_key"]], (
                 f"{path.name} item missing {catalog['id_key']}"
             )
-        if catalog["path"].parts[-2:] == ("rules", "hf_dose_rules_v1.json"):
-            validate_bundle_file(path, strict=True)
+
+
+def test_fda_label_dose_source_is_available() -> None:
+    from app.modules.dose_calculation import dose_source_version, get_available_drugs
+
+    drugs = get_available_drugs()
+    assert dose_source_version() == "fda_xml_labels"
+    assert len(drugs) >= 1
+    assert any(d.get("drug_key") == "eplerenone" for d in drugs)

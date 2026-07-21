@@ -117,15 +117,21 @@ def bulk_approve_interaction_rules(
     target: str | None = None,
     safety_tier: str | None = None,
     q: str | None = None,
+    extraction_method: str | None = None,
     limit: int = 100,
     dry_run: bool = False,
 ) -> dict[str, Any]:
+    # When approving by filter (no explicit ids), default to usable_rules only.
+    effective_tier = safety_tier
+    if not rule_ids and not safety_tier:
+        effective_tier = "usable_rules"
     ids = list_draft_interaction_rule_ids(
         rule_ids=rule_ids,
         severity=severity,
         target=target,
-        safety_tier=safety_tier,
+        safety_tier=effective_tier,
         q=q,
+        extraction_method=extraction_method,
         limit=limit,
     )
     if dry_run:

@@ -99,12 +99,6 @@ class Settings(BaseSettings):
     verification_cache_enabled: bool = True
     verification_cache_ttl_seconds: int = 300
     verification_cache_max_entries: int = 128
-    dose_calculator_enabled: bool = True
-    dose_rules_active_bundle_version: str = "v1"
-    dose_rules_bundle_path: str | None = None
-    dose_rules_bundle_dir: str | None = None
-    dose_rules_validation_strict: bool = True
-    dose_rules_cache_ttl_seconds: int = 300
     interaction_rules_cache_ttl_seconds: int = 300
     gdmt_policy_cache_ttl_seconds: int = 300
     dose_safety_warnings_cache_ttl_seconds: int = 300

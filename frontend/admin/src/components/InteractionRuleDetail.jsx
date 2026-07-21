@@ -90,6 +90,8 @@ export function InteractionRuleDetail({ rule, onClose, onAction, actionLoading, 
           <dd>{rule.evidence_ref || "—"}</dd>
           <dt>Source</dt>
           <dd>{rule.source}</dd>
+          <dt>Extraction</dt>
+          <dd>{(rule.metadata && rule.metadata.extraction_method) || "—"}</dd>
         </dl>
 
         {(body.monitoring || []).length > 0 && (
@@ -112,11 +114,18 @@ export function InteractionRuleDetail({ rule, onClose, onAction, actionLoading, 
 
         {(rule.clinical_sources || []).length > 0 && (
           <section>
-            <h3>Clinical sources</h3>
+            <h3>Clinical sources / quotes</h3>
             <ul className="source-list">
               {rule.clinical_sources.map((src, i) => (
                 <li key={src.claim_id || src.document_id || i}>
-                  {src.evidence || src.source_section || src.document_id || "Source claim"}
+                  <div>
+                    <strong>{src.document_id || "source"}</strong>
+                    {src.source_type ? ` · ${src.source_type}` : ""}
+                    {src.source_section ? ` · ${src.source_section}` : ""}
+                  </div>
+                  <blockquote style={{ margin: "0.35rem 0 0", opacity: 0.9 }}>
+                    {src.evidence || "No quote captured"}
+                  </blockquote>
                 </li>
               ))}
             </ul>

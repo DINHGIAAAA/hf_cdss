@@ -1,41 +1,29 @@
 {
-  "version": 5,
-  "notes": "Enriched curated sources for HF CDSS ingestion: HF guidelines, comorbidity guidelines, and GDMT/safety drug labels to support chunking, hybrid retrieval, and rerank.",
+  "version": 6,
+  "notes": "Curated HF CDSS sources: cardiology/comorbidity guidelines synced to on-disk raw/guidelines files, plus FDA DailyMed drug_label_xml entries for dose extraction.",
   "sources": [
     {
-      "source_id": "aha_acc_hfsa_2022_hf_guideline",
-      "title": "2022 AHA/ACC/HFSA Guideline for the Management of Heart Failure",
+      "source_id": "acc_aha_2019_primary_prevention_guideline",
+      "title": "2019 ACC/AHA Guideline on the Primary Prevention of Cardiovascular Disease",
       "source_type": "guideline_html",
       "download_strategy": "direct_url",
-      "publisher": "ACC/AHA/HFSA",
-      "topic": "heart_failure",
+      "publisher": "ACC/AHA",
+      "topic": "ascvd_prevention",
       "artifact_kind": "html",
-      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC9238257/",
-      "target_path": "raw/guidelines/heart_failure/2022 AHA ACC HFSA Heart Failure Guideline.html",
+      "url": "https://www.ahajournals.org/doi/10.1161/CIR.0000000000000678",
+      "target_path": "raw/guidelines/ascvd_prevention/2019 ACC AHA Primary Prevention Guideline.html",
       "license_note": "Official publisher material. Verify terms before redistribution."
     },
     {
-      "source_id": "esc_2021_hf_guideline",
-      "title": "2021 ESC Guidelines for the diagnosis and treatment of acute and chronic heart failure",
-      "source_type": "guideline_html",
+      "source_id": "esc_2021_cvd_prevention_guideline",
+      "title": "2021 ESC Guidelines on cardiovascular disease prevention in clinical practice",
+      "source_type": "guideline_pdf",
       "download_strategy": "direct_url",
-      "publisher": "European Society of Cardiology",
-      "topic": "heart_failure",
-      "artifact_kind": "html",
-      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC8490362/",
-      "target_path": "raw/guidelines/heart_failure/2021 ESC Heart Failure Guidelines.html",
-      "license_note": "Official publisher material. Verify terms before redistribution."
-    },
-    {
-      "source_id": "kdigo_2024_ckd_guideline",
-      "title": "2024 KDIGO Clinical Practice Guideline for the Evaluation and Management of Chronic Kidney Disease",
-      "source_type": "guideline_html",
-      "download_strategy": "direct_url",
-      "publisher": "KDIGO",
-      "topic": "ckd",
-      "artifact_kind": "html",
-      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC11146365/",
-      "target_path": "raw/guidelines/ckd/2024 KDIGO CKD Guideline.html",
+      "publisher": "ESC",
+      "topic": "ascvd_prevention",
+      "artifact_kind": "pdf",
+      "url": "https://academic.oup.com/eurheartj/article/42/34/3227/6358713",
+      "target_path": "raw/guidelines/ascvd_prevention/2021 ESC CVD Prevention Guidelines.pdf",
       "license_note": "Official publisher material. Verify terms before redistribution."
     },
     {
@@ -53,397 +41,421 @@
     {
       "source_id": "esc_2024_af_guideline",
       "title": "2024 ESC Guidelines for the Management of Atrial Fibrillation",
-      "source_type": "guideline_html",
+      "source_type": "guideline_pdf",
       "download_strategy": "direct_url",
-      "publisher": "European Society of Cardiology",
+      "publisher": "ESC",
       "topic": "atrial_fibrillation",
-      "artifact_kind": "html",
+      "artifact_kind": "pdf",
       "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC11379312/",
-      "target_path": "raw/guidelines/atrial_fibrillation/2024 ESC Atrial Fibrillation Guidelines.html",
+      "target_path": "raw/guidelines/atrial_fibrillation/2024 ESC Atrial Fibrillation Guidelines.pdf",
       "license_note": "Official publisher material. Verify terms before redistribution."
     },
     {
-      "source_id": "acc_aha_2021_bp_guideline",
-      "title": "2017 ACC/AHA/AAPA/ABC/ACPM/AGS/APhA/ASH/ASPC/NMA/PCNA Guideline for the Prevention, Detection, Evaluation, and Management of High Blood Pressure in Adults",
-      "source_type": "guideline_html",
+      "source_id": "esc_2022_cardio_oncology",
+      "title": "2022 ESC Guidelines on cardio-oncology",
+      "source_type": "guideline_pdf",
+      "download_strategy": "direct_url",
+      "publisher": "ESC",
+      "topic": "cardio_oncology",
+      "artifact_kind": "pdf",
+      "url": "https://academic.oup.com/eurheartj/article/43/41/4229/6675670",
+      "target_path": "raw/guidelines/cardio_oncology/2022 ESC Cardio-Oncology Guidelines.pdf",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "acc_aha_2020_hcm_guideline",
+      "title": "2020 ACC/AHA Guideline for the Diagnosis and Treatment of Patients With Hypertrophic Cardiomyopathy",
+      "source_type": "guideline_pdf",
       "download_strategy": "direct_url",
       "publisher": "ACC/AHA",
-      "topic": "hypertension",
-      "artifact_kind": "html",
-      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6676913/",
-      "target_path": "raw/guidelines/hypertension/2017 ACC AHA Blood Pressure Guideline.html",
+      "topic": "cardiomyopathy",
+      "artifact_kind": "pdf",
+      "url": "https://www.ahajournals.org/doi/10.1161/CIR.0000000000000937",
+      "target_path": "raw/guidelines/cardiomyopathy/2020 ACC AHA Hypertrophic Cardiomyopathy Guideline.pdf",
       "license_note": "Official publisher material. Verify terms before redistribution."
     },
     {
-      "source_id": "ada_2024_diabetes_guideline",
-      "title": "Standards of Care in Diabetes - 2024",
+      "source_id": "acc_aha_2022_chest_pain_guideline",
+      "title": "2021 AHA/ACC/ASE/CHEST/SAEM/SCCT/SCMR Guideline for the Evaluation and Diagnosis of Chest Pain",
+      "source_type": "guideline_pdf",
+      "download_strategy": "direct_url",
+      "publisher": "AHA/ACC",
+      "topic": "chest_pain",
+      "artifact_kind": "pdf",
+      "url": "https://www.ahajournals.org/doi/10.1161/CIR.0000000000001029",
+      "target_path": "raw/guidelines/chest_pain/2021 AHA ACC Chest Pain Guideline.pdf",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "ada_kdigo_2022_diabetes_ckd_consensus",
+      "title": "Diabetes Management in Chronic Kidney Disease: A Consensus Report by the ADA and KDIGO",
+      "source_type": "guideline_pdf",
+      "download_strategy": "direct_url",
+      "publisher": "ADA/KDIGO",
+      "topic": "ckd",
+      "artifact_kind": "pdf",
+      "url": "https://kdigo.org/guidelines/diabetes-ckd/",
+      "target_path": "raw/guidelines/ckd/ADA-KDIGO-2022-Diabetes-CKD-Consensus.pdf",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "kdigo_2024_ckd_guideline",
+      "title": "2024 KDIGO Clinical Practice Guideline for the Evaluation and Management of Chronic Kidney Disease",
+      "source_type": "guideline_pdf",
+      "download_strategy": "direct_url",
+      "publisher": "KDIGO",
+      "topic": "ckd",
+      "artifact_kind": "pdf",
+      "url": "https://kdigo.org/guidelines/ckd-evaluation-and-management/",
+      "target_path": "raw/guidelines/ckd/KDIGO-2024-CKD-Guideline.pdf",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "gold_2024_copd_report",
+      "title": "Global Strategy for Prevention, Diagnosis and Management of COPD 2024 Report",
+      "source_type": "guideline_pdf",
+      "download_strategy": "direct_url",
+      "publisher": "GOLD",
+      "topic": "copd",
+      "artifact_kind": "pdf",
+      "url": "https://goldcopd.org/2024-gold-report/",
+      "target_path": "raw/guidelines/copd/GOLD 2024 COPD Report.pdf",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "acc_aha_2021_coronary_revascularization",
+      "title": "2021 ACC/AHA/SCAI Guideline for Coronary Artery Revascularization",
+      "source_type": "guideline_pdf",
+      "download_strategy": "direct_url",
+      "publisher": "ACC/AHA/SCAI",
+      "topic": "coronary_disease",
+      "artifact_kind": "pdf",
+      "url": "https://www.ahajournals.org/doi/10.1161/CIR.0000000000001038",
+      "target_path": "raw/guidelines/coronary_disease/2021 ACC AHA SCAI Coronary Revascularization.pdf",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "aha_acc_2023_chronic_cad_guideline",
+      "title": "2023 AHA/ACC/ACCP/ASPC/NLA/PCNA Guideline for the Management of Patients With Chronic Coronary Disease",
+      "source_type": "guideline_pdf",
+      "download_strategy": "direct_url",
+      "publisher": "AHA/ACC",
+      "topic": "coronary_disease",
+      "artifact_kind": "pdf",
+      "url": "https://www.ahajournals.org/doi/10.1161/CIR.0000000000001168",
+      "target_path": "raw/guidelines/coronary_disease/2023 AHA ACC Chronic Coronary Disease.pdf",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "esc_2019_chronic_coronary_syndromes",
+      "title": "2019 ESC Guidelines for the diagnosis and management of chronic coronary syndromes",
+      "source_type": "guideline_pdf",
+      "download_strategy": "direct_url",
+      "publisher": "ESC",
+      "topic": "coronary_disease",
+      "artifact_kind": "pdf",
+      "url": "https://academic.oup.com/eurheartj/article/41/3/407/5556137",
+      "target_path": "raw/guidelines/coronary_disease/2019 ESC Chronic Coronary Syndromes.pdf",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "ada_2024_children_adolescents",
+      "title": "Standards of Care in Diabetes—2024: Children and Adolescents",
       "source_type": "guideline_html",
       "download_strategy": "direct_url",
-      "publisher": "American Diabetes Association",
+      "publisher": "ADA",
       "topic": "diabetes",
       "artifact_kind": "html",
-      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10788099/",
-      "target_path": "raw/guidelines/diabetes/2024 ADA Diabetes Standards of Care.html",
+      "url": "https://diabetesjournals.org/care/issue/47/Supplement_1",
+      "target_path": "raw/guidelines/diabetes/ada_2024_children_adolescents.html",
       "license_note": "Official publisher material. Verify terms before redistribution."
     },
     {
-      "source_id": "acc_aha_2023_cholesterol_guideline",
-      "title": "2023 ACC/AHA Guideline on the Management of Blood Cholesterol",
+      "source_id": "ada_2024_ckd_risk_management",
+      "title": "Standards of Care in Diabetes—2024: Chronic Kidney Disease and Risk Management",
+      "source_type": "guideline_html",
+      "download_strategy": "direct_url",
+      "publisher": "ADA",
+      "topic": "diabetes",
+      "artifact_kind": "html",
+      "url": "https://diabetesjournals.org/care/issue/47/Supplement_1",
+      "target_path": "raw/guidelines/diabetes/ada_2024_ckd_risk_management.html",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "ada_2024_comprehensive_medical_evaluation",
+      "title": "Standards of Care in Diabetes—2024: Comprehensive Medical Evaluation and Assessment of Comorbidities",
+      "source_type": "guideline_html",
+      "download_strategy": "direct_url",
+      "publisher": "ADA",
+      "topic": "diabetes",
+      "artifact_kind": "html",
+      "url": "https://diabetesjournals.org/care/issue/47/Supplement_1",
+      "target_path": "raw/guidelines/diabetes/ada_2024_comprehensive_medical_evaluation.html",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "ada_2024_cv_risk_management",
+      "title": "Standards of Care in Diabetes—2024: Cardiovascular Disease and Risk Management",
+      "source_type": "guideline_html",
+      "download_strategy": "direct_url",
+      "publisher": "ADA",
+      "topic": "diabetes",
+      "artifact_kind": "html",
+      "url": "https://diabetesjournals.org/care/issue/47/Supplement_1",
+      "target_path": "raw/guidelines/diabetes/ada_2024_cv_risk_management.html",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "ada_2024_diabetes_advocacy",
+      "title": "Standards of Care in Diabetes—2024: Diabetes Advocacy",
+      "source_type": "guideline_html",
+      "download_strategy": "direct_url",
+      "publisher": "ADA",
+      "topic": "diabetes",
+      "artifact_kind": "html",
+      "url": "https://diabetesjournals.org/care/issue/47/Supplement_1",
+      "target_path": "raw/guidelines/diabetes/ada_2024_diabetes_advocacy.html",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "ada_2024_diabetes_technology",
+      "title": "Standards of Care in Diabetes—2024: Diabetes Technology",
+      "source_type": "guideline_html",
+      "download_strategy": "direct_url",
+      "publisher": "ADA",
+      "topic": "diabetes",
+      "artifact_kind": "html",
+      "url": "https://diabetesjournals.org/care/issue/47/Supplement_1",
+      "target_path": "raw/guidelines/diabetes/ada_2024_diabetes_technology.html",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "ada_2024_diagnosis_classification",
+      "title": "Standards of Care in Diabetes—2024: Diagnosis and Classification of Diabetes",
+      "source_type": "guideline_html",
+      "download_strategy": "direct_url",
+      "publisher": "ADA",
+      "topic": "diabetes",
+      "artifact_kind": "html",
+      "url": "https://diabetesjournals.org/care/issue/47/Supplement_1",
+      "target_path": "raw/guidelines/diabetes/ada_2024_diagnosis_classification.html",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "ada_2024_glycemic_goals",
+      "title": "Standards of Care in Diabetes—2024: Glycemic Goals and Hypoglycemia",
+      "source_type": "guideline_html",
+      "download_strategy": "direct_url",
+      "publisher": "ADA",
+      "topic": "diabetes",
+      "artifact_kind": "html",
+      "url": "https://diabetesjournals.org/care/issue/47/Supplement_1",
+      "target_path": "raw/guidelines/diabetes/ada_2024_glycemic_goals.html",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "ada_2024_health_behaviors",
+      "title": "Standards of Care in Diabetes—2024: Facilitating Positive Health Behaviors and Well-being",
+      "source_type": "guideline_html",
+      "download_strategy": "direct_url",
+      "publisher": "ADA",
+      "topic": "diabetes",
+      "artifact_kind": "html",
+      "url": "https://diabetesjournals.org/care/issue/47/Supplement_1",
+      "target_path": "raw/guidelines/diabetes/ada_2024_health_behaviors.html",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "ada_2024_hospital_care",
+      "title": "Standards of Care in Diabetes—2024: Diabetes Care in the Hospital",
+      "source_type": "guideline_html",
+      "download_strategy": "direct_url",
+      "publisher": "ADA",
+      "topic": "diabetes",
+      "artifact_kind": "html",
+      "url": "https://diabetesjournals.org/care/issue/47/Supplement_1",
+      "target_path": "raw/guidelines/diabetes/ada_2024_hospital_care.html",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "ada_2024_obesity_management",
+      "title": "Standards of Care in Diabetes—2024: Obesity and Weight Management",
+      "source_type": "guideline_html",
+      "download_strategy": "direct_url",
+      "publisher": "ADA",
+      "topic": "diabetes",
+      "artifact_kind": "html",
+      "url": "https://diabetesjournals.org/care/issue/47/Supplement_1",
+      "target_path": "raw/guidelines/diabetes/ada_2024_obesity_management.html",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "ada_2024_older_adults",
+      "title": "Standards of Care in Diabetes—2024: Older Adults",
+      "source_type": "guideline_html",
+      "download_strategy": "direct_url",
+      "publisher": "ADA",
+      "topic": "diabetes",
+      "artifact_kind": "html",
+      "url": "https://diabetesjournals.org/care/issue/47/Supplement_1",
+      "target_path": "raw/guidelines/diabetes/ada_2024_older_adults.html",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "ada_2024_pharmacologic_treatment",
+      "title": "Standards of Care in Diabetes—2024: Pharmacologic Approaches to Glycemic Treatment",
+      "source_type": "guideline_html",
+      "download_strategy": "direct_url",
+      "publisher": "ADA",
+      "topic": "diabetes",
+      "artifact_kind": "html",
+      "url": "https://diabetesjournals.org/care/issue/47/Supplement_1",
+      "target_path": "raw/guidelines/diabetes/ada_2024_pharmacologic_treatment.html",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "ada_2024_population_health",
+      "title": "Standards of Care in Diabetes—2024: Improving Care and Promoting Health in Populations",
+      "source_type": "guideline_html",
+      "download_strategy": "direct_url",
+      "publisher": "ADA",
+      "topic": "diabetes",
+      "artifact_kind": "html",
+      "url": "https://diabetesjournals.org/care/issue/47/Supplement_1",
+      "target_path": "raw/guidelines/diabetes/ada_2024_population_health.html",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "ada_2024_pregnancy",
+      "title": "Standards of Care in Diabetes—2024: Management of Diabetes in Pregnancy",
+      "source_type": "guideline_html",
+      "download_strategy": "direct_url",
+      "publisher": "ADA",
+      "topic": "diabetes",
+      "artifact_kind": "html",
+      "url": "https://diabetesjournals.org/care/issue/47/Supplement_1",
+      "target_path": "raw/guidelines/diabetes/ada_2024_pregnancy.html",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "ada_2024_prevention_delay",
+      "title": "Standards of Care in Diabetes—2024: Prevention or Delay of Diabetes and Associated Comorbidities",
+      "source_type": "guideline_html",
+      "download_strategy": "direct_url",
+      "publisher": "ADA",
+      "topic": "diabetes",
+      "artifact_kind": "html",
+      "url": "https://diabetesjournals.org/care/issue/47/Supplement_1",
+      "target_path": "raw/guidelines/diabetes/ada_2024_prevention_delay.html",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "ada_2024_retinopathy_neuropathy",
+      "title": "Standards of Care in Diabetes—2024: Retinopathy, Neuropathy, and Foot Care",
+      "source_type": "guideline_html",
+      "download_strategy": "direct_url",
+      "publisher": "ADA",
+      "topic": "diabetes",
+      "artifact_kind": "html",
+      "url": "https://diabetesjournals.org/care/issue/47/Supplement_1",
+      "target_path": "raw/guidelines/diabetes/ada_2024_retinopathy_neuropathy.html",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "acc_aha_2018_cholesterol_guideline",
+      "title": "2018 ACC/AHA Guideline on the Management of Blood Cholesterol",
       "source_type": "guideline_html",
       "download_strategy": "direct_url",
       "publisher": "ACC/AHA",
       "topic": "dyslipidemia",
       "artifact_kind": "html",
-      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC11159352/",
-      "target_path": "raw/guidelines/dyslipidemia/2023 ACC AHA Cholesterol Guideline.html",
+      "url": "https://www.ahajournals.org/doi/10.1161/CIR.0000000000000625",
+      "target_path": "raw/guidelines/dyslipidemia/2018 ACC AHA Cholesterol Guideline.html",
       "license_note": "Official publisher material. Verify terms before redistribution."
     },
     {
-      "source_id": "bisoprolol_label",
-      "title": "Bisoprolol Fumarate Tablets - FDA Label",
-      "source_type": "drug_label_html",
+      "source_id": "acc_expert_consensus_hf_optimization_2021",
+      "title": "2021 Update to the 2017 ACC Expert Consensus Decision Pathway for Optimization of Heart Failure Treatment",
+      "source_type": "guideline_html",
       "download_strategy": "direct_url",
-      "publisher": "FDA DailyMed",
-      "topic": "drug_label",
+      "publisher": "ACC",
+      "topic": "heart_failure",
       "artifact_kind": "html",
-      "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=1c57b7a8-4b67-4e27-9dff-91d8f38b6cce",
-      "target_path": "raw/drug_labels/bisoprolol/bisoprolol_fumarate_label.html",
-      "license_note": "Public domain FDA label. Safe for ingestion."
+      "url": "https://www.jacc.org/doi/10.1016/j.jacc.2020.11.022",
+      "target_path": "raw/guidelines/heart_failure/2021 ACC ECDP HF Optimization.html",
+      "license_note": "Official publisher material. Verify terms before redistribution."
     },
     {
-      "source_id": "carvedilol_label",
-      "title": "Carvedilol Tablets - FDA Label",
-      "source_type": "drug_label_html",
+      "source_id": "acc_expert_consensus_hfpef_2023",
+      "title": "2023 ACC Expert Consensus Decision Pathway on Management of Heart Failure With Preserved Ejection Fraction",
+      "source_type": "guideline_html",
       "download_strategy": "direct_url",
-      "publisher": "FDA DailyMed",
-      "topic": "drug_label",
+      "publisher": "ACC",
+      "topic": "heart_failure",
       "artifact_kind": "html",
-      "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=52f9cdb8-7d3b-4f58-9f72-9e5fb82e93c6",
-      "target_path": "raw/drug_labels/carvedilol/carvedilol_label.html",
-      "license_note": "Public domain FDA label. Safe for ingestion."
+      "url": "https://www.jacc.org/doi/10.1016/j.jacc.2023.03.393",
+      "target_path": "raw/guidelines/heart_failure/2023 ACC ECDP HFpEF.html",
+      "license_note": "Official publisher material. Verify terms before redistribution."
     },
     {
-      "source_id": "metoprolol_succinate_label",
-      "title": "Metoprolol Succinate Extended-Release Tablets - FDA Label",
-      "source_type": "drug_label_html",
+      "source_id": "aha_acc_hfsa_2022_hf_guideline",
+      "title": "2022 AHA/ACC/HFSA Guideline for the Management of Heart Failure",
+      "source_type": "guideline_html",
       "download_strategy": "direct_url",
-      "publisher": "FDA DailyMed",
-      "topic": "drug_label",
+      "publisher": "ACC/AHA/HFSA",
+      "topic": "heart_failure",
       "artifact_kind": "html",
-      "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=32c8a8c7-7e2f-4f8c-b8e9-c3b82e91dbb6",
-      "target_path": "raw/drug_labels/metoprolol_succinate/metoprolol_succinate_label.html",
-      "license_note": "Public domain FDA label. Safe for ingestion."
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC9238257/",
+      "target_path": "raw/guidelines/heart_failure/2022 AHA_ACC_HFSA Guideline for the Management of Heart Failure.html",
+      "license_note": "Official publisher material. Verify terms before redistribution."
     },
     {
-      "source_id": "sacubitril_valsartan_label",
-      "title": "Entresto (Sacubitril and Valsartan) Tablets - FDA Label",
-      "source_type": "drug_label_html",
+      "source_id": "aha_scientific_statement_sglt2i_2020",
+      "title": "Cardiorenal Protection With the Newer Antidiabetic Agents in Patients With Diabetes and CKD / HF (AHA Scientific Statement context for SGLT2i)",
+      "source_type": "guideline_html",
       "download_strategy": "direct_url",
-      "publisher": "FDA DailyMed",
-      "topic": "drug_label",
+      "publisher": "AHA",
+      "topic": "heart_failure",
       "artifact_kind": "html",
-      "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=4e0d6b3c-7c9f-4f7e-b3a2-1d9e8f7c2a5",
-      "target_path": "raw/drug_labels/sacubitril_valsartan/entresto_label.html",
-      "license_note": "Public domain FDA label. Safe for ingestion."
-    },
-    {
-      "source_id": "enalapril_label",
-      "title": "Enalapril Maleate Tablets - FDA Label",
-      "source_type": "drug_label_html",
-      "download_strategy": "direct_url",
-      "publisher": "FDA DailyMed",
-      "topic": "drug_label",
-      "artifact_kind": "html",
-      "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=3b8c2d1e-5f4a-4e8b-9c7d-2a1e8f6b5c4d",
-      "target_path": "raw/drug_labels/enalapril/enalapril_maleate_label.html",
-      "license_note": "Public domain FDA label. Safe for ingestion."
-    },
-    {
-      "source_id": "lisinopril_label",
-      "title": "Lisinopril Tablets - FDA Label",
-      "source_type": "drug_label_html",
-      "download_strategy": "direct_url",
-      "publisher": "FDA DailyMed",
-      "topic": "drug_label",
-      "artifact_kind": "html",
-      "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=2a7b9c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d",
-      "target_path": "raw/drug_labels/lisinopril/lisinopril_label.html",
-      "license_note": "Public domain FDA label. Safe for ingestion."
-    },
-    {
-      "source_id": "losartan_label",
-      "title": "Losartan Potassium Tablets - FDA Label",
-      "source_type": "drug_label_html",
-      "download_strategy": "direct_url",
-      "publisher": "FDA DailyMed",
-      "topic": "drug_label",
-      "artifact_kind": "html",
-      "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=1c9d8e2f-3a4b-5c6d-7e8f-9a0b1c2d3e4f",
-      "target_path": "raw/drug_labels/losartan/losartan_potassium_label.html",
-      "license_note": "Public domain FDA label. Safe for ingestion."
-    },
-    {
-      "source_id": "valsartan_label",
-      "title": "Valsartan Tablets - FDA Label",
-      "source_type": "drug_label_html",
-      "download_strategy": "direct_url",
-      "publisher": "FDA DailyMed",
-      "topic": "drug_label",
-      "artifact_kind": "html",
-      "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=0d8e7f1a-2b3c-4d5e-6f7a-8b9c0d1e2f3a",
-      "target_path": "raw/drug_labels/valsartan/valsartan_label.html",
-      "license_note": "Public domain FDA label. Safe for ingestion."
-    },
-    {
-      "source_id": "candesartan_label",
-      "title": "Candesartan Cilexetil Tablets - FDA Label",
-      "source_type": "drug_label_html",
-      "download_strategy": "direct_url",
-      "publisher": "FDA DailyMed",
-      "topic": "drug_label",
-      "artifact_kind": "html",
-      "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=9c7f6e5a-4b3c-2d1e-0f9a-8b7c6d5e4f3a",
-      "target_path": "raw/drug_labels/candesartan/candesartan_cilexetil_label.html",
-      "license_note": "Public domain FDA label. Safe for ingestion."
-    },
-    {
-      "source_id": "spironolactone_label",
-      "title": "Spironolactone Tablets - FDA Label",
-      "source_type": "drug_label_html",
-      "download_strategy": "direct_url",
-      "publisher": "FDA DailyMed",
-      "topic": "drug_label",
-      "artifact_kind": "html",
-      "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=8b6e5d4c-3a2b-1c0d-9e8f-7a6b5c4d3e2f",
-      "target_path": "raw/drug_labels/spironolactone/spironolactone_label.html",
-      "license_note": "Public domain FDA label. Safe for ingestion."
-    },
-    {
-      "source_id": "eplerenone_label",
-      "title": "Eplerenone Tablets - FDA Label",
-      "source_type": "drug_label_html",
-      "download_strategy": "direct_url",
-      "publisher": "FDA DailyMed",
-      "topic": "drug_label",
-      "artifact_kind": "html",
-      "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=7a5e4d3b-2c1d-0e9f-8a7b-6c5d4e3f2a1b",
-      "target_path": "raw/drug_labels/eplerenone/eplerenone_label.html",
-      "license_note": "Public domain FDA label. Safe for ingestion."
-    },
-    {
-      "source_id": "finerenone_label",
-      "title": "Finerenone Tablets - FDA Label (Kerendia)",
-      "source_type": "drug_label_html",
-      "download_strategy": "direct_url",
-      "publisher": "FDA DailyMed",
-      "topic": "drug_label",
-      "artifact_kind": "html",
-      "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=6b4d3c2a-1d0e-9c8f-7a6b-5c4d3e2f1a0b",
-      "target_path": "raw/drug_labels/finerenone/finerenone_label.html",
-      "license_note": "Public domain FDA label. Safe for ingestion."
-    },
-    {
-      "source_id": "dapagliflozin_label",
-      "title": "Farxiga (Dapagliflozin) Tablets - FDA Label",
-      "source_type": "drug_label_html",
-      "download_strategy": "direct_url",
-      "publisher": "FDA DailyMed",
-      "topic": "drug_label",
-      "artifact_kind": "html",
-      "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=5c3d2b1a-0e9f-8d7c-6b5a-4c3d2e1f0a9b",
-      "target_path": "raw/drug_labels/dapagliflozin/farxiga_label.html",
-      "license_note": "Public domain FDA label. Safe for ingestion."
-    },
-    {
-      "source_id": "empagliflozin_label",
-      "title": "Jardiance (Empagliflozin) Tablets - FDA Label",
-      "source_type": "drug_label_html",
-      "download_strategy": "direct_url",
-      "publisher": "FDA DailyMed",
-      "topic": "drug_label",
-      "artifact_kind": "html",
-      "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=4b2c1a0f-9d8e-7c6b-5a4c-3d2e1f0a9b8c",
-      "target_path": "raw/drug_labels/empagliflozin/jardiance_label.html",
-      "license_note": "Public domain FDA label. Safe for ingestion."
-    },
-    {
-      "source_id": "furosemide_label",
-      "title": "Furosemide Tablets - FDA Label",
-      "source_type": "drug_label_html",
-      "download_strategy": "direct_url",
-      "publisher": "FDA DailyMed",
-      "topic": "drug_label",
-      "artifact_kind": "html",
-      "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=3a1b0c9e-8d7f-6c5b-4a3c-2d1e0f9a8b7c",
-      "target_path": "raw/drug_labels/furosemide/furosemide_label.html",
-      "license_note": "Public domain FDA label. Safe for ingestion."
-    },
-    {
-      "source_id": "bumetanide_label",
-      "title": "Bumetanide Tablets - FDA Label",
-      "source_type": "drug_label_html",
-      "download_strategy": "direct_url",
-      "publisher": "FDA DailyMed",
-      "topic": "drug_label",
-      "artifact_kind": "html",
-      "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=2c0b9a8f-7d6e-5c4b-3a2c-1d0e9f8a7b6c",
-      "target_path": "raw/drug_labels/bumetanide/bumetanide_label.html",
-      "license_note": "Public domain FDA label. Safe for ingestion."
-    },
-    {
-      "source_id": "torsemide_label",
-      "title": "Torsemide Tablets - FDA Label",
-      "source_type": "drug_label_html",
-      "download_strategy": "direct_url",
-      "publisher": "FDA DailyMed",
-      "topic": "drug_label",
-      "artifact_kind": "html",
-      "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=1d9a8b7e-6c5f-4d3c-2b1a-0f9e8d7c6b5a",
-      "target_path": "raw/drug_labels/torsemide/torsemide_label.html",
-      "license_note": "Public domain FDA label. Safe for ingestion."
-    },
-    {
-      "source_id": "digoxin_label",
-      "title": "Digoxin Tablets - FDA Label",
-      "source_type": "drug_label_html",
-      "download_strategy": "direct_url",
-      "publisher": "FDA DailyMed",
-      "topic": "drug_label",
-      "artifact_kind": "html",
-      "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=0e8a7b6d-5f4e-3c2b-1a0f-9e8d7c6b5a4f",
-      "target_path": "raw/drug_labels/digoxin/digoxin_label.html",
-      "license_note": "Public domain FDA label. Safe for ingestion."
-    },
-    {
-      "source_id": "apixaban_label",
-      "title": "Eliquis (Apixaban) Tablets - FDA Label",
-      "source_type": "drug_label_html",
-      "download_strategy": "direct_url",
-      "publisher": "FDA DailyMed",
-      "topic": "drug_label",
-      "artifact_kind": "html",
-      "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=9f7a6b5c-4e3d-2c1b-0f9e-8d7c6b5a4f3e",
-      "target_path": "raw/drug_labels/apixaban/eliquis_label.html",
-      "license_note": "Public domain FDA label. Safe for ingestion."
-    },
-    {
-      "source_id": "rivaroxaban_label",
-      "title": "Xarelto (Rivaroxaban) Tablets - FDA Label",
-      "source_type": "drug_label_html",
-      "download_strategy": "direct_url",
-      "publisher": "FDA DailyMed",
-      "topic": "drug_label",
-      "artifact_kind": "html",
-      "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=8e6a5b4c-3d2c-1b0a-9f8e-7d6c5b4a3f2e",
-      "target_path": "raw/drug_labels/rivaroxaban/xarelto_label.html",
-      "license_note": "Public domain FDA label. Safe for ingestion."
-    },
-    {
-      "source_id": "dabigatran_label",
-      "title": "Pradaxa (Dabigatran Etexilate) Capsules - FDA Label",
-      "source_type": "drug_label_html",
-      "download_strategy": "direct_url",
-      "publisher": "FDA DailyMed",
-      "topic": "drug_label",
-      "artifact_kind": "html",
-      "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=7d5a4b3c-2c1b-0a9f-8e-7d6c5b4a3f2e1",
-      "target_path": "raw/drug_labels/dabigatran/pradaxa_label.html",
-      "license_note": "Public domain FDA label. Safe for ingestion."
-    },
-    {
-      "source_id": "edoxaban_label",
-      "title": "Savaysa (Edoxaban) Tablets - FDA Label",
-      "source_type": "drug_label_html",
-      "download_strategy": "direct_url",
-      "publisher": "FDA DailyMed",
-      "topic": "drug_label",
-      "artifact_kind": "html",
-      "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=6c4a3b2c-1b0a-9f8e-7d6c-5b4a3f2e1d0",
-      "target_path": "raw/drug_labels/edoxaban/savaysa_label.html",
-      "license_note": "Public domain FDA label. Safe for ingestion."
-    },
-    {
-      "source_id": "warfarin_label",
-      "title": "Warfarin Sodium Tablets - FDA Label",
-      "source_type": "drug_label_html",
-      "download_strategy": "direct_url",
-      "publisher": "FDA DailyMed",
-      "topic": "drug_label",
-      "artifact_kind": "html",
-      "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=5b3a2c1d-0a9f-8e7d-6c5b-4a3f2e1d0c9b",
-      "target_path": "raw/drug_labels/warfarin/warfarin_sodium_label.html",
-      "license_note": "Public domain FDA label. Safe for ingestion."
-    },
-    {
-      "source_id": "hydralazine_label",
-      "title": "Hydralazine Hydrochloride Tablets - FDA Label",
-      "source_type": "drug_label_html",
-      "download_strategy": "direct_url",
-      "publisher": "FDA DailyMed",
-      "topic": "drug_label",
-      "artifact_kind": "html",
-      "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=4a293b2c-1d0e-9f8a-7d6c5b-4a3f2e1d0c9b8",
-      "target_path": "raw/drug_labels/hydralazine/hydralazine_label.html",
-      "license_note": "Public domain FDA label. Safe for ingestion."
-    },
-    {
-      "source_id": "isosorbide_dinitrate_label",
-      "title": "Isosorbide Dinitrate Tablets - FDA Label",
-      "source_type": "drug_label_html",
-      "download_strategy": "direct_url",
-      "publisher": "FDA DailyMed",
-      "topic": "drug_label",
-      "artifact_kind": "html",
-      "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=3b182a1c-0d9e-8f7a-6d5c4b-3a2f1e0d9c8b",
-      "target_path": "raw/drug_labels/isosorbide/isosorbide_dinitrate_label.html",
-      "license_note": "Public domain FDA label. Safe for ingestion."
-    },
-    {
-      "source_id": "ivabradine_label",
-      "title": "Corlanor (Ivabradine) Tablets - FDA Label",
-      "source_type": "drug_label_html",
-      "download_strategy": "direct_url",
-      "publisher": "FDA DailyMed",
-      "topic": "drug_label",
-      "artifact_kind": "html",
-      "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=2c091b2a-1e8d-7f6a-5e4c3b-2a1f0e9d8c7b",
-      "target_path": "raw/drug_labels/ivabradine/corlanor_label.html",
-      "license_note": "Public domain FDA label. Safe for ingestion."
-    },
-    {
-      "source_id": "vericiguat_label",
-      "title": "Verquvo (Vericiguat) Tablets - FDA Label",
-      "source_type": "drug_label_html",
-      "download_strategy": "direct_url",
-      "publisher": "FDA DailyMed",
-      "topic": "drug_label",
-      "artifact_kind": "html",
-      "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=1d0a8c2b-3f7e-6d5c-4b3a2f-1e0d9c8b7a6f",
-      "target_path": "raw/drug_labels/vericiguat/verquvo_label.html",
-      "license_note": "Public domain FDA label. Safe for ingestion."
-    },
-    {
-      "source_id": "omecamtiv_label",
-      "title": "Cytokinetic (Omecamtiv Mecarbil) - FDA Label",
-      "source_type": "drug_label_html",
-      "download_strategy": "direct_url",
-      "publisher": "FDA DailyMed",
-      "topic": "drug_label",
-      "artifact_kind": "html",
-      "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=0e9f7d6c-5b4a-3c2d-1e0f-9d8c7b6a5f4e",
-      "target_path": "raw/drug_labels/omecamtiv/cytokinetic_label.html",
-      "license_note": "Public domain FDA label. Safe for ingestion."
+      "url": "https://www.ahajournals.org/doi/10.1161/CIR.0000000000000920",
+      "target_path": "raw/guidelines/heart_failure/AHA SGLT2i Cardiorenal Statement.html",
+      "license_note": "Official publisher material. Verify terms before redistribution."
     },
     {
       "source_id": "arn_treatment_hf_guideline",
       "title": "ARNi in Heart Failure - Clinical Guidance",
       "source_type": "guideline_html",
       "download_strategy": "direct_url",
-      "publisher": "HFSA",
+      "publisher": "PMC/Open access clinical guidance",
       "topic": "heart_failure",
       "artifact_kind": "html",
       "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6834856/",
       "target_path": "raw/guidelines/heart_failure/ARNi Heart Failure Clinical Guidance.html",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "esc_2021_hf_guideline",
+      "title": "2021 ESC Guidelines for the diagnosis and treatment of acute and chronic heart failure",
+      "source_type": "guideline_pdf",
+      "download_strategy": "direct_url",
+      "publisher": "ESC",
+      "topic": "heart_failure",
+      "artifact_kind": "pdf",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC8490362/",
+      "target_path": "raw/guidelines/heart_failure/2021 ESC guidelines HF.pdf",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "esc_2023_hf_focused_update",
+      "title": "2023 Focused Update of the 2021 ESC Guidelines for the diagnosis and treatment of acute and chronic heart failure",
+      "source_type": "guideline_pdf",
+      "download_strategy": "direct_url",
+      "publisher": "ESC",
+      "topic": "heart_failure",
+      "artifact_kind": "pdf",
+      "url": "https://academic.oup.com/eurheartj/article/44/37/3627/7246598",
+      "target_path": "raw/guidelines/heart_failure/2023 Focused Update of the ESC Guidelines.pdf",
       "license_note": "Official publisher material. Verify terms before redistribution."
     },
     {
@@ -463,12 +475,2635 @@
       "title": "Iron Deficiency in Heart Failure - ESC Clinical Guidance",
       "source_type": "guideline_html",
       "download_strategy": "direct_url",
-      "publisher": "European Society of Cardiology",
+      "publisher": "ESC",
       "topic": "heart_failure",
       "artifact_kind": "html",
       "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7398003/",
       "target_path": "raw/guidelines/heart_failure/Iron Deficiency HF ESC.html",
       "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "acc_aha_2017_bp_guideline",
+      "title": "2017 ACC/AHA Guideline for the Prevention, Detection, Evaluation, and Management of High Blood Pressure in Adults",
+      "source_type": "guideline_pdf",
+      "download_strategy": "direct_url",
+      "publisher": "ACC/AHA",
+      "topic": "hypertension",
+      "artifact_kind": "pdf",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6676913/",
+      "target_path": "raw/guidelines/hypertension/2017 ACC AHA Hypertension Guideline.pdf",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "acc_aha_2024_pad_guideline",
+      "title": "2024 ACC/AHA Guideline for the Management of Lower Extremity Peripheral Artery Disease",
+      "source_type": "guideline_html",
+      "download_strategy": "direct_url",
+      "publisher": "ACC/AHA",
+      "topic": "peripheral_artery_disease",
+      "artifact_kind": "html",
+      "url": "https://www.ahajournals.org/doi/10.1161/CIR.0000000000001251",
+      "target_path": "raw/guidelines/peripheral_artery_disease/2024 ACC AHA PAD Guideline.html",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "aasm_2017_osa_diagnostic_guideline",
+      "title": "Clinical Practice Guideline for Diagnostic Testing for Adult Obstructive Sleep Apnea (AASM)",
+      "source_type": "guideline_html",
+      "download_strategy": "direct_url",
+      "publisher": "AASM",
+      "topic": "sleep_apnea",
+      "artifact_kind": "html",
+      "url": "https://aasm.org/clinical-resources/practice-standards/practice-guidelines/",
+      "target_path": "raw/guidelines/sleep_apnea/AASM 2017 OSA Diagnostic Guideline.html",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "acc_aha_2020_valvular_guideline",
+      "title": "2020 ACC/AHA Guideline for the Management of Patients With Valvular Heart Disease",
+      "source_type": "guideline_pdf",
+      "download_strategy": "direct_url",
+      "publisher": "ACC/AHA",
+      "topic": "valvular_heart_disease",
+      "artifact_kind": "pdf",
+      "url": "https://www.ahajournals.org/doi/10.1161/CIR.0000000000000923",
+      "target_path": "raw/guidelines/valvular_heart_disease/2020 ACC AHA Valvular Heart Disease Guideline.pdf",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "esc_2021_valvular_heart_disease",
+      "title": "2021 ESC/EACTS Guidelines for the management of valvular heart disease",
+      "source_type": "guideline_pdf",
+      "download_strategy": "direct_url",
+      "publisher": "ESC/EACTS",
+      "topic": "valvular_heart_disease",
+      "artifact_kind": "pdf",
+      "url": "https://academic.oup.com/eurheartj/article/43/7/561/6358470",
+      "target_path": "raw/guidelines/valvular_heart_disease/2021 ESC EACTS Valvular Heart Disease.pdf",
+      "license_note": "Official publisher material. Verify terms before redistribution."
+    },
+    {
+      "source_id": "acebutolol_label",
+      "title": "Acebutolol - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "acebutolol",
+      "query": "acebutolol",
+      "required_terms": [
+        "ACEBUTOLOL"
+      ],
+      "target_path": "raw/drug_labels/acebutolol/acebutolol_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "acetazolamide_label",
+      "title": "Acetazolamide - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "acetazolamide",
+      "query": "acetazolamide",
+      "required_terms": [
+        "ACETAZOLAMIDE"
+      ],
+      "target_path": "raw/drug_labels/acetazolamide/acetazolamide_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "adenosine_label",
+      "title": "Adenosine - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "adenosine",
+      "query": "adenosine",
+      "required_terms": [
+        "ADENOSINE"
+      ],
+      "target_path": "raw/drug_labels/adenosine/adenosine_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "alirocumab_label",
+      "title": "Alirocumab - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "alirocumab",
+      "query": "alirocumab",
+      "required_terms": [
+        "ALIROCUMAB"
+      ],
+      "target_path": "raw/drug_labels/alirocumab/alirocumab_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "alteplase_label",
+      "title": "Alteplase - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "alteplase",
+      "query": "alteplase",
+      "required_terms": [
+        "ALTEPLASE"
+      ],
+      "target_path": "raw/drug_labels/alteplase/alteplase_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "ambrisentan_label",
+      "title": "Ambrisentan - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "ambrisentan",
+      "query": "ambrisentan",
+      "required_terms": [
+        "AMBRISENTAN"
+      ],
+      "target_path": "raw/drug_labels/ambrisentan/ambrisentan_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "amiloride_label",
+      "title": "Amiloride - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "amiloride",
+      "query": "amiloride",
+      "required_terms": [
+        "AMILORIDE"
+      ],
+      "target_path": "raw/drug_labels/amiloride/amiloride_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "amiodarone_label",
+      "title": "Amiodarone - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "amiodarone",
+      "query": "amiodarone",
+      "required_terms": [
+        "AMIODARONE"
+      ],
+      "target_path": "raw/drug_labels/amiodarone/amiodarone_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "amlodipine_label",
+      "title": "Amlodipine - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "amlodipine",
+      "query": "amlodipine",
+      "required_terms": [
+        "AMLODIPINE"
+      ],
+      "target_path": "raw/drug_labels/amlodipine/amlodipine_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "andexanet_alfa_label",
+      "title": "Andexanet Alfa - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "andexanet_alfa",
+      "query": "andexanet alfa",
+      "required_terms": [
+        "ANDEXANET ALFA"
+      ],
+      "target_path": "raw/drug_labels/andexanet_alfa/andexanet_alfa_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "angiotensin_ii_label",
+      "title": "Angiotensin Ii - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "angiotensin_ii",
+      "query": "angiotensin II",
+      "required_terms": [
+        "ANGIOTENSIN II"
+      ],
+      "target_path": "raw/drug_labels/angiotensin_ii/angiotensin_ii_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "apixaban_label",
+      "title": "Apixaban - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "apixaban",
+      "query": "apixaban",
+      "required_terms": [
+        "APIXABAN"
+      ],
+      "target_path": "raw/drug_labels/apixaban/apixaban_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "argatroban_label",
+      "title": "Argatroban - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "argatroban",
+      "query": "argatroban",
+      "required_terms": [
+        "ARGATROBAN"
+      ],
+      "target_path": "raw/drug_labels/argatroban/argatroban_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "aspirin_label",
+      "title": "Aspirin - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "aspirin",
+      "query": "aspirin",
+      "required_terms": [
+        "ASPIRIN"
+      ],
+      "target_path": "raw/drug_labels/aspirin/aspirin_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "atenolol_label",
+      "title": "Atenolol - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "atenolol",
+      "query": "atenolol",
+      "required_terms": [
+        "ATENOLOL"
+      ],
+      "target_path": "raw/drug_labels/atenolol/atenolol_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "atorvastatin_label",
+      "title": "Atorvastatin - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "atorvastatin",
+      "query": "atorvastatin",
+      "required_terms": [
+        "ATORVASTATIN"
+      ],
+      "target_path": "raw/drug_labels/atorvastatin/atorvastatin_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "azilsartan_medoxomil_label",
+      "title": "Azilsartan - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "azilsartan_medoxomil",
+      "query": "azilsartan",
+      "required_terms": [
+        "AZILSARTAN"
+      ],
+      "target_path": "raw/drug_labels/azilsartan_medoxomil/azilsartan_medoxomil_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "bempedoic_acid_label",
+      "title": "Bempedoic Acid - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "bempedoic_acid",
+      "query": "bempedoic acid",
+      "required_terms": [
+        "BEMPEDOIC ACID"
+      ],
+      "target_path": "raw/drug_labels/bempedoic_acid/bempedoic_acid_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "benazepril_label",
+      "title": "Benazepril - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "benazepril",
+      "query": "benazepril",
+      "required_terms": [
+        "BENAZEPRIL"
+      ],
+      "target_path": "raw/drug_labels/benazepril/benazepril_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "betaxolol_label",
+      "title": "Betaxolol - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "betaxolol",
+      "query": "betaxolol",
+      "required_terms": [
+        "BETAXOLOL"
+      ],
+      "target_path": "raw/drug_labels/betaxolol/betaxolol_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "bisoprolol_fumarate_label",
+      "title": "Bisoprolol - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "bisoprolol_fumarate",
+      "query": "bisoprolol",
+      "required_terms": [
+        "BISOPROLOL"
+      ],
+      "target_path": "raw/drug_labels/bisoprolol_fumarate/bisoprolol_fumarate_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "bivalirudin_label",
+      "title": "Bivalirudin - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "bivalirudin",
+      "query": "bivalirudin",
+      "required_terms": [
+        "BIVALIRUDIN"
+      ],
+      "target_path": "raw/drug_labels/bivalirudin/bivalirudin_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "bosentan_label",
+      "title": "Bosentan - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "bosentan",
+      "query": "bosentan",
+      "required_terms": [
+        "BOSENTAN"
+      ],
+      "target_path": "raw/drug_labels/bosentan/bosentan_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "bumetanide_label",
+      "title": "Bumetanide - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "bumetanide",
+      "query": "bumetanide",
+      "required_terms": [
+        "BUMETANIDE"
+      ],
+      "target_path": "raw/drug_labels/bumetanide/bumetanide_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "canagliflozin_label",
+      "title": "Canagliflozin - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "canagliflozin",
+      "query": "canagliflozin",
+      "required_terms": [
+        "CANAGLIFLOZIN"
+      ],
+      "target_path": "raw/drug_labels/canagliflozin/canagliflozin_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "candesartan_cilexetil_label",
+      "title": "Candesartan - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "candesartan_cilexetil",
+      "query": "candesartan",
+      "required_terms": [
+        "CANDESARTAN"
+      ],
+      "target_path": "raw/drug_labels/candesartan_cilexetil/candesartan_cilexetil_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "cangrelor_label",
+      "title": "Cangrelor - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "cangrelor",
+      "query": "cangrelor",
+      "required_terms": [
+        "CANGRELOR"
+      ],
+      "target_path": "raw/drug_labels/cangrelor/cangrelor_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "captopril_label",
+      "title": "Captopril - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "captopril",
+      "query": "captopril",
+      "required_terms": [
+        "CAPTOPRIL"
+      ],
+      "target_path": "raw/drug_labels/captopril/captopril_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "carteolol_label",
+      "title": "Carteolol - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "carteolol",
+      "query": "carteolol",
+      "required_terms": [
+        "CARTEOLOL"
+      ],
+      "target_path": "raw/drug_labels/carteolol/carteolol_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "carvedilol_label",
+      "title": "Carvedilol - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "carvedilol",
+      "query": "carvedilol",
+      "required_terms": [
+        "CARVEDILOL"
+      ],
+      "target_path": "raw/drug_labels/carvedilol/carvedilol_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "carvedilol_phosphate_label",
+      "title": "Carvedilol Phosphate - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "carvedilol_phosphate",
+      "query": "carvedilol phosphate",
+      "required_terms": [
+        "CARVEDILOL PHOSPHATE"
+      ],
+      "target_path": "raw/drug_labels/carvedilol_phosphate/carvedilol_phosphate_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "chlorthalidone_label",
+      "title": "Chlorthalidone - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "chlorthalidone",
+      "query": "chlorthalidone",
+      "required_terms": [
+        "CHLORTHALIDONE"
+      ],
+      "target_path": "raw/drug_labels/chlorthalidone/chlorthalidone_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "cilostazol_label",
+      "title": "Cilostazol - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "cilostazol",
+      "query": "cilostazol",
+      "required_terms": [
+        "CILOSTAZOL"
+      ],
+      "target_path": "raw/drug_labels/cilostazol/cilostazol_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "clevidipine_label",
+      "title": "Clevidipine - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "clevidipine",
+      "query": "clevidipine",
+      "required_terms": [
+        "CLEVIDIPINE"
+      ],
+      "target_path": "raw/drug_labels/clevidipine/clevidipine_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "clonidine_label",
+      "title": "Clonidine - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "clonidine",
+      "query": "clonidine",
+      "required_terms": [
+        "CLONIDINE"
+      ],
+      "target_path": "raw/drug_labels/clonidine/clonidine_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "clopidogrel_label",
+      "title": "Clopidogrel - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "clopidogrel",
+      "query": "clopidogrel",
+      "required_terms": [
+        "CLOPIDOGREL"
+      ],
+      "target_path": "raw/drug_labels/clopidogrel/clopidogrel_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "colchicine_label",
+      "title": "Colchicine - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "colchicine",
+      "query": "colchicine",
+      "required_terms": [
+        "COLCHICINE"
+      ],
+      "target_path": "raw/drug_labels/colchicine/colchicine_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "colesevelam_label",
+      "title": "Colesevelam - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "colesevelam",
+      "query": "colesevelam",
+      "required_terms": [
+        "COLESEVELAM"
+      ],
+      "target_path": "raw/drug_labels/colesevelam/colesevelam_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "dabigatran_etexilate_label",
+      "title": "Dabigatran - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "dabigatran_etexilate",
+      "query": "dabigatran",
+      "required_terms": [
+        "DABIGATRAN"
+      ],
+      "target_path": "raw/drug_labels/dabigatran_etexilate/dabigatran_etexilate_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "dalteparin_label",
+      "title": "Dalteparin - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "dalteparin",
+      "query": "dalteparin",
+      "required_terms": [
+        "DALTEPARIN"
+      ],
+      "target_path": "raw/drug_labels/dalteparin/dalteparin_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "dapagliflozin_label",
+      "title": "Dapagliflozin - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "dapagliflozin",
+      "query": "dapagliflozin",
+      "required_terms": [
+        "DAPAGLIFLOZIN"
+      ],
+      "target_path": "raw/drug_labels/dapagliflozin/dapagliflozin_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "digoxin_immune_fab_label",
+      "title": "Digoxin Immune Fab - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "digoxin_immune_fab",
+      "query": "digoxin immune fab",
+      "required_terms": [
+        "DIGOXIN IMMUNE FAB"
+      ],
+      "target_path": "raw/drug_labels/digoxin_immune_fab/digoxin_immune_fab_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "digoxin_label",
+      "title": "Digoxin - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "digoxin",
+      "query": "digoxin",
+      "required_terms": [
+        "DIGOXIN"
+      ],
+      "target_path": "raw/drug_labels/digoxin/digoxin_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "diltiazem_label",
+      "title": "Diltiazem - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "diltiazem",
+      "query": "diltiazem",
+      "required_terms": [
+        "DILTIAZEM"
+      ],
+      "target_path": "raw/drug_labels/diltiazem/diltiazem_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "dipyridamole_label",
+      "title": "Dipyridamole - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "dipyridamole",
+      "query": "dipyridamole",
+      "required_terms": [
+        "DIPYRIDAMOLE"
+      ],
+      "target_path": "raw/drug_labels/dipyridamole/dipyridamole_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "disopyramide_label",
+      "title": "Disopyramide - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "disopyramide",
+      "query": "disopyramide",
+      "required_terms": [
+        "DISOPYRAMIDE"
+      ],
+      "target_path": "raw/drug_labels/disopyramide/disopyramide_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "dobutamine_label",
+      "title": "Dobutamine - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "dobutamine",
+      "query": "dobutamine",
+      "required_terms": [
+        "DOBUTAMINE"
+      ],
+      "target_path": "raw/drug_labels/dobutamine/dobutamine_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "dofetilide_label",
+      "title": "Dofetilide - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "dofetilide",
+      "query": "dofetilide",
+      "required_terms": [
+        "DOFETILIDE"
+      ],
+      "target_path": "raw/drug_labels/dofetilide/dofetilide_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "dopamine_label",
+      "title": "Dopamine - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "dopamine",
+      "query": "dopamine",
+      "required_terms": [
+        "DOPAMINE"
+      ],
+      "target_path": "raw/drug_labels/dopamine/dopamine_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "doxazosin_label",
+      "title": "Doxazosin - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "doxazosin",
+      "query": "doxazosin",
+      "required_terms": [
+        "DOXAZOSIN"
+      ],
+      "target_path": "raw/drug_labels/doxazosin/doxazosin_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "dronedarone_label",
+      "title": "Dronedarone - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "dronedarone",
+      "query": "dronedarone",
+      "required_terms": [
+        "DRONEDARONE"
+      ],
+      "target_path": "raw/drug_labels/dronedarone/dronedarone_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "edoxaban_label",
+      "title": "Edoxaban - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "edoxaban",
+      "query": "edoxaban",
+      "required_terms": [
+        "EDOXABAN"
+      ],
+      "target_path": "raw/drug_labels/edoxaban/edoxaban_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "empagliflozin_label",
+      "title": "Empagliflozin - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "empagliflozin",
+      "query": "empagliflozin",
+      "required_terms": [
+        "EMPAGLIFLOZIN"
+      ],
+      "target_path": "raw/drug_labels/empagliflozin/empagliflozin_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "enalapril_maleate_label",
+      "title": "Enalapril - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "enalapril_maleate",
+      "query": "enalapril",
+      "required_terms": [
+        "ENALAPRIL"
+      ],
+      "target_path": "raw/drug_labels/enalapril_maleate/enalapril_maleate_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "enoxaparin_label",
+      "title": "Enoxaparin - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "enoxaparin",
+      "query": "enoxaparin",
+      "required_terms": [
+        "ENOXAPARIN"
+      ],
+      "target_path": "raw/drug_labels/enoxaparin/enoxaparin_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "epinephrine_label",
+      "title": "Epinephrine - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "epinephrine",
+      "query": "epinephrine",
+      "required_terms": [
+        "EPINEPHRINE"
+      ],
+      "target_path": "raw/drug_labels/epinephrine/epinephrine_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "eplerenone_label",
+      "title": "Eplerenone - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "eplerenone",
+      "query": "eplerenone",
+      "required_terms": [
+        "EPLERENONE"
+      ],
+      "target_path": "raw/drug_labels/eplerenone/eplerenone_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "epoprostenol_label",
+      "title": "Epoprostenol - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "epoprostenol",
+      "query": "epoprostenol",
+      "required_terms": [
+        "EPOPROSTENOL"
+      ],
+      "target_path": "raw/drug_labels/epoprostenol/epoprostenol_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "ertugliflozin_label",
+      "title": "Ertugliflozin - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "ertugliflozin",
+      "query": "ertugliflozin",
+      "required_terms": [
+        "ERTUGLIFLOZIN"
+      ],
+      "target_path": "raw/drug_labels/ertugliflozin/ertugliflozin_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "esmolol_label",
+      "title": "Esmolol - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "esmolol",
+      "query": "esmolol",
+      "required_terms": [
+        "ESMOLOL"
+      ],
+      "target_path": "raw/drug_labels/esmolol/esmolol_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "ethacrynic_acid_label",
+      "title": "Ethacrynic Acid - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "ethacrynic_acid",
+      "query": "ethacrynic acid",
+      "required_terms": [
+        "ETHACRYNIC ACID"
+      ],
+      "target_path": "raw/drug_labels/ethacrynic_acid/ethacrynic_acid_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "evolocumab_label",
+      "title": "Evolocumab - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "evolocumab",
+      "query": "evolocumab",
+      "required_terms": [
+        "EVOLOCUMAB"
+      ],
+      "target_path": "raw/drug_labels/evolocumab/evolocumab_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "ezetimibe_label",
+      "title": "Ezetimibe - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "ezetimibe",
+      "query": "ezetimibe",
+      "required_terms": [
+        "EZETIMIBE"
+      ],
+      "target_path": "raw/drug_labels/ezetimibe/ezetimibe_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "felodipine_label",
+      "title": "Felodipine - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "felodipine",
+      "query": "felodipine",
+      "required_terms": [
+        "FELODIPINE"
+      ],
+      "target_path": "raw/drug_labels/felodipine/felodipine_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "fenofibrate_label",
+      "title": "Fenofibrate - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "fenofibrate",
+      "query": "fenofibrate",
+      "required_terms": [
+        "FENOFIBRATE"
+      ],
+      "target_path": "raw/drug_labels/fenofibrate/fenofibrate_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "ferric_carboxymaltose_label",
+      "title": "Ferric Carboxymaltose - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "ferric_carboxymaltose",
+      "query": "ferric carboxymaltose",
+      "required_terms": [
+        "FERRIC CARBOXYMALTOSE"
+      ],
+      "target_path": "raw/drug_labels/ferric_carboxymaltose/ferric_carboxymaltose_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "finerenone_label",
+      "title": "Finerenone - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "finerenone",
+      "query": "finerenone",
+      "required_terms": [
+        "FINERENONE"
+      ],
+      "target_path": "raw/drug_labels/finerenone/finerenone_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "flecainide_label",
+      "title": "Flecainide - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "flecainide",
+      "query": "flecainide",
+      "required_terms": [
+        "FLECAINIDE"
+      ],
+      "target_path": "raw/drug_labels/flecainide/flecainide_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "fluvastatin_label",
+      "title": "Fluvastatin - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "fluvastatin",
+      "query": "fluvastatin",
+      "required_terms": [
+        "FLUVASTATIN"
+      ],
+      "target_path": "raw/drug_labels/fluvastatin/fluvastatin_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "fondaparinux_label",
+      "title": "Fondaparinux - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "fondaparinux",
+      "query": "fondaparinux",
+      "required_terms": [
+        "FONDAPARINUX"
+      ],
+      "target_path": "raw/drug_labels/fondaparinux/fondaparinux_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "fosinopril_label",
+      "title": "Fosinopril - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "fosinopril",
+      "query": "fosinopril",
+      "required_terms": [
+        "FOSINOPRIL"
+      ],
+      "target_path": "raw/drug_labels/fosinopril/fosinopril_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "furosemide_label",
+      "title": "Furosemide - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "furosemide",
+      "query": "furosemide",
+      "required_terms": [
+        "FUROSEMIDE"
+      ],
+      "target_path": "raw/drug_labels/furosemide/furosemide_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "gemfibrozil_label",
+      "title": "Gemfibrozil - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "gemfibrozil",
+      "query": "gemfibrozil",
+      "required_terms": [
+        "GEMFIBROZIL"
+      ],
+      "target_path": "raw/drug_labels/gemfibrozil/gemfibrozil_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "heparin_label",
+      "title": "Heparin - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "heparin",
+      "query": "heparin",
+      "required_terms": [
+        "HEPARIN"
+      ],
+      "target_path": "raw/drug_labels/heparin/heparin_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "hydralazine_and_isosorbide_dinitrate_label",
+      "title": "Hydralazine/Isosorbide Dinitrate - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "hydralazine_and_isosorbide_dinitrate",
+      "query": "hydralazine/isosorbide dinitrate",
+      "required_terms": [
+        "HYDRALAZINE/ISOSORBIDE DINITRATE"
+      ],
+      "target_path": "raw/drug_labels/hydralazine_and_isosorbide_dinitrate/hydralazine_and_isosorbide_dinitrate_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "hydralazine_label",
+      "title": "Hydralazine - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "hydralazine",
+      "query": "hydralazine",
+      "required_terms": [
+        "HYDRALAZINE"
+      ],
+      "target_path": "raw/drug_labels/hydralazine_hydrochloride/hydralazine_hydrochloride_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "hydrochlorothiazide_label",
+      "title": "Hydrochlorothiazide - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "hydrochlorothiazide",
+      "query": "hydrochlorothiazide",
+      "required_terms": [
+        "HYDROCHLOROTHIAZIDE"
+      ],
+      "target_path": "raw/drug_labels/hydrochlorothiazide/hydrochlorothiazide_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "ibutilide_label",
+      "title": "Ibutilide - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "ibutilide",
+      "query": "ibutilide",
+      "required_terms": [
+        "IBUTILIDE"
+      ],
+      "target_path": "raw/drug_labels/ibutilide/ibutilide_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "icosapent_ethyl_label",
+      "title": "Icosapent Ethyl - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "icosapent_ethyl",
+      "query": "icosapent ethyl",
+      "required_terms": [
+        "ICOSAPENT ETHYL"
+      ],
+      "target_path": "raw/drug_labels/icosapent_ethyl/icosapent_ethyl_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "idarucizumab_label",
+      "title": "Idarucizumab - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "idarucizumab",
+      "query": "idarucizumab",
+      "required_terms": [
+        "IDARUCIZUMAB"
+      ],
+      "target_path": "raw/drug_labels/idarucizumab/idarucizumab_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "iloprost_label",
+      "title": "Iloprost - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "iloprost",
+      "query": "iloprost",
+      "required_terms": [
+        "ILOPROST"
+      ],
+      "target_path": "raw/drug_labels/iloprost/iloprost_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "inclisiran_label",
+      "title": "Inclisiran - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "inclisiran",
+      "query": "inclisiran",
+      "required_terms": [
+        "INCLISIRAN"
+      ],
+      "target_path": "raw/drug_labels/inclisiran/inclisiran_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "indapamide_label",
+      "title": "Indapamide - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "indapamide",
+      "query": "indapamide",
+      "required_terms": [
+        "INDAPAMIDE"
+      ],
+      "target_path": "raw/drug_labels/indapamide/indapamide_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "irbesartan_label",
+      "title": "Irbesartan - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "irbesartan",
+      "query": "irbesartan",
+      "required_terms": [
+        "IRBESARTAN"
+      ],
+      "target_path": "raw/drug_labels/irbesartan/irbesartan_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "iron_sucrose_label",
+      "title": "Iron Sucrose - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "iron_sucrose",
+      "query": "iron sucrose",
+      "required_terms": [
+        "IRON SUCROSE"
+      ],
+      "target_path": "raw/drug_labels/iron_sucrose/iron_sucrose_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "isosorbide_dinitrate_label",
+      "title": "Isosorbide Dinitrate - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "isosorbide_dinitrate",
+      "query": "isosorbide dinitrate",
+      "required_terms": [
+        "ISOSORBIDE DINITRATE"
+      ],
+      "target_path": "raw/drug_labels/isosorbide_dinitrate/isosorbide_dinitrate_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "isosorbide_mononitrate_label",
+      "title": "Isosorbide Mononitrate - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "isosorbide_mononitrate",
+      "query": "isosorbide mononitrate",
+      "required_terms": [
+        "ISOSORBIDE MONONITRATE"
+      ],
+      "target_path": "raw/drug_labels/isosorbide_mononitrate/isosorbide_mononitrate_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "isradipine_label",
+      "title": "Isradipine - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "isradipine",
+      "query": "isradipine",
+      "required_terms": [
+        "ISRADIPINE"
+      ],
+      "target_path": "raw/drug_labels/isradipine/isradipine_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "ivabradine_label",
+      "title": "Ivabradine - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "ivabradine",
+      "query": "ivabradine",
+      "required_terms": [
+        "IVABRADINE"
+      ],
+      "target_path": "raw/drug_labels/ivabradine/ivabradine_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "labetalol_label",
+      "title": "Labetalol - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "labetalol",
+      "query": "labetalol",
+      "required_terms": [
+        "LABETALOL"
+      ],
+      "target_path": "raw/drug_labels/labetalol/labetalol_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "lidocaine_label",
+      "title": "Lidocaine - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "lidocaine",
+      "query": "lidocaine",
+      "required_terms": [
+        "LIDOCAINE"
+      ],
+      "target_path": "raw/drug_labels/lidocaine/lidocaine_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "lisinopril_label",
+      "title": "Lisinopril - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "lisinopril",
+      "query": "lisinopril",
+      "required_terms": [
+        "LISINOPRIL"
+      ],
+      "target_path": "raw/drug_labels/lisinopril/lisinopril_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "losartan_potassium_label",
+      "title": "Losartan - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "losartan_potassium",
+      "query": "losartan",
+      "required_terms": [
+        "LOSARTAN"
+      ],
+      "target_path": "raw/drug_labels/losartan_potassium/losartan_potassium_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "lovastatin_label",
+      "title": "Lovastatin - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "lovastatin",
+      "query": "lovastatin",
+      "required_terms": [
+        "LOVASTATIN"
+      ],
+      "target_path": "raw/drug_labels/lovastatin/lovastatin_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "macitentan_label",
+      "title": "Macitentan - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "macitentan",
+      "query": "macitentan",
+      "required_terms": [
+        "MACITENTAN"
+      ],
+      "target_path": "raw/drug_labels/macitentan/macitentan_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "magnesium_oxide_label",
+      "title": "Magnesium Oxide - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "magnesium_oxide",
+      "query": "magnesium oxide",
+      "required_terms": [
+        "MAGNESIUM OXIDE"
+      ],
+      "target_path": "raw/drug_labels/magnesium_oxide/magnesium_oxide_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "magnesium_sulfate_label",
+      "title": "Magnesium Sulfate - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "magnesium_sulfate",
+      "query": "magnesium sulfate",
+      "required_terms": [
+        "MAGNESIUM SULFATE"
+      ],
+      "target_path": "raw/drug_labels/magnesium_sulfate/magnesium_sulfate_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "mannitol_label",
+      "title": "Mannitol - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "mannitol",
+      "query": "mannitol",
+      "required_terms": [
+        "MANNITOL"
+      ],
+      "target_path": "raw/drug_labels/mannitol/mannitol_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "metformin_label",
+      "title": "Metformin - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "metformin",
+      "query": "metformin",
+      "required_terms": [
+        "METFORMIN"
+      ],
+      "target_path": "raw/drug_labels/metformin/metformin_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "metolazone_label",
+      "title": "Metolazone - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "metolazone",
+      "query": "metolazone",
+      "required_terms": [
+        "METOLAZONE"
+      ],
+      "target_path": "raw/drug_labels/metolazone/metolazone_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "metoprolol_succinate_label",
+      "title": "Metoprolol Succinate - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "metoprolol_succinate",
+      "query": "metoprolol succinate",
+      "required_terms": [
+        "METOPROLOL SUCCINATE"
+      ],
+      "target_path": "raw/drug_labels/metoprolol_succinate/metoprolol_succinate_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "metoprolol_tartrate_label",
+      "title": "Metoprolol Tartrate - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "metoprolol_tartrate",
+      "query": "metoprolol tartrate",
+      "required_terms": [
+        "METOPROLOL TARTRATE"
+      ],
+      "target_path": "raw/drug_labels/metoprolol_tartrate/metoprolol_tartrate_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "mexiletine_label",
+      "title": "Mexiletine - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "mexiletine",
+      "query": "mexiletine",
+      "required_terms": [
+        "MEXILETINE"
+      ],
+      "target_path": "raw/drug_labels/mexiletine/mexiletine_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "midodrine_label",
+      "title": "Midodrine - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "midodrine",
+      "query": "midodrine",
+      "required_terms": [
+        "MIDODRINE"
+      ],
+      "target_path": "raw/drug_labels/midodrine/midodrine_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "milrinone_label",
+      "title": "Milrinone - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "milrinone",
+      "query": "milrinone",
+      "required_terms": [
+        "MILRINONE"
+      ],
+      "target_path": "raw/drug_labels/milrinone/milrinone_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "minoxidil_label",
+      "title": "Minoxidil - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "minoxidil",
+      "query": "minoxidil",
+      "required_terms": [
+        "MINOXIDIL"
+      ],
+      "target_path": "raw/drug_labels/minoxidil/minoxidil_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "moexipril_label",
+      "title": "Moexipril - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "moexipril",
+      "query": "moexipril",
+      "required_terms": [
+        "MOEXIPRIL"
+      ],
+      "target_path": "raw/drug_labels/moexipril/moexipril_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "nadolol_label",
+      "title": "Nadolol - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "nadolol",
+      "query": "nadolol",
+      "required_terms": [
+        "NADOLOL"
+      ],
+      "target_path": "raw/drug_labels/nadolol/nadolol_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "nebivolol_label",
+      "title": "Nebivolol - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "nebivolol",
+      "query": "nebivolol",
+      "required_terms": [
+        "NEBIVOLOL"
+      ],
+      "target_path": "raw/drug_labels/nebivolol/nebivolol_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "niacin_label",
+      "title": "Niacin - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "niacin",
+      "query": "niacin",
+      "required_terms": [
+        "NIACIN"
+      ],
+      "target_path": "raw/drug_labels/niacin/niacin_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "nicardipine_label",
+      "title": "Nicardipine - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "nicardipine",
+      "query": "nicardipine",
+      "required_terms": [
+        "NICARDIPINE"
+      ],
+      "target_path": "raw/drug_labels/nicardipine/nicardipine_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "nifedipine_label",
+      "title": "Nifedipine - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "nifedipine",
+      "query": "nifedipine",
+      "required_terms": [
+        "NIFEDIPINE"
+      ],
+      "target_path": "raw/drug_labels/nifedipine/nifedipine_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "nimodipine_label",
+      "title": "Nimodipine - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "nimodipine",
+      "query": "nimodipine",
+      "required_terms": [
+        "NIMODIPINE"
+      ],
+      "target_path": "raw/drug_labels/nimodipine/nimodipine_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "nisoldipine_label",
+      "title": "Nisoldipine - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "nisoldipine",
+      "query": "nisoldipine",
+      "required_terms": [
+        "NISOLDIPINE"
+      ],
+      "target_path": "raw/drug_labels/nisoldipine/nisoldipine_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "nitroglycerin_label",
+      "title": "Nitroglycerin - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "nitroglycerin",
+      "query": "nitroglycerin",
+      "required_terms": [
+        "NITROGLYCERIN"
+      ],
+      "target_path": "raw/drug_labels/nitroglycerin/nitroglycerin_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "nitroprusside_label",
+      "title": "Nitroprusside - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "nitroprusside",
+      "query": "nitroprusside",
+      "required_terms": [
+        "NITROPRUSSIDE"
+      ],
+      "target_path": "raw/drug_labels/nitroprusside/nitroprusside_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "norepinephrine_label",
+      "title": "Norepinephrine - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "norepinephrine",
+      "query": "norepinephrine",
+      "required_terms": [
+        "NOREPINEPHRINE"
+      ],
+      "target_path": "raw/drug_labels/norepinephrine/norepinephrine_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "olmesartan_medoxomil_label",
+      "title": "Olmesartan - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "olmesartan_medoxomil",
+      "query": "olmesartan",
+      "required_terms": [
+        "OLMESARTAN"
+      ],
+      "target_path": "raw/drug_labels/olmesartan_medoxomil/olmesartan_medoxomil_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "patiromer_label",
+      "title": "Patiromer - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "patiromer",
+      "query": "patiromer",
+      "required_terms": [
+        "PATIROMER"
+      ],
+      "target_path": "raw/drug_labels/patiromer/patiromer_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "perindopril_label",
+      "title": "Perindopril - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "perindopril",
+      "query": "perindopril",
+      "required_terms": [
+        "PERINDOPRIL"
+      ],
+      "target_path": "raw/drug_labels/perindopril/perindopril_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "phenylephrine_label",
+      "title": "Phenylephrine - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "phenylephrine",
+      "query": "phenylephrine",
+      "required_terms": [
+        "PHENYLEPHRINE"
+      ],
+      "target_path": "raw/drug_labels/phenylephrine/phenylephrine_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "phytonadione_label",
+      "title": "Phytonadione - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "phytonadione",
+      "query": "phytonadione",
+      "required_terms": [
+        "PHYTONADIONE"
+      ],
+      "target_path": "raw/drug_labels/phytonadione/phytonadione_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "pindolol_label",
+      "title": "Pindolol - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "pindolol",
+      "query": "pindolol",
+      "required_terms": [
+        "PINDOLOL"
+      ],
+      "target_path": "raw/drug_labels/pindolol/pindolol_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "pitavastatin_label",
+      "title": "Pitavastatin - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "pitavastatin",
+      "query": "pitavastatin",
+      "required_terms": [
+        "PITAVASTATIN"
+      ],
+      "target_path": "raw/drug_labels/pitavastatin/pitavastatin_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "potassium_chloride_label",
+      "title": "Potassium Chloride - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "potassium_chloride",
+      "query": "potassium chloride",
+      "required_terms": [
+        "POTASSIUM CHLORIDE"
+      ],
+      "target_path": "raw/drug_labels/potassium_chloride/potassium_chloride_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "prasugrel_label",
+      "title": "Prasugrel - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "prasugrel",
+      "query": "prasugrel",
+      "required_terms": [
+        "PRASUGREL"
+      ],
+      "target_path": "raw/drug_labels/prasugrel/prasugrel_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "pravastatin_label",
+      "title": "Pravastatin - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "pravastatin",
+      "query": "pravastatin",
+      "required_terms": [
+        "PRAVASTATIN"
+      ],
+      "target_path": "raw/drug_labels/pravastatin/pravastatin_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "prazosin_label",
+      "title": "Prazosin - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "prazosin",
+      "query": "prazosin",
+      "required_terms": [
+        "PRAZOSIN"
+      ],
+      "target_path": "raw/drug_labels/prazosin/prazosin_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "procainamide_label",
+      "title": "Procainamide - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "procainamide",
+      "query": "procainamide",
+      "required_terms": [
+        "PROCAINAMIDE"
+      ],
+      "target_path": "raw/drug_labels/procainamide/procainamide_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "propafenone_label",
+      "title": "Propafenone - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "propafenone",
+      "query": "propafenone",
+      "required_terms": [
+        "PROPAFENONE"
+      ],
+      "target_path": "raw/drug_labels/propafenone/propafenone_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "propranolol_label",
+      "title": "Propranolol - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "propranolol",
+      "query": "propranolol",
+      "required_terms": [
+        "PROPRANOLOL"
+      ],
+      "target_path": "raw/drug_labels/propranolol/propranolol_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "protamine_label",
+      "title": "Protamine - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "protamine",
+      "query": "protamine",
+      "required_terms": [
+        "PROTAMINE"
+      ],
+      "target_path": "raw/drug_labels/protamine/protamine_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "quinapril_label",
+      "title": "Quinapril - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "quinapril",
+      "query": "quinapril",
+      "required_terms": [
+        "QUINAPRIL"
+      ],
+      "target_path": "raw/drug_labels/quinapril/quinapril_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "quinidine_label",
+      "title": "Quinidine - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "quinidine",
+      "query": "quinidine",
+      "required_terms": [
+        "QUINIDINE"
+      ],
+      "target_path": "raw/drug_labels/quinidine/quinidine_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "ramipril_label",
+      "title": "Ramipril - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "ramipril",
+      "query": "ramipril",
+      "required_terms": [
+        "RAMIPRIL"
+      ],
+      "target_path": "raw/drug_labels/ramipril/ramipril_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "ranolazine_label",
+      "title": "Ranolazine - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "ranolazine",
+      "query": "ranolazine",
+      "required_terms": [
+        "RANOLAZINE"
+      ],
+      "target_path": "raw/drug_labels/ranolazine/ranolazine_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "riociguat_label",
+      "title": "Riociguat - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "riociguat",
+      "query": "riociguat",
+      "required_terms": [
+        "RIOCIGUAT"
+      ],
+      "target_path": "raw/drug_labels/riociguat/riociguat_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "rivaroxaban_label",
+      "title": "Rivaroxaban - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "rivaroxaban",
+      "query": "rivaroxaban",
+      "required_terms": [
+        "RIVAROXABAN"
+      ],
+      "target_path": "raw/drug_labels/rivaroxaban/rivaroxaban_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "rosuvastatin_label",
+      "title": "Rosuvastatin - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "rosuvastatin",
+      "query": "rosuvastatin",
+      "required_terms": [
+        "ROSUVASTATIN"
+      ],
+      "target_path": "raw/drug_labels/rosuvastatin/rosuvastatin_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "sacubitril_and_valsartan_label",
+      "title": "Sacubitril/Valsartan - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "sacubitril_and_valsartan",
+      "query": "sacubitril/valsartan",
+      "required_terms": [
+        "SACUBITRIL/VALSARTAN"
+      ],
+      "target_path": "raw/drug_labels/sacubitril_and_valsartan/sacubitril_and_valsartan_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "selexipag_label",
+      "title": "Selexipag - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "selexipag",
+      "query": "selexipag",
+      "required_terms": [
+        "SELEXIPAG"
+      ],
+      "target_path": "raw/drug_labels/selexipag/selexipag_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "semaglutide_label",
+      "title": "Semaglutide - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "semaglutide",
+      "query": "semaglutide",
+      "required_terms": [
+        "SEMAGLUTIDE"
+      ],
+      "target_path": "raw/drug_labels/semaglutide/semaglutide_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "sildenafil_label",
+      "title": "Sildenafil - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "sildenafil",
+      "query": "sildenafil",
+      "required_terms": [
+        "SILDENAFIL"
+      ],
+      "target_path": "raw/drug_labels/sildenafil/sildenafil_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "simvastatin_label",
+      "title": "Simvastatin - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "simvastatin",
+      "query": "simvastatin",
+      "required_terms": [
+        "SIMVASTATIN"
+      ],
+      "target_path": "raw/drug_labels/simvastatin/simvastatin_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "sodium_polystyrene_sulfonate_label",
+      "title": "Sodium Polystyrene Sulfonate - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "sodium_polystyrene_sulfonate",
+      "query": "sodium polystyrene sulfonate",
+      "required_terms": [
+        "SODIUM POLYSTYRENE SULFONATE"
+      ],
+      "target_path": "raw/drug_labels/sodium_polystyrene_sulfonate/sodium_polystyrene_sulfonate_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "sodium_zirconium_cyclosilicate_label",
+      "title": "Sodium Zirconium Cyclosilicate - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "sodium_zirconium_cyclosilicate",
+      "query": "sodium zirconium cyclosilicate",
+      "required_terms": [
+        "SODIUM ZIRCONIUM CYCLOSILICATE"
+      ],
+      "target_path": "raw/drug_labels/sodium_zirconium_cyclosilicate/sodium_zirconium_cyclosilicate_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "sotagliflozin_label",
+      "title": "Sotagliflozin - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "sotagliflozin",
+      "query": "sotagliflozin",
+      "required_terms": [
+        "SOTAGLIFLOZIN"
+      ],
+      "target_path": "raw/drug_labels/sotagliflozin/sotagliflozin_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "sotalol_label",
+      "title": "Sotalol - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "sotalol",
+      "query": "sotalol",
+      "required_terms": [
+        "SOTALOL"
+      ],
+      "target_path": "raw/drug_labels/sotalol/sotalol_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "spironolactone_and_hydrochlorothiazide_label",
+      "title": "Spironolactone/Hydrochlorothiazide - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "spironolactone_and_hydrochlorothiazide",
+      "query": "spironolactone/hydrochlorothiazide",
+      "required_terms": [
+        "SPIRONOLACTONE/HYDROCHLOROTHIAZIDE"
+      ],
+      "target_path": "raw/drug_labels/spironolactone_and_hydrochlorothiazide/spironolactone_and_hydrochlorothiazide_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "spironolactone_label",
+      "title": "Spironolactone - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "spironolactone",
+      "query": "spironolactone",
+      "required_terms": [
+        "SPIRONOLACTONE"
+      ],
+      "target_path": "raw/drug_labels/spironolactone/spironolactone_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "tadalafil_label",
+      "title": "Tadalafil - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "tadalafil",
+      "query": "tadalafil",
+      "required_terms": [
+        "TADALAFIL"
+      ],
+      "target_path": "raw/drug_labels/tadalafil/tadalafil_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "telmisartan_label",
+      "title": "Telmisartan - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "telmisartan",
+      "query": "telmisartan",
+      "required_terms": [
+        "TELMISARTAN"
+      ],
+      "target_path": "raw/drug_labels/telmisartan/telmisartan_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "tenecteplase_label",
+      "title": "Tenecteplase - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "tenecteplase",
+      "query": "tenecteplase",
+      "required_terms": [
+        "TENECTEPLASE"
+      ],
+      "target_path": "raw/drug_labels/tenecteplase/tenecteplase_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "terazosin_label",
+      "title": "Terazosin - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "terazosin",
+      "query": "terazosin",
+      "required_terms": [
+        "TERAZOSIN"
+      ],
+      "target_path": "raw/drug_labels/terazosin/terazosin_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "ticagrelor_label",
+      "title": "Ticagrelor - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "ticagrelor",
+      "query": "ticagrelor",
+      "required_terms": [
+        "TICAGRELOR"
+      ],
+      "target_path": "raw/drug_labels/ticagrelor/ticagrelor_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "ticlopidine_label",
+      "title": "Ticlopidine - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "ticlopidine",
+      "query": "ticlopidine",
+      "required_terms": [
+        "TICLOPIDINE"
+      ],
+      "target_path": "raw/drug_labels/ticlopidine/ticlopidine_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "timolol_label",
+      "title": "Timolol - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "timolol",
+      "query": "timolol",
+      "required_terms": [
+        "TIMOLOL"
+      ],
+      "target_path": "raw/drug_labels/timolol/timolol_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "tirzepatide_label",
+      "title": "Tirzepatide - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "tirzepatide",
+      "query": "tirzepatide",
+      "required_terms": [
+        "TIRZEPATIDE"
+      ],
+      "target_path": "raw/drug_labels/tirzepatide/tirzepatide_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "tolvaptan_label",
+      "title": "Tolvaptan - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "tolvaptan",
+      "query": "tolvaptan",
+      "required_terms": [
+        "TOLVAPTAN"
+      ],
+      "target_path": "raw/drug_labels/tolvaptan/tolvaptan_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "torsemide_label",
+      "title": "Torsemide - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "torsemide",
+      "query": "torsemide",
+      "required_terms": [
+        "TORSEMIDE"
+      ],
+      "target_path": "raw/drug_labels/torsemide/torsemide_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "trandolapril_label",
+      "title": "Trandolapril - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "trandolapril",
+      "query": "trandolapril",
+      "required_terms": [
+        "TRANDOLAPRIL"
+      ],
+      "target_path": "raw/drug_labels/trandolapril/trandolapril_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "treprostinil_label",
+      "title": "Treprostinil - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "treprostinil",
+      "query": "treprostinil",
+      "required_terms": [
+        "TREPROSTINIL"
+      ],
+      "target_path": "raw/drug_labels/treprostinil/treprostinil_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "triamterene_label",
+      "title": "Triamterene - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "triamterene",
+      "query": "triamterene",
+      "required_terms": [
+        "TRIAMTERENE"
+      ],
+      "target_path": "raw/drug_labels/triamterene/triamterene_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "valsartan_label",
+      "title": "Valsartan - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "valsartan",
+      "query": "valsartan",
+      "required_terms": [
+        "VALSARTAN"
+      ],
+      "target_path": "raw/drug_labels/valsartan/valsartan_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "vasopressin_label",
+      "title": "Vasopressin - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "vasopressin",
+      "query": "vasopressin",
+      "required_terms": [
+        "VASOPRESSIN"
+      ],
+      "target_path": "raw/drug_labels/vasopressin/vasopressin_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "verapamil_label",
+      "title": "Verapamil - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "verapamil",
+      "query": "verapamil",
+      "required_terms": [
+        "VERAPAMIL"
+      ],
+      "target_path": "raw/drug_labels/verapamil/verapamil_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "vericiguat_label",
+      "title": "Vericiguat - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "vericiguat",
+      "query": "vericiguat",
+      "required_terms": [
+        "VERICIGUAT"
+      ],
+      "target_path": "raw/drug_labels/vericiguat/vericiguat_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "vorapaxar_label",
+      "title": "Vorapaxar - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "vorapaxar",
+      "query": "vorapaxar",
+      "required_terms": [
+        "VORAPAXAR"
+      ],
+      "target_path": "raw/drug_labels/vorapaxar/vorapaxar_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
+    },
+    {
+      "source_id": "warfarin_sodium_label",
+      "title": "Warfarin - FDA Label",
+      "source_type": "drug_label_xml",
+      "download_strategy": "dailymed_spl",
+      "publisher": "FDA DailyMed",
+      "topic": "drug_label",
+      "slug": "warfarin_sodium",
+      "query": "warfarin",
+      "required_terms": [
+        "WARFARIN"
+      ],
+      "target_path": "raw/drug_labels/warfarin_sodium/warfarin_sodium_label.xml",
+      "license_note": "Public domain FDA label. Safe for ingestion."
     }
-  ]
+  ],
+  "source_summary": {
+    "total": 214,
+    "by_type": {
+      "drug_label_xml": 169,
+      "guideline_html": 29,
+      "guideline_pdf": 16
+    },
+    "by_topic": {
+      "drug_label": 169,
+      "diabetes": 17,
+      "heart_failure": 9,
+      "coronary_disease": 3,
+      "ascvd_prevention": 2,
+      "atrial_fibrillation": 2,
+      "ckd": 2,
+      "valvular_heart_disease": 2,
+      "cardio_oncology": 1,
+      "cardiomyopathy": 1,
+      "chest_pain": 1,
+      "copd": 1,
+      "dyslipidemia": 1,
+      "hypertension": 1,
+      "peripheral_artery_disease": 1,
+      "sleep_apnea": 1
+    },
+    "guideline_count": 45,
+    "drug_label_count": 169
+  }
 }

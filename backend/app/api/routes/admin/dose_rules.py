@@ -18,7 +18,7 @@ from app.modules.datastores.postgres import (
     retire_dose_rule,
     unretire_dose_rule,
 )
-from app.modules.dose_calculator.registry import invalidate_dose_rules_registry_cache, load_dose_rules
+from app.modules.dose_calculation import get_available_drugs, invalidate_dose_label_cache
 from app.modules.governance.bulk_approve import bulk_approve_dose_rules
 from app.modules.governance.diff import DOSE_DIFF_FIELDS, diff_field_map, dose_diff_payload
 
@@ -178,13 +178,22 @@ def bulk_approve_dose_rules_endpoint(
         dry_run=payload.dry_run,
     )
     if not payload.dry_run:
-        background_tasks.add_task(invalidate_dose_rules_registry_cache)
+        background_tasks.add_task(invalidate_dose_label_cache)
     return BulkApproveResponse(**result)
 
 
 @router.get("/active")
 def list_active_dose_rules(_: AdminUser = Depends(require_catalog_reader)) -> list[dict[str, Any]]:
-    return load_dose_rules()
+    """Active dosing source is FDA drug labels (not curated calculator bundles)."""
+    return [
+        {
+            "source": "fda_xml_labels",
+            "drug_key": drug.get("drug_key"),
+            "generic_name": drug.get("generic_name"),
+            "drug_class": drug.get("drug_class"),
+        }
+        for drug in get_available_drugs()
+    ]
 
 
 @router.get("/rules/{rule_id}", response_model=DoseRuleResponse)
@@ -249,7 +258,7 @@ def update_dose_rule_status(
     current_user: AdminUser = Depends(get_current_admin_user),
 ) -> RuleActionResponse:
     response = _apply_status_change(rule_id, payload.status, current_user)
-    background_tasks.add_task(invalidate_dose_rules_registry_cache)
+    background_tasks.add_task(invalidate_dose_label_cache)
     return response
 
 

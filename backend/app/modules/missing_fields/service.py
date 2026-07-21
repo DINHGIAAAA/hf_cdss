@@ -1,7 +1,7 @@
 from collections.abc import Callable
 from typing import Any
 
-from app.modules.dose_calculator.raasi_helpers import patient_on_acei, patient_on_warfarin
+from app.modules.medication_presence import patient_on_acei, patient_on_warfarin
 from app.schemas.chat import MissingField, MissingFieldCheck
 from app.schemas.patient import PatientProfile
 

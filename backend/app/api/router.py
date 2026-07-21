@@ -5,6 +5,7 @@ from app.api.routes import (
     auth,
     chat,
     clinical_pipeline,
+    dosing,
     evidence,
     graphrag,
     health,
@@ -32,6 +33,7 @@ api_router.include_router(health.router, tags=["system"])
 api_router.include_router(clinical_pipeline.router, tags=["clinical-pipeline"])
 api_router.include_router(clinical_pipeline.legacy_router, tags=["clinical-pipeline"])
 api_router.include_router(recommendation.router, tags=["recommendation"])
+api_router.include_router(dosing.router, tags=["dosing"])
 api_router.include_router(medication_safety.router, tags=["medication-safety"])
 api_router.include_router(evidence.router, tags=["evidence"])
 api_router.include_router(knowledge_graph.router, tags=["knowledge-graph"])

@@ -303,6 +303,7 @@ class PatientProfile(BaseModel):
         potassium = output.pop("potassium", None)
         systolic_bp = output.pop("systolic_bp", None)
         heart_rate = output.pop("heart_rate", None)
+        weight_kg = output.pop("weight_kg", None)
         nyha_class = output.pop("nyha_class", None)
         comorbidities = output.pop("comorbidities", [])
         current_medications = output.pop("current_medications", [])
@@ -321,6 +322,7 @@ class PatientProfile(BaseModel):
             **output.get("vitals", {}),
             "systolic_bp": _clinical_value(systolic_bp, "mmHg"),
             "heart_rate": _clinical_value(heart_rate, "bpm"),
+            "weight_kg": _clinical_value(weight_kg, "kg"),
         }
         output["heart_failure_profile"] = {
             **output.get("heart_failure_profile", {}),

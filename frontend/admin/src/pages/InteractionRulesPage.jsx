@@ -19,6 +19,7 @@ const EMPTY_FILTERS = {
   severity: "",
   target: "",
   safety_tier: "",
+  extraction_method: "",
   q: "",
 };
 

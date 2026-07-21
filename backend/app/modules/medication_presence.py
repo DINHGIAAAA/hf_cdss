@@ -1,3 +1,4 @@
+"""Helpers to detect which medication classes a patient is currently on."""
 from __future__ import annotations
 
 from app.schemas.patient import PatientProfile
@@ -27,6 +28,7 @@ ARNI_KEYS = frozenset(
         "sacubitril_and_valsartan",
         "sacubitril and valsartan",
         "entresto",
+        "sacubitril_valsartan",
     }
 )
 WARFARIN_KEYS = frozenset({"warfarin", "warfarin sodium", "warfarin_sodium", "coumadin"})
@@ -42,7 +44,10 @@ def _matches_any(name: str, keys: frozenset[str]) -> bool:
 
 
 def patient_medications(patient: PatientProfile) -> list[str]:
-    return [*patient.current_medications, *[med.name for med in patient.medications if med.status == "active"]]
+    return [
+        *patient.current_medications,
+        *[med.name for med in patient.medications if med.status == "active"],
+    ]
 
 
 def patient_on_acei(patient: PatientProfile) -> bool:

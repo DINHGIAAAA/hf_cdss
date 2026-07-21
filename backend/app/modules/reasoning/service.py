@@ -1,7 +1,6 @@
 from app.modules.clinical_normalization.service import normalize_patient
 from app.modules.constraint_builder.service import build_constraints
-from app.modules.dose_calculator.registry import dose_rules_bundle_version
-from app.modules.dose_calculator.service import build_dose_plans
+from app.modules.dose_calculation import build_dose_plans, dose_source_version
 from app.modules.dose_checking.service import check_dose_safety
 from app.modules.gdmt_policy.policy_engine import gdmt_classes_map, recommendation_for_policy
 from app.modules.gdmt_policy.policy_loader import gdmt_policy_version, load_executable_gdmt_policies
@@ -84,6 +83,6 @@ def build_recommendation(payload: RecommendationRequest) -> RecommendationRespon
         clinical_state=payload.clinical_state,
         recommendation=response,
     )
-    response.dose_rules_version = dose_rules_bundle_version()
+    response.dose_rules_version = dose_source_version()
     response.gdmt_policy_version = gdmt_policy_version()
     return response

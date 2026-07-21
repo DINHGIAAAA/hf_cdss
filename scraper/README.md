@@ -25,3 +25,14 @@ Postgres sync (after pipeline):
 ```powershell
 py -m scraper.process.sync_governance_catalog --catalog all
 ```
+
+Interaction rules (FDA XML Drug Interactions → draft → Admin approve):
+
+```powershell
+py -m scraper.process.extract_fda_xml_interaction_claims
+py -m scraper.orchestration.governance_catalog_steps --catalog interaction_rules
+py -m scraper.process.sync_governance_catalog --catalog interaction_rules
+```
+
+See `backend/app/modules/interaction_checking/README.md` and
+`docs/interaction_rules_fda_extract_proposal.md`.

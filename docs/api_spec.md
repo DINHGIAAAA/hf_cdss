@@ -127,7 +127,7 @@ Response:
       "severity": "high",
       "target": "RAASi_MRA",
       "message": "RAAS-inhibiting therapy combined with an MRA requires potassium and renal function monitoring.",
-      "evidence_ref": "week7_interaction_rule:RAASI_MRA_K_RENAL_MONITORING",
+      "evidence_ref": "guideline_consensus:RAASI_MRA_K_RENAL_MONITORING",
       "related_medications": ["lisinopril", "spironolactone"],
       "related_observations": {
         "egfr": 38,

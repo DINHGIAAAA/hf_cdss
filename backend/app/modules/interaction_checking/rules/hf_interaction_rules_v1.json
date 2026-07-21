@@ -1,6 +1,6 @@
 {
   "version": "hf_interaction_rules_v1",
-  "source": "bundled_week7_baseline",
+  "source": "bundled_baseline_v1",
   "rules": [
     {
       "interaction_rule_id": "acei_arb_combination",
@@ -14,7 +14,7 @@
         "escalation": [],
         "monitoring": ["Potassium", "Creatinine/eGFR"]
       },
-      "evidence_ref": "week7_interaction_rule:ACEI_ARB_AVOID_COMBINATION"
+      "evidence_ref": "guideline_consensus:ACEI_ARB_AVOID_COMBINATION"
     },
     {
       "interaction_rule_id": "raasi_mra_hyperkalemia_monitoring",
@@ -28,7 +28,7 @@
         "escalation": [{"field": "potassium", "operator": "gte", "value": 5.0, "severity": "high"}],
         "monitoring": ["Potassium", "Creatinine/eGFR"]
       },
-      "evidence_ref": "week7_interaction_rule:RAASI_MRA_K_RENAL_MONITORING"
+      "evidence_ref": "guideline_consensus:RAASI_MRA_K_RENAL_MONITORING"
     },
     {
       "interaction_rule_id": "raasi_nsaid_renal_review",
@@ -42,7 +42,7 @@
         "escalation": [],
         "monitoring": ["Creatinine/eGFR"]
       },
-      "evidence_ref": "week7_interaction_rule:RAASI_NSAID_RENAL_REVIEW"
+      "evidence_ref": "guideline_consensus:RAASI_NSAID_RENAL_REVIEW"
     },
     {
       "interaction_rule_id": "anticoagulant_antiplatelet_bleeding",
@@ -56,7 +56,7 @@
         "escalation": [],
         "monitoring": ["Bleeding signs"]
       },
-      "evidence_ref": "week7_interaction_rule:ANTICOAG_ANTIPLATELET_BLEEDING_REVIEW"
+      "evidence_ref": "guideline_consensus:ANTICOAG_ANTIPLATELET_BLEEDING_REVIEW"
     }
   ]
 }

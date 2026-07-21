@@ -142,12 +142,16 @@ def _convert_dose_rule(rule: dict[str, Any]) -> dict[str, Any]:
 
 
 def _convert_interaction_rule(rule: dict[str, Any]) -> dict[str, Any]:
-    rule_id = rule["rule_id"]
+    rule_id = rule.get("interaction_rule_id") or rule["rule_id"]
     source_refs = rule.get("source_refs") or []
-    evidence_ref = None
-    if source_refs:
+    evidence_ref = rule.get("evidence_ref")
+    if not evidence_ref and source_refs:
         first = source_refs[0]
-        evidence_ref = first.get("metadata", {}).get("chunk_id") or first.get("claim_id") or f"rule:{rule_id}"
+        meta = first.get("metadata") or {}
+        if first.get("source_type") == "drug_label" and first.get("document_id"):
+            evidence_ref = f"fda_label:{first['document_id']}:drug_interactions"
+        else:
+            evidence_ref = meta.get("chunk_id") or first.get("claim_id") or f"rule:{rule_id}"
     row = {
         "interaction_rule_id": rule_id,
         "drug_set_a": list(rule.get("drug_set_a") or []),
@@ -163,6 +167,7 @@ def _convert_interaction_rule(rule: dict[str, Any]) -> dict[str, Any]:
             "original_rule_id": rule_id,
             "extraction_method": rule.get("extraction_method"),
             "source_confidence": rule.get("source_confidence"),
+            "partner_matched": rule.get("partner_matched"),
         },
     }
     row["metadata"]["content_hash"] = _content_hash(

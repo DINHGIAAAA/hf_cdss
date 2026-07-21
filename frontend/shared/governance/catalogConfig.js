@@ -86,6 +86,17 @@ export const INTERACTION_CATALOG = {
     { key: "severity", label: "Severity", placeholder: "e.g. high" },
     { key: "target", label: "Target", placeholder: "e.g. RAASi_MRA" },
     { key: "safety_tier", label: "Safety tier", type: "select", options: SAFETY_TIER_OPTIONS },
+    {
+      key: "extraction_method",
+      label: "Source",
+      type: "select",
+      options: [
+        { value: "", label: "Any source" },
+        { value: "fda_xml", label: "FDA XML label" },
+        { value: "llm_structured", label: "LLM guideline chunks" },
+        { value: "regex_drug_interaction", label: "Regex claim" },
+      ],
+    },
     { key: "q", label: "Search ID", placeholder: "interaction rule id" },
   ],
 };

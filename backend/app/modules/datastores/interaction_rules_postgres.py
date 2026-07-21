@@ -70,6 +70,7 @@ def read_interaction_rules_filtered(
     target: str | None = None,
     safety_tier: str | None = None,
     q: str | None = None,
+    extraction_method: str | None = None,
     limit: int = 500,
 ) -> list[dict[str, Any]]:
     conditions: list[str] = []
@@ -89,6 +90,9 @@ def read_interaction_rules_filtered(
     if q:
         conditions.append("interaction_rule_id ILIKE %s")
         params.append(f"%{q}%")
+    if extraction_method:
+        conditions.append("metadata->>'extraction_method' ILIKE %s")
+        params.append(f"%{extraction_method}%")
     where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
     params.append(limit)
     with postgres_pool().connection() as connection:
@@ -427,6 +431,7 @@ def list_draft_interaction_rule_ids(
     target: str | None = None,
     safety_tier: str | None = None,
     q: str | None = None,
+    extraction_method: str | None = None,
     limit: int = 100,
 ) -> list[int]:
     conditions = ["status = 'draft'"]
@@ -446,6 +451,9 @@ def list_draft_interaction_rule_ids(
     if q:
         conditions.append("interaction_rule_id ILIKE %s")
         params.append(f"%{q}%")
+    if extraction_method:
+        conditions.append("metadata->>'extraction_method' ILIKE %s")
+        params.append(f"%{extraction_method}%")
     params.append(limit)
     with postgres_pool().connection() as connection:
         with connection.cursor() as cursor:

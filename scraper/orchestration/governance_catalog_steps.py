@@ -46,6 +46,13 @@ GOVERNANCE_CATALOGS: tuple[GovernanceCatalog, ...] = (
 def pipeline_steps(python: str) -> list[tuple[str, list[str]]]:
     steps: list[tuple[str, list[str]]] = []
     for catalog in GOVERNANCE_CATALOGS:
+        if catalog.name == "interaction_rules":
+            steps.append(
+                (
+                    "extract_fda_xml_interaction_claims",
+                    [python, "-m", "scraper.process.extract_fda_xml_interaction_claims"],
+                )
+            )
         steps.extend(
             [
                 (f"extract_{catalog.name}", [python, "-m", catalog.extract_module]),
@@ -59,29 +66,39 @@ def pipeline_steps(python: str) -> list[tuple[str, list[str]]]:
 def main() -> None:
     import argparse
     import os
-    from pathlib import Path
 
-    from scraper.paths import data_root, python_import_path
+    from scraper.paths import project_root, python_import_path
 
     parser = argparse.ArgumentParser(description="Run governance catalog extract/generate/classify steps.")
     parser.add_argument("--catalog", choices=[c.name for c in GOVERNANCE_CATALOGS], default=None)
     args = parser.parse_args()
 
     python = sys.executable
-    root = data_root()
+    root = project_root()
     env = os.environ.copy()
     import_path = python_import_path()
     env["PYTHONPATH"] = import_path if not env.get("PYTHONPATH") else f"{import_path}{os.pathsep}{env['PYTHONPATH']}"
 
     catalogs = [c for c in GOVERNANCE_CATALOGS if c.name == args.catalog] if args.catalog else list(GOVERNANCE_CATALOGS)
     for catalog in catalogs:
-        for step_name, command in (
-            (f"extract_{catalog.name}", [python, "-m", catalog.extract_module]),
-            (f"generate_{catalog.name}", [python, "-m", catalog.generate_module]),
-            (f"classify_{catalog.name}", [python, "-m", catalog.classify_module]),
-        ):
+        steps: list[tuple[str, list[str]]] = []
+        if catalog.name == "interaction_rules":
+            steps.append(
+                (
+                    "extract_fda_xml_interaction_claims",
+                    [python, "-m", "scraper.process.extract_fda_xml_interaction_claims"],
+                )
+            )
+        steps.extend(
+            [
+                (f"extract_{catalog.name}", [python, "-m", catalog.extract_module]),
+                (f"generate_{catalog.name}", [python, "-m", catalog.generate_module]),
+                (f"classify_{catalog.name}", [python, "-m", catalog.classify_module]),
+            ]
+        )
+        for step_name, command in steps:
             print(f"\n[{step_name}] {' '.join(command)}")
-            subprocess.run(command, cwd=root, check=True, env=env)
+            subprocess.run(command, cwd=str(root), check=True, env=env)
 
 
 if __name__ == "__main__":

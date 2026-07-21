@@ -42,36 +42,13 @@ def seed_bundled_list_catalog(
 
 
 def seed_bundled_dose_rules() -> dict[str, Any]:
-    from app.modules.datastores.postgres import get_latest_dose_rule_version, insert_dose_rule
-    from app.modules.dose_calculator.dose_rules_paths import resolve_dose_rules_bundle_path
-    from app.modules.dose_calculator.rule_validation import validate_bundle_file
-
-    def row_builder(rule: dict[str, Any], bundle_version: str) -> dict[str, Any]:
-        rule_id = rule["rule_id"]
-        body = {key: value for key, value in rule.items() if key not in {"rule_id", "safety_tier", "recommendation_use"}}
-        return {
-            "dose_rule_id": rule_id,
-            "drug_keys": list(rule.get("drug_keys") or []),
-            "drug_class": rule.get("drug_class"),
-            "calculation_type": rule.get("calculation_type"),
-            "rule_body": body,
-            "evidence_ref": (rule.get("evidence_refs") or [None])[0],
-            "clinical_sources": [],
-            "source": "bundled_seed",
-            "safety_tier": "usable_rules",
-            "metadata": {"seed_source": bundle_version, "bundle_version": bundle_version, "content_hash": rule_id},
-        }
-
-    path = resolve_dose_rules_bundle_path()
-    return seed_bundled_list_catalog(
-        bundle_path=path,
-        list_key="rules",
-        id_field="dose_rule_id",
-        row_builder=row_builder,
-        get_latest=get_latest_dose_rule_version,
-        insert=insert_dose_rule,
-        validate_bundle=lambda p: validate_bundle_file(p, strict=True),
-    )
+    """No-op: dose plans are derived from FDA XML labels, not curated JSON bundles."""
+    return {
+        "created": 0,
+        "skipped": 0,
+        "status": "skipped",
+        "reason": "Dose plans now come from FDA drug-label XML via dose_calculation",
+    }
 
 
 def seed_bundled_interaction_rules() -> dict[str, int]:
