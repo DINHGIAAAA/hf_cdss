@@ -3,6 +3,14 @@ import { CheckCircle2, History, RotateCcw, ShieldOff, XCircle } from "lucide-rea
 
 import { adminApi } from "../api/index.js";
 import { VersionDiffPanel } from "@shared/governance/VersionDiffPanel.jsx";
+import { StatusHistoryList } from "@shared/governance/StatusHistoryList.jsx";
+import {
+  ClinicalSourcesList,
+  CollapsiblePayload,
+  DetailFieldList,
+  DetailMetaRow,
+} from "@shared/governance/DetailFieldList.jsx";
+import { doseRuleTitle } from "@shared/governance/displayNames.js";
 
 function statusClass(status) {
   if (status === "approved") return "success";
@@ -78,16 +86,16 @@ export function DoseRuleDetail({ rule, onClose, onAction, actionLoading, canAppr
     <aside aria-label="Dose rule details" className="admin-detail-panel dose-detail-panel">
       <header className="admin-detail-header">
         <div>
-          <h2>{rule.dose_rule_id}</h2>
-          <p className="dose-detail-meta">
-            v{rule.version} · <span className={`badge ${statusClass(rule.status)}`}>{rule.status}</span>
-            {rule.safety_tier && (
-              <>
-                {" "}
-                · <span className={`badge ${tierClass(rule.safety_tier)}`}>{rule.safety_tier}</span>
-              </>
-            )}
-          </p>
+          <h2>{doseRuleTitle(rule)}</h2>
+          <DetailMetaRow
+            badges={
+              rule.safety_tier ? [{ label: rule.safety_tier, className: tierClass(rule.safety_tier) }] : []
+            }
+            id={rule.dose_rule_id}
+            status={rule.status}
+            statusClassName={statusClass(rule.status)}
+            version={rule.version}
+          />
         </div>
         <button aria-label="Close detail panel" className="icon-btn" onClick={onClose} type="button">
           <XCircle size={18} />
@@ -95,63 +103,36 @@ export function DoseRuleDetail({ rule, onClose, onAction, actionLoading, canAppr
       </header>
 
       <div className="admin-detail-body">
-        <dl className="detail-grid">
-          <dt>Calculation</dt>
-          <dd>
-            <code className="dose-code">{rule.calculation_type}</code>
-          </dd>
-          <dt>Drug class</dt>
-          <dd>{rule.drug_class || "—"}</dd>
-          <dt>Drug keys</dt>
-          <dd>{(rule.drug_keys || []).join(", ") || "—"}</dd>
-          <dt>Evidence</dt>
-          <dd>{rule.evidence_ref || "—"}</dd>
-          <dt>Source</dt>
-          <dd>{rule.source}</dd>
-        </dl>
+        <DetailFieldList
+          fields={[
+            {
+              label: "Calculation",
+              value: <code className="dose-code">{rule.calculation_type}</code>,
+            },
+            { label: "Drug class", value: rule.drug_class || "—" },
+            { label: "Drug keys", value: (rule.drug_keys || []).length ? rule.drug_keys : "—" },
+            { label: "Evidence", value: rule.evidence_ref || "—", mono: true },
+            { label: "Source", value: rule.source },
+          ]}
+        />
 
         {summary.length > 0 && (
           <section>
             <h3>Dose summary</h3>
-            <dl className="detail-grid dose-summary-grid">
-              {summary.map((item) => (
-                <div className="dose-summary-row" key={item.label}>
-                  <dt>{item.label}</dt>
-                  <dd>{item.value}</dd>
-                </div>
-              ))}
-            </dl>
+            <DetailFieldList fields={summary.map((item) => ({ label: item.label, value: item.value }))} />
           </section>
         )}
 
         {(body.monitoring || []).length > 0 && (
           <section>
             <h3>Monitoring</h3>
-            <ul className="source-list">
-              {body.monitoring.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
+            <DetailFieldList fields={[{ label: "Items", value: body.monitoring }]} />
           </section>
         )}
 
-        {(rule.clinical_sources || []).length > 0 && (
-          <section>
-            <h3>Clinical sources</h3>
-            <ul className="source-list">
-              {rule.clinical_sources.map((src, i) => (
-                <li key={src.claim_id || src.document_id || i}>
-                  {src.evidence || src.source_section || src.document_id || "Source claim"}
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
+        <ClinicalSourcesList sources={rule.clinical_sources || []} />
 
-        <section>
-          <h3>Rule payload</h3>
-          <pre className="dose-json-block">{JSON.stringify(body, null, 2)}</pre>
-        </section>
+        <CollapsiblePayload data={body} title="Full payload" />
 
         <VersionDiffPanel
           fetchDiff={adminApi.getDoseRuleDiff}
@@ -164,21 +145,7 @@ export function DoseRuleDetail({ rule, onClose, onAction, actionLoading, canAppr
             <h3>
               <History size={16} /> History
             </h3>
-            {historyError && <p className="inline-error">{historyError}</p>}
-            <ul className="history-list">
-              {history.map((item) => (
-                <li key={item.history_id}>
-                  <strong>
-                    {item.status_from || "—"} → {item.status_to}
-                  </strong>
-                  <span>
-                    {item.changed_by} · {new Date(item.changed_at).toLocaleString()}
-                  </span>
-                  {item.reason && <small>{item.reason}</small>}
-                </li>
-              ))}
-              {history.length === 0 && !historyError && <li>No history recorded.</li>}
-            </ul>
+            <StatusHistoryList error={historyError} items={history} />
           </section>
         )}
       </div>

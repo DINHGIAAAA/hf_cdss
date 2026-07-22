@@ -122,6 +122,44 @@ def read_dose_safety_warnings_filtered(
             return [_row_to_dict(row) for row in cursor.fetchall()]
 
 
+def count_dose_safety_warnings_by_status(
+    *,
+    target: str | None = None,
+    default_severity: str | None = None,
+    safety_tier: str | None = None,
+    q: str | None = None,
+) -> dict[str, int]:
+    """Status badge counts independent of the selected status tab."""
+    conditions: list[str] = []
+    params: list[Any] = []
+    if target:
+        conditions.append("target ILIKE %s")
+        params.append(f"%{target}%")
+    if default_severity:
+        conditions.append("default_severity = %s")
+        params.append(default_severity)
+    if safety_tier:
+        conditions.append("safety_tier = %s")
+        params.append(safety_tier)
+    if q:
+        conditions.append("(dose_safety_warning_id ILIKE %s OR target ILIKE %s)")
+        params.extend([f"%{q}%", f"%{q}%"])
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    with postgres_pool().connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"SELECT status, COUNT(*) FROM dose_safety_warnings {where} GROUP BY status",
+                tuple(params),
+            )
+            counts = {row[0]: row[1] for row in cursor.fetchall()}
+            return {
+                "draft": counts.get("draft", 0),
+                "approved": counts.get("approved", 0),
+                "retired": counts.get("retired", 0),
+                "total": sum(counts.values()),
+            }
+
+
 def get_dose_safety_warning(rule_id: int) -> dict[str, Any] | None:
     with postgres_pool().connection() as connection:
         with connection.cursor() as cursor:

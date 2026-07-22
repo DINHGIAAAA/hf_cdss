@@ -3,6 +3,8 @@ import { CheckCircle2, History, RotateCcw, ShieldOff, XCircle } from "lucide-rea
 
 import { adminApi } from "../api/index.js";
 import { VersionDiffPanel } from "@shared/governance/VersionDiffPanel.jsx";
+import { StatusHistoryList } from "@shared/governance/StatusHistoryList.jsx";
+import { DetailFieldList, DetailMetaRow, CollapsiblePayload } from "@shared/governance/DetailFieldList.jsx";
 
 function statusClass(status) {
   if (status === "approved") return "success";
@@ -47,16 +49,17 @@ export function GdmtPolicyDetail({ policy, onClose, onAction, actionLoading, can
       <header className="admin-detail-header">
         <div>
           <h2>{policy.display_label}</h2>
-          <p className="dose-detail-meta">
-            {policy.gdmt_policy_id} · v{policy.version} ·{" "}
-            <span className={`badge ${statusClass(policy.status)}`}>{policy.status}</span>
-            {policy.safety_tier && (
-              <>
-                {" "}
-                · <span className={`badge ${tierClass(policy.safety_tier)}`}>{policy.safety_tier}</span>
-              </>
-            )}
-          </p>
+          <DetailMetaRow
+            badges={
+              policy.safety_tier
+                ? [{ label: policy.safety_tier, className: tierClass(policy.safety_tier) }]
+                : []
+            }
+            id={policy.gdmt_policy_id}
+            status={policy.status}
+            statusClassName={statusClass(policy.status)}
+            version={policy.version}
+          />
         </div>
         <button aria-label="Close detail panel" className="icon-btn" onClick={onClose} type="button">
           <XCircle size={18} />
@@ -64,16 +67,14 @@ export function GdmtPolicyDetail({ policy, onClose, onAction, actionLoading, can
       </header>
 
       <div className="admin-detail-body">
-        <dl className="detail-grid">
-          <dt>Class key</dt>
-          <dd>{policy.drug_class_key}</dd>
-          <dt>Sort order</dt>
-          <dd>{policy.sort_order}</dd>
-          <dt>Evidence</dt>
-          <dd>{policy.evidence_ref || "—"}</dd>
-          <dt>Source</dt>
-          <dd>{policy.source}</dd>
-        </dl>
+        <DetailFieldList
+          fields={[
+            { label: "Class key", value: policy.drug_class_key },
+            { label: "Sort order", value: policy.sort_order },
+            { label: "Evidence", value: policy.evidence_ref || "—", mono: true },
+            { label: "Source", value: policy.source },
+          ]}
+        />
 
         {(guidance.actions || []).length > 0 && (
           <section>
@@ -97,10 +98,7 @@ export function GdmtPolicyDetail({ policy, onClose, onAction, actionLoading, can
           </section>
         )}
 
-        <section>
-          <h3>Policy payload</h3>
-          <pre className="dose-json-block">{JSON.stringify(body, null, 2)}</pre>
-        </section>
+        <CollapsiblePayload data={body} title="Full payload" />
 
         <VersionDiffPanel fetchDiff={adminApi.getGdmtPolicyDiff} ruleId={policy.id} versions={versions} />
 
@@ -109,21 +107,7 @@ export function GdmtPolicyDetail({ policy, onClose, onAction, actionLoading, can
             <h3>
               <History size={16} /> History
             </h3>
-            {historyError && <p className="inline-error">{historyError}</p>}
-            <ul className="history-list">
-              {history.map((item) => (
-                <li key={item.history_id}>
-                  <strong>
-                    {item.status_from || "—"} → {item.status_to}
-                  </strong>
-                  <span>
-                    {item.changed_by} · {new Date(item.changed_at).toLocaleString()}
-                  </span>
-                  {item.reason && <small>{item.reason}</small>}
-                </li>
-              ))}
-              {history.length === 0 && !historyError && <li>No history recorded.</li>}
-            </ul>
+            <StatusHistoryList error={historyError} items={history} />
           </section>
         )}
       </div>

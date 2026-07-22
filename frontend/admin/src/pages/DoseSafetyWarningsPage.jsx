@@ -6,6 +6,7 @@ import { useAuth } from "../auth/AuthContext";
 import { DoseSafetyWarningDetail } from "../components/DoseSafetyWarningDetail.jsx";
 import { ApprovalToolbar } from "@shared/governance/ApprovalToolbar.jsx";
 import { DOSE_SAFETY_CATALOG } from "@shared/governance/catalogConfig.js";
+import { doseSafetyWarningTitle, shortCatalogId } from "@shared/governance/displayNames.js";
 import { useRuleSelection } from "@shared/governance/useRuleSelection.js";
 
 const STATUS_TABS = [
@@ -271,9 +272,10 @@ export function DoseSafetyWarningsPage() {
                       </td>
                     )}
                     <td>
-                      <strong>{rule.dose_safety_warning_id}</strong>
+                      <strong title={rule.dose_safety_warning_id}>{doseSafetyWarningTitle(rule)}</strong>
                       <small>
-                        v{rule.version} · {rule.target || "—"}
+                        {shortCatalogId(rule.dose_safety_warning_id)} · v{rule.version} ·{" "}
+                        {rule.target || "—"}
                       </small>
                     </td>
                     <td>

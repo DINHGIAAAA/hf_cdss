@@ -7,7 +7,7 @@ import {
   shortenChunkId,
 } from "@/lib/evidenceDisplay";
 import {
-  extractVitalChips,
+  collectSharedVitalChips,
   recommendationDetailLines,
   recommendationLead,
 } from "@/lib/recommendationDisplay";
@@ -132,7 +132,7 @@ function RecommendationBlock({ title, children, tone = "default" }) {
       className={cn(
         "rounded-lg border px-3 py-2.5",
         tone === "warning" && "border-amber-500/30 bg-amber-50/80",
-        tone === "default" && "border-border/70 bg-muted/20",
+        tone === "default" && "border-border/70 bg-muted/15",
       )}
     >
       <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -145,10 +145,10 @@ function RecommendationBlock({ title, children, tone = "default" }) {
 
 function RecommendationBullets({ items }) {
   return (
-    <ul className="space-y-2">
+    <ul className="space-y-1.5">
       {items.map((line) => (
         <li className="flex gap-2 text-sm leading-relaxed text-foreground/90" key={line}>
-          <span aria-hidden className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+          <span aria-hidden className="mt-[0.55rem] h-1 w-1 shrink-0 rounded-full bg-primary" />
           <span className="min-w-0 break-words [overflow-wrap:anywhere]">{line}</span>
         </li>
       ))}
@@ -156,83 +156,65 @@ function RecommendationBullets({ items }) {
   );
 }
 
-function RecommendationCard({ item, evidenceChunks = [] }) {
+function RecommendationCard({ item, evidenceChunks = [], sharedVitals = [] }) {
   const { t } = useLanguage();
   const linkedChunks = evidenceChunks.filter((chunk) => item.evidence?.includes(chunk.chunk_id));
-  const vitals = extractVitalChips(item.rationale, ...(item.clinical_reasoning || []));
   const lead = recommendationLead(item);
-  const detailLines = recommendationDetailLines(item, vitals);
+  const detailLines = recommendationDetailLines(item, sharedVitals);
   const warnings = (item.warnings || []).filter(Boolean);
 
   return (
-    <Card className="max-w-full min-w-0 gap-3 overflow-hidden border-border/80 py-3 shadow-sm">
-      <CardHeader className="gap-1 space-y-0 border-b border-border/60 px-3 pb-3">
-        <div className="flex min-w-0 items-start justify-between gap-2">
-          <CardTitle className="min-w-0 flex-1 text-sm leading-snug">{item.drug_class}</CardTitle>
-          <Badge className={cn("shrink-0", statusTone(item.status))} variant="outline">
-            {titleCase(item.status)}
-          </Badge>
+    <article className="max-w-full min-w-0 space-y-3 rounded-xl border border-border/70 bg-background px-3.5 py-3.5">
+      <header className="flex min-w-0 items-start justify-between gap-2">
+        <div className="min-w-0 flex-1 space-y-1">
+          <h3 className="text-sm font-semibold leading-snug text-foreground">{item.drug_class}</h3>
+          {lead ? (
+            <p className="text-sm leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
+              {lead}
+            </p>
+          ) : null}
         </div>
-        {lead && (
-          <p className="text-sm leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
-            {lead}
-          </p>
-        )}
-      </CardHeader>
+        <Badge className={cn("shrink-0", statusTone(item.status))} variant="outline">
+          {titleCase(item.status)}
+        </Badge>
+      </header>
 
-      <CardContent className="min-w-0 space-y-3 overflow-hidden px-3 pt-3 text-sm">
-        {vitals.length > 0 && (
-          <RecommendationBlock title={t("clinicalPanel.patientContext")}>
-            <div className="flex flex-wrap gap-1.5">
-              {vitals.map((chip) => (
-                <span
-                  className="rounded-md border border-border/80 bg-background px-2 py-1 text-xs font-medium text-foreground/90"
-                  key={chip}
-                >
-                  {chip}
-                </span>
-              ))}
-            </div>
-          </RecommendationBlock>
-        )}
+      {detailLines.length > 0 ? (
+        <RecommendationBlock title={t("clinicalPanel.clinicalReasoning")}>
+          <RecommendationBullets items={detailLines} />
+        </RecommendationBlock>
+      ) : null}
 
-        {detailLines.length > 0 && (
-          <RecommendationBlock title={t("clinicalPanel.clinicalReasoning")}>
-            <RecommendationBullets items={detailLines} />
-          </RecommendationBlock>
-        )}
+      {warnings.length > 0 ? (
+        <RecommendationBlock title={t("clinicalPanel.safetyFlags")} tone="warning">
+          <RecommendationBullets items={warnings.slice(0, 3)} />
+        </RecommendationBlock>
+      ) : null}
 
-        {warnings.length > 0 && (
-          <RecommendationBlock title={t("clinicalPanel.safetyFlags")} tone="warning">
-            <RecommendationBullets items={warnings.slice(0, 3)} />
-          </RecommendationBlock>
-        )}
+      {item.action_items?.length > 0 ? (
+        <RecommendationBlock title={t("clinicalPanel.nextStep")}>
+          <RecommendationBullets items={item.action_items.slice(0, 3)} />
+        </RecommendationBlock>
+      ) : null}
 
-        {item.action_items?.length > 0 && (
-          <RecommendationBlock title={t("clinicalPanel.nextStep")}>
-            <RecommendationBullets items={item.action_items.slice(0, 3)} />
-          </RecommendationBlock>
-        )}
+      {item.monitoring?.length > 0 ? (
+        <RecommendationBlock title={t("clinicalPanel.monitor")}>
+          <RecommendationBullets items={item.monitoring.slice(0, 3)} />
+        </RecommendationBlock>
+      ) : null}
 
-        {item.monitoring?.length > 0 && (
-          <RecommendationBlock title={t("clinicalPanel.monitor")}>
-            <RecommendationBullets items={item.monitoring.slice(0, 3)} />
-          </RecommendationBlock>
-        )}
-
-        {linkedChunks.length > 0 && (
-          <RecommendationBlock title={t("clinicalPanel.linkedEvidence")}>
-            <ul className="space-y-1.5 text-xs leading-relaxed text-muted-foreground">
-              {linkedChunks.slice(0, 2).map((chunk) => (
-                <li className="break-words [overflow-wrap:anywhere]" key={chunk.chunk_id}>
-                  {titleCase(chunk.document_id)} — {chunk.section || chunk.source_type}
-                </li>
-              ))}
-            </ul>
-          </RecommendationBlock>
-        )}
-      </CardContent>
-    </Card>
+      {linkedChunks.length > 0 ? (
+        <RecommendationBlock title={t("clinicalPanel.linkedEvidence")}>
+          <ul className="space-y-1 text-xs leading-relaxed text-muted-foreground">
+            {linkedChunks.slice(0, 2).map((chunk) => (
+              <li className="break-words [overflow-wrap:anywhere]" key={chunk.chunk_id}>
+                {titleCase(chunk.document_id)} — {chunk.section || chunk.source_type}
+              </li>
+            ))}
+          </ul>
+        </RecommendationBlock>
+      ) : null}
+    </article>
   );
 }
 
@@ -249,28 +231,31 @@ function PatientSection({ summary, attachments }) {
   ];
 
   return (
-    <section className="min-w-0 space-y-4">
+    <section className="min-w-0 space-y-3">
       <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
         {t("clinicalPanel.patient")}
       </h2>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="flex flex-wrap gap-1.5">
         {vitals.map(([label, val, unit]) => (
-          <div className="min-w-0 rounded-lg border border-border/80 bg-muted/30 px-3 py-2" key={label}>
-            <div className="text-xs text-muted-foreground">{label}</div>
-            <div className="truncate text-sm font-semibold">
+          <div
+            className="rounded-full bg-muted/80 px-2.5 py-1 text-xs text-foreground/90"
+            key={label}
+          >
+            <span className="text-muted-foreground">{label}</span>{" "}
+            <span className="font-semibold">
               {val !== null && val !== undefined ? `${val}${unit}` : t("clinicalPanel.missing")}
-            </div>
+            </span>
           </div>
         ))}
       </div>
 
       {summary.conditions.length > 0 && (
-        <p className="break-words text-sm">
+        <p className="break-words text-sm leading-relaxed">
           <span className="font-medium">{t("clinicalPanel.conditions")}</span> {summary.conditions.join(", ")}
         </p>
       )}
       {summary.medications.length > 0 && (
-        <p className="break-words text-sm">
+        <p className="break-words text-sm leading-relaxed">
           <span className="font-medium">{t("clinicalPanel.meds")}</span> {summary.medications.join(", ")}
         </p>
       )}
@@ -279,7 +264,7 @@ function PatientSection({ summary, attachments }) {
         <div className="space-y-2">
           {attachments.map((file) => (
             <div
-              className="flex min-w-0 items-start gap-2 rounded-lg border border-border/80 bg-background px-3 py-2"
+              className="flex min-w-0 items-start gap-2 border-t border-border/50 pt-2"
               key={`${file.file_name}-${file.mime_type}`}
             >
               <FileText className="mt-0.5 shrink-0 text-primary" size={15} />
@@ -347,17 +332,24 @@ export function ClinicalPanel({ active, error, open }) {
                     <ShieldAlert className="shrink-0" size={17} />
                     <strong className="truncate">{titleCase(active.recommendation.overall_status)}</strong>
                   </div>
-                  <div className="min-w-0 max-w-full space-y-3">
-                    {active.recommendation.recommendations.map((item) => (
-                      <RecommendationCard
-                        evidenceChunks={active.verification?.context?.evidence_chunks || []}
-                        item={item}
-                        key={item.drug_class}
-                      />
-                    ))}
-                  </div>
+                  {(() => {
+                    const sharedVitals = collectSharedVitalChips(
+                      active.recommendation.recommendations || [],
+                    );
+                    return (
+                      <div className="min-w-0 max-w-full space-y-3">
+                        {active.recommendation.recommendations.map((item) => (
+                          <RecommendationCard
+                            evidenceChunks={active.verification?.context?.evidence_chunks || []}
+                            item={item}
+                            key={item.drug_class}
+                            sharedVitals={sharedVitals}
+                          />
+                        ))}
+                      </div>
+                    );
+                  })()}
 
-                  {/* Dose Plans Section */}
                   {active.recommendation.dose_plans && active.recommendation.dose_plans.length > 0 && (
                     <>
                       <Separator />

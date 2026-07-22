@@ -2,24 +2,19 @@
 
 from __future__ import annotations
 
-import hashlib
 import re
 from typing import Any
+
+from scraper.semantic.stable_ids import slug, stable_id
 
 KNOWN_CLASS_PREFIX = "class:"
 
 REQUIRED_FIELDS = ("drug_set_a", "drug_set_b", "message", "severity")
 
 
-def slug(value: str) -> str:
-    value = re.sub(r"[^a-zA-Z0-9]+", "_", value or "").strip("_").lower()
-    return value or "unknown"
-
-
 def interaction_rule_id(parts: list[str]) -> str:
-    base = "_".join(slug(part) for part in parts if part)
-    digest = hashlib.sha1(base.encode("utf-8")).hexdigest()[:8]
-    return f"ix_{base[:68]}_{digest}"
+    """Backward-compatible wrapper; prefer structured labeling in builders."""
+    return stable_id(*parts[:2], uniqueness=list(parts[2:]), prefix="ix")
 
 
 def _normalize_token(value: str) -> str:
@@ -81,7 +76,15 @@ def build_interaction_rule_from_structured_claim(claim: dict[str, Any]) -> dict[
     if severity not in {"high", "moderate", "critical", "low"}:
         severity = "moderate"
 
-    rule_id = interaction_rule_id([",".join(sorted(set_a)), ",".join(sorted(set_b)), message[:60]])
+    left = "+".join(sorted(set_a)[:2])
+    right = "+".join(sorted(set_b)[:2])
+    rule_id = stable_id(
+        left,
+        right,
+        uniqueness=[message, severity, claim.get("claim_id"), claim.get("document_id")],
+        prefix="ix",
+        max_label_len=40,
+    )
     monitoring = [m for m in list(claim.get("monitoring") or []) if str(m).strip().lower() not in {"", "string"}]
     rule_body = {
         "message": message,

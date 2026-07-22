@@ -5,9 +5,17 @@ from typing import Any, Literal
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from app.api.routes.admin.deps import AdminUser, get_current_admin_user, require_admin_reader, require_catalog_reader, require_role
+from app.api.routes.admin.deps import (
+    AdminUser,
+    ensure_role,
+    get_current_admin_user,
+    require_admin_reader,
+    require_catalog_reader,
+    require_role,
+)
 from app.modules.datastores.postgres import (
     approve_dose_rule,
+    count_dose_rules_by_status,
     dose_rule_with_id_exists,
     get_dose_rule,
     get_dose_rule_latest_by_status,
@@ -101,17 +109,17 @@ def _apply_status_change(rule_id: int, target_status: Literal["approved", "retir
     current_status = rule["status"]
     if target_status == "approved":
         if current_status == "draft":
-            require_role(current_user, "clinical_lead")
+            ensure_role(current_user, "clinical_lead")
             if not approve_dose_rule(rule_id, current_user.id):
                 raise HTTPException(status_code=400, detail="Failed to approve dose rule")
         elif current_status == "retired":
-            require_role(current_user, "admin")
+            ensure_role(current_user, "admin")
             if not unretire_dose_rule(rule_id, current_user.id):
                 raise HTTPException(status_code=400, detail="Failed to un-retire dose rule")
         else:
             raise HTTPException(status_code=400, detail=f"Cannot approve dose rule in status {current_status}")
     elif target_status == "retired":
-        require_role(current_user, "admin")
+        ensure_role(current_user, "admin")
         if current_status != "approved":
             raise HTTPException(status_code=400, detail="Only approved dose rules can be retired")
         if not retire_dose_rule(rule_id, current_user.id):
@@ -151,12 +159,18 @@ def list_dose_rules(
         approved = read_dose_rules_by_status("approved", limit=limit)
         retired = read_dose_rules_by_status("retired", limit=limit)
         items_raw = draft + approved + retired
+    counts = count_dose_rules_by_status(
+        drug_class=drug_class,
+        calculation_type=calculation_type,
+        safety_tier=safety_tier,
+        q=q,
+    )
     return DoseRuleListResponse(
         total=len(items_raw),
         items=[DoseRuleResponse(**item) for item in items_raw[:limit]],
-        draft_count=len([item for item in items_raw if item["status"] == "draft"]),
-        approved_count=len([item for item in items_raw if item["status"] == "approved"]),
-        retired_count=len([item for item in items_raw if item["status"] == "retired"]),
+        draft_count=counts["draft"],
+        approved_count=counts["approved"],
+        retired_count=counts["retired"],
     )
 
 
@@ -164,9 +178,8 @@ def list_dose_rules(
 def bulk_approve_dose_rules_endpoint(
     payload: BulkApproveRequest,
     background_tasks: BackgroundTasks,
-    current_user: AdminUser = Depends(get_current_admin_user),
+    current_user: AdminUser = Depends(require_role("clinical_lead")),
 ) -> BulkApproveResponse:
-    require_role(current_user, "clinical_lead")
     result = bulk_approve_dose_rules(
         current_user.id,
         rule_ids=payload.rule_ids,

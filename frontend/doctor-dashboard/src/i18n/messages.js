@@ -117,16 +117,12 @@ export const MESSAGES = {
       start: "Start conversation",
     },
     login: {
-      description:
-        "Sign in for clinical chat. Admin and clinical lead accounts are routed to the governance dashboard.",
+      description: "Clinical assistant",
       username: "Username",
       password: "Password",
-      signIn: "Sign in",
+      signIn: "Continue",
+      signingIn: "Signing in…",
       failed: "Login failed",
-      seedHint:
-        "Accounts are stored in PostgreSQL. Initial users can be seeded via",
-      routingHint:
-        "Clinical users continue to chat after sign-in. Admin users land on rule governance.",
     },
     thread: {
       welcome: "How can I help you today?",
@@ -274,15 +270,12 @@ export const MESSAGES = {
       start: "Bắt đầu hội thoại",
     },
     login: {
-      description:
-        "Đăng nhập để chat lâm sàng. Tài khoản admin và clinical lead sẽ được chuyển tới bảng quản trị.",
+      description: "Trợ lý lâm sàng",
       username: "Tên đăng nhập",
       password: "Mật khẩu",
-      signIn: "Đăng nhập",
+      signIn: "Tiếp tục",
+      signingIn: "Đang đăng nhập…",
       failed: "Đăng nhập thất bại",
-      seedHint: "Tài khoản được lưu trong PostgreSQL. Người dùng ban đầu có thể seed qua",
-      routingHint:
-        "Người dùng lâm sàng tiếp tục chat sau khi đăng nhập. Admin vào trang quản trị quy tắc.",
     },
     thread: {
       welcome: "Tôi có thể giúp gì cho bạn hôm nay?",

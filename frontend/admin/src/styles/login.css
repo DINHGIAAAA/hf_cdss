@@ -1,86 +1,177 @@
-/* ── Login Page ─────────────────────────────────────────────────────── */
+/* Login — AI-native minimal (ChatGPT-like), brand green */
+
 .login-page {
   align-items: center;
-  background: var(--color-bg-secondary);
+  background:
+    radial-gradient(1200px 600px at 50% -10%, rgba(16, 163, 127, 0.12), transparent 55%),
+    radial-gradient(800px 400px at 100% 100%, rgba(16, 163, 127, 0.06), transparent 45%),
+    #f7f7f8;
   display: flex;
   justify-content: center;
   min-height: 100vh;
-  padding: var(--space-lg);
+  padding: 24px 16px;
 }
 
-.login-card {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border-light);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
+.login-shell {
   display: grid;
-  gap: var(--space-lg);
-  max-width: 420px;
-  padding: var(--space-xl);
+  gap: 28px;
+  max-width: 400px;
   width: 100%;
 }
 
-.login-brand {
-  align-items: flex-start;
-  display: flex;
-  gap: var(--space-md);
-}
-
-.login-brand svg {
-  color: var(--color-brand);
-  flex-shrink: 0;
-  margin-top: 2px;
-}
-
-.login-brand h1 {
-  font-size: 22px;
-  font-weight: 600;
-  margin-bottom: var(--space-xs);
-}
-
-.login-brand p {
-  color: var(--color-text-secondary);
-  font-size: 14px;
-  line-height: 1.45;
-}
-
-.login-form {
+.login-hero {
   display: grid;
-  gap: var(--space-sm);
-}
-
-.login-form label {
-  color: var(--color-text);
-  display: block;
-  font-size: 14px;
-  font-weight: 500;
-  margin-top: var(--space-xs);
-}
-
-.login-error {
-  background: var(--color-danger-bg);
-  border: 1px solid #fecaca;
-  border-radius: var(--radius);
-  color: var(--color-danger);
-  font-size: 14px;
-  padding: var(--space-sm) var(--space-md);
+  gap: 10px;
+  justify-items: center;
   text-align: center;
 }
 
-.login-hint {
-  color: var(--color-text-muted);
-  font-size: 13px;
-  line-height: 1.45;
-}
-
-.login-hint--inline {
+.login-mark {
   align-items: center;
-  color: var(--color-text-secondary);
+  background: #ffffff;
+  border: 1px solid #e5e5e5;
+  border-radius: 16px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   display: flex;
-  gap: var(--space-sm);
+  height: 48px;
+  justify-content: center;
+  margin-bottom: 4px;
+  width: 48px;
 }
 
-.login-hint--inline svg {
-  color: var(--color-brand);
-  flex-shrink: 0;
+.login-mark span {
+  background: linear-gradient(145deg, #10a37f, #0d8c6d);
+  border-radius: 10px;
+  display: block;
+  height: 22px;
+  width: 22px;
+}
+
+.login-hero h1 {
+  color: #0d0d0d;
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  margin: 0;
+}
+
+.login-hero p {
+  color: #5d5d5d;
+  font-size: 15px;
+  margin: 0;
+}
+
+.login-form {
+  background: #ffffff;
+  border: 1px solid #e5e5e5;
+  border-radius: 16px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.04);
+  display: grid;
+  gap: 16px;
+  padding: 24px;
+}
+
+.login-field {
+  display: grid;
+  gap: 6px;
+}
+
+.login-field label {
+  color: #0d0d0d;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.login-form .input {
+  background: #ffffff;
+  border: 1px solid #d4d4d4;
+  border-radius: 10px;
+  font-size: 15px;
+  min-height: 44px;
+  padding: 10px 12px;
+  transition: border-color 200ms ease, box-shadow 200ms ease;
+  width: 100%;
+}
+
+.login-form .input:hover {
+  border-color: #b0b0b0;
+}
+
+.login-form .input:focus {
+  border-color: #10a37f;
+  box-shadow: 0 0 0 3px rgba(16, 163, 127, 0.18);
+  outline: none;
+}
+
+.login-error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  color: #b91c1c;
+  font-size: 13px;
+  line-height: 1.4;
+  margin: 0;
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.login-submit {
+  align-items: center;
+  background: #0d0d0d;
+  border: none;
+  border-radius: 999px;
+  color: #ffffff;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 15px;
+  font-weight: 500;
+  gap: 8px;
+  justify-content: center;
+  min-height: 44px;
+  padding: 10px 18px;
+  transition: background-color 200ms ease, opacity 200ms ease;
+  width: 100%;
+}
+
+.login-submit:hover:not(:disabled) {
+  background: #2a2a2a;
+}
+
+.login-submit:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.login-footer-link {
+  color: #5d5d5d;
+  cursor: pointer;
+  font-size: 14px;
+  justify-self: center;
+  text-decoration: none;
+  transition: color 200ms ease;
+}
+
+.login-footer-link:hover {
+  color: #0d0d0d;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+@media (max-width: 480px) {
+  .login-hero h1 {
+    font-size: 24px;
+  }
+
+  .login-form {
+    padding: 20px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-form .input,
+  .login-submit,
+  .login-footer-link {
+    transition: none;
+  }
 }

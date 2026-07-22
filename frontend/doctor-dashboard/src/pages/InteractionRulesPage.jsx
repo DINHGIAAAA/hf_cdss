@@ -6,6 +6,11 @@ import { useAuth } from "../auth/AuthContext";
 import { InteractionRuleDetail } from "../components/InteractionRuleDetail.jsx";
 import { ApprovalToolbar } from "@shared/governance/ApprovalToolbar.jsx";
 import { INTERACTION_CATALOG } from "@shared/governance/catalogConfig.js";
+import {
+  formatDrugSetLabel,
+  formatInteractionTarget,
+  shortCatalogId,
+} from "@shared/governance/displayNames.js";
 import { useRuleSelection } from "@shared/governance/useRuleSelection.js";
 
 const STATUS_TABS = [
@@ -27,12 +32,6 @@ function statusClass(status) {
   if (status === "approved") return "success";
   if (status === "draft") return "warning";
   return "danger";
-}
-
-function formatDrugSet(tokens = []) {
-  if (!tokens.length) return "—";
-  const preview = tokens.slice(0, 2).join(", ");
-  return tokens.length > 2 ? `${preview} +${tokens.length - 2}` : preview;
 }
 
 export function InteractionRulesPage() {
@@ -245,14 +244,16 @@ export function InteractionRulesPage() {
               <p>Run structured interaction extraction in the ingestion pipeline, then sync to Postgres.</p>
             </div>
           ) : (
-            <table className="admin-table admin-table--dose">
+            <table className="admin-table admin-table--dose admin-table--interaction">
               <thead>
                 <tr>
                   {tab === "draft" && <th>Select</th>}
-                  <th>Rule</th>
+                  <th>Drug A</th>
+                  <th aria-hidden="true" className="ix-arrow-col" />
+                  <th>Drug B</th>
+                  <th>Target</th>
                   <th>Severity</th>
                   <th>Status</th>
-                  <th>Drug sets</th>
                   <th />
                 </tr>
               </thead>
@@ -271,20 +272,26 @@ export function InteractionRulesPage() {
                         ) : null}
                       </td>
                     )}
-                    <td>
-                      <strong>{rule.interaction_rule_id}</strong>
-                      <small>
-                        v{rule.version} · {rule.target || "—"}
+                    <td className="ix-drug-cell" title={(rule.drug_set_a || []).join(", ")}>
+                      <strong>{formatDrugSetLabel(rule.drug_set_a)}</strong>
+                      <small title={rule.interaction_rule_id}>
+                        {shortCatalogId(rule.interaction_rule_id)} · v{rule.version}
                       </small>
+                    </td>
+                    <td aria-hidden="true" className="ix-arrow-col">
+                      <span className="ix-arrow">↔</span>
+                    </td>
+                    <td className="ix-drug-cell" title={(rule.drug_set_b || []).join(", ")}>
+                      <strong>{formatDrugSetLabel(rule.drug_set_b)}</strong>
+                    </td>
+                    <td className="ix-target-cell" title={rule.target || undefined}>
+                      {formatInteractionTarget(rule.target)}
                     </td>
                     <td>
                       <code className="dose-code">{rule.severity}</code>
                     </td>
                     <td>
                       <span className={`badge ${statusClass(rule.status)}`}>{rule.status}</span>
-                    </td>
-                    <td>
-                      {formatDrugSet(rule.drug_set_a)} ↔ {formatDrugSet(rule.drug_set_b)}
                     </td>
                     <td>
                       <button className="link-btn" onClick={() => openRule(rule.id)} type="button">

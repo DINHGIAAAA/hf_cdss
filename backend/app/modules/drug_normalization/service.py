@@ -114,8 +114,16 @@ def normalize_drug_name(value: str | None) -> str | None:
         )
         return fuzzy_match
 
-    logger.warning("Drug normalization failed to match: '%s' (normalized: '%s')", value, normalized)
-    return normalized.replace(" ", "_")
+    # "normalized" here is only the lookup key (lowercase / stripped), not a catalog hit.
+    # Return a slug so callers can still keep unmatched mentions; partner_normalize marks matched=False.
+    slug = normalized.replace(" ", "_")
+    logger.debug(
+        "No catalog match for '%s' (lookup key '%s' → slug '%s')",
+        value,
+        normalized,
+        slug,
+    )
+    return slug
 
 
 def resolve_pipeline_drug_id(value: str | None) -> str | None:

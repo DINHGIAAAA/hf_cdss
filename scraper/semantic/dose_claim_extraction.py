@@ -26,6 +26,8 @@ CALCULATION_TYPES = {
     "crcl_bracket",
     "weight_adjusted_target",
     "congestion_range",
+    "loading_then_fixed",
+    "weight_adjusted_fixed",
 }
 
 DOSE_SECTION_KEYWORDS = (
@@ -109,24 +111,46 @@ def _normalize_amount(raw: Any) -> dict[str, Any] | None:
         return None
 
 
+_ALLOWED_CRITERION_OPERATORS = frozenset(
+    {"gte", "lte", "gt", "lt", "eq", "equals", "between"}
+)
+
+
 def _normalize_criterion(raw: Any) -> dict[str, Any] | None:
     if not isinstance(raw, dict):
         return None
     field = str(raw.get("field") or "").strip()
-    operator = str(raw.get("operator") or "").strip()
+    operator = str(raw.get("operator") or "").strip().lower()
     if not field or not operator:
         return None
+    # Reject LLM copies of prompt enum menus like "age|weight_kg|creatinine|crcl".
+    if "|" in field or "|" in operator:
+        return None
+    if operator not in _ALLOWED_CRITERION_OPERATORS:
+        return None
+    if any(ch.isspace() for ch in field) or "/" in field:
+        # Prefer snake_case clinical keys; reject free-form enum dumps.
+        field = field.replace(" ", "_").replace("/", "_")
     item: dict[str, Any] = {
         "field": field,
         "operator": operator,
         "label": str(raw.get("label") or f"{field} {operator}"),
     }
+    # Drop labels that still look like enum menus.
+    if "|" in str(item["label"]):
+        item["label"] = f"{field} {operator}"
     if raw.get("value") is not None:
         item["value"] = raw["value"]
     if raw.get("value_low") is not None:
         item["value_low"] = raw["value_low"]
     if raw.get("value_high") is not None:
         item["value_high"] = raw["value_high"]
+    if operator == "between":
+        if item.get("value_low") is None or item.get("value_high") is None:
+            return None
+    elif operator in {"gte", "lte", "gt", "lt", "eq", "equals"}:
+        if item.get("value") is None:
+            return None
     return item
 
 

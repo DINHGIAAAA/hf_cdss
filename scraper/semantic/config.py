@@ -61,6 +61,12 @@ EMBEDDING_BASE_URL = os.environ.get("HF_CDSS_EMBEDDING_BASE_URL", "http://localh
 EMBEDDING_MODEL = os.environ.get("HF_CDSS_EMBEDDING_MODEL", EMBEDDING_MODEL)
 EMBEDDING_BATCH_SIZE = _env_int("HF_CDSS_EMBEDDING_BATCH_SIZE", 32)
 EMBEDDING_PARALLEL_WORKERS = _env_int("HF_CDSS_EMBEDDING_PARALLEL_WORKERS", 4)
+# bge-m3 on CPU often needs > LLM chat timeout; keep a dedicated budget.
+EMBEDDING_TIMEOUT_SECONDS = _env_float(
+    "HF_CDSS_EMBEDDING_TIMEOUT_SECONDS",
+    max(LLM_TIMEOUT_SECONDS, 180.0),
+)
+EMBEDDING_MAX_RETRIES = _env_int("HF_CDSS_EMBEDDING_MAX_RETRIES", 2)
 EMBEDDING_CACHE_ENABLED = os.environ.get("HF_CDSS_EMBEDDING_CACHE_ENABLED", "true").lower() in {"1", "true", "yes"}
 EMBEDDING_CACHE_DIR = _resolved_cache_dir("HF_CDSS_EMBEDDING_CACHE_DIR", "embeddings")
 EMBEDDING_DEDUP_ENABLED = os.environ.get("HF_CDSS_EMBEDDING_DEDUP_ENABLED", "false").lower() in {"1", "true", "yes"}

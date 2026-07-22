@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import math
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import lru_cache
 from typing import Sequence
@@ -56,26 +57,72 @@ def _parse_embedding_vectors(payload: dict) -> list[list[float]]:
     raise ValueError("Ollama embed response missing embedding vector(s)")
 
 
+def _is_retryable_embed_error(exc: BaseException) -> bool:
+    return isinstance(
+        exc,
+        (
+            httpx.TimeoutException,
+            httpx.NetworkError,
+            httpx.RemoteProtocolError,
+            ConnectionError,
+            TimeoutError,
+        ),
+    )
+
+
+def _with_embed_retries(operation_name: str, call, *, timeout: float):
+    attempts = max(1, config.EMBEDDING_MAX_RETRIES + 1)
+    last_exc: BaseException | None = None
+    for attempt in range(1, attempts + 1):
+        try:
+            return call()
+        except Exception as exc:  # noqa: BLE001 — classify retryable below
+            last_exc = exc
+            if attempt >= attempts or not _is_retryable_embed_error(exc):
+                raise
+            sleep_s = min(8.0, 1.5 * attempt)
+            logger.warning(
+                "Ollama %s failed (attempt %s/%s, timeout=%ss): %s; retrying in %.1fs",
+                operation_name,
+                attempt,
+                attempts,
+                timeout,
+                exc,
+                sleep_s,
+            )
+            time.sleep(sleep_s)
+    assert last_exc is not None
+    raise last_exc
+
+
 def _embed_batch_ollama(texts: list[str], timeout: float) -> list[list[float]]:
     """True batch embedding via Ollama /api/embed (input=list)."""
-    with httpx.Client(timeout=timeout) as client:
-        response = client.post(
-            _ollama_embed_url(),
-            json={"model": config.EMBEDDING_MODEL, "input": texts},
-        )
-        response.raise_for_status()
-        return _parse_embedding_vectors(response.json())
+
+    def _call() -> list[list[float]]:
+        with httpx.Client(timeout=timeout) as client:
+            response = client.post(
+                _ollama_embed_url(),
+                json={"model": config.EMBEDDING_MODEL, "input": texts},
+            )
+            response.raise_for_status()
+            return _parse_embedding_vectors(response.json())
+
+    return _with_embed_retries(f"/api/embed x{len(texts)}", _call, timeout=timeout)
 
 
 def _embed_single_text(text: str, timeout: float) -> list[float]:
     """Legacy single-text embedding via /api/embeddings."""
-    with httpx.Client(timeout=timeout) as client:
-        response = client.post(
-            _ollama_embeddings_url(),
-            json={"model": config.EMBEDDING_MODEL, "prompt": text},
-        )
-        response.raise_for_status()
-        return _parse_embedding_vectors(response.json())[0]
+
+    def _call() -> list[float]:
+        with httpx.Client(timeout=timeout) as client:
+            response = client.post(
+                _ollama_embeddings_url(),
+                json={"model": config.EMBEDDING_MODEL, "prompt": text},
+            )
+            response.raise_for_status()
+            return _parse_embedding_vectors(response.json())[0]
+
+    return _with_embed_retries("/api/embeddings", _call, timeout=timeout)
 
 
 def _embed_texts_remote(texts: list[str], *, timeout: float, fail_fast: bool) -> list[list[float]]:
@@ -87,7 +134,9 @@ def _embed_texts_remote(texts: list[str], *, timeout: float, fail_fast: bool) ->
     if len(texts) == 1:
         try:
             return _embed_batch_ollama(texts, timeout)
-        except Exception:
+        except Exception as batch_exc:
+            # Prefer one fallback path; do not stack two full timeouts blindly.
+            logger.debug("Ollama /api/embed single failed (%s); trying /api/embeddings", batch_exc)
             return [_embed_single_text(texts[0], timeout)]
 
     all_vectors: list[list[float] | None] = [None] * len(texts)
@@ -178,7 +227,7 @@ def embed_texts(
         return []
 
     texts = [_truncate_embed_input(text) for text in texts]
-    timeout = timeout or config.LLM_TIMEOUT_SECONDS
+    timeout = timeout if timeout is not None else config.EMBEDDING_TIMEOUT_SECONDS
     resolved: dict[int, list[float]] = {}
     missing_indexed: list[tuple[int, str]] = [(index, text) for index, text in enumerate(texts)]
 
@@ -203,7 +252,10 @@ def embed_texts(
 
 def embeddings_available() -> bool:
     """Check if Ollama embeddings are available. Fails if embedding service is down."""
-    sample = embed_texts(["clinical guideline recommendation"], timeout=10.0)
+    sample = embed_texts(
+        ["clinical guideline recommendation"],
+        timeout=min(30.0, config.EMBEDDING_TIMEOUT_SECONDS),
+    )
     return bool(sample and sample[0])
 
 

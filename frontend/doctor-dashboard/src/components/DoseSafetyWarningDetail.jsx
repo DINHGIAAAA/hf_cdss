@@ -3,6 +3,14 @@ import { CheckCircle2, History, RotateCcw, ShieldOff, XCircle } from "lucide-rea
 
 import { adminApi } from "../api/index.js";
 import { VersionDiffPanel } from "@shared/governance/VersionDiffPanel.jsx";
+import { StatusHistoryList } from "@shared/governance/StatusHistoryList.jsx";
+import {
+  ClinicalSourcesList,
+  CollapsiblePayload,
+  DetailFieldList,
+  DetailMetaRow,
+} from "@shared/governance/DetailFieldList.jsx";
+import { doseSafetyWarningTitle } from "@shared/governance/displayNames.js";
 
 function statusClass(status) {
   if (status === "approved") return "success";
@@ -20,11 +28,6 @@ function severityClass(severity) {
   if (severity === "high" || severity === "critical") return "danger";
   if (severity === "moderate") return "warning";
   return "muted";
-}
-
-function formatDrugSet(tokens = []) {
-  if (!tokens.length) return "—";
-  return tokens.join(", ");
 }
 
 export function DoseSafetyWarningDetail({ rule, onClose, onAction, actionLoading, canApprove, canAdmin }) {
@@ -56,18 +59,19 @@ export function DoseSafetyWarningDetail({ rule, onClose, onAction, actionLoading
     <aside aria-label="Dose safety warning details" className="admin-detail-panel dose-detail-panel">
       <header className="admin-detail-header">
         <div>
-          <h2>{rule.dose_safety_warning_id}</h2>
-          <p className="dose-detail-meta">
-            v{rule.version} · <span className={`badge ${statusClass(rule.status)}`}>{rule.status}</span>
-            {" · "}
-            <span className={`badge ${severityClass(rule.default_severity)}`}>{rule.default_severity}</span>
-            {rule.safety_tier && (
-              <>
-                {" "}
-                · <span className={`badge ${tierClass(rule.safety_tier)}`}>{rule.safety_tier}</span>
-              </>
-            )}
-          </p>
+          <h2>{doseSafetyWarningTitle(rule)}</h2>
+          <DetailMetaRow
+            badges={[
+              { label: rule.default_severity, className: severityClass(rule.default_severity) },
+              ...(rule.safety_tier
+                ? [{ label: rule.safety_tier, className: tierClass(rule.safety_tier) }]
+                : []),
+            ]}
+            id={rule.dose_safety_warning_id}
+            status={rule.status}
+            statusClassName={statusClass(rule.status)}
+            version={rule.version}
+          />
         </div>
         <button aria-label="Close detail panel" className="icon-btn" onClick={onClose} type="button">
           <XCircle size={18} />
@@ -75,36 +79,19 @@ export function DoseSafetyWarningDetail({ rule, onClose, onAction, actionLoading
       </header>
 
       <div className="admin-detail-body">
-        <dl className="detail-grid">
-          <dt>Drug keys</dt>
-          <dd>{formatDrugSet(rule.drug_keys)}</dd>
-          <dt>Target</dt>
-          <dd>{rule.target || "—"}</dd>
-          <dt>Message</dt>
-          <dd>{body.message || "—"}</dd>
-          <dt>Evidence</dt>
-          <dd>{rule.evidence_ref || "—"}</dd>
-          <dt>Source</dt>
-          <dd>{rule.source}</dd>
-        </dl>
+        <DetailFieldList
+          fields={[
+            { label: "Drug keys", value: (rule.drug_keys || []).length ? rule.drug_keys : "—" },
+            { label: "Target", value: rule.target || "—" },
+            { label: "Message", value: body.message || "—", wide: true },
+            { label: "Evidence", value: rule.evidence_ref || "—", mono: true },
+            { label: "Source", value: rule.source },
+          ]}
+        />
 
-        {(rule.clinical_sources || []).length > 0 && (
-          <section>
-            <h3>Clinical sources</h3>
-            <ul className="source-list">
-              {rule.clinical_sources.map((src, i) => (
-                <li key={src.claim_id || src.document_id || i}>
-                  {src.evidence || src.source_section || src.document_id || "Source claim"}
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
+        <ClinicalSourcesList sources={rule.clinical_sources || []} />
 
-        <section>
-          <h3>Rule payload</h3>
-          <pre className="dose-json-block">{JSON.stringify(body, null, 2)}</pre>
-        </section>
+        <CollapsiblePayload data={body} title="Full payload" />
 
         <VersionDiffPanel
           fetchDiff={adminApi.getDoseSafetyWarningDiff}
@@ -117,21 +104,7 @@ export function DoseSafetyWarningDetail({ rule, onClose, onAction, actionLoading
             <h3>
               <History size={16} /> History
             </h3>
-            {historyError && <p className="inline-error">{historyError}</p>}
-            <ul className="history-list">
-              {history.map((item) => (
-                <li key={item.history_id}>
-                  <strong>
-                    {item.status_from || "—"} → {item.status_to}
-                  </strong>
-                  <span>
-                    {item.changed_by} · {new Date(item.changed_at).toLocaleString()}
-                  </span>
-                  {item.reason && <small>{item.reason}</small>}
-                </li>
-              ))}
-              {history.length === 0 && !historyError && <li>No history recorded.</li>}
-            </ul>
+            <StatusHistoryList error={historyError} items={history} />
           </section>
         )}
       </div>
@@ -144,7 +117,7 @@ export function DoseSafetyWarningDetail({ rule, onClose, onAction, actionLoading
             onClick={() => onAction("approve", rule.id)}
             type="button"
           >
-            <CheckCircle2 size={16} /> Approve for checking
+            <CheckCircle2 size={16} /> Approve for dosing
           </button>
         )}
         {rule.status === "approved" && canAdmin && (

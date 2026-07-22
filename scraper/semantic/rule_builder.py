@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import re
 from typing import Any
 
 from scraper.semantic.conditions import infer_action_from_text, normalize_conditions
+from scraper.semantic.stable_ids import stable_id
 
 RULE_WORTHY_TYPES = {
     "contraindication",
@@ -68,15 +68,9 @@ def _extract_drug_from_text(text: str) -> str | None:
     return None
 
 
-def slug(value: str) -> str:
-    value = re.sub(r"[^a-zA-Z0-9]+", "_", value or "").strip("_").lower()
-    return value or "unknown"
-
-
 def rule_id(parts: list[str]) -> str:
-    base = "_".join(slug(part) for part in parts if part)
-    digest = hashlib.sha1(base.encode("utf-8")).hexdigest()[:8]
-    return f"{base[:72]}_{digest}"
+    """Constraint rule id from structured tokens (drug / type / action)."""
+    return stable_id(*parts[:3], uniqueness=list(parts[3:]), max_label_len=40)
 
 
 def _parse_legacy_condition_from_text(text: str) -> dict[str, Any]:

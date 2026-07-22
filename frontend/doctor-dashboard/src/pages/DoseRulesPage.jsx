@@ -6,6 +6,7 @@ import { useAuth } from "../auth/AuthContext";
 import { DoseRuleDetail } from "../components/DoseRuleDetail.jsx";
 import { ApprovalToolbar } from "@shared/governance/ApprovalToolbar.jsx";
 import { DOSE_CATALOG } from "@shared/governance/catalogConfig.js";
+import { doseRuleTitle, shortCatalogId } from "@shared/governance/displayNames.js";
 import { useRuleSelection } from "@shared/governance/useRuleSelection.js";
 
 const STATUS_TABS = [
@@ -269,9 +270,9 @@ export function DoseRulesPage() {
                       </td>
                     )}
                     <td>
-                      <strong>{rule.dose_rule_id}</strong>
+                      <strong title={rule.dose_rule_id}>{doseRuleTitle(rule)}</strong>
                       <small>
-                        v{rule.version} · {rule.drug_class || "—"}
+                        {shortCatalogId(rule.dose_rule_id)} · v{rule.version} · {rule.drug_class || "—"}
                       </small>
                     </td>
                     <td>

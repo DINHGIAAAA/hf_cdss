@@ -44,20 +44,37 @@ _CLASS_PHRASES: list[tuple[str, str]] = sorted(
         ("nsaids", "class:nsaid"),
         ("nonsteroidal anti-inflammatory drugs", "class:nsaid"),
         ("non-steroidal anti-inflammatory drugs", "class:nsaid"),
+        ("non steroidal anti inflammatory drugs", "class:nsaid"),
+        ("non-steroidal anti-inflammatory agents", "class:nsaid"),
+        ("non steroidal anti inflammatory agents", "class:nsaid"),
         ("oral anticoagulants", "class:anticoagulant"),
         ("anticoagulants", "class:anticoagulant"),
         ("antiplatelets", "class:antiplatelet"),
         ("antiplatelet agents", "class:antiplatelet"),
         ("statins", "class:statin"),
         ("hmg-coa reductase inhibitors", "class:statin"),
+        ("hmg co a reductase inhibitors", "class:statin"),
         ("insulins", "class:insulin"),
         ("insulin", "class:insulin"),
+        ("diuretics", "class:diuretic"),
+        ("loop diuretics", "class:loop_diuretic"),
         ("pgp inhibitors", "class:pgp_inhibitor"),
         ("p-gp inhibitors", "class:pgp_inhibitor"),
         ("pgp inducers", "class:pgp_inducer"),
         ("p-gp inducers", "class:pgp_inducer"),
+        ("inhibitors of cyp3a4", "class:cyp_inhibitor"),
+        ("inhibitors of cyp3a", "class:cyp_inhibitor"),
+        ("cyp 3a inhibitors", "class:cyp_inhibitor"),
+        ("cyp2d6 inhibitors", "class:cyp_inhibitor"),
+        ("cyp2c19 inhibitors", "class:cyp_inhibitor"),
+        ("cyp2c19 inducers", "class:cyp_inducer"),
+        ("cyp2c9 inhibitors", "class:cyp_inhibitor"),
         ("cyp450 inhibitors", "class:cyp_inhibitor"),
         ("cyp450 inducers", "class:cyp_inducer"),
+        ("proton pump inhibitors", "class:ppi"),
+        ("ssris", "class:ssri"),
+        ("snris", "class:snri"),
+        ("opioids", "class:opioid"),
     ],
     key=lambda item: len(item[0]),
     reverse=True,
@@ -107,14 +124,42 @@ _JUNK_PARTNERS = {
     "and may",
     "fold",
     "results in",
+    "result in",
+    "resulted in",
+    "expected to",
+    "shown to",
+    "likely to",
     "inhibitors",
     "inducers",
     "such drugs",
     "drugs",
     "other drugs",
     "these drugs",
+    "drug",
+    "prevention",
+    "management",
+    "mechanism",
+    "prevention or management",
+    "prevention or management:",
+    "mechanism and clinical effect(s)",
+    "mechanism and clinical effect(s):",
+    "clinical effect(s",
+    "clinical effect(s):",
+    "pharmacodynamic interactions",
+    "pharmacokinetic drug interactions",
+    "laboratory test interactions",
+    "general information",
+    "other interactions",
     "wort",  # fragment from St. John's Wort splits
 }
+
+# Table column / section titles mistaken for partner drugs in FDA XML tables.
+_JUNK_HEADER_RE = re.compile(
+    r"^(prevention|management|mechanism|clinical effect|pharmacodynamic|"
+    r"pharmacokinetic|laboratory test|general information|other interactions|"
+    r"concomitantly used drug|drug interactions that)\b",
+    re.I,
+)
 
 
 def split_partner_mentions(text: str) -> list[str]:
@@ -136,6 +181,8 @@ def split_partner_mentions(text: str) -> list[str]:
         if not part:
             continue
         if part.lower().rstrip(":") in _JUNK_PARTNERS:
+            continue
+        if _JUNK_HEADER_RE.search(part):
             continue
         # Drop non-drug phrases
         if re.search(r"\b(therapy|meals|radiation|chemotherapy|charcoal|antacids)\b", part, re.I):
@@ -166,6 +213,8 @@ def resolve_partner_token(raw: str) -> tuple[str, dict[str, Any]]:
         return "", {"matched": False, "method": "empty"}
 
     if text.lower().rstrip(":") in _JUNK_PARTNERS:
+        return "", {"matched": False, "method": "junk"}
+    if _JUNK_HEADER_RE.search(text):
         return "", {"matched": False, "method": "junk"}
 
     if text.lower().startswith("class:"):

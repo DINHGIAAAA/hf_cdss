@@ -25,6 +25,7 @@ from app.api.routes.admin.deps import (
 from app.modules.datastores.postgres import (
     approve_constraint_rule,
     get_constraint_rule,
+    get_constraint_rule_counts,
     get_constraint_rule_latest_by_status,
     get_constraint_rule_versions,
     read_constraint_rule_history,
@@ -228,16 +229,18 @@ def list_constraint_rules(
         rules = draft + approved + retired
         items = [ConstraintRuleResponse(**r) for r in rules]
 
-    draft_count = len([r for r in rules if r.get("status") == "draft"])
-    approved_count = len([r for r in rules if r.get("status") == "approved"])
-    retired_count = len([r for r in rules if r.get("status") == "retired"])
+    counts = get_constraint_rule_counts(
+        target_drug_class=target_drug_class,
+        action=action,
+        q=q,
+    )
 
     return ConstraintRuleListResponse(
         total=len(rules),
         items=items,
-        draft_count=draft_count,
-        approved_count=approved_count,
-        retired_count=retired_count,
+        draft_count=counts["draft"],
+        approved_count=counts["approved"],
+        retired_count=counts["retired"],
     )
 
 
@@ -245,9 +248,8 @@ def list_constraint_rules(
 def bulk_approve_constraints(
     payload: BulkApproveRequest,
     background_tasks: BackgroundTasks,
-    current_user: AdminUser = Depends(get_current_admin_user),
+    current_user: AdminUser = Depends(require_role("clinical_lead")),
 ) -> BulkApproveResponse:
-    require_role(current_user, "clinical_lead")
     result = bulk_approve_constraint_rules(
         current_user.id,
         rule_ids=payload.rule_ids,

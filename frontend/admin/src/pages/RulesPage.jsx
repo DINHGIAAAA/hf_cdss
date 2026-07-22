@@ -6,6 +6,7 @@ import { useAuth } from "../auth/AuthContext";
 import { RuleDetail } from "../components/RuleDetail.jsx";
 import { ApprovalToolbar } from "@shared/governance/ApprovalToolbar.jsx";
 import { CONSTRAINT_CATALOG } from "@shared/governance/catalogConfig.js";
+import { constraintRuleTitle, shortCatalogId } from "@shared/governance/displayNames.js";
 import { useRuleSelection } from "@shared/governance/useRuleSelection.js";
 
 const STATUS_TABS = [
@@ -246,8 +247,10 @@ export function RulesPage() {
                       </td>
                     )}
                     <td>
-                      <strong>{rule.constraint_id}</strong>
-                      <small>v{rule.version}</small>
+                      <strong title={rule.constraint_id}>{constraintRuleTitle(rule)}</strong>
+                      <small>
+                        {shortCatalogId(rule.constraint_id)} · v{rule.version}
+                      </small>
                     </td>
                     <td>{rule.action}</td>
                     <td>

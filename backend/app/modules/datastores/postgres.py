@@ -903,11 +903,26 @@ def read_all_constraint_rules(
             ]
 
 
-def get_constraint_rule_counts() -> dict[str, int]:
-    """Get counts of rules by status."""
+def get_constraint_rule_counts(
+    *,
+    target_drug_class: str | None = None,
+    action: str | None = None,
+    q: str | None = None,
+) -> dict[str, int]:
+    """Get counts of constraint rules by status (ignores status tab filter)."""
+    conditions, params = _constraint_list_filters(
+        status=None,
+        target_drug_class=target_drug_class,
+        action=action,
+        q=q,
+    )
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
     with postgres_pool().connection() as connection:
         with connection.cursor() as cursor:
-            cursor.execute("SELECT status, COUNT(*) FROM constraint_rules GROUP BY status")
+            cursor.execute(
+                f"SELECT status, COUNT(*) FROM constraint_rules {where} GROUP BY status",
+                tuple(params),
+            )
             counts = {row[0]: row[1] for row in cursor.fetchall()}
             return {
                 "draft": counts.get("draft", 0),
@@ -1648,6 +1663,44 @@ def read_dose_rules_filtered(
                 }
                 for row in cursor.fetchall()
             ]
+
+
+def count_dose_rules_by_status(
+    *,
+    drug_class: str | None = None,
+    calculation_type: str | None = None,
+    safety_tier: str | None = None,
+    q: str | None = None,
+) -> dict[str, int]:
+    """Status badge counts independent of the selected status tab."""
+    conditions: list[str] = []
+    params: list[Any] = []
+    if drug_class:
+        conditions.append("drug_class ILIKE %s")
+        params.append(f"%{_escape_like(drug_class)}%")
+    if calculation_type:
+        conditions.append("calculation_type ILIKE %s")
+        params.append(f"%{_escape_like(calculation_type)}%")
+    if safety_tier:
+        conditions.append("safety_tier = %s")
+        params.append(safety_tier)
+    if q:
+        conditions.append("dose_rule_id ILIKE %s")
+        params.append(f"%{_escape_like(q)}%")
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    with postgres_pool().connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"SELECT status, COUNT(*) FROM dose_rules {where} GROUP BY status",
+                tuple(params),
+            )
+            counts = {row[0]: row[1] for row in cursor.fetchall()}
+            return {
+                "draft": counts.get("draft", 0),
+                "approved": counts.get("approved", 0),
+                "retired": counts.get("retired", 0),
+                "total": sum(counts.values()),
+            }
 
 
 def list_draft_dose_rule_ids(

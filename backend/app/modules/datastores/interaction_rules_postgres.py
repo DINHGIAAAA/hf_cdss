@@ -137,6 +137,48 @@ def read_interaction_rules_filtered(
             ]
 
 
+def count_interaction_rules_by_status(
+    *,
+    severity: str | None = None,
+    target: str | None = None,
+    safety_tier: str | None = None,
+    q: str | None = None,
+    extraction_method: str | None = None,
+) -> dict[str, int]:
+    """Status badge counts independent of the selected status tab."""
+    conditions: list[str] = []
+    params: list[Any] = []
+    if severity:
+        conditions.append("severity = %s")
+        params.append(severity)
+    if target:
+        conditions.append("target ILIKE %s")
+        params.append(f"%{target}%")
+    if safety_tier:
+        conditions.append("safety_tier = %s")
+        params.append(safety_tier)
+    if q:
+        conditions.append("interaction_rule_id ILIKE %s")
+        params.append(f"%{q}%")
+    if extraction_method:
+        conditions.append("metadata->>'extraction_method' ILIKE %s")
+        params.append(f"%{extraction_method}%")
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    with postgres_pool().connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"SELECT status, COUNT(*) FROM interaction_rules {where} GROUP BY status",
+                tuple(params),
+            )
+            counts = {row[0]: row[1] for row in cursor.fetchall()}
+            return {
+                "draft": counts.get("draft", 0),
+                "approved": counts.get("approved", 0),
+                "retired": counts.get("retired", 0),
+                "total": sum(counts.values()),
+            }
+
+
 def get_interaction_rule(rule_id: int) -> dict[str, Any] | None:
     with postgres_pool().connection() as connection:
         with connection.cursor() as cursor:

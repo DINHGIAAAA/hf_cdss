@@ -8,6 +8,7 @@ import { RuleVisibilityBadge } from "../components/RuleVisibilityBadge.jsx";
 import { ruleVisibilityMeta, tabVisibilityBanner } from "../utils/ruleVisibility.js";
 import { ApprovalToolbar } from "@shared/governance/ApprovalToolbar.jsx";
 import { CONSTRAINT_CATALOG } from "@shared/governance/catalogConfig.js";
+import { constraintRuleTitle, shortCatalogId } from "@shared/governance/displayNames.js";
 import { useRuleSelection } from "@shared/governance/useRuleSelection.js";
 
 const STATUS_TABS = [
@@ -278,8 +279,10 @@ export function RulesPage() {
                         </td>
                       )}
                       <td className="cell-ellipsis" title={rule.constraint_id}>
-                        <strong>{rule.constraint_id}</strong>
-                        <small>v{rule.version}</small>
+                        <strong>{constraintRuleTitle(rule)}</strong>
+                        <small>
+                          {shortCatalogId(rule.constraint_id)} · v{rule.version}
+                        </small>
                       </td>
                       <td className="cell-ellipsis" title={rule.action}>
                         {rule.action}

@@ -67,12 +67,24 @@ def test_warfarin_label_yields_interaction_claims() -> None:
 
 def test_partner_normalize_class_and_alias() -> None:
     assert match_class_phrase("QT Prolonging Drugs") == "class:qt_prolonging"
+    assert match_class_phrase("Non-steroidal Anti-Inflammatory Agents") == "class:nsaid"
+    assert match_class_phrase("Inhibitors of CYP3A4") == "class:cyp_inhibitor"
     token, meta = resolve_partner_token("Amiodarone")
     assert token == "amiodarone"
     assert meta["matched"] is True
     parts = split_partner_mentions("digoxin, beta blockers, verapamil, diltiazem")
     assert "digoxin" in parts
     assert any("beta" in p.lower() for p in parts)
+
+
+def test_partner_normalize_rejects_table_headers() -> None:
+    token, meta = resolve_partner_token("Prevention or Management:")
+    assert token == ""
+    assert meta["method"] == "junk"
+    token, meta = resolve_partner_token("Mechanism and Clinical Effect(s):")
+    assert token == ""
+    assert meta["method"] == "junk"
+    assert split_partner_mentions("Prevention or Management:, digoxin") == ["digoxin"]
 
 
 def test_infer_action_from_avoid_language() -> None:

@@ -2,24 +2,17 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
-import re
 from pathlib import Path
 from typing import Any
+
+from scraper.semantic.stable_ids import slug, stable_id
 
 REQUIRED_FIELDS = ("drug_class_key", "display_label", "policy_body")
 
 
-def slug(value: str) -> str:
-    value = re.sub(r"[^a-zA-Z0-9]+", "_", value or "").strip("_").lower()
-    return value or "unknown"
-
-
 def gdmt_policy_id(parts: list[str]) -> str:
-    base = "_".join(slug(part) for part in parts if part)
-    digest = hashlib.sha1(base.encode("utf-8")).hexdigest()[:8]
-    return f"gdmt_{base[:60]}_{digest}"
+    return stable_id(*parts[:1], uniqueness=list(parts[1:]), prefix="gdmt", max_label_len=32)
 
 
 def _bundled_baseline() -> list[dict[str, Any]]:
@@ -62,7 +55,12 @@ def build_gdmt_policy_from_claim(claim: dict[str, Any]) -> dict[str, Any] | None
     policy_id = (
         claim.get("gdmt_policy_id")
         or STABLE_POLICY_IDS.get(str(drug_class_key))
-        or gdmt_policy_id([drug_class_key, display_label])
+        or stable_id(
+            drug_class_key,
+            uniqueness=[display_label, claim.get("claim_id")],
+            prefix="gdmt",
+            max_label_len=32,
+        )
     )
     return {
         "rule_id": policy_id,

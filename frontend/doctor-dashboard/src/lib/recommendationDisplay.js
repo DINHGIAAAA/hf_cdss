@@ -1,6 +1,8 @@
 const VITAL_PATTERN =
   /(?:LVEF\s*[\d.]+\s*%|eGFR\s*[\d.]+|K\+\s*[\d.]+\s*mmol\/L|SBP\s*[\d.]+\s*mmHg|HR\s*[\d.]+\s*bpm)/gi;
 
+const PATIENT_CONTEXT_TAIL = /,?\s*(?:but\s+)?this patient context is\b[\s\S]*$/i;
+
 function normalizeVital(token) {
   return token.replace(/\s+/g, " ").trim();
 }
@@ -17,6 +19,37 @@ export function extractVitalChips(...texts) {
   return [...chips];
 }
 
+/** Shared vitals across all recommendation items in one response (dedupe once per conversation turn). */
+export function collectSharedVitalChips(recommendations = []) {
+  return extractVitalChips(
+    ...recommendations.flatMap((item) => [item.rationale, ...(item.clinical_reasoning || [])]),
+  );
+}
+
+export function stripPatientContext(text) {
+  return String(text || "")
+    .replace(PATIENT_CONTEXT_TAIL, "")
+    .replace(/\s+/g, " ")
+    .replace(/[,\s]+$/g, "")
+    .trim();
+}
+
+export function isPatientContextLine(line) {
+  const trimmed = String(line || "").trim();
+  if (!trimmed) return true;
+  if (/^this patient context is\b/i.test(trimmed)) return true;
+  if (/\bpatient context is\b/i.test(trimmed) && extractVitalChips(trimmed).length >= 2) {
+    return true;
+  }
+  const vitals = extractVitalChips(trimmed);
+  if (vitals.length < 3) return false;
+  const remainder = trimmed
+    .replace(VITAL_PATTERN, "")
+    .replace(/patient context is/gi, "")
+    .replace(/[,:;.\-–—/\s]+/g, "");
+  return remainder.length < 24;
+}
+
 export function recommendationReasoning(item) {
   if (item.clinical_reasoning?.length) {
     return item.clinical_reasoning.map((line) => line.trim()).filter(Boolean);
@@ -28,36 +61,37 @@ export function recommendationReasoning(item) {
 }
 
 export function recommendationLead(item) {
-  const [first] = recommendationReasoning(item);
-  const source = first || item.rationale || "";
-  return source
-    .replace(/,?\s*but this patient context is.*$/i, "")
-    .replace(/\s+/g, " ")
-    .trim();
+  for (const line of recommendationReasoning(item)) {
+    const cleaned = stripPatientContext(line);
+    if (cleaned && !isPatientContextLine(cleaned) && !isPatientContextLine(line)) {
+      return cleaned;
+    }
+  }
+  return "";
 }
 
-export function recommendationDetailLines(item, vitals = []) {
+export function recommendationDetailLines(item, sharedVitals = []) {
   const lines = recommendationReasoning(item);
   const lead = recommendationLead(item);
-  const vitalBlob = vitals.join(" ").toLowerCase();
+  const vitalBlob = sharedVitals.join(" ").toLowerCase();
 
-  return lines.filter((line, index) => {
-    const trimmed = line.trim();
-    if (!trimmed) return false;
+  return lines
+    .map((line) => stripPatientContext(line))
+    .filter((trimmed, index) => {
+      if (!trimmed) return false;
+      if (isPatientContextLine(trimmed)) return false;
+      if (index === 0 && trimmed === lead) return false;
+      if (lead && trimmed === lead) return false;
 
-    const withoutContext = trimmed
-      .replace(/,?\s*but this patient context is.*$/i, "")
-      .replace(/\.$/, "")
-      .trim();
+      const lineVitals = extractVitalChips(trimmed);
+      if (
+        lineVitals.length >= 3 &&
+        vitalBlob &&
+        lineVitals.join(" ").toLowerCase().length >= vitalBlob.length * 0.8
+      ) {
+        return false;
+      }
 
-    if (index === 0 && withoutContext === lead) return false;
-    if (/^this patient context is/i.test(trimmed)) return false;
-
-    const lineVitals = extractVitalChips(trimmed);
-    if (lineVitals.length >= 3 && vitalBlob && lineVitals.join(" ").length >= vitalBlob.length * 0.8) {
-      return false;
-    }
-
-    return true;
-  });
+      return true;
+    });
 }

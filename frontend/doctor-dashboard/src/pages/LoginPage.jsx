@@ -1,13 +1,12 @@
 import { useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
-import { LoaderCircle, LogIn, MessageSquareText, Shield } from "lucide-react";
+import { LoaderCircle } from "lucide-react";
 
 import { useAuth } from "../auth/AuthContext";
 import { resolvePostLoginPath } from "../auth/roles";
 import { LanguageToggle } from "../components/LanguageToggle";
 import { useLanguage } from "@/i18n/LanguageProvider.jsx";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 
 export function LoginPage() {
@@ -42,80 +41,64 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-full items-center justify-center bg-gradient-to-b from-accent/40 to-background px-4 py-10">
-      <Card className="w-full max-w-md border-border/80 shadow-lg">
-        <CardHeader className="space-y-4">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-start gap-3">
-              <div className="flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                <Shield size={24} />
-              </div>
-              <div className="space-y-1">
-                <CardTitle className="text-2xl">HF CDSS</CardTitle>
-                <CardDescription>{t("login.description")}</CardDescription>
-              </div>
-            </div>
-            <LanguageToggle
-              compact
-              language={language}
-              languages={languages}
-              onChange={setLanguage}
-              variant="light"
+    <div className="login-page">
+      <div className="login-shell">
+        <div className="login-lang">
+          <LanguageToggle
+            compact
+            language={language}
+            languages={languages}
+            onChange={setLanguage}
+            variant="light"
+          />
+        </div>
+
+        <header className="login-hero">
+          <div className="login-mark" aria-hidden>
+            <span />
+          </div>
+          <h1>HF CDSS</h1>
+          <p>{t("login.description")}</p>
+        </header>
+
+        <form className="login-form" onSubmit={handleSubmit}>
+          <div className="login-field">
+            <label htmlFor="username">{t("login.username")}</label>
+            <Input
+              autoComplete="username"
+              autoFocus
+              id="username"
+              onChange={(e) => setUsername(e.target.value)}
+              required
+              type="text"
+              value={username}
             />
           </div>
-        </CardHeader>
 
-        <CardContent>
-          <form className="space-y-4" onSubmit={handleSubmit}>
-            <div className="space-y-2">
-              <label className="text-sm font-medium" htmlFor="username">{t("login.username")}</label>
-              <Input
-                autoComplete="username"
-                id="username"
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="ngovinh"
-                required
-                type="text"
-                value={username}
-              />
-            </div>
+          <div className="login-field">
+            <label htmlFor="password">{t("login.password")}</label>
+            <Input
+              autoComplete="current-password"
+              id="password"
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              type="password"
+              value={password}
+            />
+          </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium" htmlFor="password">{t("login.password")}</label>
-              <Input
-                autoComplete="current-password"
-                id="password"
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-                type="password"
-                value={password}
-              />
-            </div>
+          {error ? (
+            <p className="login-error" role="alert">
+              {error}
+            </p>
+          ) : null}
 
-            {error && (
-              <p className="rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive" role="alert">
-                {error}
-              </p>
-            )}
-
-            <Button className="w-full" disabled={loading} size="lg" type="submit">
-              {loading ? <LoaderCircle className="animate-spin" size={18} /> : <LogIn size={18} />}
-              {t("login.signIn")}
-            </Button>
-          </form>
-
-          <p className="mt-5 text-sm text-muted-foreground">
-            {t("login.seedHint")}{" "}
-            <code className="rounded bg-muted px-1.5 py-0.5 text-xs">HF_CDSS_AUTH_SEED_USERS_JSON</code> on first bootstrap.
-          </p>
-
-          <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
-            <MessageSquareText size={16} />
-            {t("login.routingHint")}
-          </p>
-        </CardContent>
-      </Card>
+          <Button className="login-submit" disabled={loading} size="lg" type="submit">
+            {loading ? <LoaderCircle className="animate-spin" size={18} aria-hidden /> : null}
+            {loading ? t("login.signingIn") : t("login.signIn")}
+          </Button>
+        </form>
+      </div>
     </div>
   );
 }

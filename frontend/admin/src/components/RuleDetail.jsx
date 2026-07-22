@@ -3,6 +3,13 @@ import { CheckCircle2, History, RotateCcw, ShieldOff, XCircle } from "lucide-rea
 
 import { adminApi } from "../api/index.js";
 import { VersionDiffPanel } from "@shared/governance/VersionDiffPanel.jsx";
+import { StatusHistoryList } from "@shared/governance/StatusHistoryList.jsx";
+import {
+  ClinicalSourcesList,
+  DetailFieldList,
+  DetailMetaRow,
+} from "@shared/governance/DetailFieldList.jsx";
+import { constraintRuleTitle } from "@shared/governance/displayNames.js";
 
 function statusClass(status) {
   if (status === "approved") return "success";
@@ -37,10 +44,13 @@ export function RuleDetail({ rule, onClose, onAction, actionLoading, canApprove,
     <aside aria-label="Rule details" className="admin-detail-panel">
       <header className="admin-detail-header">
         <div>
-          <h2>{rule.constraint_id}</h2>
-          <p>
-            v{rule.version} · <span className={`badge ${statusClass(rule.status)}`}>{rule.status}</span>
-          </p>
+          <h2>{constraintRuleTitle(rule)}</h2>
+          <DetailMetaRow
+            id={rule.constraint_id}
+            status={rule.status}
+            statusClassName={statusClass(rule.status)}
+            version={rule.version}
+          />
         </div>
         <button className="icon-btn" onClick={onClose} type="button">
           <XCircle size={18} />
@@ -48,33 +58,18 @@ export function RuleDetail({ rule, onClose, onAction, actionLoading, canApprove,
       </header>
 
       <div className="admin-detail-body">
-        <dl className="detail-grid">
-          <dt>Action</dt>
-          <dd>{rule.action}</dd>
-          <dt>Target class</dt>
-          <dd>{rule.target_drug_class || "—"}</dd>
-          <dt>Reason</dt>
-          <dd>{rule.reason}</dd>
-          <dt>Risks</dt>
-          <dd>{(rule.risk_names || []).join(", ") || "—"}</dd>
-          <dt>Evidence</dt>
-          <dd>{rule.evidence_ref || "—"}</dd>
-          <dt>Source</dt>
-          <dd>{rule.source}</dd>
-        </dl>
+        <DetailFieldList
+          fields={[
+            { label: "Action", value: rule.action },
+            { label: "Target class", value: rule.target_drug_class || "—" },
+            { label: "Reason", value: rule.reason, wide: true },
+            { label: "Risks", value: (rule.risk_names || []).length ? rule.risk_names : "—" },
+            { label: "Evidence", value: rule.evidence_ref || "—", mono: true },
+            { label: "Source", value: rule.source },
+          ]}
+        />
 
-        {(rule.clinical_sources || []).length > 0 && (
-          <section>
-            <h3>Clinical sources</h3>
-            <ul className="source-list">
-              {rule.clinical_sources.map((src, i) => (
-                <li key={`${src.source_url || i}`}>
-                  {src.title || src.source_url || JSON.stringify(src)}
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
+        <ClinicalSourcesList sources={rule.clinical_sources || []} />
 
         <VersionDiffPanel
           fetchDiff={adminApi.getConstraintRuleDiff}
@@ -87,21 +82,7 @@ export function RuleDetail({ rule, onClose, onAction, actionLoading, canApprove,
             <h3>
               <History size={16} /> History
             </h3>
-            {historyError && <p className="inline-error">{historyError}</p>}
-            <ul className="history-list">
-              {history.map((item) => (
-                <li key={item.history_id}>
-                  <strong>
-                    {item.status_from || "—"} → {item.status_to}
-                  </strong>
-                  <span>
-                    {item.changed_by} · {new Date(item.changed_at).toLocaleString()}
-                  </span>
-                  {item.reason && <small>{item.reason}</small>}
-                </li>
-              ))}
-              {history.length === 0 && !historyError && <li>No history recorded.</li>}
-            </ul>
+            <StatusHistoryList error={historyError} items={history} />
           </section>
         )}
       </div>

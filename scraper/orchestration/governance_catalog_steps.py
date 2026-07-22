@@ -43,16 +43,21 @@ GOVERNANCE_CATALOGS: tuple[GovernanceCatalog, ...] = (
 )
 
 
+def _fda_extract_command(python: str) -> list[str]:
+    return [
+        python,
+        "-m",
+        "scraper.process.extract_fda_xml_interaction_claims",
+        # Batch ingestion stays deterministic; optional LLM remap is slow on junk table cells.
+        "--no-llm-normalize",
+    ]
+
+
 def pipeline_steps(python: str) -> list[tuple[str, list[str]]]:
     steps: list[tuple[str, list[str]]] = []
     for catalog in GOVERNANCE_CATALOGS:
         if catalog.name == "interaction_rules":
-            steps.append(
-                (
-                    "extract_fda_xml_interaction_claims",
-                    [python, "-m", "scraper.process.extract_fda_xml_interaction_claims"],
-                )
-            )
+            steps.append(("extract_fda_xml_interaction_claims", _fda_extract_command(python)))
         steps.extend(
             [
                 (f"extract_{catalog.name}", [python, "-m", catalog.extract_module]),
@@ -67,28 +72,26 @@ def main() -> None:
     import argparse
     import os
 
-    from scraper.paths import project_root, python_import_path
+    from scraper.paths import data_root, python_import_path
 
     parser = argparse.ArgumentParser(description="Run governance catalog extract/generate/classify steps.")
     parser.add_argument("--catalog", choices=[c.name for c in GOVERNANCE_CATALOGS], default=None)
     args = parser.parse_args()
 
     python = sys.executable
-    root = project_root()
+    # Same workspace as run_ingestion_pipeline (HF_CDSS_DATA_ROOT / data/heart_failure).
+    # Using project_root wrote empty dose artifacts under /opt/airflow/project/artifacts/.
+    root = data_root()
     env = os.environ.copy()
     import_path = python_import_path()
     env["PYTHONPATH"] = import_path if not env.get("PYTHONPATH") else f"{import_path}{os.pathsep}{env['PYTHONPATH']}"
+    env["PYTHONUNBUFFERED"] = "1"
 
     catalogs = [c for c in GOVERNANCE_CATALOGS if c.name == args.catalog] if args.catalog else list(GOVERNANCE_CATALOGS)
     for catalog in catalogs:
         steps: list[tuple[str, list[str]]] = []
         if catalog.name == "interaction_rules":
-            steps.append(
-                (
-                    "extract_fda_xml_interaction_claims",
-                    [python, "-m", "scraper.process.extract_fda_xml_interaction_claims"],
-                )
-            )
+            steps.append(("extract_fda_xml_interaction_claims", _fda_extract_command(python)))
         steps.extend(
             [
                 (f"extract_{catalog.name}", [python, "-m", catalog.extract_module]),
@@ -97,7 +100,7 @@ def main() -> None:
             ]
         )
         for step_name, command in steps:
-            print(f"\n[{step_name}] {' '.join(command)}")
+            print(f"\n[{step_name}] {' '.join(command)}", flush=True)
             subprocess.run(command, cwd=str(root), check=True, env=env)
 
 

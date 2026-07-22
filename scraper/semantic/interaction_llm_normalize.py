@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -57,8 +58,20 @@ def llm_normalize_partner(
     return None, 0.0
 
 
+def _max_llm_partners() -> int:
+    raw = os.environ.get("HF_CDSS_INTERACTION_LLM_NORMALIZE_MAX", "80")
+    try:
+        return max(0, int(raw))
+    except ValueError:
+        return 80
+
+
 def apply_llm_normalize_to_claims(claims: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Rewrite unmatched drug_set_b tokens when LLM returns a confident mapping."""
+    """Rewrite unmatched drug_set_b tokens when LLM returns a confident mapping.
+
+    Unique partner strings are normalized once and reused (avoids N× LLM calls on
+    repeated table junk / shared partners across labels).
+    """
     try:
         from app.modules.drug_normalization.service import load_drug_catalog
     except ImportError:
@@ -73,6 +86,36 @@ def apply_llm_normalize_to_claims(claims: list[dict[str, Any]]) -> list[dict[str
     )
     allowlist = [x for x in allowlist if x]
 
+    cache: dict[str, tuple[str | None, float]] = {}
+    pending_raws: list[str] = []
+    for claim in claims:
+        meta = claim.get("metadata") or {}
+        resolve = meta.get("partner_resolve") or {}
+        if resolve.get("matched") or not resolve.get("needs_llm"):
+            continue
+        raw = str(meta.get("partner_raw") or resolve.get("raw") or "").strip()
+        if not raw:
+            continue
+        key = raw.lower()
+        if key not in cache:
+            cache[key] = (None, 0.0)  # placeholder so we collect unique order
+            pending_raws.append(raw)
+
+    cap = _max_llm_partners()
+    if len(pending_raws) > cap:
+        logger.warning(
+            "LLM partner normalize: %s unique unmatched partners, capping at %s "
+            "(set HF_CDSS_INTERACTION_LLM_NORMALIZE_MAX to raise)",
+            len(pending_raws),
+            cap,
+        )
+        pending_raws = pending_raws[:cap]
+
+    for index, raw in enumerate(pending_raws, start=1):
+        if index == 1 or index % 10 == 0 or index == len(pending_raws):
+            logger.info("LLM partner normalize %s/%s: %r", index, len(pending_raws), raw[:60])
+        cache[raw.lower()] = llm_normalize_partner(raw, allowlist=allowlist)
+
     updated: list[dict[str, Any]] = []
     for claim in claims:
         meta = dict(claim.get("metadata") or {})
@@ -82,8 +125,7 @@ def apply_llm_normalize_to_claims(claims: list[dict[str, Any]]) -> list[dict[str
             continue
 
         raw = str(meta.get("partner_raw") or resolve.get("raw") or "")
-        subject = (claim.get("drug_set_a") or [None])[0]
-        token, conf = llm_normalize_partner(raw, allowlist=allowlist, subject_drug=subject)
+        token, conf = cache.get(raw.lower(), (None, 0.0))
         if not token or conf < 0.6:
             updated.append(claim)
             continue

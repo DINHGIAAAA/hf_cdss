@@ -21,12 +21,16 @@ logger = logging.getLogger(__name__)
 
 def _semantic_drug_matches(record: dict) -> list[str]:
     section = normalize(record.get("section", ""))
-    text = (record.get("text") or "")[:4000]
+    text = (record.get("text") or "")[:2000]
     haystack = f"{section}\n{text}".strip()
     if not haystack:
         return []
 
-    haystack_vector = embed_text(haystack)
+    try:
+        haystack_vector = embed_text(haystack)
+    except Exception as exc:  # noqa: BLE001 — keep pipeline moving on Ollama blips
+        logger.warning("Semantic drug embed skipped for section=%r: %s", section[:80], exc)
+        return []
 
     matches: list[str] = []
     for canonical, prototypes in DRUG_SECTION_PROTOTYPES.items():
@@ -41,11 +45,19 @@ def _semantic_drug_matches(record: dict) -> list[str]:
 
 
 def _semantic_guideline_matches(record: dict) -> list[str]:
-    haystack = f"{record.get('section', '')}\n{record.get('text', '')}"[:4000].strip()
+    haystack = f"{record.get('section', '')}\n{record.get('text', '')}"[:2000].strip()
     if not haystack:
         return []
 
-    haystack_vector = embed_text(haystack)
+    try:
+        haystack_vector = embed_text(haystack)
+    except Exception as exc:  # noqa: BLE001 — keep pipeline moving on Ollama blips
+        logger.warning(
+            "Semantic guideline embed skipped for section=%r: %s",
+            str(record.get("section") or "")[:80],
+            exc,
+        )
+        return []
 
     matches: list[str] = []
     for topic, prototypes in GUIDELINE_TOPIC_PROTOTYPES.items():
@@ -56,7 +68,10 @@ def _semantic_guideline_matches(record: dict) -> list[str]:
 
 
 def filter_important_sections(records: list[dict]) -> list[dict]:
-    warmup_prototype_vectors(DRUG_SECTION_PROTOTYPES, GUIDELINE_TOPIC_PROTOTYPES)
+    try:
+        warmup_prototype_vectors(DRUG_SECTION_PROTOTYPES, GUIDELINE_TOPIC_PROTOTYPES)
+    except Exception as exc:  # noqa: BLE001 — keyword filter still works without prototypes
+        logger.warning("Prototype embedding warmup failed; semantic section match may be limited: %s", exc)
 
     total = len(records)
     important: list[dict] = []
