@@ -1,13 +1,19 @@
 """Load dose tables - derived directly from FDA XML drug labels."""
 from __future__ import annotations
 
+import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
 
-# Path to FDA XML drug labels
-DRUG_LABELS_DIR = Path("data/heart_failure/raw/drug_labels")
+# Path to FDA XML drug labels (ephemeral staging; durable copy lives in S3).
+DRUG_LABELS_DIR = Path(
+    os.environ.get(
+        "HF_CDSS_RAW_ROOT",
+        str(Path(__file__).resolve().parents[4] / ".work" / "heart_failure" / "raw"),
+    )
+) / "drug_labels"
 
 
 def _load_from_xml() -> dict[str, Any]:

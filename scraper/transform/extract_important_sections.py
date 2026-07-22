@@ -83,7 +83,8 @@ def drug_matches(record: dict) -> list[str]:
     matches = []
 
     for canonical, aliases in DRUG_SECTION_ALIASES.items():
-        if section in aliases:
+        # Exact title or hierarchical SPL path ("DOSAGE AND ADMINISTRATION / HEART FAILURE").
+        if section in aliases or any(alias in section for alias in aliases):
             matches.append(canonical)
             continue
         if canonical == "RENAL IMPAIRMENT" and "RENAL IMPAIRMENT" in text:

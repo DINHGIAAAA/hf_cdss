@@ -53,14 +53,33 @@ def _fda_extract_command(python: str) -> list[str]:
     ]
 
 
+def _dose_rules_extract_command(python: str) -> list[str]:
+    return [
+        python,
+        "-m",
+        "scraper.process.extract_structured_dose_claims",
+        # Prefer full parsed labels (includes nested SPL dosage subsections).
+        # Chunks historically dropped many labels via cross-doc MinHash dedupe.
+        "--input",
+        "processed/sections/drug_label_sections.jsonl",
+        "--drug-labels-only",
+        "--dosage-sections-only",
+    ]
+
+
 def pipeline_steps(python: str) -> list[tuple[str, list[str]]]:
     steps: list[tuple[str, list[str]]] = []
     for catalog in GOVERNANCE_CATALOGS:
         if catalog.name == "interaction_rules":
             steps.append(("extract_fda_xml_interaction_claims", _fda_extract_command(python)))
+        extract_cmd = (
+            _dose_rules_extract_command(python)
+            if catalog.name == "dose_rules"
+            else [python, "-m", catalog.extract_module]
+        )
         steps.extend(
             [
-                (f"extract_{catalog.name}", [python, "-m", catalog.extract_module]),
+                (f"extract_{catalog.name}", extract_cmd),
                 (f"generate_{catalog.name}", [python, "-m", catalog.generate_module]),
                 (f"classify_{catalog.name}", [python, "-m", catalog.classify_module]),
             ]
@@ -92,9 +111,14 @@ def main() -> None:
         steps: list[tuple[str, list[str]]] = []
         if catalog.name == "interaction_rules":
             steps.append(("extract_fda_xml_interaction_claims", _fda_extract_command(python)))
+        extract_cmd = (
+            _dose_rules_extract_command(python)
+            if catalog.name == "dose_rules"
+            else [python, "-m", catalog.extract_module]
+        )
         steps.extend(
             [
-                (f"extract_{catalog.name}", [python, "-m", catalog.extract_module]),
+                (f"extract_{catalog.name}", extract_cmd),
                 (f"generate_{catalog.name}", [python, "-m", catalog.generate_module]),
                 (f"classify_{catalog.name}", [python, "-m", catalog.classify_module]),
             ]

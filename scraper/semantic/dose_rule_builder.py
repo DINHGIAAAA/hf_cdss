@@ -21,6 +21,14 @@ REQUIRED_FIELDS: dict[str, tuple[str, ...]] = {
     "congestion_range": ("dose_range",),
 }
 
+# Alternate fields the LLM often fills instead of the canonical required key.
+_FIELD_ALIASES: dict[str, tuple[str, ...]] = {
+    "recommended_dose": ("standard_dose", "starting_dose", "target_dose"),
+    "standard_dose": ("recommended_dose", "starting_dose"),
+    "starting_dose": ("recommended_dose", "standard_dose"),
+    "target_dose": ("target_dose_standard", "recommended_dose"),
+}
+
 
 def dose_rule_id(parts: list[str]) -> str:
     """Backward-compatible wrapper; prefer build_dose_rule_from_claim labeling."""
@@ -40,10 +48,25 @@ def _optional_short_indication(indication: str | None, drug: str, calc_type: str
     return token
 
 
+def _coerce_required_dose_fields(claim: dict[str, Any]) -> None:
+    """Fill missing required dose objects from common LLM aliases (in-place)."""
+    calc_type = claim.get("calculation_type")
+    for field in REQUIRED_FIELDS.get(calc_type, ()):
+        value = claim.get(field)
+        if value not in (None, [], {}):
+            continue
+        for alias in _FIELD_ALIASES.get(field, ()):
+            alt = claim.get(alias)
+            if alt not in (None, [], {}):
+                claim[field] = alt
+                break
+
+
 def _has_required_fields(claim: dict[str, Any]) -> bool:
     calc_type = claim.get("calculation_type")
     if calc_type not in CALCULATION_TYPES:
         return False
+    _coerce_required_dose_fields(claim)
     for field in REQUIRED_FIELDS.get(calc_type, ()):
         value = claim.get(field)
         if value in (None, [], {}):

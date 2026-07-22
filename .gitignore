@@ -16,6 +16,9 @@ data/heart_failure/raw/
 data/heart_failure/processed/
 data/heart_failure/artifacts/
 
+# Ephemeral raw staging (S3 is durable source of truth).
+.work/
+
 .cursor/
 design-system/
 

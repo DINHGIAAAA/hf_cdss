@@ -129,6 +129,8 @@ def _pipeline_step_order() -> list[str]:
         "governance_catalog_steps",
         "derive_relationships",
         "validate_kg_artifacts",
+        "publish_extract_to_processed_s3",
+        "publish_governance_catalogs_to_s3",
         "promote_artifacts",
         "sync_processed_to_s3",
         "sync_governance_catalogs",

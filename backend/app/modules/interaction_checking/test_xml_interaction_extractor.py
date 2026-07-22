@@ -18,7 +18,12 @@ from app.modules.interaction_checking.xml_interaction_extractor import (
 from scraper.process.classify_interaction_rules import interaction_rule_tier
 from scraper.semantic.interaction_rule_builder import interaction_rules_from_claims
 
-LABELS = Path("data/heart_failure/raw/drug_labels")
+LABELS = Path(
+    __import__("os").environ.get(
+        "HF_CDSS_RAW_ROOT",
+        str(Path(__file__).resolve().parents[4] / ".work" / "heart_failure" / "raw"),
+    )
+) / "drug_labels"
 
 
 def _label(pipeline_id: str) -> Path:

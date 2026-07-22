@@ -234,7 +234,20 @@ def _build_structured_claim(record: dict, payload: dict[str, Any], index: int) -
     return structured
 
 
+def is_dosage_and_administration_section(record: dict) -> bool:
+    section = str(record.get("section") or record.get("source_section") or "").lower()
+    if "dosage and administration" in section or "dosage & administration" in section:
+        return True
+    # Nested SPL titles like "DOSAGE AND ADMINISTRATION / HEART FAILURE"
+    leaf = section.split(" / ")[-1].strip()
+    return leaf in {"dosage", "dosing", "dose and administration", "dosing and administration"}
+
+
 def is_dose_relevant_section(record: dict) -> bool:
+    # Always keep true FDA dosing sections so every labeled drug is extractable.
+    if record.get("source_type") == "drug_label" and is_dosage_and_administration_section(record):
+        return True
+
     section = str(record.get("section") or record.get("source_section") or "").lower()
     text = str(record.get("text") or "").lower()
     haystack = f"{section} {text[:600]}"  # Increased from 400 to 600 chars
@@ -278,6 +291,59 @@ def is_dose_relevant_section(record: dict) -> bool:
     return False
 
 
+def select_dose_extraction_records(
+    records: list[dict],
+    *,
+    drug_labels_only: bool = False,
+    dosage_sections_only: bool = False,
+) -> list[dict]:
+    """Filter/prioritize sections for structured dose extraction.
+
+    When dosage_sections_only is set, keep drug-label DOSAGE AND ADMINISTRATION
+    (longest text per document) plus guideline dosage sections unless
+    drug_labels_only is also set.
+    """
+    selected: list[dict] = []
+    best_label_dosage: dict[str, dict] = {}
+
+    for record in records:
+        text = str(record.get("text") or "").strip()
+        if len(text) < 40:
+            continue
+
+        source_type = record.get("source_type")
+        if drug_labels_only and source_type != "drug_label":
+            continue
+
+        if dosage_sections_only:
+            if source_type == "drug_label":
+                if not is_dosage_and_administration_section(record):
+                    continue
+                doc_id = str(record.get("document_id") or "")
+                if not doc_id:
+                    selected.append(record)
+                    continue
+                prior = best_label_dosage.get(doc_id)
+                if prior is None or len(text) > len(str(prior.get("text") or "")):
+                    best_label_dosage[doc_id] = record
+                continue
+            if not is_dose_relevant_section(record):
+                continue
+            if not is_dosage_and_administration_section(record) and "dosage" not in str(
+                record.get("section") or ""
+            ).lower():
+                # Guidelines: keep clearly dosage-titled sections only in this mode.
+                continue
+        elif not is_dose_relevant_section(record):
+            continue
+
+        selected.append(record)
+
+    # Stable order by document_id for label dosage picks.
+    selected.extend(best_label_dosage[key] for key in sorted(best_label_dosage))
+    return selected
+
+
 def extract_structured_dose_claims_from_section(record: dict) -> list[dict]:
     text = (record.get("text") or "").strip()
     if not text:
@@ -312,13 +378,41 @@ def extract_structured_dose_claims_from_section(record: dict) -> list[dict]:
     return claims
 
 
-def extract_structured_dose_claims_batch(records: list[dict]) -> list[dict]:
+def extract_structured_dose_claims_batch(
+    records: list[dict],
+    *,
+    drug_labels_only: bool = False,
+    dosage_sections_only: bool = False,
+    limit: int | None = None,
+) -> list[dict]:
     claims: list[dict] = []
-    for record in records:
-        if not is_dose_relevant_section(record):
-            continue
+    selected = select_dose_extraction_records(
+        records,
+        drug_labels_only=drug_labels_only,
+        dosage_sections_only=dosage_sections_only,
+    )
+    if limit is not None and limit >= 0:
+        selected = selected[:limit]
+    logger.info(
+        "Structured dose extraction: %s/%s sections selected (labels_only=%s, dosage_only=%s)",
+        len(selected),
+        len(records),
+        drug_labels_only,
+        dosage_sections_only,
+    )
+    for index, record in enumerate(selected, start=1):
         try:
-            claims.extend(extract_structured_dose_claims_from_section(record))
+            section_claims = extract_structured_dose_claims_from_section(record)
+            claims.extend(section_claims)
+            if index == 1 or index % 10 == 0 or index == len(selected):
+                logger.info(
+                    "Dose extract progress: %s/%s sections, %s claims so far (%s / %s)",
+                    index,
+                    len(selected),
+                    len(claims),
+                    record.get("document_id"),
+                    record.get("section"),
+                )
         except Exception as exc:
             logger.warning(
                 "Structured dose extraction failed for %s/%s: %s",

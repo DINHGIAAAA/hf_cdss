@@ -102,7 +102,12 @@ def _embed_batch_ollama(texts: list[str], timeout: float) -> list[list[float]]:
         with httpx.Client(timeout=timeout) as client:
             response = client.post(
                 _ollama_embed_url(),
-                json={"model": config.EMBEDDING_MODEL, "input": texts},
+                json={
+                    "model": config.EMBEDDING_MODEL,
+                    "input": texts,
+                    # Do not pin the embed model on GPU for hours — blocks chat LLMs.
+                    "keep_alive": "0",
+                },
             )
             response.raise_for_status()
             return _parse_embedding_vectors(response.json())
@@ -117,7 +122,11 @@ def _embed_single_text(text: str, timeout: float) -> list[float]:
         with httpx.Client(timeout=timeout) as client:
             response = client.post(
                 _ollama_embeddings_url(),
-                json={"model": config.EMBEDDING_MODEL, "prompt": text},
+                json={
+                    "model": config.EMBEDDING_MODEL,
+                    "prompt": text,
+                    "keep_alive": "0",
+                },
             )
             response.raise_for_status()
             return _parse_embedding_vectors(response.json())[0]

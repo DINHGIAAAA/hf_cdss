@@ -306,8 +306,15 @@ def parse_pdf_job(args: tuple[Path, Path, dict, bool, Path | None, bool]) -> tup
     return parse_pdf(*args)
 
 def main() -> None:
+    from scraper.paths import guidelines_dir
+
     parser = argparse.ArgumentParser(description="Parse guideline PDFs and produce documents and sections.")
-    parser.add_argument("--input-dir", default="raw/guidelines", type=Path)
+    parser.add_argument(
+        "--input-dir",
+        default=None,
+        type=Path,
+        help="Guideline PDF root (default: HF_CDSS_RAW_ROOT/guidelines).",
+    )
     parser.add_argument("--registry", default="sources/sources.example.json", type=Path)
     parser.add_argument("--tables-dir", default="processed/tables", type=Path)
     parser.add_argument("--fast-parsing", action="store_true", help="Use faster, less accurate parsing settings (e.g., disable text-based table finding).")
@@ -326,9 +333,10 @@ def main() -> None:
         help="Number of PDFs to parse in parallel. Use 1 for deterministic single-process parsing.",
     )
     args = parser.parse_args()
+    input_dir = args.input_dir or guidelines_dir()
 
     registry = load_registry(args.registry)
-    pdf_paths = sorted(args.input_dir.glob("*/*.pdf"))
+    pdf_paths = sorted(input_dir.glob("*/*.pdf"))
     use_opendataloader = args.pdf_parser == "opendataloader"
     odl_cache_dir: Path | None = None
 

@@ -88,8 +88,33 @@ STEP_UPLOAD_PATHS: dict[str, list[str]] = {
         "artifacts/rules/usable_rules.jsonl",
         "artifacts/rules/rejected_rules.jsonl",
     ],
+    "governance_catalog_steps": [
+        "artifacts/dose_rules/dose_rules.jsonl",
+        "artifacts/dose_rules/dose_rules_classified.jsonl",
+        "artifacts/dose_rules/usable_rules.jsonl",
+        "artifacts/dose_safety_warnings/dose_safety_warnings.jsonl",
+        "artifacts/dose_safety_warnings/dose_safety_warnings_classified.jsonl",
+        "artifacts/dose_safety_warnings/usable_rules.jsonl",
+        "artifacts/interaction_rules/interaction_rules.jsonl",
+        "artifacts/interaction_rules/interaction_rules_classified.jsonl",
+        "artifacts/interaction_rules/usable_rules.jsonl",
+        "artifacts/gdmt_policies/gdmt_policies.jsonl",
+        "artifacts/gdmt_policies/gdmt_policies_classified.jsonl",
+        "artifacts/gdmt_policies/usable_rules.jsonl",
+    ],
     "derive_relationships": ["artifacts/relationships/relationships.jsonl"],
 }
+
+
+def cleanup_workspace_outputs(workspace: Path) -> None:
+    """Remove local processed/artifacts after they have been published to S3."""
+    import shutil
+
+    for name in ("processed", "artifacts"):
+        path = workspace / name
+        if path.exists():
+            print(f"Removing local workspace outputs: {path}")
+            shutil.rmtree(path, ignore_errors=True)
 
 
 def upload_step_artifacts(

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import time
 import urllib.error
@@ -16,7 +17,13 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 ALIASES_PATH = ROOT / "data" / "heart_failure" / "config" / "drug_aliases.json"
-LABELS_DIR = ROOT / "data" / "heart_failure" / "raw" / "drug_labels"
+# Local cache only; durable copy is uploaded to S3 in download_one().
+LABELS_DIR = Path(
+    os.environ.get(
+        "HF_CDSS_RAW_ROOT",
+        str(ROOT / ".work" / "heart_failure" / "raw"),
+    )
+) / "drug_labels"
 USER_AGENT = (
     "Mozilla/5.0 (compatible; hf_cdss-label-fetcher/1.0; +https://github.com/DINHGIAAAA/hf_cdss)"
 )
@@ -384,6 +391,24 @@ def download_one(pipeline_id: str, entry: dict[str, Any], timeout: int, dry_run:
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path.write_bytes(payload)
     result["bytes"] = len(payload)
+
+    # Durable copy: upload to raw S3 (same layout as download_sources).
+    try:
+        from scraper.acquisition.download_sources import ensure_bucket, s3_key
+        from scraper.s3_client import s3_client
+
+        endpoint = os.environ.get("HF_CDSS_S3_ENDPOINT_URL", "http://localhost:4566")
+        bucket = os.environ.get("HF_CDSS_RAW_BUCKET", "hf-cdss-raw")
+        prefix = os.environ.get("HF_CDSS_S3_PREFIX", "heart_failure")
+        client = s3_client(endpoint)
+        ensure_bucket(client, bucket)
+        rel = f"raw/drug_labels/{pipeline_id}/{pipeline_id}_label.xml"
+        key = s3_key(prefix, rel)
+        client.put_object(Bucket=bucket, Key=key, Body=payload)
+        result["storage_uri"] = f"s3://{bucket}/{key}"
+    except Exception as exc:  # noqa: BLE001 — local file still usable for offline tools
+        result["s3_upload_error"] = str(exc)
+
     return result
 
 

@@ -14,37 +14,30 @@ except ImportError:
 PROJECT_ROOT = os.environ.get("HF_CDSS_PROJECT_ROOT", "/opt/airflow/project")
 BACKEND_ROOT = f"{PROJECT_ROOT}/backend"
 DATA_ROOT = f"{PROJECT_ROOT}/data/heart_failure"
+# Ephemeral raw staging — not under data/heart_failure/raw
+RAW_ROOT = os.environ.get("HF_CDSS_RAW_ROOT", "/tmp/hf_cdss_raw")
 PYTHON = "python"
 PIPELINE_TIMEOUT_HOURS = int(os.environ.get("HF_CDSS_AIRFLOW_PIPELINE_TIMEOUT_HOURS", "48"))
-
-# Defaults — check S3 for existing raw data before deciding to skip
-SOURCES_REGISTRY = os.environ.get("HF_CDSS_SOURCES_REGISTRY", f"{DATA_ROOT}/sources/sources.example.json")
-_AIRFLOW_HOME = os.environ.get("AIRFLOW_HOME", "/home/airflow")
-
-
-def _check_raw_data_exists():
-    """Check if raw data already exists in S3, if so skip download."""
-    try:
-        import subprocess
-        result = subprocess.run(
-            ["aws", "s3", "ls", "s3://hf-cdss-raw/heart_failure/"],
-            capture_output=True,
-            text=True,
-            timeout=30,
-            env={**os.environ, "AWS_ENDPOINT_URL": "http://localstack:4566"}
-        )
-        # If any files exist in the S3 prefix, skip download
-        return result.returncode == 0 and len(result.stdout.strip()) > 0
-    except Exception:
-        # If check fails, don't skip (run download)
-        return False
-
-
-SKIP_DOWNLOAD = _check_raw_data_exists()
+SOURCES_REGISTRY = os.environ.get(
+    "HF_CDSS_SOURCES_REGISTRY",
+    f"{DATA_ROOT}/sources/sources.example.json",
+)
 
 
 def data_command(command: str) -> str:
-    return f"mkdir -p {DATA_ROOT} && cd {DATA_ROOT} && PYTHONPATH={PROJECT_ROOT}:{BACKEND_ROOT} {command}"
+    return (
+        f"mkdir -p {DATA_ROOT} {RAW_ROOT} && cd {DATA_ROOT} && "
+        f"HF_CDSS_DATA_ROOT={DATA_ROOT} HF_CDSS_RAW_ROOT={RAW_ROOT} "
+        f"PYTHONPATH={PROJECT_ROOT}:{BACKEND_ROOT} {command}"
+    )
+
+
+def pipeline_stage(stage: str, extra: str = "") -> str:
+    return data_command(
+        f"{PYTHON} -m scraper.orchestration.run_ingestion_pipeline "
+        f"--stage {stage} --registry {SOURCES_REGISTRY} {extra}"
+        ' --run-id "{{ run_id }}"'
+    )
 
 
 default_args = {
@@ -57,51 +50,54 @@ default_args = {
 
 with DAG(
     dag_id="heart_failure_kg_ingestion",
-    description="Ingest clinical sources and run the full KG pipeline (zero trigger config).",
+    description=(
+        "S3-first clinical ingestion: acquire (raw S3) → load (staging) → "
+        "extract → store (processed S3 + governance)."
+    ),
     default_args=default_args,
     start_date=datetime(2026, 1, 1),
     schedule=None,
     catchup=False,
     max_active_runs=1,
-    tags=["hf-cdss", "graphrag", "ingestion"],
+    tags=["hf-cdss", "graphrag", "ingestion", "s3"],
 ) as dag:
-    if SKIP_DOWNLOAD:
-        download_sources = BashOperator(
-            task_id="download_sources",
-            bash_command="echo 'Skipping download (HF_CDSS_INGESTION_SKIP_DOWNLOAD=true). Raw sources expected in S3.'",
-        )
-    else:
-        download_sources = BashOperator(
-            task_id="download_sources",
-            execution_timeout=timedelta(hours=3),
-            bash_command=(
-                f"{data_command(PYTHON + f' -m scraper.acquisition.download_sources --registry {SOURCES_REGISTRY} ')}"
-                "--storage s3 "
-                "--s3-bucket ${HF_CDSS_RAW_BUCKET:-hf-cdss-raw} "
-                "--s3-prefix ${HF_CDSS_S3_PREFIX:-heart_failure} "
-                "--s3-endpoint-url ${HF_CDSS_S3_ENDPOINT_URL:-http://localstack:4566} "
-                "--timeout 180 --use-existing --allow-failures"
-            ),
-        )
+    # Acquire: HTTP/DailyMed → hf-cdss-raw only. Skip re-fetch when objects already exist.
+    acquire = BashOperator(
+        task_id="acquire",
+        execution_timeout=timedelta(hours=3),
+        bash_command=(
+            "set -euo pipefail; "
+            "if aws --endpoint-url ${HF_CDSS_S3_ENDPOINT_URL:-http://localstack:4566} "
+            "s3 ls s3://${HF_CDSS_RAW_BUCKET:-hf-cdss-raw}/${HF_CDSS_S3_PREFIX:-heart_failure}/ "
+            "2>/dev/null | grep -q .; then "
+            "  echo 'Raw prefix already populated in S3; acquire will use --skip-download --use-existing'; "
+            f"  {pipeline_stage('acquire', '--skip-download --use-existing --allow-failures')}; "
+            "else "
+            "  echo 'Raw prefix empty; downloading sources into S3'; "
+            f"  {pipeline_stage('acquire', '--use-existing --allow-failures')}; "
+            "fi"
+        ),
+    )
 
-    run_kg_pipeline = BashOperator(
-        task_id="run_kg_pipeline",
+    load = BashOperator(
+        task_id="load",
+        execution_timeout=timedelta(hours=2),
+        bash_command=pipeline_stage("load", "--skip-download --auto-resume"),
+    )
+
+    extract = BashOperator(
+        task_id="extract",
         execution_timeout=timedelta(hours=PIPELINE_TIMEOUT_HOURS),
-        bash_command=(
-            f"{data_command(PYTHON + f' -m scraper.orchestration.run_ingestion_pipeline --registry {SOURCES_REGISTRY} --skip-download --auto-resume ')}"
-            '--run-id "{{ run_id }}"'
+        bash_command=pipeline_stage("extract", "--skip-download --auto-resume"),
+    )
+
+    store = BashOperator(
+        task_id="store",
+        execution_timeout=timedelta(hours=2),
+        bash_command=pipeline_stage(
+            "store",
+            "--skip-download --auto-resume --cleanup-raw-staging --cleanup-workspace-outputs",
         ),
     )
 
-    upload_governance_catalogs = BashOperator(
-        task_id="upload_governance_catalogs",
-        execution_timeout=timedelta(minutes=10),
-        bash_command=(
-            f"{data_command(PYTHON + ' -m scraper.store.upload_governance_catalogs_to_s3 ')}"
-            "--bucket ${HF_CDSS_PROCESSED_BUCKET:-hf-cdss-processed} "
-            "--prefix ${HF_CDSS_S3_PREFIX:-heart_failure} "
-            "--endpoint-url ${HF_CDSS_S3_ENDPOINT_URL:-http://localstack:4566}"
-        ),
-    )
-
-    download_sources >> run_kg_pipeline >> upload_governance_catalogs
+    acquire >> load >> extract >> store

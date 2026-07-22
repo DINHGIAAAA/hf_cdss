@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 from scraper.io.jsonl import write_jsonl
-from scraper.paths import data_root, project_root, python_import_path
+from scraper.paths import data_root, drug_labels_dir, project_root, python_import_path
 
 
 def _ensure_import_path() -> None:
@@ -25,7 +25,7 @@ def main() -> None:
         "--labels-dir",
         type=Path,
         default=None,
-        help="Root containing */*_label.xml (default: data/heart_failure/raw/drug_labels)",
+        help="Root containing */*_label.xml (default: HF_CDSS_RAW_ROOT/drug_labels)",
     )
     parser.add_argument(
         "--output",
@@ -46,9 +46,9 @@ def main() -> None:
         extract_all_interaction_claims,
     )
 
-    labels_dir = args.labels_dir or (data_root() / "raw" / "drug_labels")
+    labels_dir = args.labels_dir or drug_labels_dir()
     if not labels_dir.is_dir():
-        # Fall back to repo-relative path used by dose_calculation
+        # Fall back to legacy path used by older dose_calculation helpers
         labels_dir = project_root() / DRUG_LABELS_DIR
 
     output = args.output or (data_root() / "artifacts" / "interaction_rules" / "structured_interaction_claims_fda.jsonl")

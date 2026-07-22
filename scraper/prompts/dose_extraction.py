@@ -16,9 +16,9 @@ JSON shape (examples use ONE concrete value each — copy the structure, not the
 {
   "dose_rules": [
     {
-      "drug": "generic drug name",
+      "drug": "furosemide",
       "drug_class": "loop_diuretic",
-      "drug_keys": ["generic name", "brand if stated"],
+      "drug_keys": ["furosemide", "lasix"],
       "indication": "heart_failure",
       "calculation_type": "fixed_dose",
       "standard_dose": {"value": 20, "unit": "mg", "frequency": "once daily", "label": "optional display label"},
@@ -66,4 +66,7 @@ Rules:
 - Omit fields not stated in the source (use null or omit keys).
 - confidence between 0.5 and 1.0 based on clarity and completeness.
 - For drug labels, drug must match the label drug when drug-specific.
+- drug_keys: lowercase identifiers only (generic snake/space form and brand if named). Never placeholder text like "generic name".
+- When calculation_type is fixed_dose, always set recommended_dose from the labeled maintenance/usual dose (also fill standard_dose with the same amount when useful).
+- Prefer extracting every distinct labeled dosing regimen for the drug in the section (adult HF/oral first), not a single incomplete rule.
 """

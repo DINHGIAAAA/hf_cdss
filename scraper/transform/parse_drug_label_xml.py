@@ -102,56 +102,98 @@ def parse_xml(xml_path: Path, raw_dir: Path, manifest: dict, registry: dict | No
     publisher = row.get("publisher") or "DailyMed"
     citation = f"{title}. {publisher}."
 
-    records = []
-
-    for section in root.findall(".//hl7:structuredBody/hl7:component/hl7:section", NS):
-        text_node = section.find("hl7:text", NS)
-        if text_node is None:
-            continue
-
-        text = element_text(text_node)
-        if not text:
-            continue
-
-        records.append(
-            {
-                "document_id": document_id,
+    def make_record(section_title: str, text: str) -> dict:
+        return {
+            "document_id": document_id,
+            "source_type": "drug_label",
+            "section": section_title,
+            "text": text,
+            "metadata": {
+                "source_id": row.get("source_id") or document_id,
+                "drug": drug,
+                "source": "DailyMed",
                 "source_type": "drug_label",
-                "section": section_name(section),
-                "text": text,
-                "metadata": {
+                "source_url": source_url,
+                "publisher": publisher,
+                "published_date": published_date,
+                "retrieved_at": row.get("downloaded_at") or row.get("retrieved_at"),
+                "title": title,
+                "citation": citation,
+                "setid": setid,
+                "spl_version": spl_version,
+                "sha256": row.get("sha256"),
+                "storage_uri": row.get("storage_uri"),
+                "source_file": str(xml_path),
+                "page": None,
+                "provenance": {
                     "source_id": row.get("source_id") or document_id,
-                    "drug": drug,
-                    "source": "DailyMed",
-                    "source_type": "drug_label",
                     "source_url": source_url,
-                    "publisher": publisher,
-                    "published_date": published_date,
-                    "retrieved_at": row.get("downloaded_at") or row.get("retrieved_at"),
-                    "title": title,
-                    "citation": citation,
+                    "section": section_title,
                     "setid": setid,
                     "spl_version": spl_version,
-                    "sha256": row.get("sha256"),
-                    "storage_uri": row.get("storage_uri"),
-                    "source_file": str(xml_path),
-                    "page": None,
-                    "provenance": {
-                        "source_id": row.get("source_id") or document_id,
-                        "source_url": source_url,
-                        "section": section_name(section),
-                        "setid": setid,
-                        "spl_version": spl_version,
-                    },
                 },
-            }
-        )
+            },
+        }
 
+    def walk_section(section: ET.Element, ancestry: tuple[str, ...] = ()) -> list[dict]:
+        """Emit every section (and nested subsection) that has narrative text.
+
+        Modern SPLs often put dosing under nested 2.x nodes while the parent
+        'DOSAGE AND ADMINISTRATION' node has no direct <text>.
+        """
+        name = section_name(section)
+        path = ancestry + (name,) if name else ancestry
+        section_title = " / ".join(path) if path else name or "UNTITLED"
+
+        text_node = section.find("hl7:text", NS)
+        text = element_text(text_node) if text_node is not None else ""
+        children = section.findall("./hl7:component/hl7:section", NS)
+
+        records: list[dict] = []
+        if text:
+            records.append(make_record(section_title, text))
+
+        child_records: list[dict] = []
+        for child in children:
+            child_records.extend(walk_section(child, path))
+        records.extend(child_records)
+
+        # Roll up nested dosing narrative onto the parent heading when the parent
+        # itself has no <text> (common in Structured Product Labeling).
+        rolled_name = name.upper()
+        if (
+            not text
+            and child_records
+            and (
+                "DOSAGE AND ADMINISTRATION" in rolled_name
+                or "DOSAGE & ADMINISTRATION" in rolled_name
+                or rolled_name in {"DOSAGE", "DOSING", "DOSING AND ADMINISTRATION"}
+            )
+        ):
+            combined_parts = []
+            for child_rec in child_records:
+                child_section = str(child_rec.get("section") or "")
+                leaf = child_section.split(" / ")[-1] if child_section else ""
+                body = str(child_rec.get("text") or "").strip()
+                if not body:
+                    continue
+                combined_parts.append(f"{leaf}\n{body}" if leaf else body)
+            combined = "\n\n".join(combined_parts).strip()
+            if combined:
+                records.insert(0, make_record(section_title or rolled_name, combined))
+
+        return records
+
+    body = root.find(".//hl7:structuredBody", NS)
+    top_sections = body.findall("./hl7:component/hl7:section", NS) if body is not None else []
+    records: list[dict] = []
+    for section in top_sections:
+        records.extend(walk_section(section))
     return records
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Parse DailyMed SPL XML labels to JSONL.")
-    parser.add_argument("--input-dir", default="raw/drug_labels", type=Path)
+    parser.add_argument("--input-dir", default=None, type=Path)
     parser.add_argument("--manifest", default="artifacts/manifests/download_manifest.json", type=Path)
     parser.add_argument("--registry", default="sources/sources.example.json", type=Path)
     parser.add_argument(
@@ -161,15 +203,18 @@ def main() -> None:
         help="Write parsed sections to this JSONL file.",
     )
     args = parser.parse_args()
+    from scraper.paths import drug_labels_dir
+
+    input_dir = args.input_dir or drug_labels_dir()
 
     manifest = load_manifest(args.manifest)
     registry = load_registry(args.registry)
-    xml_paths = sorted(args.input_dir.glob("*/*_label.xml"))
+    xml_paths = sorted(input_dir.glob("*/*_label.xml"))
     records: list[dict] = []
 
-    print(f"Parsing {len(xml_paths)} XML files...")
+    print(f"Parsing {len(xml_paths)} XML files from {input_dir}...")
     for xml_path in tqdm(xml_paths, desc="Parsing XML files"):
-        records.extend(parse_xml(xml_path, args.input_dir, manifest, registry))
+        records.extend(parse_xml(xml_path, input_dir, manifest, registry))
 
     write_jsonl(records, args.output)
     print("\n--- Processing Summary ---")

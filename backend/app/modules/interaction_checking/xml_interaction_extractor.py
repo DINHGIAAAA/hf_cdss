@@ -9,6 +9,7 @@ optional LLM normalize is applied by the scraper CLI when enabled.
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 from pathlib import Path
 from typing import Any
@@ -28,7 +29,12 @@ from app.modules.interaction_checking.partner_normalize import (
     split_partner_mentions,
 )
 
-DRUG_LABELS_DIR = Path("data/heart_failure/raw/drug_labels")
+DRUG_LABELS_DIR = Path(
+    os.environ.get(
+        "HF_CDSS_RAW_ROOT",
+        str(Path(__file__).resolve().parents[4] / ".work" / "heart_failure" / "raw"),
+    )
+) / "drug_labels"
 
 _INTERACTION_CODE_HINTS = (
     "DRUG INTERACTIONS",

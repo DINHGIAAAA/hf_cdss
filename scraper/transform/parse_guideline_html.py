@@ -131,17 +131,25 @@ def _section_record(path: Path, metadata: dict, section: str, lines: list[str]) 
     }
 
 def main() -> None:
+    from scraper.paths import guidelines_dir
+
     parser = argparse.ArgumentParser(description="Parse guideline HTML pages to JSONL.")
-    parser.add_argument("--input-dir", default="raw/guidelines", type=Path)
+    parser.add_argument(
+        "--input-dir",
+        default=None,
+        type=Path,
+        help="Guideline HTML root (default: HF_CDSS_RAW_ROOT/guidelines).",
+    )
     parser.add_argument("--registry", default="sources/sources.example.json", type=Path)
     parser.add_argument("--sections-output", default="processed/sections/guideline_html_sections.jsonl", type=Path)
     args = parser.parse_args()
+    input_dir = args.input_dir or guidelines_dir()
 
     registry = load_registry(args.registry)
-    html_paths = sorted(args.input_dir.glob("**/*.html"))
+    html_paths = sorted(input_dir.glob("**/*.html"))
     sections: list[dict] = []
 
-    print(f"Parsing {len(html_paths)} HTML files...")
+    print(f"Parsing {len(html_paths)} HTML files from {input_dir}...")
     for path in tqdm(html_paths, desc="Parsing HTML files"):
         try:
             sections.extend(parse_sections(path, registry))
