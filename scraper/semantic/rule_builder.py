@@ -75,7 +75,7 @@ def rule_id(parts: list[str]) -> str:
 
 def _parse_legacy_condition_from_text(text: str) -> dict[str, Any]:
     condition: dict[str, Any] = {}
-    egfr_match = re.search(r"egfr\s*(?:is\s*)?(?:less than|below|<)\s*(\d+)", text, flags=re.IGNORECASE)
+    egfr_match = re.search(r"egfr\s*(?:is\s*)?(?:less than|below|<|≤|<=)\s*(\d+)", text, flags=re.IGNORECASE)
     if egfr_match:
         condition["egfr"] = f"<{egfr_match.group(1)}"
     potassium_match = re.search(
@@ -85,6 +85,61 @@ def _parse_legacy_condition_from_text(text: str) -> dict[str, Any]:
     )
     if potassium_match:
         condition["potassium"] = f">{potassium_match.group(1)}"
+    sbp_match = re.search(
+        r"(?:systolic\s+(?:blood\s+)?pressure|sbp)\s*(?:is\s*)?(?:less than|below|<|≤|<=)\s*(\d+)",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if sbp_match:
+        condition["systolic_bp"] = f"<{sbp_match.group(1)}"
+    hr_match = re.search(
+        r"(?:heart\s+rate|hr|pulse)\s*(?:is\s*)?(?:less than|below|<|≤|<=)\s*(\d+)",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if hr_match:
+        condition["heart_rate"] = f"<{hr_match.group(1)}"
+    lvef_match = re.search(
+        r"(?:lvef|ejection\s+fraction)\s*(?:is\s*)?(?:less than|below|≤|<=|≤)\s*(\d+)",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if lvef_match:
+        condition["lvef"] = f"<={lvef_match.group(1)}"
+    nyha_match = re.search(r"nyha\s*(?:class\s*)?(i{1,3}v?|\d)", text, flags=re.IGNORECASE)
+    if nyha_match:
+        condition["nyha_class"] = f"NYHA_{nyha_match.group(1).upper()}"
+    age_match = re.search(r"(?:age|aged|elderly)\s*(?:>|>=|over|above)\s*(\d+)", text, flags=re.IGNORECASE)
+    if age_match:
+        condition["age"] = f">{age_match.group(1)}"
+    if re.search(r"\bpregnan", text, flags=re.IGNORECASE):
+        condition["pregnancy"] = True
+    if re.search(r"\blactat", text, flags=re.IGNORECASE):
+        condition["lactation"] = True
+    if re.search(r"\b(?:angioedema|hypersensitivit|allerg)", text, flags=re.IGNORECASE):
+        condition["allergy"] = "true"
+    if re.search(r"\b(?:atrial\s+fibrillation|a[- ]?fib)\b", text, flags=re.IGNORECASE):
+        condition["atrial_fibrillation"] = True
+    if re.search(r"\banuria\b", text, flags=re.IGNORECASE):
+        condition["anuria"] = True
+    hepatic_match = re.search(
+        r"\b(severe|moderate|mild)\s+hepatic\s+impairment\b",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if hepatic_match:
+        condition["hepatic_impairment"] = hepatic_match.group(1).lower()
+    elif re.search(r"\bhepatic\s+impairment\b", text, flags=re.IGNORECASE):
+        condition["hepatic_impairment"] = "any"
+    if re.search(r"\bbilateral\s+renal\s+artery\s+stenosis\b", text, flags=re.IGNORECASE):
+        condition["bilateral_renal_artery_stenosis"] = True
+    ckd_match = re.search(r"\bCKD\s+stage\s+(\d)\b", text, flags=re.IGNORECASE)
+    if ckd_match:
+        condition["ckd_stage"] = f">={ckd_match.group(1)}"
+    if re.search(r"\b(?:active\s+(?:pathological\s+)?bleeding|active\s+hemorrhage)\b", text, flags=re.IGNORECASE):
+        condition["bleeding_risk"] = "active_bleeding"
+    elif re.search(r"\bhigh\s+(?:risk\s+of\s+)?bleeding\b", text, flags=re.IGNORECASE):
+        condition["bleeding_risk"] = "high"
     return condition
 
 
@@ -143,7 +198,9 @@ def build_rule_from_claim(claim: dict) -> dict | None:
             if not is_guideline_source:
                 return None
 
-    if action == "review" and not ({"egfr", "potassium"} & set(condition)):
+    if action == "review" and not (
+        {"egfr", "potassium", "systolic_bp", "heart_rate", "lvef", "pregnancy", "allergy"} & set(condition)
+    ):
         if claim_type not in {"contraindication", "drug_interaction", "population_constraint"}:
             # For guideline sources with drug mentions, be more lenient
             if not is_guideline_source:

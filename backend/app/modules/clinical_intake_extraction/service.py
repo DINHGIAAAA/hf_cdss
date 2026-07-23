@@ -1,3 +1,4 @@
+import asyncio
 import json
 import re
 import unicodedata
@@ -619,9 +620,13 @@ async def extract_patient_from_message(
     from app.modules.clinical_intake_extraction.semantic import aggregate_conversation_context, semantic_extract_patient
     from app.modules.clinical_intake_extraction.selective_llm import should_call_llm_extractor
 
-    aggregated_message = aggregate_conversation_context(message, conversation_history or [])
+    aggregated_message = await asyncio.to_thread(
+        aggregate_conversation_context,
+        message,
+        conversation_history or [],
+    )
     regex_patient = _regex_extract_patient_from_message(aggregated_message, conversation_id)
-    semantic_patient = semantic_extract_patient(aggregated_message, conversation_id)
+    semantic_patient = await asyncio.to_thread(semantic_extract_patient, aggregated_message, conversation_id)
     merged = _merge_extractions(regex_patient, semantic_patient)
     decision = should_call_llm_extractor(
         aggregated_message=aggregated_message,

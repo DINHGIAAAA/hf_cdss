@@ -208,17 +208,24 @@ def list_constraint_rules(
     target_drug_class: str | None = Query(None),
     action: str | None = Query(None),
     q: str | None = Query(None, description="Search constraint_id"),
+    safety_tier: str | None = Query(None, description="Filter by metadata.safety_tier"),
+    needs_condition: bool | None = Query(
+        None,
+        description="Filter drafts that still need structured conditions",
+    ),
     limit: int = Query(100, ge=1, le=500),
     current_user: AdminUser = Depends(require_admin_reader),
 ) -> ConstraintRuleListResponse:
     """List constraint rules, optionally filtered by status and metadata."""
-    has_filters = any([target_drug_class, action, q])
+    has_filters = any([target_drug_class, action, q, safety_tier, needs_condition is not None])
     if has_filters or status:
         rules = read_constraint_rules_filtered(
             status=status,
             target_drug_class=target_drug_class,
             action=action,
             q=q,
+            safety_tier=safety_tier,
+            needs_condition=needs_condition,
             limit=limit,
         )
         items = [ConstraintRuleResponse(**r) for r in rules]

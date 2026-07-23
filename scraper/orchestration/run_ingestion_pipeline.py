@@ -42,6 +42,16 @@ from scraper.store.sync_processed_to_s3 import cleanup_workspace_outputs, upload
 ROOT = data_root()
 PROJECT_ROOT = project_root()
 STAGES = ("acquire", "load", "extract", "store", "all")
+EXTRACT_PHASES = (
+    "kg_base",
+    "constraints",
+    "dose_rules",
+    "dose_safety_warnings",
+    "interaction_rules",
+    "gdmt_policies",
+    "finalize",
+    "all",
+)
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
@@ -165,8 +175,10 @@ def run_load(python: str, args: argparse.Namespace, step_kwargs: dict) -> None:
     print(f"[load] raw staging ready at {raw_root()}")
 
 
-def run_extract(python: str, args: argparse.Namespace, step_kwargs: dict) -> None:
-    """Parse / transform / claim / rule generation, then publish to processed S3."""
+def run_extract_kg_base(python: str, args: argparse.Namespace, step_kwargs: dict) -> None:
+    """Parse sources → chunks → entities → claims."""
+    from scraper.orchestration.data_quality_report import report_kg_base
+
     labels = str(drug_labels_dir())
     guidelines = str(guidelines_dir())
 
@@ -208,7 +220,7 @@ def run_extract(python: str, args: argparse.Namespace, step_kwargs: dict) -> Non
             **step_kwargs,
         )
 
-    steps: list[tuple[str, list[str]]] = [
+    for name, command in [
         (
             "parse_drug_label_xml",
             [
@@ -229,28 +241,66 @@ def run_extract(python: str, args: argparse.Namespace, step_kwargs: dict) -> Non
         ("chunk_sections", [python, "-m", "scraper.transform.chunk_sections"]),
         ("extract_entities", [python, "-m", "scraper.process.extract_entities"]),
         ("create_claims", [python, "-m", "scraper.process.create_claims"]),
-    ]
-    if not args.skip_rules:
-        steps.extend(
-            [
-                ("generate_rules", [python, "-m", "scraper.process.generate_rules"]),
-                ("classify_rules", [python, "-m", "scraper.process.classify_rules"]),
-                (
-                    "governance_catalog_steps",
-                    [python, "-m", "scraper.orchestration.governance_catalog_steps"],
-                ),
-            ]
-        )
-    steps.extend(
-        [
-            ("derive_relationships", [python, "-m", "scraper.process.derive_relationships"]),
-            ("validate_kg_artifacts", [python, "-m", "scraper.validation.validate_kg_artifacts", "--root", "."]),
-        ]
-    )
-    for name, command in steps:
+    ]:
         run_step(name, command, **step_kwargs)
 
-    # Durable sink for extract outputs is processed S3 — not the local workspace.
+    if not args.dry_run:
+        report_kg_base(ROOT)
+
+
+def run_extract_constraints(python: str, args: argparse.Namespace, step_kwargs: dict) -> None:
+    from scraper.orchestration.data_quality_report import report_constraints
+
+    if args.skip_rules:
+        print("\n[constraints] skipped (--skip-rules)")
+        return
+    for name, command in [
+        ("generate_rules", [python, "-m", "scraper.process.generate_rules"]),
+        ("refine_constraint_conditions", [python, "-m", "scraper.process.refine_constraint_conditions"]),
+        ("classify_rules", [python, "-m", "scraper.process.classify_rules"]),
+    ]:
+        run_step(name, command, **step_kwargs)
+    if not args.dry_run:
+        report_constraints(ROOT)
+
+
+def run_extract_governance_catalog(
+    python: str,
+    args: argparse.Namespace,
+    step_kwargs: dict,
+    *,
+    catalog: str,
+) -> None:
+    from scraper.orchestration.data_quality_report import report_governance_catalog
+    from scraper.orchestration.governance_catalog_steps import (
+        GOVERNANCE_CATALOGS,
+        catalog_pipeline_steps,
+    )
+
+    if args.skip_rules:
+        print(f"\n[{catalog}] skipped (--skip-rules)")
+        return
+    match = next((item for item in GOVERNANCE_CATALOGS if item.name == catalog), None)
+    if match is None:
+        raise ValueError(f"Unknown governance catalog: {catalog}")
+    for name, command in catalog_pipeline_steps(python, match):
+        run_step(name, command, **step_kwargs)
+    if not args.dry_run:
+        report_governance_catalog(ROOT, catalog)
+
+
+def run_extract_finalize(python: str, args: argparse.Namespace, step_kwargs: dict) -> None:
+    from scraper.orchestration.data_quality_report import report_finalize
+
+    for name, command in [
+        ("derive_relationships", [python, "-m", "scraper.process.derive_relationships"]),
+        ("validate_kg_artifacts", [python, "-m", "scraper.validation.validate_kg_artifacts", "--root", "."]),
+    ]:
+        run_step(name, command, **step_kwargs)
+
+    if not args.dry_run:
+        report_finalize(ROOT)
+
     run_id = step_kwargs["run_id"]
     run_step(
         "publish_extract_to_processed_s3",
@@ -287,11 +337,31 @@ def run_extract(python: str, args: argparse.Namespace, step_kwargs: dict) -> Non
             upload_artifacts=False,
             **step_kwargs,
         )
-
     print(
-        f"[extract] published to s3://{args.processed_bucket}/{args.s3_prefix} "
+        f"[extract/finalize] published to s3://{args.processed_bucket}/{args.s3_prefix} "
         "(local workspace kept for store/promote; cleaned after store)"
     )
+
+
+def run_extract(python: str, args: argparse.Namespace, step_kwargs: dict) -> None:
+    """Parse / transform / claim / rule generation, then publish to processed S3."""
+    phase = getattr(args, "extract_phase", "all") or "all"
+    print(f"Extract phase: {phase}")
+
+    if phase in {"kg_base", "all"}:
+        run_extract_kg_base(python, args, step_kwargs)
+    if phase in {"constraints", "all"}:
+        run_extract_constraints(python, args, step_kwargs)
+    if phase in {"dose_rules", "all"}:
+        run_extract_governance_catalog(python, args, step_kwargs, catalog="dose_rules")
+    if phase in {"dose_safety_warnings", "all"}:
+        run_extract_governance_catalog(python, args, step_kwargs, catalog="dose_safety_warnings")
+    if phase in {"interaction_rules", "all"}:
+        run_extract_governance_catalog(python, args, step_kwargs, catalog="interaction_rules")
+    if phase in {"gdmt_policies", "all"}:
+        run_extract_governance_catalog(python, args, step_kwargs, catalog="gdmt_policies")
+    if phase in {"finalize", "all"}:
+        run_extract_finalize(python, args, step_kwargs)
 
 
 def run_store(python: str, args: argparse.Namespace, step_kwargs: dict) -> None:
@@ -344,6 +414,15 @@ def main() -> None:
         default="all",
         help="Pipeline stage to run (Airflow uses acquire|load|extract|store).",
     )
+    parser.add_argument(
+        "--extract-phase",
+        choices=EXTRACT_PHASES,
+        default="all",
+        help=(
+            "When --stage extract: which extract phase to run "
+            "(kg_base|constraints|dose_rules|dose_safety_warnings|interaction_rules|gdmt_policies|finalize|all)."
+        ),
+    )
     parser.add_argument("--registry", default=None, type=Path)
     parser.add_argument("--skip-download", action="store_true")
     parser.add_argument("--download-dry-run", action="store_true")
@@ -388,6 +467,8 @@ def main() -> None:
     )
     print(f"Pipeline run id: {run_id}")
     print(f"Stage: {args.stage}")
+    if args.stage in {"extract", "all"}:
+        print(f"Extract phase: {args.extract_phase}")
     print(f"Data workspace: {ROOT}")
     print(f"Raw staging (ephemeral): {raw_root()}")
     if resume_from:

@@ -222,12 +222,22 @@ def main() -> None:
         f"semantic_min_tokens={config.SEMANTIC_CHUNK_MIN_SECTION_TOKENS})."
     )
 
+    records = list(read_jsonl(args.input))
+    total = len(records)
+    print(f"Chunking {total} important sections (progress every 200)...")
+
     chunks: list[dict] = []
     semantic_sections = 0
-    for record in read_jsonl(args.input):
+    for index, record in enumerate(records, start=1):
         if should_use_semantic_chunking(record, record.get("text", "")):
             semantic_sections += 1
         chunks.extend(make_chunks(record, args.chunk_size, args.overlap))
+        if index == 1 or index % 200 == 0 or index == total:
+            print(
+                f"Chunk progress: {index}/{total} sections, "
+                f"{len(chunks)} chunks so far, "
+                f"{semantic_sections} semantic-eligible"
+            )
     chunks = dedupe_chunks(chunks)
 
     from scraper.semantic.dedup import dedupe_chunks as dedupe_chunks_by_embedding

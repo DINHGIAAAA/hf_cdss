@@ -7,6 +7,8 @@ import { DoseSafetyWarningDetail } from "../components/DoseSafetyWarningDetail.j
 import { ApprovalToolbar } from "@shared/governance/ApprovalToolbar.jsx";
 import { DOSE_SAFETY_CATALOG } from "@shared/governance/catalogConfig.js";
 import { doseSafetyWarningTitle, shortCatalogId } from "@shared/governance/displayNames.js";
+import { fetchCatalogListWithCounts } from "@shared/governance/fetchCatalogListWithCounts.js";
+import { StatusCountCards, statusTabLabel } from "@shared/governance/StatusCountCards.jsx";
 import { useRuleSelection } from "@shared/governance/useRuleSelection.js";
 
 const STATUS_TABS = [
@@ -51,14 +53,19 @@ export function DoseSafetyWarningsPage() {
 
   const canApprove = isAuthenticated && hasRole("clinical_lead");
   const canAdmin = isAuthenticated && hasRole("admin");
+  const canRead = isAuthenticated && (canApprove || canAdmin);
 
   const loadRules = useCallback(async () => {
+    if (!canRead) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError("");
     try {
-      const result = await adminApi.listDoseSafetyWarnings({
-        status: tab === "all" ? undefined : tab,
-        ...appliedFilters,
+      const result = await fetchCatalogListWithCounts(adminApi.listDoseSafetyWarnings, {
+        tab,
+        filters: appliedFilters,
       });
       setData(result);
     } catch (err) {
@@ -66,7 +73,7 @@ export function DoseSafetyWarningsPage() {
     } finally {
       setLoading(false);
     }
-  }, [tab, appliedFilters]);
+  }, [tab, appliedFilters, canRead]);
 
   useEffect(() => {
     loadRules();
@@ -157,30 +164,27 @@ export function DoseSafetyWarningsPage() {
         </button>
       </header>
 
-      {!isAuthenticated && (
+      {!canRead && (
         <div className="admin-banner warning" role="status">
-          Sign in with a <strong>clinical_lead</strong> or <strong>admin</strong> account to approve
+          Sign in with a <strong>clinical_lead</strong> or <strong>admin</strong> account to review counts and approve
           dose safety warnings.
         </div>
       )}
 
-      <div className="admin-stats dose-stats">
-        <div className="stat-card dose-stat-card">
-          <span>Draft</span>
-          <strong>{data?.draft_count ?? "—"}</strong>
-          <small>Awaiting clinical review</small>
-        </div>
-        <div className="stat-card dose-stat-card">
-          <span>Approved</span>
-          <strong>{data?.approved_count ?? "—"}</strong>
-          <small>Active in dose checker</small>
-        </div>
-        <div className="stat-card dose-stat-card">
-          <span>Retired</span>
-          <strong>{data?.retired_count ?? "—"}</strong>
-          <small>Archived versions</small>
-        </div>
-      </div>
+      <StatusCountCards
+        activeTab={tab}
+        approvedCount={loading && !data ? undefined : (data?.approved_count ?? 0)}
+        cardClassName="stat-card dose-stat-card"
+        className="admin-stats dose-stats"
+        draftCount={loading && !data ? undefined : (data?.draft_count ?? 0)}
+        hints={{
+          draft: "Awaiting clinical review",
+          approved: "Active in dose checker",
+          retired: "Archived versions",
+        }}
+        onSelect={setTab}
+        retiredCount={loading && !data ? undefined : (data?.retired_count ?? 0)}
+      />
 
       <div className="tab-row dose-tab-row" role="tablist">
         {STATUS_TABS.map((item) => (
@@ -192,7 +196,7 @@ export function DoseSafetyWarningsPage() {
             role="tab"
             type="button"
           >
-            {item.label}
+            {statusTabLabel(item.id, item.label, data)}
           </button>
         ))}
       </div>

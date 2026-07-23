@@ -10,7 +10,7 @@
       "publisher": "ACC/AHA",
       "topic": "ascvd_prevention",
       "artifact_kind": "html",
-      "url": "https://www.ahajournals.org/doi/10.1161/CIR.0000000000000678",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7734661/",
       "target_path": "raw/guidelines/ascvd_prevention/2019 ACC AHA Primary Prevention Guideline.html",
       "license_note": "Official publisher material. Verify terms before redistribution."
     },
@@ -24,7 +24,9 @@
       "artifact_kind": "pdf",
       "url": "https://academic.oup.com/eurheartj/article/42/34/3227/6358713",
       "target_path": "raw/guidelines/ascvd_prevention/2021 ESC CVD Prevention Guidelines.pdf",
-      "license_note": "Official publisher material. Verify terms before redistribution."
+      "license_note": "Official publisher material. Verify terms before redistribution.",
+      "html_url": "https://europepmc.org/article/MED/34458905",
+      "notes": "Publisher blocks automated download (HTTP 403). Upload the official PDF manually to the raw S3 key if acquire fails."
     },
     {
       "source_id": "acc_aha_2023_af_guideline",
@@ -60,7 +62,9 @@
       "artifact_kind": "pdf",
       "url": "https://academic.oup.com/eurheartj/article/43/41/4229/6675670",
       "target_path": "raw/guidelines/cardio_oncology/2022 ESC Cardio-Oncology Guidelines.pdf",
-      "license_note": "Official publisher material. Verify terms before redistribution."
+      "license_note": "Official publisher material. Verify terms before redistribution.",
+      "html_url": "https://europepmc.org/article/MED/36017568",
+      "notes": "Publisher blocks automated download (HTTP 403). Upload the official PDF manually to the raw S3 key if acquire fails."
     },
     {
       "source_id": "acc_aha_2020_hcm_guideline",
@@ -72,7 +76,9 @@
       "artifact_kind": "pdf",
       "url": "https://www.ahajournals.org/doi/10.1161/CIR.0000000000000937",
       "target_path": "raw/guidelines/cardiomyopathy/2020 ACC AHA Hypertrophic Cardiomyopathy Guideline.pdf",
-      "license_note": "Official publisher material. Verify terms before redistribution."
+      "license_note": "Official publisher material. Verify terms before redistribution.",
+      "html_url": "https://europepmc.org/article/MED/33215931",
+      "notes": "Publisher blocks automated download (HTTP 403). Upload the official PDF manually to the raw S3 key if acquire fails."
     },
     {
       "source_id": "acc_aha_2022_chest_pain_guideline",
@@ -84,7 +90,9 @@
       "artifact_kind": "pdf",
       "url": "https://www.ahajournals.org/doi/10.1161/CIR.0000000000001029",
       "target_path": "raw/guidelines/chest_pain/2021 AHA ACC Chest Pain Guideline.pdf",
-      "license_note": "Official publisher material. Verify terms before redistribution."
+      "license_note": "Official publisher material. Verify terms before redistribution.",
+      "html_url": "https://europepmc.org/article/MED/34709879",
+      "notes": "Publisher blocks automated download (HTTP 403). Upload the official PDF manually to the raw S3 key if acquire fails."
     },
     {
       "source_id": "ada_kdigo_2022_diabetes_ckd_consensus",
@@ -132,7 +140,9 @@
       "artifact_kind": "pdf",
       "url": "https://www.ahajournals.org/doi/10.1161/CIR.0000000000001038",
       "target_path": "raw/guidelines/coronary_disease/2021 ACC AHA SCAI Coronary Revascularization.pdf",
-      "license_note": "Official publisher material. Verify terms before redistribution."
+      "license_note": "Official publisher material. Verify terms before redistribution.",
+      "html_url": "https://europepmc.org/article/MED/34882435",
+      "notes": "Publisher blocks automated download (HTTP 403). Upload the official PDF manually to the raw S3 key if acquire fails."
     },
     {
       "source_id": "aha_acc_2023_chronic_cad_guideline",
@@ -144,7 +154,9 @@
       "artifact_kind": "pdf",
       "url": "https://www.ahajournals.org/doi/10.1161/CIR.0000000000001168",
       "target_path": "raw/guidelines/coronary_disease/2023 AHA ACC Chronic Coronary Disease.pdf",
-      "license_note": "Official publisher material. Verify terms before redistribution."
+      "license_note": "Official publisher material. Verify terms before redistribution.",
+      "html_url": "https://europepmc.org/article/MED/37471501",
+      "notes": "Publisher blocks automated download (HTTP 403). Upload the official PDF manually to the raw S3 key if acquire fails."
     },
     {
       "source_id": "esc_2019_chronic_coronary_syndromes",
@@ -156,7 +168,9 @@
       "artifact_kind": "pdf",
       "url": "https://academic.oup.com/eurheartj/article/41/3/407/5556137",
       "target_path": "raw/guidelines/coronary_disease/2019 ESC Chronic Coronary Syndromes.pdf",
-      "license_note": "Official publisher material. Verify terms before redistribution."
+      "license_note": "Official publisher material. Verify terms before redistribution.",
+      "html_url": "https://europepmc.org/article/MED/31504439",
+      "notes": "Publisher blocks automated download (HTTP 403). Upload the official PDF manually to the raw S3 key if acquire fails."
     },
     {
       "source_id": "ada_2024_children_adolescents",
@@ -166,7 +180,7 @@
       "publisher": "ADA",
       "topic": "diabetes",
       "artifact_kind": "html",
-      "url": "https://diabetesjournals.org/care/issue/47/Supplement_1",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10725814/",
       "target_path": "raw/guidelines/diabetes/ada_2024_children_adolescents.html",
       "license_note": "Official publisher material. Verify terms before redistribution."
     },
@@ -178,7 +192,7 @@
       "publisher": "ADA",
       "topic": "diabetes",
       "artifact_kind": "html",
-      "url": "https://diabetesjournals.org/care/issue/47/Supplement_1",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10725805/",
       "target_path": "raw/guidelines/diabetes/ada_2024_ckd_risk_management.html",
       "license_note": "Official publisher material. Verify terms before redistribution."
     },
@@ -190,7 +204,7 @@
       "publisher": "ADA",
       "topic": "diabetes",
       "artifact_kind": "html",
-      "url": "https://diabetesjournals.org/care/issue/47/Supplement_1",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10725809/",
       "target_path": "raw/guidelines/diabetes/ada_2024_comprehensive_medical_evaluation.html",
       "license_note": "Official publisher material. Verify terms before redistribution."
     },
@@ -202,7 +216,7 @@
       "publisher": "ADA",
       "topic": "diabetes",
       "artifact_kind": "html",
-      "url": "https://diabetesjournals.org/care/issue/47/Supplement_1",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10725811/",
       "target_path": "raw/guidelines/diabetes/ada_2024_cv_risk_management.html",
       "license_note": "Official publisher material. Verify terms before redistribution."
     },
@@ -214,7 +228,7 @@
       "publisher": "ADA",
       "topic": "diabetes",
       "artifact_kind": "html",
-      "url": "https://diabetesjournals.org/care/issue/47/Supplement_1",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10725796/",
       "target_path": "raw/guidelines/diabetes/ada_2024_diabetes_advocacy.html",
       "license_note": "Official publisher material. Verify terms before redistribution."
     },
@@ -226,7 +240,7 @@
       "publisher": "ADA",
       "topic": "diabetes",
       "artifact_kind": "html",
-      "url": "https://diabetesjournals.org/care/issue/47/Supplement_1",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10725813/",
       "target_path": "raw/guidelines/diabetes/ada_2024_diabetes_technology.html",
       "license_note": "Official publisher material. Verify terms before redistribution."
     },
@@ -238,7 +252,7 @@
       "publisher": "ADA",
       "topic": "diabetes",
       "artifact_kind": "html",
-      "url": "https://diabetesjournals.org/care/issue/47/Supplement_1",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10725812/",
       "target_path": "raw/guidelines/diabetes/ada_2024_diagnosis_classification.html",
       "license_note": "Official publisher material. Verify terms before redistribution."
     },
@@ -250,7 +264,7 @@
       "publisher": "ADA",
       "topic": "diabetes",
       "artifact_kind": "html",
-      "url": "https://diabetesjournals.org/care/issue/47/Supplement_1",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10725808/",
       "target_path": "raw/guidelines/diabetes/ada_2024_glycemic_goals.html",
       "license_note": "Official publisher material. Verify terms before redistribution."
     },
@@ -262,7 +276,7 @@
       "publisher": "ADA",
       "topic": "diabetes",
       "artifact_kind": "html",
-      "url": "https://diabetesjournals.org/care/issue/47/Supplement_1",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10725816/",
       "target_path": "raw/guidelines/diabetes/ada_2024_health_behaviors.html",
       "license_note": "Official publisher material. Verify terms before redistribution."
     },
@@ -274,7 +288,7 @@
       "publisher": "ADA",
       "topic": "diabetes",
       "artifact_kind": "html",
-      "url": "https://diabetesjournals.org/care/issue/47/Supplement_1",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10725815/",
       "target_path": "raw/guidelines/diabetes/ada_2024_hospital_care.html",
       "license_note": "Official publisher material. Verify terms before redistribution."
     },
@@ -286,7 +300,7 @@
       "publisher": "ADA",
       "topic": "diabetes",
       "artifact_kind": "html",
-      "url": "https://diabetesjournals.org/care/issue/47/Supplement_1",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10725806/",
       "target_path": "raw/guidelines/diabetes/ada_2024_obesity_management.html",
       "license_note": "Official publisher material. Verify terms before redistribution."
     },
@@ -298,7 +312,7 @@
       "publisher": "ADA",
       "topic": "diabetes",
       "artifact_kind": "html",
-      "url": "https://diabetesjournals.org/care/issue/47/Supplement_1",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10725804/",
       "target_path": "raw/guidelines/diabetes/ada_2024_older_adults.html",
       "license_note": "Official publisher material. Verify terms before redistribution."
     },
@@ -310,7 +324,7 @@
       "publisher": "ADA",
       "topic": "diabetes",
       "artifact_kind": "html",
-      "url": "https://diabetesjournals.org/care/issue/47/Supplement_1",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10725810/",
       "target_path": "raw/guidelines/diabetes/ada_2024_pharmacologic_treatment.html",
       "license_note": "Official publisher material. Verify terms before redistribution."
     },
@@ -322,7 +336,7 @@
       "publisher": "ADA",
       "topic": "diabetes",
       "artifact_kind": "html",
-      "url": "https://diabetesjournals.org/care/issue/47/Supplement_1",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10725798/",
       "target_path": "raw/guidelines/diabetes/ada_2024_population_health.html",
       "license_note": "Official publisher material. Verify terms before redistribution."
     },
@@ -334,7 +348,7 @@
       "publisher": "ADA",
       "topic": "diabetes",
       "artifact_kind": "html",
-      "url": "https://diabetesjournals.org/care/issue/47/Supplement_1",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10725801/",
       "target_path": "raw/guidelines/diabetes/ada_2024_pregnancy.html",
       "license_note": "Official publisher material. Verify terms before redistribution."
     },
@@ -346,7 +360,7 @@
       "publisher": "ADA",
       "topic": "diabetes",
       "artifact_kind": "html",
-      "url": "https://diabetesjournals.org/care/issue/47/Supplement_1",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10725807/",
       "target_path": "raw/guidelines/diabetes/ada_2024_prevention_delay.html",
       "license_note": "Official publisher material. Verify terms before redistribution."
     },
@@ -358,7 +372,7 @@
       "publisher": "ADA",
       "topic": "diabetes",
       "artifact_kind": "html",
-      "url": "https://diabetesjournals.org/care/issue/47/Supplement_1",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10725803/",
       "target_path": "raw/guidelines/diabetes/ada_2024_retinopathy_neuropathy.html",
       "license_note": "Official publisher material. Verify terms before redistribution."
     },
@@ -370,7 +384,7 @@
       "publisher": "ACC/AHA",
       "topic": "dyslipidemia",
       "artifact_kind": "html",
-      "url": "https://www.ahajournals.org/doi/10.1161/CIR.0000000000000625",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7403606/",
       "target_path": "raw/guidelines/dyslipidemia/2018 ACC AHA Cholesterol Guideline.html",
       "license_note": "Official publisher material. Verify terms before redistribution."
     },
@@ -384,7 +398,9 @@
       "artifact_kind": "html",
       "url": "https://www.jacc.org/doi/10.1016/j.jacc.2020.11.022",
       "target_path": "raw/guidelines/heart_failure/2021 ACC ECDP HF Optimization.html",
-      "license_note": "Official publisher material. Verify terms before redistribution."
+      "license_note": "Official publisher material. Verify terms before redistribution.",
+      "html_url": "https://europepmc.org/article/MED/33446410",
+      "notes": "Publisher blocks automated download (HTTP 403). Upload the official PDF manually to the raw S3 key if acquire fails."
     },
     {
       "source_id": "acc_expert_consensus_hfpef_2023",
@@ -396,7 +412,9 @@
       "artifact_kind": "html",
       "url": "https://www.jacc.org/doi/10.1016/j.jacc.2023.03.393",
       "target_path": "raw/guidelines/heart_failure/2023 ACC ECDP HFpEF.html",
-      "license_note": "Official publisher material. Verify terms before redistribution."
+      "license_note": "Official publisher material. Verify terms before redistribution.",
+      "html_url": "https://europepmc.org/article/MED/37137593",
+      "notes": "Publisher blocks automated download (HTTP 403). Upload the official PDF manually to the raw S3 key if acquire fails."
     },
     {
       "source_id": "aha_acc_hfsa_2022_hf_guideline",
@@ -420,7 +438,9 @@
       "artifact_kind": "html",
       "url": "https://www.ahajournals.org/doi/10.1161/CIR.0000000000000920",
       "target_path": "raw/guidelines/heart_failure/AHA SGLT2i Cardiorenal Statement.html",
-      "license_note": "Official publisher material. Verify terms before redistribution."
+      "license_note": "Official publisher material. Verify terms before redistribution.",
+      "html_url": "https://europepmc.org/article/MED/32981345",
+      "notes": "Publisher blocks automated download (HTTP 403). Upload the official PDF manually to the raw S3 key if acquire fails."
     },
     {
       "source_id": "arn_treatment_hf_guideline",
@@ -456,7 +476,9 @@
       "artifact_kind": "pdf",
       "url": "https://academic.oup.com/eurheartj/article/44/37/3627/7246598",
       "target_path": "raw/guidelines/heart_failure/2023 Focused Update of the ESC Guidelines.pdf",
-      "license_note": "Official publisher material. Verify terms before redistribution."
+      "license_note": "Official publisher material. Verify terms before redistribution.",
+      "html_url": "https://europepmc.org/article/MED/37622666",
+      "notes": "Publisher blocks automated download (HTTP 403). Upload the official PDF manually to the raw S3 key if acquire fails."
     },
     {
       "source_id": "gdmt_implementation_hfsa",
@@ -502,7 +524,7 @@
       "publisher": "ACC/AHA",
       "topic": "peripheral_artery_disease",
       "artifact_kind": "html",
-      "url": "https://www.ahajournals.org/doi/10.1161/CIR.0000000000001251",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12782132/",
       "target_path": "raw/guidelines/peripheral_artery_disease/2024 ACC AHA PAD Guideline.html",
       "license_note": "Official publisher material. Verify terms before redistribution."
     },
@@ -528,18 +550,20 @@
       "artifact_kind": "pdf",
       "url": "https://www.ahajournals.org/doi/10.1161/CIR.0000000000000923",
       "target_path": "raw/guidelines/valvular_heart_disease/2020 ACC AHA Valvular Heart Disease Guideline.pdf",
-      "license_note": "Official publisher material. Verify terms before redistribution."
+      "license_note": "Official publisher material. Verify terms before redistribution.",
+      "html_url": "https://europepmc.org/article/MED/33332150",
+      "notes": "Publisher blocks automated download (HTTP 403). Upload the official PDF manually to the raw S3 key if acquire fails."
     },
     {
       "source_id": "esc_2021_valvular_heart_disease",
       "title": "2021 ESC/EACTS Guidelines for the management of valvular heart disease",
-      "source_type": "guideline_pdf",
+      "source_type": "guideline_html",
       "download_strategy": "direct_url",
       "publisher": "ESC/EACTS",
       "topic": "valvular_heart_disease",
-      "artifact_kind": "pdf",
-      "url": "https://academic.oup.com/eurheartj/article/43/7/561/6358470",
-      "target_path": "raw/guidelines/valvular_heart_disease/2021 ESC EACTS Valvular Heart Disease.pdf",
+      "artifact_kind": "html",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC9725093/",
+      "target_path": "raw/guidelines/valvular_heart_disease/2021 ESC EACTS Valvular Heart Disease.html",
       "license_note": "Official publisher material. Verify terms before redistribution."
     },
     {
@@ -1660,9 +1684,10 @@
       "publisher": "FDA DailyMed",
       "topic": "drug_label",
       "slug": "hydralazine_and_isosorbide_dinitrate",
-      "query": "hydralazine/isosorbide dinitrate",
+      "query": "hydralazine isosorbide",
       "required_terms": [
-        "HYDRALAZINE/ISOSORBIDE DINITRATE"
+        "HYDRALAZINE",
+        "ISOSORBIDE"
       ],
       "target_path": "raw/drug_labels/hydralazine_and_isosorbide_dinitrate/hydralazine_and_isosorbide_dinitrate_label.xml",
       "license_note": "Public domain FDA label. Safe for ingestion."
@@ -2635,9 +2660,10 @@
       "publisher": "FDA DailyMed",
       "topic": "drug_label",
       "slug": "sacubitril_and_valsartan",
-      "query": "sacubitril/valsartan",
+      "query": "sacubitril and valsartan",
       "required_terms": [
-        "SACUBITRIL/VALSARTAN"
+        "SACUBITRIL",
+        "VALSARTAN"
       ],
       "target_path": "raw/drug_labels/sacubitril_and_valsartan/sacubitril_and_valsartan_label.xml",
       "license_note": "Public domain FDA label. Safe for ingestion."
@@ -2770,9 +2796,10 @@
       "publisher": "FDA DailyMed",
       "topic": "drug_label",
       "slug": "spironolactone_and_hydrochlorothiazide",
-      "query": "spironolactone/hydrochlorothiazide",
+      "query": "spironolactone and hydrochlorothiazide",
       "required_terms": [
-        "SPIRONOLACTONE/HYDROCHLOROTHIAZIDE"
+        "SPIRONOLACTONE",
+        "HYDROCHLOROTHIAZIDE"
       ],
       "target_path": "raw/drug_labels/spironolactone_and_hydrochlorothiazide/spironolactone_and_hydrochlorothiazide_label.xml",
       "license_note": "Public domain FDA label. Safe for ingestion."

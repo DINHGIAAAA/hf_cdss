@@ -88,7 +88,11 @@ def _minimum_safety_rules() -> list[dict[str, Any]]:
 
 
 def load_constraint_rules() -> list[dict[str, Any]]:
-    """Load approved constraint rules from Postgres with TTL cache and safe fallbacks."""
+    """Load approved constraint rules from Postgres with TTL cache and safe fallbacks.
+
+    Draft rows (including needs_condition_refinement synced for admin review) are never
+    returned here — runtime CDSS only evaluates approved constraints.
+    """
     global _CACHE_TIMESTAMP, _cached_rules
 
     if not _should_refresh_cache() and _cached_rules is not None:

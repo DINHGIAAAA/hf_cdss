@@ -20,6 +20,7 @@ RISK_NAME_MAPPING = {
     "potassium": "hyperkalemia",
     "hyperkalemia": "hyperkalemia",
     "blood pressure": "hypotension",
+    "systolic": "hypotension",
     "hypotension": "hypotension",
     "heart rate": "bradycardia",
     "bradycardia": "bradycardia",
@@ -28,8 +29,35 @@ RISK_NAME_MAPPING = {
     "bleeding": "bleeding_risk",
     "hypersensitivity": "hypersensitivity",
     "allergy": "hypersensitivity",
+    "angioedema": "hypersensitivity",
     "diabetes": "hyperglycemia",
     "glycemia": "hyperglycemia",
+    "lvef": "reduced_ef",
+    "ejection fraction": "reduced_ef",
+    "nyha": "advanced_hf_symptoms",
+}
+
+CONDITION_RISK_KEYS = {
+    "egfr": ("renal_impairment", ["high", "moderate"]),
+    "creatinine": ("renal_impairment", ["high", "moderate"]),
+    "potassium": ("hyperkalemia", ["high"]),
+    "systolic_bp": ("hypotension", ["high", "moderate"]),
+    "heart_rate": ("bradycardia", ["high", "moderate"]),
+    "pregnancy": ("pregnancy", ["high"]),
+    "lactation": ("lactation", ["high"]),
+    "allergy": ("hypersensitivity", ["high"]),
+    "lvef": ("reduced_ef", ["moderate"]),
+    "nyha_class": ("advanced_hf_symptoms", ["moderate"]),
+    "age": ("elderly", ["moderate"]),
+    "hfref": ("reduced_ef", ["moderate"]),
+    "decompensated_hf": ("decompensated_hf", ["high"]),
+    "inotropic_support": ("decompensated_hf", ["high"]),
+    "atrial_fibrillation": ("atrial_fibrillation", ["moderate"]),
+    "anuria": ("renal_impairment", ["high"]),
+    "bleeding_risk": ("bleeding_risk", ["high"]),
+    "ckd_stage": ("renal_impairment", ["high", "moderate"]),
+    "hepatic_impairment": ("hepatic_impairment", ["high", "moderate"]),
+    "bilateral_renal_artery_stenosis": ("renal_artery_stenosis", ["high"]),
 }
 
 def extract_risk_factors_from_text(text: str) -> list[str]:
@@ -54,6 +82,8 @@ def get_rule_content_hash(constraint: dict) -> str:
         "risk_names": sorted(constraint.get("risk_names", [])),
         "severity_any": sorted(constraint.get("severity_any", [])),
         "evidence_ref": constraint.get("evidence_ref"),
+        "safety_tier": (constraint.get("metadata") or {}).get("safety_tier"),
+        "condition": (constraint.get("metadata") or {}).get("condition") or {},
     }
     # Use sort_keys=True to ensure consistent hash
     encoded = json.dumps(content_to_hash, sort_keys=True).encode("utf-8")
@@ -96,17 +126,14 @@ def convert_rule_to_constraint(rule: dict) -> dict[str, Any]:
     # Extract risk factors from condition
     risk_names = []
     severity_any = []
-    
-    if condition.get("egfr"):
-        risk_names.append("renal_impairment")
-        severity_any.extend(["high", "moderate"])
-    
-    if condition.get("potassium"):
-        risk_names.append("hyperkalemia")
-        severity_any.append("high")
+
+    for key, (risk_name, severities) in CONDITION_RISK_KEYS.items():
+        if condition.get(key) not in (None, "", [], {}):
+            risk_names.append(risk_name)
+            severity_any.extend(severities)
     
     if condition.get("indication"):
-        # Add indication-specific risks
+        # Indication is preserved in metadata; no universal risk mapping.
         pass
     
     if not risk_names:
@@ -115,6 +142,8 @@ def convert_rule_to_constraint(rule: dict) -> dict[str, Any]:
             evidence = source_ref.get("evidence", "")
             evidence_risks = extract_risk_factors_from_text(evidence)
             risk_names.extend(evidence_risks)
+        reason_risks = extract_risk_factors_from_text(str(rule.get("reason") or ""))
+        risk_names.extend(reason_risks)
         risk_names = list(set(risk_names))
     
     if not severity_any:
@@ -163,6 +192,11 @@ def convert_rule_to_constraint(rule: dict) -> dict[str, Any]:
             "chunk_id": evidence_ref if linked_chunk else None,
             "source_locator": source_locator,
             "claim_id": claim_id,
+            "safety_tier": rule.get("safety_tier"),
+            "needs_condition": rule.get("safety_tier") == "needs_condition_refinement",
+            "recommendation_use": rule.get("recommendation_use"),
+            "source_confidence": rule.get("source_confidence"),
+            "extraction_method": rule.get("extraction_method"),
         },
     }
 
@@ -171,21 +205,50 @@ def convert_rule_to_constraint(rule: dict) -> dict[str, Any]:
     
     return constraint_data
 
+
+def select_rules_for_constraint_sync(rules: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Keep usable + needs_condition_refinement drafts; drop monitoring/rejected.
+
+    Runtime still only evaluates approved rows. These tiers are synced as draft so
+    admins can review hard-block rules that lack structured conditions.
+    """
+    from scraper.process.classify_rules import HARD_BLOCK_ACTIONS, SYNCABLE_SAFETY_TIERS
+
+    if not any(rule.get("safety_tier") for rule in rules):
+        return rules
+
+    selected: list[dict[str, Any]] = []
+    for rule in rules:
+        tier = rule.get("safety_tier")
+        if tier in SYNCABLE_SAFETY_TIERS:
+            selected.append(rule)
+            continue
+        # Defensive: hard-block + drug should never be dropped even if mis-tiered.
+        if rule.get("action") in HARD_BLOCK_ACTIONS and rule.get("drug"):
+            selected.append(rule)
+    return selected
+
+
 def sync_pipeline_rules(db_functions: Any, rules_path: Path) -> dict[str, int]:
     """Convert and sync pipeline-generated rules to database, handling versioning."""
-    rules = read_jsonl(rules_path)
-    if any(rule.get("safety_tier") for rule in rules):
-        rules = [rule for rule in rules if rule.get("safety_tier") == "usable_rules"]
+    rules = select_rules_for_constraint_sync(read_jsonl(rules_path))
+
+    tier_counts: dict[str, int] = {}
+    for rule in rules:
+        tier = str(rule.get("safety_tier") or "other")
+        tier_counts[tier] = tier_counts.get(tier, 0) + 1
     
     new_versions_created = 0
     skipped_unchanged = 0
     errors = 0
+    skipped_no_drug = 0
     
     for rule in rules:
         try:
             drug = rule.get("drug")
             
             if not drug:
+                skipped_no_drug += 1
                 continue
             
             # Convert rule to constraint format
@@ -210,7 +273,7 @@ def sync_pipeline_rules(db_functions: Any, rules_path: Path) -> dict[str, int]:
                 # First time seeing this rule
                 new_constraint["version"] = 1
             
-            # Insert with draft status (admin must review)
+            # Insert with draft status (admin must review; runtime uses approved only)
             if db_functions.insert_constraint_rule(new_constraint):
                 new_versions_created += 1
             else:
@@ -219,7 +282,14 @@ def sync_pipeline_rules(db_functions: Any, rules_path: Path) -> dict[str, int]:
             print(f"Error converting rule {rule.get('rule_id')}: {e}")
             errors += 1
     
-    return {"new_versions_created": new_versions_created, "skipped_unchanged": skipped_unchanged, "errors": errors}
+    return {
+        "new_versions_created": new_versions_created,
+        "skipped_unchanged": skipped_unchanged,
+        "skipped_no_drug": skipped_no_drug,
+        "eligible_rules": len(rules),
+        "eligible_by_tier": tier_counts,
+        "errors": errors,
+    }
 
 def resolve_rules_path(rules_path: Path | None = None) -> Path:
     from scraper.paths import data_root

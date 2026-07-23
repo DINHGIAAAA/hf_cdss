@@ -85,7 +85,7 @@ GUIDELINE_META: dict[str, dict] = {
         "title": "2018 ACC/AHA Guideline on the Management of Blood Cholesterol",
         "publisher": "ACC/AHA",
         "topic": "dyslipidemia",
-        "url": "https://www.ahajournals.org/doi/10.1161/CIR.0000000000000625",
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7403606/",
     },
     # ascvd prevention
     "ascvd_prevention/2019 ACC AHA Primary Prevention Guideline.html": {
@@ -93,7 +93,7 @@ GUIDELINE_META: dict[str, dict] = {
         "title": "2019 ACC/AHA Guideline on the Primary Prevention of Cardiovascular Disease",
         "publisher": "ACC/AHA",
         "topic": "ascvd_prevention",
-        "url": "https://www.ahajournals.org/doi/10.1161/CIR.0000000000000678",
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7734661/",
     },
     "ascvd_prevention/2021 ESC CVD Prevention Guidelines.pdf": {
         "source_id": "esc_2021_cvd_prevention_guideline",
@@ -162,6 +162,27 @@ ADA_2024_CHAPTERS: dict[str, str] = {
     "ada_2024_diabetes_advocacy": "Diabetes Advocacy",
 }
 
+# PMC mirrors for ADA Standards of Care 2024 (bot-reachable).
+ADA_2024_PMC: dict[str, str] = {
+    "ada_2024_population_health": "PMC10725798",
+    "ada_2024_diagnosis_classification": "PMC10725812",
+    "ada_2024_prevention_delay": "PMC10725807",
+    "ada_2024_comprehensive_medical_evaluation": "PMC10725809",
+    "ada_2024_health_behaviors": "PMC10725816",
+    "ada_2024_glycemic_goals": "PMC10725808",
+    "ada_2024_diabetes_technology": "PMC10725813",
+    "ada_2024_obesity_management": "PMC10725806",
+    "ada_2024_pharmacologic_treatment": "PMC10725810",
+    "ada_2024_cv_risk_management": "PMC10725811",
+    "ada_2024_ckd_risk_management": "PMC10725805",
+    "ada_2024_retinopathy_neuropathy": "PMC10725803",
+    "ada_2024_older_adults": "PMC10725804",
+    "ada_2024_children_adolescents": "PMC10725814",
+    "ada_2024_pregnancy": "PMC10725801",
+    "ada_2024_hospital_care": "PMC10725815",
+    "ada_2024_diabetes_advocacy": "PMC10725796",
+}
+
 
 def _guideline_entry(rel: str, meta: dict) -> dict:
     suffix = Path(rel).suffix.lower()
@@ -197,7 +218,7 @@ def _ada_entries() -> list[dict]:
                 "publisher": "ADA",
                 "topic": "diabetes",
                 "artifact_kind": "html",
-                "url": "https://diabetesjournals.org/care/issue/47/Supplement_1",
+                "url": f"https://pmc.ncbi.nlm.nih.gov/articles/{ADA_2024_PMC[source_id]}/",
                 "target_path": f"raw/guidelines/diabetes/{fname}",
                 "license_note": "Official publisher material. Verify terms before redistribution.",
             }

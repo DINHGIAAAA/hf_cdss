@@ -60,7 +60,9 @@ services:
         condition: service_healthy
     environment:
       HF_CDSS_ENVIRONMENT: ${HF_CDSS_ENVIRONMENT:-docker}
-      HF_CDSS_CORS_ORIGINS: ${HF_CDSS_CORS_ORIGINS:-["http://localhost:5173","http://127.0.0.1:5173"]}
+      HF_CDSS_CORS_ORIGINS: ${HF_CDSS_CORS_ORIGINS:-["http://localhost:5173","http://127.0.0.1:5173","http://localhost:5174","http://127.0.0.1:5174","http://localhost:5175","http://127.0.0.1:5175"]}
+      # HTTP local dev: Secure cookies are not sent on http://localhost.
+      HF_CDSS_JWT_COOKIE_SECURE: ${HF_CDSS_JWT_COOKIE_SECURE:-false}
       HF_CDSS_API_KEYS: ${HF_CDSS_API_KEYS:-change-me}
       HF_CDSS_API_KEY_HEADER: ${HF_CDSS_API_KEY_HEADER:-x-api-key}
       HF_CDSS_MAX_REQUEST_BODY_BYTES: ${HF_CDSS_MAX_REQUEST_BODY_BYTES:-1000000}
@@ -113,7 +115,8 @@ services:
       HF_CDSS_VERIFICATION_CACHE_TTL_SECONDS: ${HF_CDSS_VERIFICATION_CACHE_TTL_SECONDS:-300}
       HF_CDSS_VERIFICATION_CACHE_MAX_ENTRIES: ${HF_CDSS_VERIFICATION_CACHE_MAX_ENTRIES:-128}
       HF_CDSS_ARTIFACT_CACHE_ROOT: ${HF_CDSS_ARTIFACT_CACHE_ROOT:-/tmp/hf_cdss/heart_failure}
-      HF_CDSS_S3_ENDPOINT_URL: ${HF_CDSS_S3_ENDPOINT_URL:-http://localstack:4566}
+      # Always use Docker DNS name; do not inherit host HF_CDSS_S3_ENDPOINT_URL=localhost.
+      HF_CDSS_S3_ENDPOINT_URL: http://localstack:4566
       HF_CDSS_RAW_BUCKET: ${HF_CDSS_RAW_BUCKET:-hf-cdss-raw}
       HF_CDSS_PROCESSED_BUCKET: ${HF_CDSS_PROCESSED_BUCKET:-hf-cdss-processed}
       HF_CDSS_S3_PREFIX: ${HF_CDSS_S3_PREFIX:-heart_failure}
@@ -194,13 +197,19 @@ services:
       HF_CDSS_INGESTION_LLM_CACHE_DIR: ${HF_CDSS_INGESTION_LLM_CACHE_DIR:-/opt/airflow/project/data/heart_failure/.ingestion_llm_cache}
       HF_CDSS_SOURCES_REGISTRY: ${HF_CDSS_SOURCES_REGISTRY:-sources/sources.example.json}
       HF_CDSS_INGESTION_SKIP_DOWNLOAD: ${HF_CDSS_INGESTION_SKIP_DOWNLOAD:-true}
-      HF_CDSS_AIRFLOW_PIPELINE_TIMEOUT_HOURS: ${HF_CDSS_AIRFLOW_PIPELINE_TIMEOUT_HOURS:-48}
+      HF_CDSS_AIRFLOW_PIPELINE_TIMEOUT_HOURS: ${HF_CDSS_AIRFLOW_PIPELINE_TIMEOUT_HOURS:-72}
+      HF_CDSS_AIRFLOW_KG_BASE_TIMEOUT_HOURS: ${HF_CDSS_AIRFLOW_KG_BASE_TIMEOUT_HOURS:-72}
+      HF_CDSS_AIRFLOW_CATALOG_TIMEOUT_HOURS: ${HF_CDSS_AIRFLOW_CATALOG_TIMEOUT_HOURS:-72}
+      HF_CDSS_AIRFLOW_FINALIZE_TIMEOUT_HOURS: ${HF_CDSS_AIRFLOW_FINALIZE_TIMEOUT_HOURS:-6}
+      HF_CDSS_AIRFLOW_LOAD_TIMEOUT_HOURS: ${HF_CDSS_AIRFLOW_LOAD_TIMEOUT_HOURS:-4}
+      HF_CDSS_AIRFLOW_STORE_TIMEOUT_HOURS: ${HF_CDSS_AIRFLOW_STORE_TIMEOUT_HOURS:-4}
       HF_CDSS_DATA_STORAGE: ${HF_CDSS_DATA_STORAGE:-s3}
       HF_CDSS_RAW_ROOT: ${HF_CDSS_RAW_ROOT:-/tmp/hf_cdss_raw}
       HF_CDSS_CLEANUP_RAW_STAGING: ${HF_CDSS_CLEANUP_RAW_STAGING:-true}
       HF_CDSS_CLEANUP_WORKSPACE_OUTPUTS: ${HF_CDSS_CLEANUP_WORKSPACE_OUTPUTS:-true}
       HF_CDSS_PURGE_LEGACY_DATA_RAW: ${HF_CDSS_PURGE_LEGACY_DATA_RAW:-true}
-      HF_CDSS_S3_ENDPOINT_URL: ${HF_CDSS_S3_ENDPOINT_URL:-http://localstack:4566}
+      # Always use Docker DNS name; do not inherit host HF_CDSS_S3_ENDPOINT_URL=localhost.
+      HF_CDSS_S3_ENDPOINT_URL: http://localstack:4566
       HF_CDSS_RAW_BUCKET: ${HF_CDSS_RAW_BUCKET:-hf-cdss-raw}
       HF_CDSS_PROCESSED_BUCKET: ${HF_CDSS_PROCESSED_BUCKET:-hf-cdss-processed}
       HF_CDSS_S3_PREFIX: ${HF_CDSS_S3_PREFIX:-heart_failure}
@@ -234,13 +243,44 @@ services:
   frontend:
     build:
       context: ../frontend
+      dockerfile: doctor-dashboard/Dockerfile.dev
+    container_name: hf_cdss_frontend
+    ports:
+      - "${DOCTOR_DASHBOARD_PORT:-5173}:5173"
+    volumes:
+      - ../frontend/doctor-dashboard:/app
+      - ../frontend/shared:/shared
+      - frontend_node_modules:/app/node_modules
+    environment:
+      # Empty base URL → browser calls same-origin /api, Vite proxies to backend.
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
+      VITE_CHAT_LANGUAGE: ${VITE_CHAT_LANGUAGE:-vi}
+      VITE_DEV_PROXY_TARGET: ${VITE_DEV_PROXY_TARGET:-http://backend:8000}
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:5173/"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+    restart: unless-stopped
+
+  # Production static build (nginx). Use: docker compose --profile frontend-prod up -d frontend-prod
+  frontend-prod:
+    profiles: ["frontend-prod"]
+    build:
+      context: ../frontend
       dockerfile: doctor-dashboard/Dockerfile
       args:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
         VITE_CHAT_LANGUAGE: ${VITE_CHAT_LANGUAGE:-vi}
-    container_name: hf_cdss_frontend
+    container_name: hf_cdss_frontend_prod
     ports:
-      - "5173:80"
+      - "${DOCTOR_DASHBOARD_PROD_PORT:-5175}:80"
     depends_on:
       backend:
         condition: service_healthy
@@ -389,3 +429,4 @@ volumes:
   chroma_data:
   localstack_data:
   redis_data:
+  frontend_node_modules:

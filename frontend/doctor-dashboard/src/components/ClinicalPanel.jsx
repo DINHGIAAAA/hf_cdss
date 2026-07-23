@@ -157,62 +157,138 @@ function RecommendationBullets({ items }) {
 }
 
 function RecommendationCard({ item, evidenceChunks = [], sharedVitals = [] }) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const linkedChunks = evidenceChunks.filter((chunk) => item.evidence?.includes(chunk.chunk_id));
   const lead = recommendationLead(item);
   const detailLines = recommendationDetailLines(item, sharedVitals);
-  const warnings = (item.warnings || []).filter(Boolean);
+  const plainDetails = item.plain_language_details || {};
+  const simplified = item.simplified || {};
+
+  // Helper to get simplified field with fallback
+  const getSimplified = (field, fallback = []) => {
+    const simplifiedList = simplified[field];
+    if (Array.isArray(simplifiedList) && simplifiedList.length > 0) {
+      return simplifiedList.map((item) => item?.[language] || item?.vi || "").filter(Boolean);
+    }
+    return fallback;
+  };
+
+  // Simplified fields: use simplified_* if available, fallback to existing
+  const displayDrugClass =
+    simplified.drug_class_plain?.[language] ||
+    simplified.drug_class_plain?.vi ||
+    item.drug_class;
+
+  const displayStatus =
+    simplified.status_plain?.[language] ||
+    simplified.status_plain?.vi ||
+    item.status;
+
+  const reasoningItems = getSimplified(
+    "reasoning_plain",
+    (plainDetails.reasoning || []).map((line) => String(line || "").trim()).filter(Boolean),
+  );
+  const actionItems = getSimplified(
+    "action_items_plain",
+    (plainDetails.next_steps || item.action_items || [])
+      .map((line) => String(line || "").trim())
+      .filter(Boolean),
+  );
+  const monitoring = getSimplified(
+    "monitoring_plain",
+    (plainDetails.monitoring || item.monitoring || [])
+      .map((line) => String(line || "").trim())
+      .filter(Boolean),
+  );
+  const warnings = getSimplified(
+    "warnings_plain",
+    (plainDetails.warnings || item.warnings || []).map((line) => String(line || "").trim()).filter(Boolean),
+  );
+
+  const displayReasoning = reasoningItems.length > 0 ? reasoningItems : detailLines;
+  const plainSummary = String(item.plain_language_summary || "").trim();
+  const displaySummary =
+    plainSummary ||
+    (language === "vi"
+      ? t("clinicalPanel.summaryFallback", {
+          status: titleCase(displayStatus),
+          drugClass: displayDrugClass,
+        })
+      : lead);
+  const hasStructuredDetails =
+    displayReasoning.length > 0 ||
+    warnings.length > 0 ||
+    actionItems.length > 0 ||
+    monitoring.length > 0 ||
+    linkedChunks.length > 0;
 
   return (
     <article className="max-w-full min-w-0 space-y-3 rounded-xl border border-border/70 bg-background px-3.5 py-3.5">
       <header className="flex min-w-0 items-start justify-between gap-2">
         <div className="min-w-0 flex-1 space-y-1">
-          <h3 className="text-sm font-semibold leading-snug text-foreground">{item.drug_class}</h3>
-          {lead ? (
-            <p className="text-sm leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
-              {lead}
+          <h3 className="text-sm font-semibold leading-snug text-foreground">{displayDrugClass}</h3>
+          {displaySummary ? (
+            <p className="text-sm leading-relaxed text-foreground/90 [overflow-wrap:anywhere]">
+              {displaySummary}
             </p>
           ) : null}
         </div>
-        <Badge className={cn("shrink-0", statusTone(item.status))} variant="outline">
-          {titleCase(item.status)}
+        <Badge className={cn("shrink-0", statusTone(displayStatus))} variant="outline">
+          {titleCase(displayStatus)}
         </Badge>
       </header>
 
-      {detailLines.length > 0 ? (
-        <RecommendationBlock title={t("clinicalPanel.clinicalReasoning")}>
-          <RecommendationBullets items={detailLines} />
-        </RecommendationBlock>
-      ) : null}
+      {hasStructuredDetails ? (
+        <details className="group rounded-lg border border-border/60 bg-muted/20 px-3 py-2" open={false}>
+          <summary className="cursor-pointer list-none text-xs font-semibold uppercase tracking-wide text-muted-foreground marker:content-none [&::-webkit-details-marker]:hidden">
+            <span className="inline-flex items-center gap-1.5">
+              {t("clinicalPanel.clinicalDetails")}
+              <span className="font-normal normal-case text-muted-foreground/80 group-open:hidden">
+                ({t("clinicalPanel.showMore")})
+              </span>
+              <span className="hidden font-normal normal-case text-muted-foreground/80 group-open:inline">
+                ({t("clinicalPanel.showLess")})
+              </span>
+            </span>
+          </summary>
+          <div className="mt-3 space-y-3">
+            {displayReasoning.length > 0 ? (
+              <RecommendationBlock title={t("clinicalPanel.clinicalReasoning")}>
+                <RecommendationBullets items={displayReasoning.slice(0, 3)} />
+              </RecommendationBlock>
+            ) : null}
 
-      {warnings.length > 0 ? (
-        <RecommendationBlock title={t("clinicalPanel.safetyFlags")} tone="warning">
-          <RecommendationBullets items={warnings.slice(0, 3)} />
-        </RecommendationBlock>
-      ) : null}
+            {warnings.length > 0 ? (
+              <RecommendationBlock title={t("clinicalPanel.safetyFlags")} tone="warning">
+                <RecommendationBullets items={warnings.slice(0, 3)} />
+              </RecommendationBlock>
+            ) : null}
 
-      {item.action_items?.length > 0 ? (
-        <RecommendationBlock title={t("clinicalPanel.nextStep")}>
-          <RecommendationBullets items={item.action_items.slice(0, 3)} />
-        </RecommendationBlock>
-      ) : null}
+            {actionItems.length > 0 ? (
+              <RecommendationBlock title={t("clinicalPanel.nextStep")}>
+                <RecommendationBullets items={actionItems.slice(0, 3)} />
+              </RecommendationBlock>
+            ) : null}
 
-      {item.monitoring?.length > 0 ? (
-        <RecommendationBlock title={t("clinicalPanel.monitor")}>
-          <RecommendationBullets items={item.monitoring.slice(0, 3)} />
-        </RecommendationBlock>
-      ) : null}
+            {monitoring.length > 0 ? (
+              <RecommendationBlock title={t("clinicalPanel.monitor")}>
+                <RecommendationBullets items={monitoring.slice(0, 3)} />
+              </RecommendationBlock>
+            ) : null}
 
-      {linkedChunks.length > 0 ? (
-        <RecommendationBlock title={t("clinicalPanel.linkedEvidence")}>
-          <ul className="space-y-1 text-xs leading-relaxed text-muted-foreground">
-            {linkedChunks.slice(0, 2).map((chunk) => (
-              <li className="break-words [overflow-wrap:anywhere]" key={chunk.chunk_id}>
-                {titleCase(chunk.document_id)} — {chunk.section || chunk.source_type}
-              </li>
-            ))}
-          </ul>
-        </RecommendationBlock>
+            {linkedChunks.length > 0 ? (
+              <RecommendationBlock title={t("clinicalPanel.linkedEvidence")}>
+                <ul className="space-y-1 text-xs leading-relaxed text-muted-foreground">
+                  {linkedChunks.slice(0, 2).map((chunk) => (
+                    <li className="break-words [overflow-wrap:anywhere]" key={chunk.chunk_id}>
+                      {titleCase(chunk.document_id)} — {chunk.section || chunk.source_type}
+                    </li>
+                  ))}
+                </ul>
+              </RecommendationBlock>
+            ) : null}
+          </div>
+        </details>
       ) : null}
     </article>
   );

@@ -7,7 +7,14 @@ class Settings(BaseSettings):
     version: str = "0.1.0"
     environment: str = "development"
     api_prefix: str = "/api/v1"
-    cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
+    cors_origins: list[str] = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
+        "http://localhost:5175",
+        "http://127.0.0.1:5175",
+    ]
     log_level: str = "INFO"
     api_keys: str = ""
     api_key_header: str = "x-api-key"
@@ -81,7 +88,7 @@ class Settings(BaseSettings):
     audit_schema_version: str = "2026-06-12"
     rate_limit_requests: int = 60
     rate_limit_window_seconds: int = 60
-    admin_rate_limit_requests: int = 10
+    admin_rate_limit_requests: int = 120
     admin_rate_limit_window_seconds: int = 60
     auth_login_rate_limit_requests: int = 10
     auth_login_rate_limit_window_seconds: int = 60
@@ -121,6 +128,10 @@ class Settings(BaseSettings):
     hyde_retrieval_enabled: bool = True
     hyde_retrieval_model: str = "qwen2.5:1.5b"
     hyde_retrieval_timeout_seconds: float = 20.0
+    recommendation_card_summary_model: str | None = None
+    recommendation_card_summary_timeout_seconds: float = 30.0
+    recommendation_card_summary_max_tokens: int = 400
+    recommendation_card_summary_cache_ttl_seconds: int = 600
     hyde_retrieval_max_tokens: int = 220
     hyde_retrieval_cache_ttl_seconds: int = 600
     hyde_retrieval_cache_max_entries: int = 256

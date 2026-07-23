@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
   AssistantRuntimeProvider,
   CompositeAttachmentAdapter,
@@ -189,7 +189,8 @@ export function ClinicalChatRuntimeProvider({
     onStreamStatus?.("");
   }, [onStreamStatus]);
 
-  useEffect(() => () => abortRef.current?.abort(), []);
+  // Do not abort on unmount: leaving chat for admin mid-stream must not cancel the run
+  // or starve the single API worker. ConversationsProvider keeps patch targets alive.
 
   const suggestions = useMemo(() => {
     const prompts = translate(language, "chat.suggestions");

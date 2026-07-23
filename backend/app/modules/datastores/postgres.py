@@ -725,6 +725,8 @@ def _constraint_list_filters(
     target_drug_class: str | None,
     action: str | None,
     q: str | None,
+    safety_tier: str | None = None,
+    needs_condition: bool | None = None,
 ) -> tuple[list[str], list[Any]]:
     conditions: list[str] = []
     params: list[Any] = []
@@ -740,6 +742,13 @@ def _constraint_list_filters(
     if q:
         conditions.append("constraint_id ILIKE %s")
         params.append(f"%{_escape_like(q)}%")
+    if safety_tier:
+        conditions.append("metadata->>'safety_tier' = %s")
+        params.append(safety_tier)
+    if needs_condition is True:
+        conditions.append("(metadata->>'needs_condition') = 'true'")
+    elif needs_condition is False:
+        conditions.append("(metadata->>'needs_condition') IS DISTINCT FROM 'true'")
     return conditions, params
 
 
@@ -749,6 +758,8 @@ def read_constraint_rules_filtered(
     target_drug_class: str | None = None,
     action: str | None = None,
     q: str | None = None,
+    safety_tier: str | None = None,
+    needs_condition: bool | None = None,
     limit: int = 500,
 ) -> list[dict[str, Any]]:
     conditions, params = _constraint_list_filters(
@@ -756,6 +767,8 @@ def read_constraint_rules_filtered(
         target_drug_class=target_drug_class,
         action=action,
         q=q,
+        safety_tier=safety_tier,
+        needs_condition=needs_condition,
     )
     where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
     params.append(limit)

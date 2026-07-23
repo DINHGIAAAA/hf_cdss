@@ -19,6 +19,7 @@ from app.modules.datastores.postgres import (
     write_audit_event,
 )
 from app.modules.explanation.llm_service import build_llm_answer, stream_llm_answer
+from app.modules.explanation.card_summarizer import apply_simplified_fields, attach_plain_language_summaries
 from app.modules.evidence_linking.service import collect_constraint_chunk_ids, enrich_recommendation_evidence
 from app.modules.missing_fields.service import build_missing_fields_prompt, check_missing_fields
 from app.modules.reasoning.service import build_recommendation
@@ -331,7 +332,7 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
         updated_at=_now(),
         clinical_state=clinical_state,
     )
-    _save_draft(draft)
+    await asyncio.to_thread(_save_draft, draft)
     yield _sse("draft_ready", draft.model_dump(mode="json"))
 
     missing_check = check_missing_fields(
@@ -349,8 +350,9 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
     if missing_check.missing_fields:
         content = build_missing_fields_prompt(missing_check)
         assistant_message = _message(conversation_id, "assistant", content, {"status": "needs_more_information"})
-        _append_message(assistant_message)
-        write_audit_event(
+        await asyncio.to_thread(_append_message, assistant_message)
+        await asyncio.to_thread(
+            write_audit_event,
             merged.case_id,
             "chat_missing_fields",
             {
@@ -381,8 +383,10 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
         clinical_state=clinical_state,
     )
     graphrag_prefetch = asyncio.create_task(build_graphrag_context_async(graphrag_request))
-    recommendation = build_recommendation(
-        RecommendationRequest(patient=merged, clinical_state=clinical_state)
+    # Offload sync rule engine so admin/API requests are not starved on the event loop.
+    recommendation = await asyncio.to_thread(
+        build_recommendation,
+        RecommendationRequest(patient=merged, clinical_state=clinical_state),
     )
 
     yield _sse("status", {"step": "verifying_evidence"})
@@ -397,6 +401,12 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
         prefetched_context=await graphrag_prefetch,
     )
     recommendation = enrich_recommendation_evidence(recommendation, verification.citation_validation)
+    recommendation = await attach_plain_language_summaries(
+        recommendation,
+        language=request.language or "vi",
+    )
+    # Apply simplified fields for display (deterministic, no LLM)
+    recommendation = apply_simplified_fields(recommendation, language=request.language or "vi")
     tool_outputs.append({"tool": "recommendation", "result": recommendation.model_dump(mode="json")})
     yield _sse("recommendation_ready", recommendation.model_dump(mode="json"))
     tool_outputs.append({"tool": "verification", "result": verification.model_dump(mode="json")})
@@ -432,8 +442,9 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
             "used_llm": llm_answer.used_llm if llm_answer else False,
         },
     )
-    _append_message(assistant_message)
-    write_audit_event(
+    await asyncio.to_thread(_append_message, assistant_message)
+    await asyncio.to_thread(
+        write_audit_event,
         merged.case_id,
         "chat_recommendation_completed",
         {
@@ -562,6 +573,12 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
         prefetched_context=graphrag_context,
     )
     recommendation = enrich_recommendation_evidence(recommendation, verification.citation_validation)
+    recommendation = await attach_plain_language_summaries(
+        recommendation,
+        language=request.language or "vi",
+    )
+    # Apply simplified fields for display (deterministic, no LLM)
+    recommendation = apply_simplified_fields(recommendation, language=request.language or "vi")
     llm_answer = await build_llm_answer(
         LLMAnswerRequest(
             user_input=request.message,

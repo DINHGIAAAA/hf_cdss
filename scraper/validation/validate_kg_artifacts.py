@@ -83,6 +83,42 @@ def validate_claim_quality(path: Path, rows: list[dict]) -> list[str]:
             errors.append(f"{path}: row {index} confidence must be between 0 and 1")
     return errors
 
+
+HARD_BLOCK_ACTIONS = {"contraindicated", "avoid", "not_recommended"}
+
+
+def validate_rules_quality(path: Path, rows: list[dict]) -> tuple[list[str], list[str]]:
+    """Validate classified constraint rules.
+
+    Returns (errors, warnings). Hard-block without drug is an error.
+    Hard-block with empty conditions is a warning (synced as draft for admin review).
+    """
+    errors: list[str] = []
+    warnings: list[str] = []
+    hard_block_no_drug = 0
+    hard_block_no_condition = 0
+
+    for row in rows:
+        action = str(row.get("action") or "")
+        condition = row.get("condition") or {}
+        drug = row.get("drug")
+        if action not in HARD_BLOCK_ACTIONS:
+            continue
+        if not drug:
+            hard_block_no_drug += 1
+        non_empty = {k for k, v in condition.items() if v not in (None, "", [], {})}
+        if not non_empty:
+            hard_block_no_condition += 1
+
+    if hard_block_no_drug > 0:
+        errors.append(f"{path}: {hard_block_no_drug} hard-block rules missing drug name")
+    if hard_block_no_condition > 10:
+        warnings.append(
+            f"{path}: WARNING: {hard_block_no_condition} hard-block rules have empty conditions "
+            "(synced as needs_condition_refinement for admin review)"
+        )
+    return errors, warnings
+
 def validate_download_manifest(path: Path) -> tuple[int, list[str]]:
     if not path.exists():
         return 0, [f"{path}: download manifest is missing"]
@@ -197,7 +233,24 @@ def main() -> None:
     summary["download_manifest"] = manifest_count
     all_errors.extend(manifest_errors)
 
-    print(json.dumps({"summary": summary, "errors": all_errors[:20]}, ensure_ascii=False, indent=2))
+    warnings: list[str] = []
+    rules_path = args.root / "artifacts/rules/rules_classified.jsonl"
+    if rules_path.exists():
+        rule_rows = read_jsonl(rules_path)
+        summary["rules_classified"] = len(rule_rows)
+        rule_errors, rule_warnings = validate_rules_quality(rules_path, rule_rows)
+        all_errors.extend(rule_errors)
+        warnings.extend(rule_warnings)
+    else:
+        summary["rules_classified"] = 0
+
+    print(
+        json.dumps(
+            {"summary": summary, "errors": all_errors[:20], "warnings": warnings[:20]},
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
     if all_errors:
         raise SystemExit(f"Validation failed with {len(all_errors)} error(s)")
 

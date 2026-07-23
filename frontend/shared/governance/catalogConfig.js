@@ -24,6 +24,12 @@ export const SAFETY_TIER_OPTIONS = [
   { value: "rejected_rules", label: "Rejected" },
 ];
 
+export const CONSTRAINT_SAFETY_TIER_OPTIONS = [
+  { value: "", label: "All tiers" },
+  { value: "usable_rules", label: "Usable" },
+  { value: "needs_condition_refinement", label: "Needs condition" },
+];
+
 export const CONSTRAINT_CATALOG = {
   id: "constraints",
   label: "Constraint rules",
@@ -36,6 +42,22 @@ export const CONSTRAINT_CATALOG = {
   filters: [
     { key: "target_drug_class", label: "Drug class", placeholder: "e.g. MRA" },
     { key: "action", label: "Action", placeholder: "e.g. avoid" },
+    {
+      key: "safety_tier",
+      label: "Safety tier",
+      type: "select",
+      options: CONSTRAINT_SAFETY_TIER_OPTIONS,
+    },
+    {
+      key: "needs_condition",
+      label: "Needs condition",
+      type: "select",
+      options: [
+        { value: "", label: "Any" },
+        { value: "true", label: "Needs condition only" },
+        { value: "false", label: "Has structured condition" },
+      ],
+    },
     { key: "q", label: "Search ID", placeholder: "constraint id" },
   ],
 };

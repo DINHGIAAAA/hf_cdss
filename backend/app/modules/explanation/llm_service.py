@@ -58,6 +58,12 @@ def _compact_recommendation(payload: LLMAnswerRequest) -> dict[str, Any]:
                 "drug_class": item.drug_class,
                 "status": item.status,
                 "rationale": item.rationale,
+                "plain_language_summary": item.plain_language_summary,
+                "plain_language_details": (
+                    item.plain_language_details.model_dump()
+                    if item.plain_language_details
+                    else None
+                ),
                 "clinical_reasoning": item.clinical_reasoning[:3],
                 "action_items": item.action_items[:3],
                 "monitoring": item.monitoring[:2],
@@ -212,7 +218,8 @@ def fallback_answer(payload: LLMAnswerRequest) -> str:
     lines.append(f"\n{t['medications']}")
     if blocked or caution or consider:
         for item in [*blocked, *caution, *consider]:
-            lines.append(f"- {item.drug_class}: {item.rationale or item.status}")
+            summary = (item.plain_language_summary or "").strip()
+            lines.append(f"- {item.drug_class}: {summary or item.rationale or item.status}")
     else:
         lines.append(f"- {t['no_medications']}")
 

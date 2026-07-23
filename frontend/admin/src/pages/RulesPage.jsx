@@ -19,6 +19,8 @@ const STATUS_TABS = [
 const EMPTY_FILTERS = {
   target_drug_class: "",
   action: "",
+  safety_tier: "",
+  needs_condition: "",
   q: "",
 };
 
@@ -26,6 +28,17 @@ function statusClass(status) {
   if (status === "approved") return "success";
   if (status === "draft") return "warning";
   return "danger";
+}
+
+function needsConditionBadge(rule) {
+  const meta = rule?.metadata || {};
+  if (meta.needs_condition === true || meta.safety_tier === "needs_condition_refinement") {
+    return <span className="badge warning">Needs condition</span>;
+  }
+  if (meta.safety_tier === "usable_rules") {
+    return <span className="badge success">Usable</span>;
+  }
+  return null;
 }
 
 export function RulesPage() {
@@ -227,6 +240,7 @@ export function RulesPage() {
                   <th>Constraint</th>
                   <th>Action</th>
                   <th>Status</th>
+                  <th>Tier</th>
                   <th>Drug class</th>
                   <th />
                 </tr>
@@ -256,6 +270,7 @@ export function RulesPage() {
                     <td>
                       <span className={`badge ${statusClass(rule.status)}`}>{rule.status}</span>
                     </td>
+                    <td>{needsConditionBadge(rule) || "—"}</td>
                     <td>{rule.target_drug_class || "—"}</td>
                     <td>
                       <button className="link-btn" onClick={() => openRule(rule.id)} type="button">

@@ -103,7 +103,12 @@ def coerce_download_item(item: dict[str, str], payload: bytes, url: str) -> dict
     if looks_like_html(payload):
         if kind in {"pdf", "source"} or suffix == ".pdf":
             html_path = html_target_path(target_path)
-            print(f"Received HTML instead of PDF from {url}; saving as {html_path}")
+            # Logical registry path (raw/…); durable write is S3 put_object with raw/ stripped.
+            print(
+                f"Received HTML instead of PDF from {url}; "
+                f"S3 object key will use logical path {html_path} "
+                f"(→ s3://…/{html_path.removeprefix('raw/')} after strip)"
+            )
             return {**item, "kind": "html", "target_path": html_path}
         if kind == "html" or suffix == ".html":
             return {**item, "kind": "html"}
@@ -190,11 +195,29 @@ def select_dailymed_candidate(source: dict[str, Any], timeout: int) -> dict[str,
     required = [term.upper() for term in source.get("required_terms", [])]
     excluded = [term.upper() for term in source.get("excluded_terms", [])]
 
+    # Normalize slash-joined required terms ("A/B") into separate tokens so combo
+    # labels like "SACUBITRIL AND VALSARTAN" still match.
+    normalized_required: list[str] = []
+    for term in required:
+        parts = [part.strip() for part in term.replace("/", " ").split() if part.strip()]
+        normalized_required.extend(parts)
+    if not normalized_required:
+        normalized_required = required
+
     matches = []
     for candidate in candidates:
         title = str(candidate.get("title", "")).upper()
-        if all(term in title for term in required) and not any(term in title for term in excluded):
+        if all(term in title for term in normalized_required) and not any(term in title for term in excluded):
             matches.append(candidate)
+    if not matches and "/" in str(source.get("query") or ""):
+        # Retry with spaces/and instead of slash (registry legacy queries).
+        alt_query = (
+            str(source["query"]).replace("/", " and ").replace("  ", " ").strip()
+        )
+        for candidate in dailymed_candidates(alt_query, timeout):
+            title = str(candidate.get("title", "")).upper()
+            if all(term in title for term in normalized_required) and not any(term in title for term in excluded):
+                matches.append(candidate)
     if not matches:
         raise ValueError(f"No DailyMed SPL candidate matched {source['query']}")
     return sorted(
@@ -363,6 +386,7 @@ def main() -> None:
                         "sha256": item_sha,
                     },
                 )
+                print(f"Uploaded s3://{args.s3_bucket}/{item_key} ({len(payload)} bytes)")
                 artifacts.append(
                     {
                         "kind": item["kind"],
@@ -414,6 +438,7 @@ def main() -> None:
                             "sha256": item_sha,
                         },
                     )
+                    print(f"Uploaded s3://{args.s3_bucket}/{item_key} ({len(payload)} bytes, html fallback)")
                     artifacts = [
                         {
                             "kind": item["kind"],

@@ -9,6 +9,8 @@ import { ruleVisibilityMeta, tabVisibilityBanner } from "../utils/ruleVisibility
 import { ApprovalToolbar } from "@shared/governance/ApprovalToolbar.jsx";
 import { CONSTRAINT_CATALOG } from "@shared/governance/catalogConfig.js";
 import { constraintRuleTitle, shortCatalogId } from "@shared/governance/displayNames.js";
+import { fetchCatalogListWithCounts } from "@shared/governance/fetchCatalogListWithCounts.js";
+import { StatusCountCards, statusTabLabel } from "@shared/governance/StatusCountCards.jsx";
 import { useRuleSelection } from "@shared/governance/useRuleSelection.js";
 
 const STATUS_TABS = [
@@ -21,6 +23,8 @@ const STATUS_TABS = [
 const EMPTY_FILTERS = {
   target_drug_class: "",
   action: "",
+  safety_tier: "",
+  needs_condition: "",
   q: "",
 };
 
@@ -28,6 +32,17 @@ function statusClass(status) {
   if (status === "approved") return "success";
   if (status === "draft") return "warning";
   return "danger";
+}
+
+function needsConditionBadge(rule) {
+  const meta = rule?.metadata || {};
+  if (meta.needs_condition === true || meta.safety_tier === "needs_condition_refinement") {
+    return <span className="badge warning">Needs condition</span>;
+  }
+  if (meta.safety_tier === "usable_rules") {
+    return <span className="badge success">Usable</span>;
+  }
+  return null;
 }
 
 export function RulesPage() {
@@ -50,12 +65,16 @@ export function RulesPage() {
   const tabBanner = tabVisibilityBanner(tab);
 
   const loadRules = useCallback(async () => {
+    if (!canRead) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError("");
     try {
-      const result = await adminApi.listRules({
-        status: tab === "all" ? undefined : tab,
-        ...appliedFilters,
+      const result = await fetchCatalogListWithCounts(adminApi.listRules, {
+        tab,
+        filters: appliedFilters,
       });
       setData(result);
     } catch (err) {
@@ -63,7 +82,7 @@ export function RulesPage() {
     } finally {
       setLoading(false);
     }
-  }, [tab, appliedFilters]);
+  }, [tab, appliedFilters, canRead]);
 
   useEffect(() => {
     loadRules();
@@ -148,29 +167,24 @@ export function RulesPage() {
         </button>
       </header>
 
-      {!isAuthenticated && (
+      {!canRead && (
         <div className="admin-banner warning" role="status">
-          Sign in with a <strong>clinical_lead</strong> or <strong>admin</strong> account to approve or retire rules.
+          Sign in with a <strong>clinical_lead</strong> or <strong>admin</strong> account to review counts and approve or retire rules.
         </div>
       )}
 
-      <div className="admin-stats">
-        <div className="stat-card">
-          <span>Draft</span>
-          <strong>{data?.draft_count ?? "—"}</strong>
-          <small className="stat-hint">Admin only</small>
-        </div>
-        <div className="stat-card">
-          <span>Approved</span>
-          <strong>{data?.approved_count ?? "—"}</strong>
-          <small className="stat-hint">Live in chat</small>
-        </div>
-        <div className="stat-card">
-          <span>Retired</span>
-          <strong>{data?.retired_count ?? "—"}</strong>
-          <small className="stat-hint">Not in chat</small>
-        </div>
-      </div>
+      <StatusCountCards
+        activeTab={tab}
+        approvedCount={loading && !data ? undefined : (data?.approved_count ?? 0)}
+        draftCount={loading && !data ? undefined : (data?.draft_count ?? 0)}
+        hints={{
+          draft: "Admin only",
+          approved: "Live in chat",
+          retired: "Not in chat",
+        }}
+        onSelect={setTab}
+        retiredCount={loading && !data ? undefined : (data?.retired_count ?? 0)}
+      />
 
       <div className="tab-row" role="tablist">
         {STATUS_TABS.map((item) => (
@@ -182,7 +196,7 @@ export function RulesPage() {
             role="tab"
             type="button"
           >
-            {item.label}
+            {statusTabLabel(item.id, item.label, data)}
           </button>
         ))}
       </div>
@@ -247,6 +261,7 @@ export function RulesPage() {
                 <col className="col-action" />
                 <col className="col-status" />
                 <col className="col-visibility" />
+                <col className="col-tier" />
                 <col className="col-target" />
                 <col className="col-actions" />
               </colgroup>
@@ -257,6 +272,7 @@ export function RulesPage() {
                   <th>Action</th>
                   <th>Status</th>
                   <th>Visibility</th>
+                  <th>Tier</th>
                   <th>Drug class</th>
                   <th />
                 </tr>
@@ -293,6 +309,7 @@ export function RulesPage() {
                       <td>
                         <RuleVisibilityBadge status={rule.status} title={visibility.hint} />
                       </td>
+                      <td>{needsConditionBadge(rule) || "—"}</td>
                       <td className="cell-ellipsis" title={rule.target_drug_class || undefined}>
                         {rule.target_drug_class || "—"}
                       </td>

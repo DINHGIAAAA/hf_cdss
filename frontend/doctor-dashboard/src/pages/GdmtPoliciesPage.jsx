@@ -6,6 +6,8 @@ import { useAuth } from "../auth/AuthContext";
 import { GdmtPolicyDetail } from "../components/GdmtPolicyDetail.jsx";
 import { ApprovalToolbar } from "@shared/governance/ApprovalToolbar.jsx";
 import { GDMT_CATALOG } from "@shared/governance/catalogConfig.js";
+import { fetchCatalogListWithCounts } from "@shared/governance/fetchCatalogListWithCounts.js";
+import { StatusCountCards, statusTabLabel } from "@shared/governance/StatusCountCards.jsx";
 import { useRuleSelection } from "@shared/governance/useRuleSelection.js";
 
 const STATUS_TABS = [
@@ -43,14 +45,19 @@ export function GdmtPoliciesPage() {
 
   const canApprove = isAuthenticated && hasRole("clinical_lead");
   const canAdmin = isAuthenticated && hasRole("admin");
+  const canRead = isAuthenticated && (canApprove || canAdmin);
 
   const loadPolicies = useCallback(async () => {
+    if (!canRead) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError("");
     try {
-      const result = await adminApi.listGdmtPolicies({
-        status: tab === "all" ? undefined : tab,
-        ...appliedFilters,
+      const result = await fetchCatalogListWithCounts(adminApi.listGdmtPolicies, {
+        tab,
+        filters: appliedFilters,
       });
       setData(result);
     } catch (err) {
@@ -58,7 +65,7 @@ export function GdmtPoliciesPage() {
     } finally {
       setLoading(false);
     }
-  }, [tab, appliedFilters]);
+  }, [tab, appliedFilters, canRead]);
 
   useEffect(() => {
     loadPolicies();
@@ -149,29 +156,26 @@ export function GdmtPoliciesPage() {
         </button>
       </header>
 
-      {!isAuthenticated && (
+      {!canRead && (
         <div className="admin-banner warning" role="status">
-          Sign in with a <strong>clinical_lead</strong> or <strong>admin</strong> account to approve GDMT policies.
+          Sign in with a <strong>clinical_lead</strong> or <strong>admin</strong> account to review counts and approve GDMT policies.
         </div>
       )}
 
-      <div className="admin-stats dose-stats">
-        <div className="stat-card dose-stat-card">
-          <span>Draft</span>
-          <strong>{data?.draft_count ?? "—"}</strong>
-          <small>Awaiting clinical review</small>
-        </div>
-        <div className="stat-card dose-stat-card">
-          <span>Approved</span>
-          <strong>{data?.approved_count ?? "—"}</strong>
-          <small>Active in recommendation engine</small>
-        </div>
-        <div className="stat-card dose-stat-card">
-          <span>Retired</span>
-          <strong>{data?.retired_count ?? "—"}</strong>
-          <small>Archived versions</small>
-        </div>
-      </div>
+      <StatusCountCards
+        activeTab={tab}
+        approvedCount={loading && !data ? undefined : (data?.approved_count ?? 0)}
+        cardClassName="stat-card dose-stat-card"
+        className="admin-stats dose-stats"
+        draftCount={loading && !data ? undefined : (data?.draft_count ?? 0)}
+        hints={{
+          draft: "Awaiting clinical review",
+          approved: "Active in recommendation engine",
+          retired: "Archived versions",
+        }}
+        onSelect={setTab}
+        retiredCount={loading && !data ? undefined : (data?.retired_count ?? 0)}
+      />
 
       <div className="tab-row dose-tab-row" role="tablist">
         {STATUS_TABS.map((item) => (
@@ -183,7 +187,7 @@ export function GdmtPoliciesPage() {
             role="tab"
             type="button"
           >
-            {item.label}
+            {statusTabLabel(item.id, item.label, data)}
           </button>
         ))}
       </div>
