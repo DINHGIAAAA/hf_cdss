@@ -1,5 +1,37 @@
 """System prompt for prescriptive clinical claim extraction during ingestion."""
 
+CHAIN_OF_THOUGHT_PROMPT = """
+Follow these steps to extract claims:
+
+Step 1: IDENTIFY - Read the text and identify all clinical statements about:
+  - Drug contraindications or warnings
+  - Dosage recommendations or adjustments
+  - Drug interactions
+  - Population restrictions (pregnancy, renal impairment, etc.)
+  - Monitoring requirements
+  - Adverse reactions
+
+Step 2: CLASSIFY - For each statement, determine:
+  - Is this a contraindication, constraint, recommendation, or interaction?
+  - What drug(s) does this apply to?
+  - What patient conditions trigger this rule?
+  - What is the clinical significance (high/medium/low)?
+
+Step 3: EXTRACT - Copy the exact evidence text (minimum 20 characters)
+  - Use VERBATIM quotes from the source text
+  - Do not paraphrase or summarize
+
+Step 4: STRUCTURE - Map to the JSON schema using allowed values only
+  - claim_type must be one of: contraindication, renal_constraint, usage_constraint, hyperkalemia_risk, dose_recommendation, drug_interaction, adverse_reaction, population_constraint, guideline_recommendation, general_monitoring
+  - action must be one of: contraindicated, not_recommended, avoid, monitor, recommended, dose_adjust, review
+  - Never join options with "|"
+
+Step 5: VALIDATE - Ensure each output field uses exactly one allowed token
+  - Check that all numeric thresholds appear verbatim in evidence
+  - Verify drug names match source text
+  - Set confidence based on clarity (0.5-1.0)
+"""
+
 CLAIM_EXTRACTION_SYSTEM_PROMPT = """You extract prescriptive clinical claims from FDA drug labels and cardiology guidelines.
 Return ONLY valid JSON with this shape (example values — NOT menus to copy):
 {
@@ -107,4 +139,147 @@ Example output:
     }
   ]
 }
+
+Example 2 - Complex Dosing:
+Input: "For patients with CrCl < 30 mL/min, reduce dose to 25 mg daily. Start at 12.5 mg in patients > 75 years. The target dose is 100 mg daily."
+
+Output:
+{
+  "claims": [
+    {
+      "claim_type": "dose_recommendation",
+      "evidence": "For patients with CrCl < 30 mL/min, reduce dose to 25 mg daily.",
+      "drug": "example_drug",
+      "action": "dose_adjust",
+      "confidence": 0.92,
+      "conditions": {"egfr": {"op": "<", "value": 30}}
+    },
+    {
+      "claim_type": "dose_recommendation",
+      "evidence": "Start at 12.5 mg in patients > 75 years.",
+      "drug": "example_drug",
+      "action": "recommended",
+      "confidence": 0.88,
+      "conditions": {"age": {"op": ">", "value": 75}}
+    },
+    {
+      "claim_type": "dose_recommendation",
+      "evidence": "The target dose is 100 mg daily.",
+      "drug": "example_drug",
+      "action": "recommended",
+      "confidence": 0.9,
+      "conditions": {}
+    }
+  ]
+}
+
+Example 3 - Drug Interaction:
+Input: "Concomitant use of ACE inhibitors and ARBs is contraindicated due to increased risk of hyperkalemia. SGLT2 inhibitors may potentiate the effect of insulin and increase hypoglycemia risk."
+
+Output:
+{
+  "claims": [
+    {
+      "claim_type": "drug_interaction",
+      "evidence": "Concomitant use of ACE inhibitors and ARBs is contraindicated due to increased risk of hyperkalemia.",
+      "drug": "ace_inhibitor",
+      "action": "contraindicated",
+      "confidence": 0.95,
+      "conditions": {},
+      "drug_set_a": ["class:acei"],
+      "drug_set_b": ["class:arb"]
+    },
+    {
+      "claim_type": "drug_interaction",
+      "evidence": "SGLT2 inhibitors may potentiate the effect of insulin and increase hypoglycemia risk.",
+      "drug": "sglt2_inhibitor",
+      "action": "monitor",
+      "confidence": 0.85,
+      "conditions": {},
+      "drug_set_a": ["class:sgtl2i"],
+      "drug_set_b": ["class:insulin"]
+    }
+  ]
+}
+
+Example 4 - Monitoring:
+Input: "Monitor serum potassium and renal function within 1 week of initiation and periodically thereafter. Check BNP levels monthly for dose optimization."
+
+Output:
+{
+  "claims": [
+    {
+      "claim_type": "general_monitoring",
+      "evidence": "Monitor serum potassium and renal function within 1 week of initiation and periodically thereafter.",
+      "drug": "example_drug",
+      "action": "monitor",
+      "confidence": 0.85,
+      "conditions": {},
+      "monitoring_params": ["potassium", "egfr", "creatinine"]
+    },
+    {
+      "claim_type": "general_monitoring",
+      "evidence": "Check BNP levels monthly for dose optimization.",
+      "drug": "example_drug",
+      "action": "monitor",
+      "confidence": 0.8,
+      "conditions": {},
+      "monitoring_params": ["bnp", "nt_probnp"]
+    }
+  ]
+}
+
+Example 5 - Hyperkalemia Risk:
+Input: "May cause hyperkalemia, especially in patients with renal impairment or those taking potassium-sparing diuretics. Monitor potassium levels regularly."
+
+Output:
+{
+  "claims": [
+    {
+      "claim_type": "hyperkalemia_risk",
+      "evidence": "May cause hyperkalemia, especially in patients with renal impairment or those taking potassium-sparing diuretics.",
+      "drug": "example_drug",
+      "action": "monitor",
+      "confidence": 0.9,
+      "conditions": {"renal_impairment": true}
+    }
+  ]
+}
+
+Example 6 - Guideline Recommendation:
+Input: "We recommend initiating SGLT2 inhibitors in all patients with HFrEF regardless of diabetes status (Class I, LOE A). Target doses should be achieved within 2-4 weeks."
+
+Output:
+{
+  "claims": [
+    {
+      "claim_type": "guideline_recommendation",
+      "evidence": "We recommend initiating SGLT2 inhibitors in all patients with HFrEF regardless of diabetes status.",
+      "drug": "sglt2_inhibitor",
+      "action": "recommended",
+      "confidence": 0.95,
+      "conditions": {"hfref": true},
+      "class_of_recommendation": "I",
+      "level_of_evidence": "A"
+    }
+  ]
+}
 """
+
+# Critique prompt for two-stage extraction
+CLAIM_CRITIQUE_PROMPT = """Review this extraction and identify issues:
+- Missing clinical conditions that should be extracted
+- Incorrect claim_type classification
+- Numeric values that contradict the source text
+- Fields filled with placeholder or invented values
+
+Source text: {text}
+
+Previous extraction: {extraction}
+
+If no issues found, respond with: {{"verdict": "approved", "revisions": []}}
+
+If issues found, respond with specific corrections in this format:
+{{"verdict": "needs_revision", "revisions": [{{"claim_index": 0, "issue": "description of issue", "suggestion": "how to fix"}}]}}
+"""
+

@@ -194,3 +194,103 @@ def dedupe_chunks(records: list[dict]) -> list[dict]:
         threshold=config.CHUNK_DEDUP_THRESHOLD,
         id_field="chunk_id",
     )
+
+
+# Smart deduplication functions for claims
+
+def _normalize_claim_for_dedup(claim: dict) -> str:
+    """Normalize claim text for deduplication comparison."""
+    import re
+    evidence = claim.get("evidence", "").lower()
+
+    # Remove specific numeric values (but keep operators)
+    evidence = re.sub(r'\d+\.?\d*\s*(?:mg|mEq|mmol|mL|pg|ng|kg|mcg|units?|/min)?', '<NUM>', evidence)
+
+    # Normalize drug names to canonical form
+    drug_normalization = {
+        r'\b(lisinopril|enalapril|ramipril|captopril|perindopril|fosinopril)\b': 'ace_inhibitor',
+        r'\b(valsartan|losartan|irbesartan|olmesartan|candesartan|telmisartan)\b': 'arb',
+        r'\b(spironolactone|eplerenone)\b': 'mra',
+        r'\b(dapagliflozin|empagliflozin|sotagliflozin|canagliflozin|ertugliflozin)\b': 'sglt2i',
+        r'\b(metoprolol|carvedilol|bisoprolol|nebivolol|atenolol)\b': 'beta_blocker',
+    }
+
+    for pattern, replacement in drug_normalization.items():
+        evidence = re.sub(pattern, replacement, evidence)
+
+    # Remove parenthetical details
+    evidence = re.sub(r'\s*\([^)]*\)', '', evidence)
+
+    return evidence.strip()
+
+
+def _semantic_dedup_key(claim: dict) -> tuple[str, ...]:
+    """Generate semantic dedup key capturing claim essence."""
+    return (
+        claim.get("claim_type", ""),
+        claim.get("action", ""),
+        frozenset(claim.get("conditions", {}).keys()),
+        _normalize_claim_for_dedup(claim)[:100],
+    )
+
+
+def dedupe_claims_smart(
+    records: list[dict],
+    semantic_threshold: float = 0.92,
+) -> list[dict]:
+    """Multi-strategy claim deduplication.
+
+    Strategy 1: Exact deduplication
+    Strategy 2: Semantic deduplication (normalized evidence)
+    Strategy 3: Embedding-based for remaining
+
+    Args:
+        records: List of claim dictionaries
+        semantic_threshold: Threshold for embedding similarity
+
+    Returns:
+        Deduplicated list of claims
+    """
+    if len(records) <= 1:
+        return records
+
+    # Strategy 1: Exact deduplication
+    seen_exact: set[tuple] = set()
+    deduped: list[dict] = []
+
+    for claim in records:
+        key = (
+            claim.get("evidence", "").strip().lower(),
+            claim.get("drug", ""),
+            claim.get("claim_type", ""),
+        )
+        if key in seen_exact:
+            continue
+        seen_exact.add(key)
+        deduped.append(claim)
+
+    # Strategy 2: Semantic deduplication
+    seen_semantic: dict[tuple[str, ...], dict] = {}
+    semantic_kept: list[dict] = []
+
+    for claim in deduped:
+        sem_key = _semantic_dedup_key(claim)
+        existing = seen_semantic.get(sem_key)
+
+        if existing is None:
+            seen_semantic[sem_key] = claim
+            semantic_kept.append(claim)
+        else:
+            # Keep higher confidence claim
+            if claim.get("confidence", 0) > existing.get("confidence", 0):
+                semantic_kept = [c for c in semantic_kept if c is not existing]
+                semantic_kept.append(claim)
+                seen_semantic[sem_key] = claim
+
+    # Strategy 3: Embedding-based for remaining
+    return dedupe_by_embedding(
+        semantic_kept,
+        text_field="evidence",
+        threshold=semantic_threshold,
+        id_field="claim_id",
+    )

@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "HF CDSS gold claim judgment",
+  "type": "object",
+  "required": [
+    "gold_id",
+    "label",
+    "evidence",
+    "document_id",
+    "source_type",
+    "safety_tier",
+    "status",
+    "annotator"
+  ],
+  "properties": {
+    "gold_id": { "type": "string", "minLength": 3 },
+    "label": {
+      "type": "string",
+      "enum": ["valid_claim", "invalid_extraction", "should_extract"]
+    },
+    "claim_type": {
+      "type": ["string", "null"],
+      "enum": [
+        "contraindication",
+        "renal_constraint",
+        "usage_constraint",
+        "hyperkalemia_risk",
+        "dose_recommendation",
+        "drug_interaction",
+        "adverse_reaction",
+        "population_constraint",
+        "guideline_recommendation",
+        "general_monitoring",
+        null
+      ]
+    },
+    "drug": { "type": ["string", "null"] },
+    "action": {
+      "type": ["string", "null"],
+      "enum": ["hard_block", "review", "consider", "monitor", null]
+    },
+    "conditions": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "evidence": { "type": "string", "minLength": 20 },
+    "document_id": { "type": "string" },
+    "source_type": { "type": "string", "enum": ["drug_label", "guideline"] },
+    "source_section": { "type": ["string", "null"] },
+    "safety_tier": {
+      "type": "string",
+      "enum": ["hard_block", "review", "informational"]
+    },
+    "status": {
+      "type": "string",
+      "enum": ["draft", "reviewed", "approved"]
+    },
+    "annotator": { "type": "string" },
+    "notes": { "type": "string" },
+    "citation": { "type": "string" }
+  },
+  "additionalProperties": true
+}

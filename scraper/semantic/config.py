@@ -77,6 +77,100 @@ SEMANTIC_CHUNK_MIN_SECTION_TOKENS = _env_int("HF_CDSS_SEMANTIC_CHUNK_MIN_SECTION
 SECTION_SIMILARITY_THRESHOLD = _env_float("HF_CDSS_SECTION_SIMILARITY_THRESHOLD", 0.52)
 # Embed scores in [borderline_low, keep_threshold) get a cheap LLM keep/drop check.
 SECTION_BORDERLINE_LOW_THRESHOLD = _env_float("HF_CDSS_SECTION_BORDERLINE_LOW_THRESHOLD", 0.40)
+
+# Adaptive threshold configuration - per-section type thresholds
+SECTION_ADAPTIVE_THRESHOLD_ENABLED = os.environ.get(
+    "HF_CDSS_SECTION_ADAPTIVE_THRESHOLD_ENABLED", "true"
+).lower() in {"1", "true", "yes"}
+
+# Per-section thresholds (higher priority = lower threshold = more permissive)
+SECTION_TYPE_THRESHOLDS: dict[str, float] = {
+    # High-priority: lower threshold (more permissive)
+    "BOXED WARNING": 0.40,
+    "BLACK BOX WARNING": 0.40,
+    "CONTRAINDICATIONS": 0.42,
+    "WARNINGS AND PRECAUTIONS": 0.45,
+    "DRUG INTERACTIONS": 0.45,
+    "DOSAGE AND ADMINISTRATION": 0.48,
+    "RENAL IMPAIRMENT": 0.48,
+    # Medium priority
+    "INDICATIONS AND USAGE": 0.50,
+    "ADVERSE REACTIONS": 0.50,
+    "USE IN SPECIFIC POPULATIONS": 0.48,
+    # Lower priority: higher threshold
+    "CLINICAL PHARMACOLOGY": 0.55,
+    "CLINICAL STUDIES": 0.55,
+    "DESCRIPTION": 0.58,
+    "HOW SUPPLIED": 0.60,
+}
+
+# Per-guideline-topic thresholds
+GUIDELINE_TOPIC_THRESHOLDS: dict[str, float] = {
+    # High clinical impact
+    "contraindications": 0.42,
+    "warnings": 0.44,
+    "drug interactions": 0.44,
+    "monitoring": 0.46,
+    "dosing": 0.48,
+    "renal dysfunction": 0.46,
+    "hyperkalemia": 0.44,
+    # Medium impact
+    "recommendations": 0.50,
+    "drug therapy": 0.50,
+    "heart failure phenotypes": 0.50,
+    "atrial fibrillation": 0.50,
+    "hypertension": 0.52,
+    "diabetes": 0.52,
+    "comorbidities": 0.52,
+    # Lower impact
+    "biomarkers": 0.54,
+    "liver function": 0.54,
+    "mortality": 0.55,
+    "hospitalization": 0.55,
+}
+
+# Threshold relaxation for longer content
+MIN_TEXT_LENGTH_FOR_RELAXED_THRESHOLD = 200
+THRESHOLD_RELAXATION_AMOUNT = 0.03
+MAX_THRESHOLD_REDUCTION = 0.05
+
+
+def get_adaptive_threshold(
+    section: str,
+    topic: str,
+    text_length: int,
+    source_type: str,
+) -> float:
+    """Calculate adaptive threshold based on section type and content."""
+    if not SECTION_ADAPTIVE_THRESHOLD_ENABLED:
+        return SECTION_SIMILARITY_THRESHOLD
+
+    section_upper = section.upper() if section else ""
+
+    if source_type == "drug_label":
+        base_threshold = SECTION_TYPE_THRESHOLDS.get(
+            section_upper,
+            SECTION_SIMILARITY_THRESHOLD
+        )
+    else:
+        base_threshold = GUIDELINE_TOPIC_THRESHOLDS.get(
+            topic.lower(),
+            SECTION_SIMILARITY_THRESHOLD
+        )
+
+    # Relax threshold for longer, substantive content
+    reduction = 0.0
+    if text_length >= MIN_TEXT_LENGTH_FOR_RELAXED_THRESHOLD:
+        reduction = min(
+            THRESHOLD_RELAXATION_AMOUNT,
+            (text_length / 1000) * THRESHOLD_RELAXATION_AMOUNT
+        )
+
+    return max(
+        base_threshold - reduction,
+        base_threshold - MAX_THRESHOLD_REDUCTION
+    )
+
 SECTION_BORDERLINE_LLM_ENABLED = os.environ.get("HF_CDSS_SECTION_BORDERLINE_LLM_ENABLED", "true").lower() in {
     "1",
     "true",

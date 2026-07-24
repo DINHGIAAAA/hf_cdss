@@ -15,6 +15,98 @@ from scraper.semantic import config
 
 logger = logging.getLogger(__name__)
 
+# Clinical priority patterns for context optimization
+LLM_PRIORITY_PATTERNS = [
+    r"contraindicat",
+    r"dos(e|ing|age)",
+    r"warning",
+    r"precaution",
+    r"interact",
+    r"contraindicated",
+    r"adverse",
+    r"renal",
+    r"hepatic",
+    r"pregnan",
+    r"pediatr",
+    r"geriatr",
+    r"monitor",
+    r"hyperkalem",
+    r"hypotens",
+]
+
+
+def _estimate_tokens(text: str) -> int:
+    """Rough token estimation (avg 4 chars per token)."""
+    return len(text) // 4
+
+
+def _split_into_sentences(text: str) -> list[str]:
+    """Split text into sentences."""
+    # Simple sentence splitting
+    sentence_pattern = re.compile(r'(?<=[.!?])\s+')
+    return sentence_pattern.split(text)
+
+
+def prepare_section_context(
+    text: str,
+    max_tokens: int = 2000,
+) -> str:
+    """Extract most relevant portion of long sections using semantic priority.
+
+    For long sections, prioritize content containing clinical importance markers
+    (contraindications, dosing, warnings, interactions) over less critical content.
+    """
+    chunk_size = _estimate_tokens(text)
+
+    if chunk_size <= max_tokens:
+        return text
+
+    # Extract sentences with priority patterns
+    sentences = _split_into_sentences(text)
+    priority_sentences = []
+    regular_sentences = []
+
+    for sentence in sentences:
+        sentence = sentence.strip()
+        if not sentence:
+            continue
+        # Check if sentence matches priority patterns
+        is_priority = any(
+            re.search(pattern, sentence, re.IGNORECASE)
+            for pattern in LLM_PRIORITY_PATTERNS
+        )
+        if is_priority:
+            priority_sentences.append(sentence)
+        else:
+            regular_sentences.append(sentence)
+
+    # If enough priority content, use it first
+    priority_tokens = _estimate_tokens(" ".join(priority_sentences))
+    if priority_tokens > max_tokens * 0.6:
+        # Greedily select priority sentences up to limit
+        selected = []
+        for s in priority_sentences:
+            if _estimate_tokens(" ".join(selected + [s])) <= max_tokens:
+                selected.append(s)
+            else:
+                break
+        return " ".join(selected)
+
+    # Otherwise, combine priority + regular up to limit
+    selected = priority_sentences.copy()
+    for s in regular_sentences:
+        if _estimate_tokens(" ".join(selected + [s])) <= max_tokens:
+            selected.append(s)
+        else:
+            break
+
+    if not selected:
+        # Fallback: head + tail
+        half = max_tokens // 2
+        return text[:half * 4] + "\n\n... [truncated] ...\n\n" + text[-half * 4:]
+
+    return " ".join(selected)
+
 
 def extract_json_object(text: str) -> dict[str, Any] | None:
     stripped = (text or "").strip()
@@ -103,16 +195,30 @@ def _http_timeout(seconds: float) -> httpx.Timeout:
     return httpx.Timeout(connect=10.0, read=read, write=30.0, pool=30.0)
 
 
-def _call_llm_json_raw(system_prompt: str, user_prompt: str, *, max_tokens: int) -> dict[str, Any] | None:
+def _call_llm_json_raw(
+    system_prompt: str,
+    user_prompt: str,
+    *,
+    max_tokens: int,
+    model: str | None = None,
+    timeout_seconds: float | None = None,
+    num_ctx: int | None = None,
+) -> dict[str, Any] | None:
     url = f"{config.LLM_BASE_URL.rstrip('/')}/chat/completions"
     max_attempts = max(1, config.LLM_MAX_RETRIES + 1)
     current_prompt = user_prompt
-    current_max_tokens = max(256, max_tokens)
-    timeout_seconds = config.INGESTION_LLM_TIMEOUT_SECONDS
+    current_max_tokens = max(64, max_tokens)
+    resolved_model = model or config.INGESTION_LLM_MODEL
+    resolved_timeout = (
+        float(timeout_seconds)
+        if timeout_seconds is not None
+        else float(config.INGESTION_LLM_TIMEOUT_SECONDS)
+    )
+    resolved_ctx = int(num_ctx) if num_ctx is not None else 2048
 
     for attempt in range(1, max_attempts + 1):
         payload = {
-            "model": config.INGESTION_LLM_MODEL,
+            "model": resolved_model,
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": current_prompt},
@@ -122,11 +228,11 @@ def _call_llm_json_raw(system_prompt: str, user_prompt: str, *, max_tokens: int)
             # Keep Ollama generation bounded so CPU runs finish before client timeout.
             "options": {
                 "num_predict": current_max_tokens,
-                "num_ctx": 4096,
+                "num_ctx": resolved_ctx,
             },
         }
         try:
-            with httpx.Client(timeout=_http_timeout(timeout_seconds)) as client:
+            with httpx.Client(timeout=_http_timeout(resolved_timeout)) as client:
                 response = client.post(
                     url,
                     headers={"Content-Type": "application/json"},
@@ -140,14 +246,14 @@ def _call_llm_json_raw(system_prompt: str, user_prompt: str, *, max_tokens: int)
             retryable = isinstance(exc, httpx.TimeoutException) or "timed out" in str(exc).lower()
             if retryable and attempt < max_attempts:
                 current_prompt = _shrink_user_prompt(current_prompt)
-                current_max_tokens = max(256, current_max_tokens // 2)
+                current_max_tokens = max(64, current_max_tokens // 2)
                 logger.warning(
                     "LLM request timed out (attempt %s/%s, model=%s, timeout=%.0fs); "
                     "retrying with shorter prompt (max_tokens=%s)",
                     attempt,
                     max_attempts,
-                    config.INGESTION_LLM_MODEL,
-                    timeout_seconds,
+                    resolved_model,
+                    resolved_timeout,
                     current_max_tokens,
                 )
                 continue
@@ -157,15 +263,30 @@ def _call_llm_json_raw(system_prompt: str, user_prompt: str, *, max_tokens: int)
     return None
 
 
-def call_llm_json(system_prompt: str, user_prompt: str, *, max_tokens: int | None = None) -> dict[str, Any] | None:
+def call_llm_json(
+    system_prompt: str,
+    user_prompt: str,
+    *,
+    max_tokens: int | None = None,
+    model: str | None = None,
+    timeout_seconds: float | None = None,
+    num_ctx: int | None = None,
+) -> dict[str, Any] | None:
     max_tokens = max_tokens or config.LLM_MAX_TOKENS
-    model = config.INGESTION_LLM_MODEL
-    cache_key = _cache_key(system_prompt, user_prompt, max_tokens=max_tokens, model=model)
+    resolved_model = model or config.INGESTION_LLM_MODEL
+    cache_key = _cache_key(system_prompt, user_prompt, max_tokens=max_tokens, model=resolved_model)
     cached = _read_cache(cache_key)
     if cached is not None:
         return cached
 
-    payload = _call_llm_json_raw(system_prompt, user_prompt, max_tokens=max_tokens)
+    payload = _call_llm_json_raw(
+        system_prompt,
+        user_prompt,
+        max_tokens=max_tokens,
+        model=resolved_model,
+        timeout_seconds=timeout_seconds,
+        num_ctx=num_ctx,
+    )
     if payload:
         _write_cache(cache_key, payload)
     return payload

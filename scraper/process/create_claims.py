@@ -93,18 +93,27 @@ def extract_drug_from_text(text: str) -> str | None:
 
 CLAIM_PATTERNS = {
     "contraindication": (
-        "contraindicated",
-        "contraindication",
+        "is contraindicated",
+        "are contraindicated",
+        "contraindicated in",
+        "contraindicated for",
+        "contraindicated with",
         "must not",
-        "should not be used",
         "do not use",
+        "do not administer",
+        "should not be used",
     ),
     "renal_constraint": (
         "egfr",
+        "creatinine clearance",
+        "crcl",
         "renal impairment",
         "kidney impairment",
         "renal dysfunction",
-        "dialysis",
+        "severe renal",
+        "end stage renal",
+        "dialysis patients",
+        "on dialysis",
     ),
     "usage_constraint": (
         "not recommended",
@@ -116,46 +125,145 @@ CLAIM_PATTERNS = {
         "hyperkalemia",
         "hyperkalaemia",
         "serum potassium",
-        "potassium",
+        "potassium greater",
+        "potassium >",
+        "k+ >",
     ),
     "dose_recommendation": (
         "recommended dose",
         "starting dose",
-        "dose is",
-        "dosage",
-        "administer",
+        "initial dose",
+        "target dose",
+        "mg once daily",
+        "mg twice daily",
         "titrate",
+        "dose is",
     ),
     "drug_interaction": (
+        "drug interaction",
         "drug interactions",
-        "concomitant",
+        "concomitant use",
+        "concomitant administration",
         "coadministration",
-        "inhibitor",
-        "inducer",
+        "co-administration",
+        "coadministered",
+        "co-administered",
+        "when used with",
+        "avoid concomitant",
+        "used with",
     ),
     "adverse_reaction": (
         "adverse reaction",
         "adverse reactions",
-        "bleeding",
-        "hypotension",
-        "hypoglycemia",
+        "serious adverse",
+        "life-threatening",
+        "anaphylaxis",
+        "angioedema",
+        "ketoacidosis",
     ),
     "population_constraint": (
         "pregnancy",
+        "pregnant",
+        "fetal harm",
         "lactation",
         "pediatric",
         "geriatric",
         "specific populations",
     ),
     "guideline_recommendation": (
-        "recommend",
-        "recommended",
-        "should",
+        "is recommended",
+        "are recommended",
+        "should be initiated",
+        "should be used",
         "is indicated",
+        "are indicated",
         "is useful",
-        "benefit",
+        "class 1",
+        "class i ",
     ),
 }
+
+# Non-actionable / boilerplate spans — never emit regex claims.
+WEAK_SPAN_PATTERNS = (
+    r"\bsee (contraindications|warnings|precautions|drug interactions|dosage and administration)\b",
+    r"\bmean baseline (egfr|creatinine|egfr was)\b",
+    r"\bwere not included in (the )?clinical\b",
+    r"\bclasses of recommendations?\b",
+    r"\bthe following (additional )?adverse reactions have been (identified|reported)\b",
+    r"\bpackaging is open or damaged\b",
+    r"\bprefilled syringe\b",
+    r"\bhemodialysis is not likely to be of benefit\b",
+    r"\bhighly protein bound\b",
+    r"\bkeywords?\s*:",
+    r"\bpermissions?\s*:",
+    r"\btable of contents\b",
+    r"^\s*classes of recommendations\.?\s*$",
+    # Interaction boilerplate / non-actionable
+    r"\btable\s+\d+\s*(lists|:)?\s*drug interactions?\b",
+    r"^\s*table\s+\d+\s*:.*drug interactions?\b",
+    r"\bno evidence of drug interactions?\b",
+    r"\bno clinically significant (pharmacokinetic )?interactions?\b",
+    r"\bdid not significantly (change|affect|alter)\b",
+    r"\bdid not affect bleeding time\b",
+    r"\bno precautions are necessary\b",
+    r"\bconsult the prescribing information of any drug\b",
+    r"^\s*drug interactions?\s*$",
+    r"^\s*drug interaction studies\b",
+)
+
+INTERACTION_MECH_CUES = (
+    "concomitant",
+    "coadministrat",
+    "co-administrat",
+    "coadministered",
+    "co-administered",
+    "drug interaction",
+    "when used with",
+    "avoid with",
+    "used together",
+    "used with",
+    "co-prescribed",
+)
+
+INTERACTION_EFFECT_CUES = (
+    "increas",
+    "decreas",
+    "avoid",
+    "monitor",
+    "toxicity",
+    "potentiat",
+    "risk of",
+    "exposure",
+    "concentrat",
+    "myopathy",
+    "rhabdomyolysis",
+    "hypoglycemia",
+    "bleeding",
+    "do not",
+    "should not",
+    "may result",
+    "lead to",
+    "several-fold",
+    "reduce the dose",
+    "dose reduction",
+    "contraindicat",
+    "not recommended",
+    "elevat",
+    "prolong",
+    "qt ",
+)
+
+INTERACTION_NEGATIVE_CUES = (
+    "no evidence of drug interaction",
+    "no clinically significant",
+    "did not significantly",
+    "did not affect",
+    "no precautions are necessary",
+    "consult the prescribing information of any drug",
+    "lists drug interactions",
+    "there was no evidence of drug interaction",
+    "no pharmacokinetic interactions were observed",
+)
 
 STRONG_MODAL_TERMS = (
     "contraindicated",
@@ -169,6 +277,134 @@ STRONG_MODAL_TERMS = (
     "is indicated",
 )
 
+_DOSE_NUMBER = re.compile(r"\b\d+(?:\.\d+)?\s*mg\b", re.I)
+
+
+def is_weak_span(sentence: str) -> bool:
+    text = (sentence or "").strip()
+    if len(text) < 25:
+        return True
+    lowered = text.lower()
+    return any(re.search(pattern, lowered, flags=re.I) for pattern in WEAK_SPAN_PATTERNS)
+
+
+def _has_dose_signal(haystack: str) -> bool:
+    if _DOSE_NUMBER.search(haystack):
+        return True
+    return any(
+        term in haystack
+        for term in (
+            "recommended dose",
+            "starting dose",
+            "initial dose",
+            "target dose",
+            "titrate",
+            "once daily",
+            "twice daily",
+        )
+    )
+
+
+def _matches_claim_type(claim_type: str, haystack: str) -> bool:
+    """Extra gates after keyword hit — reduces type misfires."""
+    if claim_type == "contraindication":
+        # Require a real prohibition, not a cross-ref or incidental mention.
+        return any(
+            cue in haystack
+            for cue in (
+                "is contraindicated",
+                "are contraindicated",
+                "contraindicated in",
+                "contraindicated for",
+                "contraindicated with",
+                "must not",
+                "do not use",
+                "do not administer",
+                "should not be used",
+            )
+        )
+    if claim_type == "dose_recommendation":
+        # Pregnancy/fetal harm without dosing numbers is population, not dose.
+        if any(term in haystack for term in ("fetal harm", "pregnancy", "pregnant")) and not _has_dose_signal(haystack):
+            return False
+        return _has_dose_signal(haystack)
+    if claim_type == "renal_constraint":
+        if "protein bound" in haystack or "not likely to be of benefit" in haystack:
+            return False
+        return any(
+            cue in haystack
+            for cue in (
+                "egfr",
+                "creatinine clearance",
+                "crcl",
+                "renal impairment",
+                "kidney impairment",
+                "renal dysfunction",
+                "dialysis",
+            )
+        ) and any(
+            cue in haystack
+            for cue in (
+                "contraindicat",
+                "not recommended",
+                "avoid",
+                "do not",
+                "should not",
+                "adjust",
+                "reduce",
+                "less than",
+                "<",
+                "dose",
+                "impairment",
+            )
+        )
+    if claim_type == "drug_interaction":
+        if any(neg in haystack for neg in INTERACTION_NEGATIVE_CUES):
+            return False
+        if re.search(r"\btable\s+\d+\b.*\bdrug interactions?\b", haystack):
+            return False
+        # Section title / header with little clinical content.
+        if re.match(r"^\s*drug interactions?\b", haystack) and len(haystack) < 100:
+            if not any(cue in haystack for cue in INTERACTION_EFFECT_CUES):
+                return False
+        has_mech = any(cue in haystack for cue in INTERACTION_MECH_CUES)
+        has_effect = any(cue in haystack for cue in INTERACTION_EFFECT_CUES)
+        return has_mech and has_effect
+    if claim_type == "adverse_reaction":
+        # Drop list headers with no concrete event beyond the boilerplate phrase.
+        if re.search(
+            r"the following (additional )?adverse reactions have been (identified|reported)",
+            haystack,
+        ) and not any(
+            cue in haystack
+            for cue in ("include", ":", "angioedema", "ketoacidosis", "anaphylaxis", "bleeding", "hypotension")
+        ):
+            return False
+        # "adverse reactions" alone in a heading-like short clause is weak.
+        if haystack.strip() in {"adverse reactions.", "adverse reaction."}:
+            return False
+        return True
+    if claim_type == "population_constraint":
+        return any(
+            cue in haystack
+            for cue in ("pregnancy", "pregnant", "fetal", "lactation", "pediatric", "geriatric", "specific populations")
+        )
+    if claim_type == "guideline_recommendation":
+        if "classes of recommendation" in haystack:
+            return False
+        return any(
+            cue in haystack
+            for cue in ("is recommended", "are recommended", "should be", "is indicated", "are indicated", "is useful")
+        )
+    if claim_type == "hyperkalemia_risk":
+        # Bare "potassium" without hyperkalemia/serum risk language is too noisy.
+        return any(
+            cue in haystack
+            for cue in ("hyperkalemia", "hyperkalaemia", "serum potassium", "potassium greater", "potassium >")
+        )
+    return True
+
+
 def sentence_split(text: str) -> list[str]:
     text = re.sub(r"\s+", " ", text or "").strip()
     if not text:
@@ -176,8 +412,25 @@ def sentence_split(text: str) -> list[str]:
     sentences = re.split(r"(?<=[.!?])\s+(?=[A-Z0-9(])", text)
     return [sentence.strip() for sentence in sentences if len(sentence.strip()) >= 20]
 
+
 def classify_claim(sentence: str, source_type: str) -> str | None:
     haystack = sentence.lower()
+    if is_weak_span(sentence):
+        return None
+
+    # Fetal harm / pregnancy without dose numbers → population, not dose.
+    if (
+        any(term in haystack for term in ("fetal harm", "pregnancy", "pregnant", "lactation"))
+        and not _has_dose_signal(haystack)
+        and source_type == "drug_label"
+    ):
+        if "contraindicat" in haystack or "do not" in haystack or "should not" in haystack or "fetal harm" in haystack:
+            if _matches_claim_type("contraindication", haystack) or "fetal harm" in haystack:
+                # Prefer explicit CI wording; otherwise population.
+                if _matches_claim_type("contraindication", haystack):
+                    return "contraindication"
+                return "population_constraint"
+
     ranked: list[tuple[int, str]] = []
     priority = {
         "contraindication": 0,
@@ -193,8 +446,11 @@ def classify_claim(sentence: str, source_type: str) -> str | None:
     for claim_type, terms in CLAIM_PATTERNS.items():
         if claim_type == "guideline_recommendation" and source_type != "guideline":
             continue
-        if any(term in haystack for term in terms):
-            ranked.append((priority.get(claim_type, 99), claim_type))
+        if not any(term in haystack for term in terms):
+            continue
+        if not _matches_claim_type(claim_type, haystack):
+            continue
+        ranked.append((priority.get(claim_type, 99), claim_type))
     if not ranked:
         return None
     ranked.sort(key=lambda item: item[0])
@@ -217,6 +473,8 @@ def claim_id(record: dict, sentence: str, index: int) -> str:
     return f"claim_{digest}"
 
 def create_claim_regex(record: dict, sentence: str, index: int) -> dict | None:
+    if is_weak_span(sentence):
+        return None
     claim_type = classify_claim(sentence, record.get("source_type", ""))
     if claim_type is None:
         return None
@@ -355,13 +613,32 @@ def claims_from_records(records: list[dict], max_claims_per_section: int) -> lis
     return dedupe_claims(dedupe_claims_by_id([*regex_claims, *llm_claims]))
 
 def main() -> None:
+    from scraper.paths import data_root
+
+    root = data_root()
     parser = argparse.ArgumentParser(description="Create claims from important sections.")
-    parser.add_argument("--input", default="processed/sections/important_sections.jsonl", type=Path)
-    parser.add_argument("--output", default="artifacts/claims/claims.jsonl", type=Path)
+    parser.add_argument(
+        "--input",
+        default=root / "processed" / "sections" / "important_sections.jsonl",
+        type=Path,
+    )
+    parser.add_argument(
+        "--output",
+        default=root / "artifacts" / "claims" / "claims.jsonl",
+        type=Path,
+    )
     parser.add_argument("--max-claims-per-section", default=40, type=int)
     args = parser.parse_args()
 
-    claims = claims_from_records(read_jsonl(args.input), args.max_claims_per_section)
+    if not args.input.exists():
+        raise SystemExit(
+            f"Input not found: {args.input}\n"
+            f"Set HF_CDSS_DATA_ROOT or run with --input pointing at important_sections.jsonl"
+        )
+
+    records = read_jsonl(args.input)
+    print(f"Loaded {len(records)} sections from {args.input}")
+    claims = claims_from_records(records, args.max_claims_per_section)
     write_jsonl(claims, args.output)
     print(f"Wrote {len(claims)} claims to {args.output}")
 

@@ -16,6 +16,12 @@ data/heart_failure/raw/
 data/heart_failure/processed/
 data/heart_failure/artifacts/
 
+# Local gold review queues (committed gold lives in evaluation/gold/).
+evaluation/candidates/
+
+# Auto-eval reports (regenerable).
+evaluation/reports/
+
 # Ephemeral raw staging (S3 is durable source of truth).
 .work/
 

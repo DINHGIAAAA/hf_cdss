@@ -11,14 +11,77 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 
 DRUG_SECTION_ALIASES = {
-    "INDICATIONS AND USAGE": {"INDICATIONS AND USAGE", "INDICATIONS & USAGE"},
-    "DOSAGE AND ADMINISTRATION": {"DOSAGE AND ADMINISTRATION", "DOSAGE & ADMINISTRATION"},
-    "CONTRAINDICATIONS": {"CONTRAINDICATIONS"},
-    "WARNINGS AND PRECAUTIONS": {"WARNINGS AND PRECAUTIONS", "WARNINGS", "BOXED WARNING"},
-    "ADVERSE REACTIONS": {"ADVERSE REACTIONS"},
-    "DRUG INTERACTIONS": {"DRUG INTERACTIONS"},
-    "USE IN SPECIFIC POPULATIONS": {"USE IN SPECIFIC POPULATIONS"},
-    "RENAL IMPAIRMENT": {"RENAL IMPAIRMENT"},
+    "INDICATIONS AND USAGE": {
+        "INDICATIONS AND USAGE", "INDICATIONS & USAGE", "INDICATIONS",
+        "THERAPEUTIC INDICATIONS", "INDICATIONS AND CLINICAL USE",
+    },
+    "DOSAGE AND ADMINISTRATION": {
+        "DOSAGE AND ADMINISTRATION", "DOSAGE & ADMINISTRATION",
+        "DOSAGE", "ADMINISTRATION", "DOSE AND FREQUENCY",
+    },
+    "CONTRAINDICATIONS": {"CONTRAINDICATIONS", "CONTRAINDICATION"},
+    "WARNINGS AND PRECAUTIONS": {
+        "WARNINGS AND PRECAUTIONS", "WARNINGS", "PRECAUTIONS",
+        "BOXED WARNING", "WARNING", "ADVERSE WARNINGS",
+    },
+    "ADVERSE REACTIONS": {
+        "ADVERSE REACTIONS", "ADVERSE EVENTS", "SIDE EFFECTS",
+        "UNToward EVENTS", "TOXICITY",
+    },
+    "DRUG INTERACTIONS": {
+        "DRUG INTERACTIONS", "DRUG INTERACTION", "DRUG-DRUG INTERACTIONS",
+        "DRUG-FOOD INTERACTIONS", "INTERACTIONS",
+    },
+    "USE IN SPECIFIC POPULATIONS": {
+        "USE IN SPECIFIC POPULATIONS", "SPECIFIC POPULATIONS",
+    },
+    "RENAL IMPAIRMENT": {
+        "RENAL IMPAIRMENT", "RENAL DYSFUNCTION", "KIDNEY IMPAIRMENT",
+        "DOSAGE IN RENAL IMPAIRMENT", "DOSE ADJUSTMENT RENAL",
+    },
+    # NEW SECTIONS
+    "CLINICAL PHARMACOLOGY": {
+        "CLINICAL PHARMACOLOGY", "PHARMACOLOGY", "PHARMACODYNAMICS",
+        "PHARMACOKINETICS", "PK/PD", "MECHANISM OF ACTION",
+    },
+    "CLINICAL STUDIES": {
+        "CLINICAL STUDIES", "CLINICAL TRIALS", "TRIALS",
+        "EFFICACY", "EFFECTIVENESS", "STUDY RESULTS",
+    },
+    "OVERDOSAGE": {
+        "OVERDOSAGE", "OVERDOSE", "TOXICITY", "POISONING",
+        "MANAGEMENT OF OVERDOSE",
+    },
+    "DESCRIPTION": {
+        "DESCRIPTION", "PRODUCT DESCRIPTION", "CHEMICAL DESCRIPTION",
+        "ACTIVE INGREDIENT", "FORMULATION",
+    },
+    "BLACK BOX WARNING": {
+        "BLACK BOX WARNING", "BOXED WARNING", "SERIOUS WARNINGS",
+    },
+    "PATIENT COUNSELING": {
+        "PATIENT COUNSELING", "PATIENT INFORMATION", "PATIENT EDUCATION",
+    },
+    "HOW SUPPLIED": {
+        "HOW SUPPLIED", "DOSAGE FORMS", "AVAILABILITY",
+        "PACKAGING", "STORAGE",
+    },
+    "GERIATRIC USE": {
+        "GERIATRIC USE", "ELDERLY", "OLDER ADULTS",
+    },
+    "PEDIATRIC USE": {
+        "PEDIATRIC USE", "CHILDREN", "PEDIATRICS", "ADOLESCENTS",
+    },
+    "PREGNANCY": {
+        "PREGNANCY", "PREGNANCY CATEGORY", "TERATOGENICITY",
+    },
+    "NURSING MOTHERS": {
+        "NURSING MOTHERS", "LACTATION", "BREASTFEEDING",
+    },
+    "TOXICOLOGY": {
+        "TOXICOLOGY", "CARCINOGENESIS", "MUTAGENESIS",
+        "IMPAIRMENT OF FERTILITY",
+    },
 }
 
 GUIDELINE_TOPICS = {
@@ -72,6 +135,63 @@ GUIDELINE_TOPICS = {
     "atrial fibrillation": ("atrial fibrillation", "afib", "af "),
     "diabetes": ("diabetes", "diabetic", "glycemic", "glycaemic", "hba1c"),
     "hypertension": ("hypertension", "blood pressure", "antihypertensive"),
+    # NEW TOPICS
+    "heart failure phenotypes": (
+        "hfrEF", "hfref", "hfmrEF", "hfPef", "reduced ejection fraction",
+        "mid-range ejection fraction", "preserved ejection fraction", "phenotype",
+    ),
+    "biomarkers": (
+        "bnp", "nt-probnp", "ntprobnp", "brain natriuretic", "troponin",
+        "galectin-3", "st2", "biomarker", "serum marker",
+    ),
+    "liver function": (
+        "lft", "liver function", "alt", "ast", "bilirubin", "hepatic",
+        "transaminases", "liver enzymes", "hepatotoxicity",
+    ),
+    "electrolyte abnormalities": (
+        "hyponatremia", "hypernatremia", "hypokalemia", "hyperkalemia",
+        "low sodium", "high sodium", "electrolyte", "magnesium", "phosphate",
+    ),
+    "volume status": (
+        "volume overload", "congestion", "congestive", "fluid overload",
+        "edema", "weight gain", "jugular venous", "jvp", "rales",
+    ),
+    "device therapy": (
+        "icd", "crt", "pacemaker", "defibrillator", "cardiac resynchronization",
+        "lvad", "mechanical circulatory support",
+    ),
+    "acute decompensation": (
+        "acute decompensated", "adhf", "acute hf", "worsening hf",
+        "hf exacerbation", "flash pulmonary edema", "cardiogenic shock",
+    ),
+    "quality of life": (
+        "quality of life", "qol", "symptom burden", "functional status",
+        "exercise capacity", "six-minute walk", "dyspnea", "fatigue",
+    ),
+    "hospitalization": (
+        "hospitalization", "hospital admission", "readmission",
+        "length of stay", "inpatient", "outpatient",
+    ),
+    "mortality": (
+        "mortality", "death", "survival", "cardiovascular death",
+        "sudden cardiac death", "all-cause mortality",
+    ),
+    "guideline adherence": (
+        "guideline-directed", "gdmt", "optimal therapy", "target dose",
+        "evidence-based", "protocol", "pathway",
+    ),
+    "special populations": (
+        "elderly", "geriatric", "pediatric", "pregnant", "renal failure",
+        "hepatic impairment", "frail", "overweight", "obese",
+    ),
+    "medication adherence": (
+        "adherence", "compliance", "persistence", "non-adherence",
+        "medication possession", "refill", "discontinuation",
+    ),
+    "race and ethnicity": (
+        "african american", "black", "hispanic", "asian", "race",
+        "ethnicity", "cultural", "socioeconomic", "disparities",
+    ),
 }
 
 def normalize(value: str) -> str:
@@ -100,12 +220,60 @@ def guideline_matches(record: dict) -> list[str]:
         if any(term in haystack for term in terms)
     ]
 
+from dataclasses import dataclass, field
+
 from scraper.kg.identifiers import section_id_for_record
+
+
+@dataclass
+class SectionHierarchy:
+    """Track hierarchical relationships between document sections."""
+    root: str
+    parent: str | None = None
+    depth: int = 0
+    path: list[str] = field(default_factory=list)
+
+    @property
+    def full_path(self) -> str:
+        return " > ".join(self.path) if self.path else self.root
+
+
+def parse_section_hierarchy(section_title: str) -> SectionHierarchy:
+    """Parse section title into hierarchical components.
+
+    Examples:
+    - "DOSAGE AND ADMINISTRATION" -> root="DOSAGE AND ADMINISTRATION"
+    - "WARNINGS AND PRECAUTIONS / HYPERKALEMIA" -> root="WARNINGS", parent="HYPERKALEMIA"
+    """
+    parts = [p.strip() for p in section_title.split("/")]
+
+    if len(parts) == 1:
+        return SectionHierarchy(root=parts[0])
+
+    return SectionHierarchy(
+        root=parts[0],
+        parent=parts[1] if len(parts) > 1 else None,
+        depth=len(parts) - 1,
+        path=parts
+    )
+
 
 def mark_record(record: dict, matched_topics: list[str]) -> dict:
     output = dict(record)
     metadata = dict(output.get("metadata") or {})
     metadata["matched_important_topics"] = matched_topics
+
+    # Add section hierarchy
+    section_title = record.get("section", "")
+    hierarchy = parse_section_hierarchy(section_title)
+    metadata["section_hierarchy"] = {
+        "root": hierarchy.root,
+        "parent": hierarchy.parent,
+        "depth": hierarchy.depth,
+        "full_path": hierarchy.full_path,
+        "is_nested": hierarchy.depth > 0,
+    }
+
     section_id_value = section_id_for_record(output)
     metadata["section_id"] = section_id_value
     output["section_id"] = section_id_value

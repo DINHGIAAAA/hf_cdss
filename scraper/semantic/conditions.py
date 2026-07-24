@@ -72,6 +72,7 @@ def normalize_conditions(raw: dict[str, Any] | None) -> dict[str, Any]:
 
     condition: dict[str, Any] = {}
 
+    # Original numeric conditions
     for key, aliases in (
         ("egfr", ()),
         ("potassium", ()),
@@ -86,6 +87,54 @@ def normalize_conditions(raw: dict[str, Any] | None) -> dict[str, Any]:
         formatted = _normalize_numeric_condition(raw, key, aliases)
         if formatted:
             condition[key] = formatted
+
+    # NEW: Liver function tests
+    for key, aliases in (
+        ("alt", ("alanine_aminotransferase", "sgpt")),
+        ("ast", ("aspartate_aminotransferase", "sgot")),
+        ("bilirubin", ("total_bilirubin",)),
+        ("albumin", ("serum_albumin",)),
+    ):
+        formatted = _normalize_numeric_condition(raw, key, aliases)
+        if formatted:
+            condition[key] = formatted
+
+    # NEW: Natriuretic peptides
+    for key, aliases in (
+        ("bnp", ("brain_natriuretic_peptide",)),
+        ("nt_probnp", ("ntprobnp", "n-terminal_probnp", "nt_pro_bnp")),
+    ):
+        formatted = _normalize_numeric_condition(raw, key, aliases)
+        if formatted:
+            condition[key] = formatted
+
+    # NEW: Electrolytes
+    for key, aliases in (
+        ("sodium", ("na", "serum_sodium")),
+        ("magnesium", ("mg", "serum_magnesium")),
+    ):
+        formatted = _normalize_numeric_condition(raw, key, aliases)
+        if formatted:
+            condition[key] = formatted
+
+    # NEW: Cardiac biomarkers
+    for key, aliases in (
+        ("troponin", ("cardiac_troponin", "hs_troponin", "troponin_i", "troponin_t")),
+        ("ferritin", ("iron", "serum_ferritin")),
+    ):
+        formatted = _normalize_numeric_condition(raw, key, aliases)
+        if formatted:
+            condition[key] = formatted
+
+    # NEW: BMI
+    formatted = _normalize_numeric_condition(raw, "bmi", ("body_mass_index",))
+    if formatted:
+        condition["bmi"] = formatted
+
+    # NEW: Diastolic BP
+    formatted = _normalize_numeric_condition(raw, "diastolic_bp", ("dbp", "diastolic_blood_pressure"))
+    if formatted:
+        condition["diastolic_bp"] = formatted
 
     indication = raw.get("indication")
     if isinstance(indication, str) and indication.strip():
@@ -130,6 +179,22 @@ def normalize_conditions(raw: dict[str, Any] | None) -> dict[str, Any]:
         "inotropic_support",
         "anuria",
         "bilateral_renal_artery_stenosis",
+    ):
+        value = _coerce_bool(raw.get(bool_key))
+        if value is True:
+            condition[bool_key] = True
+
+    # NEW: Additional boolean conditions
+    for bool_key in (
+        "iron_deficiency",
+        "anemia",
+        "hypoxemia",
+        "thyroid_disorder",
+        "sleep_apnea",
+        "pulmonary_hypertension",
+        "valvular_disease",
+        "frailty",
+        "cachexia",
     ):
         value = _coerce_bool(raw.get(bool_key))
         if value is True:
