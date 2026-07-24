@@ -143,6 +143,7 @@ def _pipeline_step_order() -> list[str]:
         # Legacy monolithic alias kept for old checkpoints.
         "governance_catalog_steps",
         "derive_relationships",
+        "repair_chunk_provenance",
         "validate_kg_artifacts",
         "publish_extract_to_processed_s3",
         "publish_governance_catalogs_to_s3",

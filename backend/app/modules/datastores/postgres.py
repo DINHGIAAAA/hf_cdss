@@ -937,8 +937,11 @@ def get_constraint_rule_counts(
                 tuple(params),
             )
             counts = {row[0]: row[1] for row in cursor.fetchall()}
+            # Map all statuses to known categories
+            # needs_condition_refinement counts as draft (needs admin review)
+            draft_count = counts.get("draft", 0) + counts.get("needs_condition_refinement", 0)
             return {
-                "draft": counts.get("draft", 0),
+                "draft": draft_count,
                 "approved": counts.get("approved", 0),
                 "retired": counts.get("retired", 0),
                 "total": sum(counts.values()),

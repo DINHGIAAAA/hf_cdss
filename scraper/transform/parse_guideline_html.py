@@ -52,27 +52,45 @@ def load_registry(path: Path | None) -> dict[str, dict]:
     rows = {}
     for source in registry.get("sources", []):
         target_path = str(source.get("target_path", "")).replace("\\", "/")
+        if not target_path:
+            continue
         rows[target_path] = source
-        rows[Path(target_path).name] = source
+        name = Path(target_path).name
+        stem = Path(target_path).stem
+        rows[name] = source
+        rows[stem] = source
+        # HTML siblings of PDF targets (same stem) must resolve during HTML parse.
+        rows[f"{stem}.html"] = source
+        rows[f"{stem}.htm"] = source
     return rows
 
 def source_metadata(path: Path, registry: dict[str, dict]) -> dict:
-    source = registry.get(path.name) or registry.get(path.as_posix()) or {}
+    source = (
+        registry.get(path.name)
+        or registry.get(path.stem)
+        or registry.get(path.as_posix())
+        or {}
+    )
     if not source:
         normalized_path = path.as_posix()
         for target_path, row in registry.items():
             if "/" in target_path and normalized_path.endswith(target_path):
                 source = row
                 break
+            if Path(target_path).stem == path.stem:
+                source = row
+                break
     citation = source.get("title") or path.stem
     publisher = source.get("publisher")
     if publisher:
         citation = f"{citation}. {publisher}."
+    # Prefer html_url when parsing HTML artifacts; fall back to canonical url.
+    source_url = source.get("html_url") or source.get("url")
     return {
         "source_id": source.get("source_id") or path.stem,
         "source": "guideline_html",
         "source_type": "guideline",
-        "source_url": source.get("url"),
+        "source_url": source_url,
         "publisher": publisher,
         "title": source.get("title") or path.stem,
         "citation": citation,

@@ -41,6 +41,7 @@ SOURCES_REGISTRY = os.environ.get(
 def data_command(command: str) -> str:
     return (
         f"mkdir -p {DATA_ROOT} {RAW_ROOT} && cd {DATA_ROOT} && "
+        f"PYTHONUNBUFFERED=1 "
         f"HF_CDSS_DATA_ROOT={DATA_ROOT} HF_CDSS_RAW_ROOT={RAW_ROOT} "
         f"HF_CDSS_S3_ENDPOINT_URL={S3_ENDPOINT_URL} "
         f"PYTHONPATH={PROJECT_ROOT}:{BACKEND_ROOT} {command}"
@@ -59,6 +60,9 @@ def pipeline_stage(stage: str, extra: str = "") -> str:
 def extract_phase(phase: str, extra: str = "") -> str:
     """Run one extract phase without auto-resume (always execute phase steps)."""
     flags = "--skip-download"
+    # Finalize is idempotent after relationships; resume so retries skip derive_relationships.
+    if phase == "finalize":
+        flags += " --auto-resume"
     if extra:
         flags += f" {extra}"
     return pipeline_stage("extract", f"--extract-phase {phase} {flags}")

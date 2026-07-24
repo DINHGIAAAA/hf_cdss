@@ -294,6 +294,20 @@ def run_extract_finalize(python: str, args: argparse.Namespace, step_kwargs: dic
 
     for name, command in [
         ("derive_relationships", [python, "-m", "scraper.process.derive_relationships"]),
+        (
+            "repair_chunk_provenance",
+            [
+                python,
+                "-m",
+                "scraper.process.repair_chunk_provenance",
+                "--chunks",
+                "artifacts/chunks/chunks.jsonl",
+                "--claims",
+                "artifacts/claims/claims.jsonl",
+                "--registry",
+                str(args.registry),
+            ],
+        ),
         ("validate_kg_artifacts", [python, "-m", "scraper.validation.validate_kg_artifacts", "--root", "."]),
     ]:
         run_step(name, command, **step_kwargs)

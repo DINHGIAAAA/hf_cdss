@@ -67,7 +67,9 @@ services:
       HF_CDSS_API_KEY_HEADER: ${HF_CDSS_API_KEY_HEADER:-x-api-key}
       HF_CDSS_MAX_REQUEST_BODY_BYTES: ${HF_CDSS_MAX_REQUEST_BODY_BYTES:-1000000}
       HF_CDSS_OPENAI_API_KEY: ${HF_CDSS_OPENAI_API_KEY:-${OPENAI_API_KEY:-}}
-      HF_CDSS_LLM_BASE_URL: ${HF_CDSS_LLM_BASE_URL:-http://ollama:11434/v1}
+      # Prefer HF_CDSS_DOCKER_LLM_BASE_URL so a host-shell HF_CDSS_LLM_BASE_URL=localhost:11434
+      # (used for native/backend-on-host runs) cannot poison in-network Docker services.
+      HF_CDSS_LLM_BASE_URL: ${HF_CDSS_DOCKER_LLM_BASE_URL:-http://ollama:11434/v1}
       HF_CDSS_LLM_MODEL: ${HF_CDSS_LLM_MODEL:-${OLLAMA_MODEL:-qwen2.5:7b}}
       HF_CDSS_LLM_API_TYPE: ${HF_CDSS_LLM_API_TYPE:-chat_completions}
       HF_CDSS_LLM_TIMEOUT_SECONDS: ${HF_CDSS_LLM_TIMEOUT_SECONDS:-90}
@@ -181,7 +183,9 @@ services:
       HF_CDSS_EMBEDDING_TIMEOUT_SECONDS: ${HF_CDSS_EMBEDDING_TIMEOUT_SECONDS:-180}
       HF_CDSS_EMBEDDING_MAX_RETRIES: ${HF_CDSS_EMBEDDING_MAX_RETRIES:-2}
       HF_CDSS_SEMANTIC_CHUNK_MIN_SECTION_TOKENS: ${HF_CDSS_SEMANTIC_CHUNK_MIN_SECTION_TOKENS:-600}
-      HF_CDSS_LLM_BASE_URL: ${HF_CDSS_LLM_BASE_URL:-http://ollama:11434/v1}
+      # Prefer HF_CDSS_DOCKER_LLM_BASE_URL so a host-shell HF_CDSS_LLM_BASE_URL=localhost:11434
+      # (used for native/backend-on-host runs) cannot poison in-network Docker services.
+      HF_CDSS_LLM_BASE_URL: ${HF_CDSS_DOCKER_LLM_BASE_URL:-http://ollama:11434/v1}
       HF_CDSS_LLM_MODEL: ${HF_CDSS_LLM_MODEL:-${OLLAMA_MODEL:-qwen2.5:7b}}
       HF_CDSS_LLM_API_TYPE: ${HF_CDSS_LLM_API_TYPE:-chat_completions}
       HF_CDSS_LLM_TIMEOUT_SECONDS: ${HF_CDSS_LLM_TIMEOUT_SECONDS:-90}
