@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Download open PMC guideline PDFs into hf-cdss-raw S3."""
+"""Download open PMC guideline PDFs into hf-cdss-raw S3.
+
+Prefer registry entries with ``pdf_url`` / PMC IDs over hard-coded lists when
+possible; this script remains a focused bulk uploader for known-good mirrors.
+"""
 
 from __future__ import annotations
 
@@ -8,12 +12,36 @@ import httpx
 
 PMC_PDFS = {
     "esc_2021_hf_guideline": ("PMC8490362", "heart_failure/2021 ESC guidelines HF.pdf"),
+    "aha_acc_hfsa_2022_hf_guideline_pdf": (
+        "PMC9238257",
+        "heart_failure/2022 AHA_ACC_HFSA Guideline for the Management of Heart Failure.pdf",
+    ),
     "esc_2024_af_guideline": ("PMC11379312", "atrial_fibrillation/2024 ESC Atrial Fibrillation Guidelines.pdf"),
+    "acc_aha_2023_af_guideline_pdf": (
+        "PMC11104284",
+        "atrial_fibrillation/2023 ACC AHA ACCP HRS Atrial Fibrillation Guideline.pdf",
+    ),
     "acc_aha_2017_bp_guideline": ("PMC6676913", "hypertension/2017 ACC AHA Hypertension Guideline.pdf"),
     # PMC7403606 EuropePMC render 500; PMC6525462 is open full-text PDF mirror.
-    "acc_aha_2018_cholesterol_guideline": ("PMC6525462", "dyslipidemia/2018 ACC AHA Cholesterol Guideline.pdf"),
-    "acc_aha_2019_primary_prevention_guideline": ("PMC7734661", "ascvd_prevention/2019 ACC AHA Primary Prevention Guideline.pdf"),
-    "esc_2021_valvular_heart_disease": ("PMC9725093", "valvular_heart_disease/2021 ESC EACTS Valvular Heart Disease.pdf"),
+    "acc_aha_2018_cholesterol_guideline_pdf": (
+        "PMC6525462",
+        "dyslipidemia/2018 ACC AHA Cholesterol Guideline.pdf",
+    ),
+    "acc_aha_2019_primary_prevention_guideline_pdf": (
+        "PMC7734661",
+        "ascvd_prevention/2019 ACC AHA Primary Prevention Guideline.pdf",
+    ),
+    "esc_2021_valvular_heart_disease_pdf": (
+        "PMC9725093",
+        "valvular_heart_disease/2021 ESC EACTS Valvular Heart Disease.pdf",
+    ),
+    "arn_treatment_hf_guideline_pdf": ("PMC6834856", "heart_failure/ARNi Heart Failure Clinical Guidance.pdf"),
+    "gdmt_implementation_hfsa_pdf": ("PMC7587252", "heart_failure/GDMT Implementation HFSA.pdf"),
+    "iron_deficiency_hf_guideline_pdf": ("PMC7398003", "heart_failure/Iron Deficiency HF ESC.pdf"),
+    "acc_aha_2024_pad_guideline_pdf": (
+        "PMC12782132",
+        "peripheral_artery_disease/2024 ACC AHA PAD Guideline.pdf",
+    ),
 }
 
 ENDPOINT = "http://localhost:4566"

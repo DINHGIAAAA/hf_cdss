@@ -10,6 +10,26 @@ from scraper.semantic.interaction_rule_builder import REQUIRED_FIELDS
 
 _JUNK_MONITORING = {"", "string"}
 
+# Prompt-schema placeholders that LLMs sometimes copy verbatim into message.
+_PLACEHOLDER_MESSAGES = {
+    "clinician-facing warning when both sets are present",
+    "clinician-facing warning when both drugs are present",
+    "<specific clinician warning for this pair, e.g. 'avoid combining lisinopril with ibuprofen due to renal risk'>",
+}
+
+
+def _is_placeholder_message(message: str) -> bool:
+    normalized = " ".join(message.strip().lower().split())
+    if not normalized:
+        return False
+    if normalized in _PLACEHOLDER_MESSAGES:
+        return True
+    if normalized.startswith("<") and normalized.endswith(">"):
+        return True
+    if normalized.startswith("clinician-facing warning"):
+        return True
+    return False
+
 
 def _monitoring_ok(rule: dict[str, Any]) -> bool:
     body = rule.get("rule_body") or {}
@@ -39,6 +59,8 @@ def interaction_rule_tier(rule: dict[str, Any]) -> str:
 
     message = str(rule.get("message") or (rule.get("rule_body") or {}).get("message") or "")
     if len(message.strip()) < 10:
+        return "rejected_rules"
+    if _is_placeholder_message(message):
         return "rejected_rules"
 
     method = str(rule.get("extraction_method") or "")

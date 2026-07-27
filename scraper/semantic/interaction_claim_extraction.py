@@ -50,11 +50,16 @@ def _build_structured_claim(record: dict, payload: dict[str, Any], index: int) -
     if not set_a or not set_b:
         return None
 
-    # Prefer evidence over payload.message to avoid template/placeholder messages
-    # like "Clinician-facing warning when both drugs are present".
+    # Prefer evidence over payload.message to avoid template/placeholder messages.
     raw_msg = str(payload.get("message") or "").strip()
+    if raw_msg.lower().startswith("clinician-facing warning") or (
+        raw_msg.startswith("<") and raw_msg.endswith(">")
+    ):
+        raw_msg = ""
     raw_evidence = str(payload.get("evidence") or evidence or "").strip()
     message = raw_evidence if len(raw_evidence) >= 20 else (raw_msg if len(raw_msg) >= 20 else "")
+    if not message:
+        return None
     try:
         confidence = max(0.5, min(float(payload.get("confidence") or 0.82), 1.0))
     except (TypeError, ValueError):

@@ -46,28 +46,92 @@ def next_step_after(step_name: str) -> str | None:
     return ordered[index + 1]
 
 
+def _nonempty(path: Path) -> bool:
+    return path.is_file() and path.stat().st_size > 0
+
+
+def _artifact_markers(data_root: Path) -> dict[str, tuple[Path, bool]]:
+    """Map pipeline step → (artifact path, optional).
+
+    Optional markers (e.g. PDF guidelines) may be empty without breaking the
+    contiguous resume chain. Required markers stop inference at the first gap so
+    a leftover ``relationships.jsonl`` cannot skip ``classify_rules`` / catalogs.
+    """
+    return {
+        "parse_guideline_pdf": (
+            data_root / "processed" / "sections" / "guideline_sections.jsonl",
+            True,
+        ),
+        "parse_guideline_html": (
+            data_root / "processed" / "sections" / "guideline_html_sections.jsonl",
+            True,
+        ),
+        "parse_drug_label_xml": (
+            data_root / "processed" / "sections" / "drug_label_sections.jsonl",
+            False,
+        ),
+        "extract_important_sections": (
+            data_root / "processed" / "sections" / "important_sections.jsonl",
+            False,
+        ),
+        "chunk_sections": (data_root / "artifacts" / "chunks" / "chunks.jsonl", False),
+        "extract_entities": (data_root / "artifacts" / "entities" / "entities.jsonl", False),
+        "create_claims": (data_root / "artifacts" / "claims" / "claims.jsonl", False),
+        "generate_rules": (data_root / "artifacts" / "rules" / "rules.jsonl", False),
+        "classify_rules": (data_root / "artifacts" / "rules" / "rules_classified.jsonl", False),
+        "extract_fda_xml_interaction_claims": (
+            data_root / "artifacts" / "interaction_rules" / "structured_interaction_claims_fda.jsonl",
+            True,
+        ),
+        "classify_dose_rules": (
+            data_root / "artifacts" / "dose_rules" / "dose_rules_classified.jsonl",
+            False,
+        ),
+        "classify_dose_safety_warnings": (
+            data_root
+            / "artifacts"
+            / "dose_safety_warnings"
+            / "dose_safety_warnings_classified.jsonl",
+            False,
+        ),
+        "classify_interaction_rules": (
+            data_root / "artifacts" / "interaction_rules" / "interaction_rules_classified.jsonl",
+            False,
+        ),
+        "classify_gdmt_policies": (
+            data_root / "artifacts" / "gdmt_policies" / "gdmt_policies_classified.jsonl",
+            False,
+        ),
+        "derive_relationships": (
+            data_root / "artifacts" / "relationships" / "relationships.jsonl",
+            False,
+        ),
+    }
+
+
 def infer_last_completed_from_artifacts(data_root: Path) -> str | None:
-    """Best-effort progress from on-disk outputs (handles regressed checkpoints)."""
+    """Best-effort contiguous progress from on-disk outputs.
+
+    Walks pipeline order and advances only while markers are present. Stops at
+    the first missing *required* marker so leftover late artifacts (e.g.
+    relationships) cannot imply earlier steps like ``classify_rules`` completed.
+    """
     ordered = _pipeline_step_order()
-    markers: list[tuple[str, Path]] = [
-        ("derive_relationships", data_root / "artifacts" / "relationships" / "relationships.jsonl"),
-        ("create_claims", data_root / "artifacts" / "claims" / "claims.jsonl"),
-        ("extract_entities", data_root / "artifacts" / "entities" / "entities.jsonl"),
-        ("chunk_sections", data_root / "artifacts" / "chunks" / "chunks.jsonl"),
-        ("extract_important_sections", data_root / "processed" / "sections" / "important_sections.jsonl"),
-        ("parse_drug_label_xml", data_root / "processed" / "sections" / "drug_label_sections.jsonl"),
-        ("parse_guideline_html", data_root / "processed" / "sections" / "guideline_html_sections.jsonl"),
-        ("parse_guideline_pdf", data_root / "processed" / "sections" / "guideline_sections.jsonl"),
-    ]
+    markers = _artifact_markers(data_root)
     last_completed: str | None = None
-    last_index = -1
-    for step_name, path in markers:
-        if not path.is_file() or path.stat().st_size <= 0:
+
+    for step_name in ordered:
+        marker = markers.get(step_name)
+        if marker is None:
             continue
-        step_index = ordered.index(step_name)
-        if step_index > last_index:
+        path, optional = marker
+        if _nonempty(path):
             last_completed = step_name
-            last_index = step_index
+            continue
+        if optional:
+            continue
+        break
+
     return last_completed
 
 

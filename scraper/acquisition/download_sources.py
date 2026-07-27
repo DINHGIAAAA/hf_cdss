@@ -2,6 +2,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import time
 import urllib.parse
 from datetime import date, datetime
@@ -130,6 +131,25 @@ def artifact_kind_for_source(source: dict[str, Any]) -> str:
     return "source"
 
 
+_PMC_ID_RE = re.compile(r"PMC(\d+)", re.IGNORECASE)
+
+
+def europepmc_pdf_render_url(pmc_id: str) -> str:
+    return f"https://europepmc.org/articles/PMC{pmc_id}?pdf=render"
+
+
+def resolve_guideline_pdf_url(source: dict[str, Any]) -> str:
+    """Prefer explicit pdf_url; otherwise map PMC article pages to EuropePMC PDF render."""
+    explicit = str(source.get("pdf_url") or "").strip()
+    if explicit:
+        return explicit
+    url = str(source.get("url") or "").strip()
+    match = _PMC_ID_RE.search(url)
+    if match and "pdf=render" not in url.lower():
+        return europepmc_pdf_render_url(match.group(1))
+    return url
+
+
 def validate_payload(kind: str, target_path: str, payload: bytes, url: str) -> None:
     suffix = Path(target_path).suffix.lower()
     head = payload[:64].lstrip().lower()
@@ -254,10 +274,14 @@ def resolved_downloads(source: dict[str, Any], timeout: int) -> tuple[dict[str, 
                 }
             )
     elif strategy == "direct_url":
+        kind = artifact_kind_for_source(source)
+        url = resolve_guideline_pdf_url(source) if kind == "pdf" else source["url"]
+        if kind == "pdf" and url != source.get("url"):
+            print(f"Resolved PDF download URL for {source.get('source_id')}: {url}")
         downloads.append(
             {
-                "kind": artifact_kind_for_source(source),
-                "url": source["url"],
+                "kind": kind,
+                "url": url,
                 "target_path": source["target_path"],
             }
         )
