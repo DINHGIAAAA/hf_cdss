@@ -5,15 +5,27 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
 import re
+import threading
+import time
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, Iterator
 
 import httpx
 
 from scraper.semantic import config
 
 logger = logging.getLogger(__name__)
+
+try:
+    import fcntl
+except ImportError:  # Windows native runs
+    fcntl = None  # type: ignore[assignment]
+
+_thread_slots: dict[str, threading.Semaphore] = {}
+_thread_slots_lock = threading.Lock()
 
 # Clinical priority patterns for context optimization
 LLM_PRIORITY_PATTERNS = [
@@ -176,23 +188,114 @@ def _write_cache(key: str, payload: dict[str, Any]) -> None:
 
 
 def _shrink_user_prompt(user_prompt: str) -> str:
-    """Halve section text on timeout retry so small models can finish."""
+    """Halve text/evidence on timeout retry so small models can finish."""
     try:
         data = json.loads(user_prompt)
     except json.JSONDecodeError:
         return user_prompt[: max(800, len(user_prompt) // 2)]
     if not isinstance(data, dict):
         return user_prompt[: max(800, len(user_prompt) // 2)]
+    # Shrink text field (used by ingestion/claim extraction).
     text = data.get("text")
     if isinstance(text, str) and text:
         data["text"] = text[: max(800, len(text) // 2)]
-        return json.dumps(data, ensure_ascii=False)
-    return user_prompt[: max(800, len(user_prompt) // 2)]
+    # Shrink evidence field (used by condition refinement).
+    evidence = data.get("evidence")
+    if isinstance(evidence, str) and evidence:
+        data["evidence"] = evidence[: max(600, len(evidence) // 2)]
+    return json.dumps(data, ensure_ascii=False)
 
 
 def _http_timeout(seconds: float) -> httpx.Timeout:
     read = max(30.0, seconds)
     return httpx.Timeout(connect=10.0, read=read, write=30.0, pool=30.0)
+
+
+def _slot_count() -> int:
+    return max(1, int(config.LLM_CONCURRENCY))
+
+
+def _slot_key(model: str | None) -> str:
+    raw = (model or config.INGESTION_LLM_MODEL or "default").strip() or "default"
+    if not getattr(config, "LLM_SLOTS_PER_MODEL", True):
+        return "shared"
+    # Filesystem-safe model id (qwen2.5:1.5b → qwen2.5_1.5b)
+    safe = re.sub(r"[^A-Za-z0-9._-]+", "_", raw)
+    return safe[:80] or "default"
+
+
+def _slot_dir() -> Path:
+    raw = (os.environ.get("HF_CDSS_LLM_SLOT_DIR") or "").strip()
+    if raw:
+        path = Path(raw)
+    else:
+        try:
+            from scraper.paths import data_root
+
+            path = data_root() / ".cache" / "llm_inflight_slots"
+        except Exception:  # noqa: BLE001
+            path = Path(os.environ.get("TMPDIR") or os.environ.get("TEMP") or "/tmp") / "hf_cdss_llm_slots"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+@contextmanager
+def _llm_inflight_slot(model: str | None = None) -> Iterator[None]:
+    """Occupy an LLM slot only while an HTTP generation request is in flight.
+
+    Slots are keyed by model (default) so different models do not share one pool.
+    Cross-process (Linux/Airflow): flock on N slot files per model.
+    Fallback (Windows/tests): threading.Semaphore — process-local only.
+    Cache hits and non-LLM work never enter this context.
+    """
+    slots = _slot_count()
+    key = _slot_key(model)
+
+    if fcntl is None:
+        with _thread_slots_lock:
+            sem = _thread_slots.get(key)
+            if sem is None or getattr(sem, "_hf_slots", None) != slots:
+                sem = threading.Semaphore(slots)
+                setattr(sem, "_hf_slots", slots)
+                _thread_slots[key] = sem
+        sem.acquire()
+        try:
+            yield
+        finally:
+            sem.release()
+        return
+
+    lock_dir = _slot_dir() / key
+    lock_dir.mkdir(parents=True, exist_ok=True)
+    handles: list[Any] = []
+    acquired = None
+    try:
+        while acquired is None:
+            for index in range(slots):
+                path = lock_dir / f"slot_{index}.lock"
+                handle = path.open("a+", encoding="utf-8")
+                try:
+                    fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    handle.close()
+                    continue
+                handles.append(handle)
+                acquired = handle
+                break
+            if acquired is None:
+                time.sleep(0.05)
+        yield
+    finally:
+        if acquired is not None:
+            try:
+                fcntl.flock(acquired.fileno(), fcntl.LOCK_UN)
+            except Exception:  # noqa: BLE001
+                pass
+        for handle in handles:
+            try:
+                handle.close()
+            except Exception:  # noqa: BLE001
+                pass
 
 
 def _call_llm_json_raw(
@@ -214,7 +317,9 @@ def _call_llm_json_raw(
         if timeout_seconds is not None
         else float(config.INGESTION_LLM_TIMEOUT_SECONDS)
     )
-    resolved_ctx = int(num_ctx) if num_ctx is not None else 2048
+    # qwen2.5:7b native context is 32k; 32b variants reach 128k.
+    # Only override if caller explicitly requests a smaller context window.
+    resolved_ctx = int(num_ctx) if num_ctx is not None else 32768
 
     for attempt in range(1, max_attempts + 1):
         payload = {
@@ -232,15 +337,17 @@ def _call_llm_json_raw(
             },
         }
         try:
-            with httpx.Client(timeout=_http_timeout(resolved_timeout)) as client:
-                response = client.post(
-                    url,
-                    headers={"Content-Type": "application/json"},
-                    json=payload,
-                )
-                response.raise_for_status()
-                choices = response.json().get("choices", [])
-                content = choices[0].get("message", {}).get("content", "") if choices else ""
+            # Hold a per-model shared slot only for the HTTP round-trip.
+            with _llm_inflight_slot(resolved_model):
+                with httpx.Client(timeout=_http_timeout(resolved_timeout)) as client:
+                    response = client.post(
+                        url,
+                        headers={"Content-Type": "application/json"},
+                        json=payload,
+                    )
+                    response.raise_for_status()
+                    choices = response.json().get("choices", [])
+                    content = choices[0].get("message", {}).get("content", "") if choices else ""
             return extract_json_object(content)
         except Exception as exc:
             retryable = isinstance(exc, httpx.TimeoutException) or "timed out" in str(exc).lower()
@@ -271,22 +378,32 @@ def call_llm_json(
     model: str | None = None,
     timeout_seconds: float | None = None,
     num_ctx: int | None = None,
+    cache_predicate: Callable[[dict[str, Any]], bool] | None = None,
 ) -> dict[str, Any] | None:
     max_tokens = max_tokens or config.LLM_MAX_TOKENS
     resolved_model = model or config.INGESTION_LLM_MODEL
+    resolved_timeout = (
+        float(timeout_seconds)
+        if timeout_seconds is not None
+        else float(config.CONDITION_REFINE_LLM_TIMEOUT_SECONDS)
+        if model == config.CONDITION_REFINE_LLM_MODEL
+        else float(config.LLM_TIMEOUT_SECONDS)
+    )
     cache_key = _cache_key(system_prompt, user_prompt, max_tokens=max_tokens, model=resolved_model)
     cached = _read_cache(cache_key)
     if cached is not None:
-        return cached
+        if cache_predicate is None or cache_predicate(cached):
+            return cached
+        # Ignore poisoned/useless cache entries (e.g. empty conditions with high conf).
 
     payload = _call_llm_json_raw(
         system_prompt,
         user_prompt,
         max_tokens=max_tokens,
         model=resolved_model,
-        timeout_seconds=timeout_seconds,
+        timeout_seconds=resolved_timeout,
         num_ctx=num_ctx,
     )
-    if payload:
+    if payload and (cache_predicate is None or cache_predicate(payload)):
         _write_cache(cache_key, payload)
     return payload

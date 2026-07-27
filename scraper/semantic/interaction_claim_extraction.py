@@ -6,6 +6,8 @@ import hashlib
 import json
 import logging
 import re
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
 from scraper.semantic import config
@@ -48,7 +50,11 @@ def _build_structured_claim(record: dict, payload: dict[str, Any], index: int) -
     if not set_a or not set_b:
         return None
 
-    message = str(payload.get("message") or evidence).strip()
+    # Prefer evidence over payload.message to avoid template/placeholder messages
+    # like "Clinician-facing warning when both drugs are present".
+    raw_msg = str(payload.get("message") or "").strip()
+    raw_evidence = str(payload.get("evidence") or evidence or "").strip()
+    message = raw_evidence if len(raw_evidence) >= 20 else (raw_msg if len(raw_msg) >= 20 else "")
     try:
         confidence = max(0.5, min(float(payload.get("confidence") or 0.82), 1.0))
     except (TypeError, ValueError):
@@ -115,12 +121,21 @@ def extract_structured_interaction_claims_from_section(record: dict) -> list[dic
 
 
 def extract_structured_interaction_claims_batch(records: list[dict]) -> list[dict]:
+    relevant = [record for record in records if is_interaction_relevant_section(record)]
+    planned = len(relevant)
+    logger.info("Interaction extract starting: %s/%s relevant sections", planned, len(records))
+    print(f"Interaction extract starting: {planned}/{len(records)} relevant sections", flush=True)
+    if not relevant:
+        return []
+
     claims: list[dict] = []
-    for record in records:
-        if not is_interaction_relevant_section(record):
-            continue
+    workers = max(1, int(config.LLM_CONCURRENCY))
+    completed = 0
+    lock = threading.Lock()
+
+    def _one(record: dict) -> list[dict]:
         try:
-            claims.extend(extract_structured_interaction_claims_from_section(record))
+            return extract_structured_interaction_claims_from_section(record)
         except Exception as exc:
             logger.warning(
                 "Structured interaction extraction failed for %s/%s: %s",
@@ -128,4 +143,24 @@ def extract_structured_interaction_claims_batch(records: list[dict]) -> list[dic
                 record.get("section"),
                 exc,
             )
+            return []
+
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        futures = {executor.submit(_one, record): record for record in relevant}
+        for future in as_completed(futures):
+            record = futures[future]
+            batch = future.result()
+            with lock:
+                claims.extend(batch)
+                completed += 1
+                done = completed
+                total_claims = len(claims)
+            if done == 1 or done % 10 == 0 or done >= planned:
+                msg = (
+                    f"Interaction extract progress: {done}/{planned} sections, "
+                    f"{total_claims} claims so far "
+                    f"({record.get('document_id')} / {record.get('section') or record.get('source_section')})"
+                )
+                logger.info(msg)
+                print(msg, flush=True)
     return claims

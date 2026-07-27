@@ -1,5 +1,38 @@
 """System prompt for prescriptive clinical claim extraction during ingestion."""
 
+# EXTRACTION GUIDELINES - BALANCED
+EXTRACTION_GUIDELINES = """
+EXTRACTION GUIDELINES:
+
+1. EXTRACT ALL clinical claims - be comprehensive:
+   ✓ "Do not use in pregnancy" → EXTRACT
+   ✓ "Monitor potassium regularly" → EXTRACT
+   ✓ "Reduce dose to 25mg" → EXTRACT
+   ✓ "Avoid concomitant use with X" → EXTRACT
+   ✓ "May cause hyperkalemia" → EXTRACT (warning)
+   ✓ "Use with caution in renal impairment" → EXTRACT
+   ✓ "Drug X may interact with Drug Y" → EXTRACT
+   ✓ "In patients with eGFR <30, reduce dose" → EXTRACT
+   ✓ "Monitor renal function" → EXTRACT
+
+2. EXCLUDE ONLY clearly informational content:
+   ✗ "In clinical trials, 5% experienced headache" → SKIP (incidence statistic)
+   ✗ "The study showed 20% reduction (p<0.05)" → SKIP (study result)
+   ✗ "Table 3 shows adverse reactions" → SKIP (table reference only)
+   ✗ "Pregnancy Category C" → SKIP (label only)
+   ✗ "Randomized controlled trial showed..." → SKIP (study description)
+
+3. WHEN IN DOUBT → EXTRACT (better to have more claims than miss important ones)
+
+4. CLINICAL KEYWORDS TO LOOK FOR:
+   - dose, dosage, mg, administer, start, stop, reduce, increase
+   - contraindication, warning, precaution, avoid, not recommended
+   - monitor, check, measure, assess
+   - interact, concomitant, renal, hepatic, pregnancy
+   - hyperkalemia, potassium, creatinine, egfr
+   - adverse, reaction, risk, caution
+"""
+
 CHAIN_OF_THOUGHT_PROMPT = """
 Follow these steps to extract claims:
 
@@ -32,7 +65,11 @@ Step 5: VALIDATE - Ensure each output field uses exactly one allowed token
   - Set confidence based on clarity (0.5-1.0)
 """
 
-CLAIM_EXTRACTION_SYSTEM_PROMPT = """You extract prescriptive clinical claims from FDA drug labels and cardiology guidelines.
+CLAIM_EXTRACTION_SYSTEM_PROMPT = EXTRACTION_GUIDELINES + """
+
+You extract ALL clinical claims from FDA drug labels and cardiology guidelines.
+Be COMPREHENSIVE - extract any clinical guidance that affects prescribing decisions.
+Only exclude clearly informational content (study results, statistics, table references).
 Return ONLY valid JSON with this shape (example values — NOT menus to copy):
 {
   "claims": [
@@ -261,6 +298,118 @@ Output:
       "conditions": {"hfref": true},
       "class_of_recommendation": "I",
       "level_of_evidence": "A"
+    }
+  ]
+}
+
+Example - DO NOT EXTRACT (INFORMATIONAL - Study Data):
+Input: "In clinical trials, 5% of patients experienced headache. The study showed a 20% reduction in mortality (p<0.05)."
+Output: {"claims": []}
+
+Example - DO NOT EXTRACT (PREGNANCY CATEGORY):
+Input: "Pregnancy Category C: Animal studies showed adverse effects on the fetus."
+Output: {"claims": []}
+
+Example - DO NOT EXTRACT (TABLE REFERENCE):
+Input: "Table 3: Adverse reactions occurring in >2% of patients"
+Output: {"claims": []}
+
+Example - DO NOT EXTRACT (PHARMACOKINETIC DATA):
+Input: "The pharmacokinetics of drug X include a bioavailability of 80%, half-life of 12 hours, and Cmax of 2.5 mcg/mL."
+Output: {"claims": []}
+
+Example - DO NOT EXTRACT (MECHANISM OF ACTION):
+Input: "Mechanism of action: Drug X inhibits the renin-angiotensin-aldosterone system."
+Output: {"claims": []}
+
+Example - DO NOT EXTRACT (STUDY COMPARISON):
+Input: "Drug X was non-inferior to Drug Y in a randomized controlled trial."
+Output: {"claims": []}
+
+Example - CORRECT (PRESCRIPTIVE):
+Input: "Do not use in pregnancy. Monitor potassium levels regularly during treatment."
+Output: {
+  "claims": [
+    {
+      "claim_type": "population_constraint",
+      "evidence": "Do not use in pregnancy.",
+      "drug": "example_drug",
+      "action": "contraindicated",
+      "confidence": 0.95,
+      "conditions": {"pregnancy": true}
+    },
+    {
+      "claim_type": "general_monitoring",
+      "evidence": "Monitor potassium levels regularly during treatment.",
+      "drug": "example_drug",
+      "action": "monitor",
+      "confidence": 0.85,
+      "conditions": {}
+    }
+  ]
+}
+
+Example - CORRECT adverse_reaction (PRESCRIPTIVE - warning about risk):
+Input: "May cause hyperkalemia. Monitor serum potassium levels during treatment. Can cause renal impairment."
+Output: {
+  "claims": [
+    {
+      "claim_type": "adverse_reaction",
+      "evidence": "May cause hyperkalemia.",
+      "drug": "example_drug",
+      "action": "monitor",
+      "confidence": 0.9,
+      "conditions": {}
+    },
+    {
+      "claim_type": "adverse_reaction",
+      "evidence": "Can cause renal impairment.",
+      "drug": "example_drug",
+      "action": "monitor",
+      "confidence": 0.85,
+      "conditions": {}
+    }
+  ]
+}
+
+Example - DO NOT EXTRACT (adverse_reaction - informational only):
+Input: "In clinical trials, the most common adverse reactions were headache (10%), dizziness (8%), and fatigue (5%)."
+Output: {"claims": []}
+
+Example - CORRECT usage_constraint (PRESCRIPTIVE):
+Input: "Use with caution in patients with hepatic impairment. Administer orally once daily."
+Output: {
+  "claims": [
+    {
+      "claim_type": "usage_constraint",
+      "evidence": "Use with caution in patients with hepatic impairment.",
+      "drug": "example_drug",
+      "action": "monitor",
+      "confidence": 0.9,
+      "conditions": {"hepatic_impairment": "any"}
+    }
+  ]
+}
+
+Example - CORRECT population_constraint (PRESCRIPTIVE):
+Input: "Not recommended for use in pregnant women. Contraindicated in breastfeeding mothers."
+Output: {
+  "claims": [
+    {
+      "claim_type": "population_constraint",
+      "evidence": "Not recommended for use in pregnant women.",
+      "drug": "example_drug",
+      "action": "not_recommended",
+      "confidence": 0.95,
+      "conditions": {"pregnancy": true}
+    },
+    {
+      "claim_type": "population_constraint",
+      "evidence": "Contraindicated in breastfeeding mothers.",
+      "drug": "example_drug",
+      "action": "contraindicated",
+      "confidence": 0.95,
+      "conditions": {"lactation": true}
     }
   ]
 }

@@ -567,11 +567,32 @@ def regex_claims_for_record(record: dict, max_claims_per_section: int) -> list[d
     return claims
 
 
+# Critical section types that should ALWAYS use LLM extraction
+# More selective to reduce LLM calls while maintaining quality
+CRITICAL_SECTION_KEYWORDS = [
+    "contraindication",  # Most critical
+    "warning",           # Safety warnings
+    "precaution",       # Usage precautions
+    "drug interaction",  # Interaction warnings
+    "adverse reaction", # Side effects
+    "dosage",           # Dosing info
+]
+
+
 def should_call_llm_for_section(record: dict, regex_claims: list[dict]) -> bool:
     from scraper.semantic import config
 
     if not config.CLAIM_LLM_ENABLED:
         return False
+
+    section = record.get("section", "").lower()
+
+    # Always use LLM for critical sections (contraindications, warnings, etc.)
+    for keyword in CRITICAL_SECTION_KEYWORDS:
+        if keyword in section:
+            return True
+
+    # For other sections, use existing threshold logic
     min_matches = config.CLAIM_LLM_MIN_PATTERN_MATCHES
     if len(regex_claims) >= min_matches:
         return False
@@ -638,7 +659,17 @@ def main() -> None:
 
     records = read_jsonl(args.input)
     print(f"Loaded {len(records)} sections from {args.input}")
+    if not records:
+        raise SystemExit(
+            f"Refusing to overwrite {args.output}: input has 0 sections. "
+            "Sync processed sections from S3 or re-run parse/load first."
+        )
     claims = claims_from_records(records, args.max_claims_per_section)
+    if not claims and args.output.exists() and args.output.stat().st_size > 0:
+        raise SystemExit(
+            f"Refusing to overwrite non-empty {args.output} with 0 claims. "
+            "Pass a force path only after intentional wipe."
+        )
     write_jsonl(claims, args.output)
     print(f"Wrote {len(claims)} claims to {args.output}")
 

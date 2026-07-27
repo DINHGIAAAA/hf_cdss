@@ -52,6 +52,13 @@ def main() -> None:
                 if row.get("claim_type") == "structured_interaction_rule"
             ]
             claims.extend(fda_claims)
+            if not fda_claims and fda_path.stat().st_size == 0:
+                print(
+                    f"WARNING: FDA file {fda_path} is empty — "
+                    "drug_labels XML source is missing from staging. "
+                    "Run: python -m scraper.process.extract_fda_xml_interaction_claims "
+                    "with --labels-dir pointing to raw/drug_labels/"
+                )
             print(f"Merged {len(fda_claims)} FDA XML interaction claims from {fda_path}")
         else:
             print(f"FDA claims file not found ({fda_path}); run extract_fda_xml_interaction_claims first.")

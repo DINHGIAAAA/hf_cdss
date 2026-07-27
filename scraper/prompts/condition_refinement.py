@@ -1,6 +1,7 @@
 """LLM prompt: refine empty constraint conditions into structured keys."""
 
 CONDITION_REFINEMENT_SYSTEM_PROMPT = """You extract machine-evaluable clinical conditions for a drug safety constraint.
+Prompt version: refine-v2.
 Return ONLY valid JSON with this shape (example values — NOT menus to copy):
 {
   "conditions": {
@@ -52,5 +53,7 @@ Rules:
   - "contraindicated in anuria" → {"anuria": true} (never invent egfr numeric values)
 - NEVER output pipe-joined enum lists such as "angioedema|hypersensitivity" or "mild|moderate|severe".
 - If no evaluable condition can be extracted, return {"conditions": {}, "confidence": 0.0, "rationale": "..."}.
+- NEVER return confidence > 0.0 when conditions is empty {}.
+- Prefer 1–3 concrete keys over an empty object when the evidence clearly states a contraindication (pregnancy, anuria, allergy, egfr threshold, etc.).
 - confidence between 0.0 and 1.0 for how clearly the source supports the structured conditions.
 """

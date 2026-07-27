@@ -4,11 +4,17 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import re
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
+from scraper.semantic import config
 from scraper.semantic.llm_client import call_llm_json
 from scraper.prompts.gdmt_policy_extraction import STRUCTURED_GDMT_POLICY_EXTRACTION_SYSTEM_PROMPT
+
+logger = logging.getLogger(__name__)
 
 GDMT_KEYWORDS = (
     "guideline-directed",
@@ -57,8 +63,13 @@ def extract_structured_gdmt_policies_from_section(record: dict) -> list[dict]:
         system_prompt=STRUCTURED_GDMT_POLICY_EXTRACTION_SYSTEM_PROMPT,
         user_prompt=user_prompt,
     )
+    if not payload or not isinstance(payload, dict):
+        return []
+
     claims: list[dict] = []
     for index, item in enumerate(payload.get("gdmt_policies") or [], start=1):
+        if not isinstance(item, dict):
+            continue
         drug_class_key = item.get("drug_class_key")
         display_label = item.get("display_label")
         if not drug_class_key or not display_label:
@@ -90,12 +101,44 @@ def extract_structured_gdmt_policies_from_section(record: dict) -> list[dict]:
 
 
 def extract_structured_gdmt_policies_batch(records: list[dict]) -> list[dict]:
+    relevant = [record for record in records if is_gdmt_relevant_section(record)]
+    planned = len(relevant)
+    logger.info("GDMT extract starting: %s/%s relevant sections", planned, len(records))
+    print(f"GDMT extract starting: {planned}/{len(records)} relevant sections", flush=True)
+    if not relevant:
+        return []
+
     claims: list[dict] = []
-    for record in records:
-        if not is_gdmt_relevant_section(record):
-            continue
+    workers = max(1, int(config.LLM_CONCURRENCY))
+    completed = 0
+    lock = threading.Lock()
+
+    def _one(record: dict) -> list[dict]:
         try:
-            claims.extend(extract_structured_gdmt_policies_from_section(record))
+            return extract_structured_gdmt_policies_from_section(record)
         except Exception as exc:
-            print(f"Structured GDMT policy extraction failed for {record.get('document_id')}: {exc}")
+            print(
+                f"Structured GDMT policy extraction failed for {record.get('document_id')}: {exc}",
+                flush=True,
+            )
+            return []
+
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        futures = {executor.submit(_one, record): record for record in relevant}
+        for future in as_completed(futures):
+            record = futures[future]
+            batch = future.result()
+            with lock:
+                claims.extend(batch)
+                completed += 1
+                done = completed
+                total_claims = len(claims)
+            if done == 1 or done % 10 == 0 or done >= planned:
+                msg = (
+                    f"GDMT extract progress: {done}/{planned} sections, "
+                    f"{total_claims} claims so far "
+                    f"({record.get('document_id')} / {record.get('section')})"
+                )
+                logger.info(msg)
+                print(msg, flush=True)
     return claims

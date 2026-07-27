@@ -39,15 +39,33 @@ def _resolved_cache_dir(env_key: str, subdir: str) -> str:
 LLM_BASE_URL = os.environ.get("HF_CDSS_LLM_BASE_URL", "http://localhost:11434/v1")
 LLM_MODEL = os.environ.get("HF_CDSS_LLM_MODEL", EXPLANATION_MODEL)
 INGESTION_LLM_MODEL = os.environ.get("HF_CDSS_INGESTION_LLM_MODEL", LLM_MODEL)
+# Condition refine needs structured JSON; prefer larger model than ingestion extract.
+CONDITION_REFINE_LLM_MODEL = os.environ.get("HF_CDSS_CONDITION_REFINE_LLM_MODEL", LLM_MODEL)
 LLM_TIMEOUT_SECONDS = _env_float("HF_CDSS_LLM_TIMEOUT_SECONDS", 45.0)
-# Claim extraction on CPU Ollama often needs longer than chat; keep a separate budget.
-INGESTION_LLM_TIMEOUT_SECONDS = _env_float(
-    "HF_CDSS_INGESTION_LLM_TIMEOUT_SECONDS",
+CONDITION_REFINE_LLM_MAX_TOKENS = _env_int("HF_CDSS_CONDITION_REFINE_LLM_MAX_TOKENS", 250)
+# Longer timeout for qwen2.5:7b on CPU (prompt processing + generation):
+#   - qwen2.5:7b on CPU ~5-15 tokens/s generation
+#   - ~200-token JSON response = 15-40s generation + 30-60s prompt = 60-100s typical
+#   - 300s gives margin for spikes without indefinite hangs
+CONDITION_REFINE_LLM_TIMEOUT_SECONDS = _env_float(
+    "HF_CDSS_CONDITION_REFINE_LLM_TIMEOUT_SECONDS",
     max(LLM_TIMEOUT_SECONDS, 300.0),
 )
+# Claim extraction on CPU Ollama needs MUCH longer; set to 600s for reliability
+INGESTION_LLM_TIMEOUT_SECONDS = _env_float(
+    "HF_CDSS_INGESTION_LLM_TIMEOUT_SECONDS",
+    max(LLM_TIMEOUT_SECONDS, 600.0),
+)
 LLM_MAX_RETRIES = _env_int("HF_CDSS_LLM_MAX_RETRIES", 2)
-LLM_MAX_TOKENS = _env_int("HF_CDSS_INGESTION_LLM_MAX_TOKENS", 900)
-LLM_CONCURRENCY = _env_int("HF_CDSS_LLM_CONCURRENCY", 1)
+LLM_MAX_TOKENS = _env_int("HF_CDSS_INGESTION_LLM_MAX_TOKENS", 600)
+LLM_CONCURRENCY = _env_int("HF_CDSS_LLM_CONCURRENCY", 4)
+# When true (default), each model name has its own in-flight slot pool so
+# e.g. qwen2.5:1.5b extract and qwen2.5:7b refine do not block each other client-side.
+LLM_SLOTS_PER_MODEL = os.environ.get("HF_CDSS_LLM_SLOTS_PER_MODEL", "true").lower() in {
+    "1",
+    "true",
+    "yes",
+}
 INGESTION_LLM_CACHE_ENABLED = os.environ.get("HF_CDSS_INGESTION_LLM_CACHE_ENABLED", "true").lower() in {
     "1",
     "true",
@@ -197,8 +215,13 @@ MINHASH_DEDUP_ENABLED = os.environ.get("HF_CDSS_MINHASH_DEDUP_ENABLED", "true").
 MINHASH_NUM_PERM = _env_int("HF_CDSS_MINHASH_NUM_PERM", 64)
 MINHASH_NUM_BANDS = _env_int("HF_CDSS_MINHASH_NUM_BANDS", 8)
 
+# Strict mode for claim extraction - disabled by default for balanced filtering
+STRICT_MODE_ENABLED = os.environ.get("HF_CDSS_STRICT_MODE_ENABLED", "false").lower() in {"1", "true", "yes"}
+# Minimum confidence threshold for claims
+CLAIM_MIN_CONFIDENCE = _env_float("HF_CDSS_CLAIM_MIN_CONFIDENCE", 0.7)
+
 DEFAULT_CHUNK_SIZE = _env_int("HF_CDSS_CHUNK_SIZE", 500)
 DEFAULT_CHUNK_OVERLAP = _env_int("HF_CDSS_CHUNK_OVERLAP", 75)
 # Shorter sections finish faster on qwen2.5:1.5b and reduce timeouts.
-MAX_LLM_SECTION_CHARS = _env_int("HF_CDSS_MAX_LLM_SECTION_CHARS", 6000)
-MAX_LLM_CLAIMS_PER_SECTION = _env_int("HF_CDSS_MAX_LLM_CLAIMS_PER_SECTION", 12)
+MAX_LLM_SECTION_CHARS = _env_int("HF_CDSS_MAX_LLM_SECTION_CHARS", 2000)
+MAX_LLM_CLAIMS_PER_SECTION = _env_int("HF_CDSS_MAX_LLM_CLAIMS_PER_SECTION", 6)

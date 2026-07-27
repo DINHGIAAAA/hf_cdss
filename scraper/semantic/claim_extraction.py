@@ -14,6 +14,8 @@ from scraper.semantic.conditions import infer_action_from_text, normalize_condit
 from scraper.semantic.llm_client import call_llm_json
 from scraper.prompts.claim_extraction import CLAIM_EXTRACTION_SYSTEM_PROMPT, CHAIN_OF_THOUGHT_PROMPT
 from scraper.semantic.llm_client import prepare_section_context
+from scraper.validation.noise_filter import filter_noise_claims
+from scraper.validation.claim_strictness import filter_strict_claims
 
 logger = logging.getLogger(__name__)
 
@@ -143,6 +145,12 @@ def extract_claims_from_section(record: dict) -> tuple[list[dict], bool]:
             claims.append(claim)
         if len(claims) >= config.MAX_LLM_CLAIMS_PER_SECTION:
             break
+
+    # Apply lenient validation only
+    if claims and config.STRICT_MODE_ENABLED:
+        claims = filter_noise_claims(claims)
+        claims = filter_strict_claims(claims)
+
     return claims, False
 
 

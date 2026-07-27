@@ -6,10 +6,16 @@ import json
 from pathlib import Path
 from typing import Any
 
+from scraper.semantic.dose_safety_constants import (
+    REQUIRED_FIELDS,
+    has_safety_cue,
+    is_refusal_message,
+    trigger_is_always_only,
+)
 from scraper.semantic.stable_ids import slug, stable_id
 
+# Re-export for backward compatibility with existing importers.
 REQUIRED_FIELDS = ("dose_safety_warning_id", "drug_keys", "rule_body")
-
 
 def dose_safety_warning_id(parts: list[str]) -> str:
     return stable_id(*parts[:1], uniqueness=list(parts[1:]), prefix="dose", max_label_len=32)
@@ -66,27 +72,45 @@ def build_dose_safety_warning_from_claim(claim: dict[str, Any]) -> dict[str, Any
 
     drug_keys = _normalize_drug_keys(claim.get("drug_keys") or claim.get("drugs") or [claim.get("drug")])
     target = claim.get("target") or claim.get("drug_class")
-    rule_body = claim.get("rule_body") or {}
+    rule_body = dict(claim.get("rule_body") or {})
     message = str(claim.get("message") or rule_body.get("message") or "").strip()
+    evidence_blob = " ".join(
+        str(claim.get(key) or "")
+        for key in ("evidence", "notes", "message", "monitoring", "lab_monitoring", "renal_adjustment")
+    )
+
+    if is_refusal_message(message) or is_refusal_message(evidence_blob):
+        return None
 
     if claim_type == "structured_dose_rule":
         monitoring = claim.get("monitoring") or claim.get("monitoring_fields") or []
-        if not monitoring and not claim.get("renal_adjustment") and not claim.get("lab_monitoring"):
+        has_structural = bool(
+            monitoring or claim.get("renal_adjustment") or claim.get("lab_monitoring")
+        )
+        if not has_structural and not has_safety_cue(evidence_blob):
             return None
         if not message:
             message = str(claim.get("evidence") or claim.get("notes") or "")[:500]
+        if is_refusal_message(message):
+            return None
         if not drug_keys:
             drug_keys = _normalize_drug_keys([claim.get("drug_class")])
         if not rule_body.get("trigger"):
+            # Prefer skipping bare always-triggers unless text has a safety cue.
+            if not has_safety_cue(f"{message} {evidence_blob}"):
+                return None
             rule_body = {
                 "message": message or "Dose safety review recommended.",
                 "trigger": {"condition_groups": [[{"operator": "always"}]]},
                 "severity_rules": list(claim.get("severity_rules") or []),
-                "related_observation_fields": list(monitoring or claim.get("related_observation_fields") or []),
+                "related_observation_fields": list(
+                    monitoring or claim.get("related_observation_fields") or []
+                ),
             }
     elif not message or not drug_keys:
         return None
-
+    elif is_refusal_message(message):
+        return None
     warning_id = (
         claim.get("dose_safety_warning_id")
         or STABLE_WARNING_IDS.get(str(target or ""))

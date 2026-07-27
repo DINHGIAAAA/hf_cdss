@@ -64,6 +64,7 @@ def test_apply_refined_conditions_rejects_low_confidence_or_empty():
         {"conditions": {}, "confidence": 0.99},
     )
     assert not accepted2
+    assert updated2["metadata"]["condition_refinement"]["status"] == "llm_failed"
 
 
 def test_refine_rules_skips_when_llm_unavailable(monkeypatch):

@@ -179,8 +179,40 @@ def run_extract_kg_base(python: str, args: argparse.Namespace, step_kwargs: dict
     """Parse sources → chunks → entities → claims."""
     from scraper.orchestration.data_quality_report import report_kg_base
 
-    labels = str(drug_labels_dir())
-    guidelines = str(guidelines_dir())
+    labels_path = drug_labels_dir()
+    guidelines_path = guidelines_dir()
+    # Ephemeral /tmp staging is empty after container recreate; pull raw from S3 first.
+    if not any(labels_path.glob("**/*")) and not any(guidelines_path.glob("**/*")):
+        print(
+            f"[kg_base] raw staging empty at {raw_root()}; syncing from "
+            f"s3://{args.raw_bucket}/{args.s3_prefix} before parse"
+        )
+        run_step(
+            "sync_sources_from_s3",
+            [
+                python,
+                "-m",
+                "scraper.acquisition.sync_sources_from_s3",
+                "--mode",
+                "prefix",
+                "--bucket",
+                args.raw_bucket,
+                "--prefix",
+                args.s3_prefix,
+                "--endpoint-url",
+                args.s3_endpoint_url,
+                "--workspace",
+                str(ROOT),
+                "--raw-root",
+                str(raw_root()),
+                "--purge-legacy-data-raw",
+            ],
+            upload_artifacts=False,
+            **step_kwargs,
+        )
+
+    labels = str(labels_path)
+    guidelines = str(guidelines_path)
 
     if not args.skip_guideline_parse:
         run_step(
