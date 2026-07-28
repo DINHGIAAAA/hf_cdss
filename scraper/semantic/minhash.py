@@ -51,7 +51,7 @@ def minhash_jaccard(left: tuple[int, ...], right: tuple[int, ...]) -> float:
 def _compute_buckets(
     signature: tuple[int, ...],
     *,
-    num_bands: int = 8,
+    num_bands: int = 20,
 ) -> dict[int, int]:
     """Compute band hash buckets for LSH.
 

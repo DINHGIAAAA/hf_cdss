@@ -129,8 +129,9 @@ def _probe_from_prototypes(
 
 def _semantic_drug_probe(record: dict) -> SemanticProbe:
     section = normalize(record.get("section", ""))
-    text = (record.get("text") or "")[:2000]
-    haystack = f"{section}\n{text}".strip()
+    raw_text = record.get("text") or ""
+    truncated_text = raw_text[:2000]
+    haystack = f"{section}\n{truncated_text}".strip()
     if not haystack:
         return SemanticProbe()
 
@@ -152,7 +153,13 @@ def _semantic_drug_probe(record: dict) -> SemanticProbe:
 
 
 def _semantic_guideline_probe(record: dict) -> SemanticProbe:
-    haystack = f"{record.get('section', '')}\n{record.get('text', '')}"[:2000].strip()
+    section = record.get("section", "")
+    raw_text = record.get("text") or ""
+    if len(raw_text) > 2000:
+        # Extract from the end where dose/safety tables typically appear in guidelines
+        haystack = f"{section}\n{raw_text[-2000:]}".strip()
+    else:
+        haystack = f"{section}\n{raw_text}".strip()
     if not haystack:
         return SemanticProbe()
 

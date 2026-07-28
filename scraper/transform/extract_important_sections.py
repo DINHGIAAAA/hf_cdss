@@ -22,7 +22,7 @@ DRUG_SECTION_ALIASES = {
     "CONTRAINDICATIONS": {"CONTRAINDICATIONS", "CONTRAINDICATION"},
     "WARNINGS AND PRECAUTIONS": {
         "WARNINGS AND PRECAUTIONS", "WARNINGS", "PRECAUTIONS",
-        "BOXED WARNING", "WARNING", "ADVERSE WARNINGS",
+        "BOXED WARNING", "ADVERSE WARNINGS",
     },
     "ADVERSE REACTIONS": {
         "ADVERSE REACTIONS", "ADVERSE EVENTS", "SIDE EFFECTS",
@@ -117,7 +117,6 @@ GUIDELINE_TOPICS = {
         "boxed warning",
         "black box",
         "precaution",
-        "risk of",
         "serious risk",
     ),
     "contraindications": ("contraindication", "contraindications", "contraindicated"),
@@ -191,6 +190,21 @@ GUIDELINE_TOPICS = {
     "race and ethnicity": (
         "african american", "black", "hispanic", "asian", "race",
         "ethnicity", "cultural", "socioeconomic", "disparities",
+    ),
+    "clinical_numbers": (
+        "egfr <", "egfr >", "egfr ≤", "egfr ≥",
+        "crcl <", "crcl >", "crcl ≤", "crcl ≥",
+        "k+ >", "k+ <", "potassium >", "potassium <",
+        "bnp >", "nt-probnp >", "ntprobnp >",
+        "lvef <", "lvEF ≤", "lvEF >", "lvEF ≥",
+        "nyha class", "nyha i", "nyha ii", "nyha iii", "nyha iv",
+        "systolic bp <", "sbp <", "dbp <",
+        "heart rate <", "hr <",
+        "hba1c >", "hba1c <",
+        "qtc >", "qtc <",
+        "hb <", "hemoglobin <",
+        "alt >", "ast >", "bilirubin >",
+        "sodium <", "hyponatremia <",
     ),
 }
 

@@ -8,7 +8,9 @@ from typing import Any
 # LLM refusal / non-informative patterns
 _REFUSAL_RE = re.compile(
     r"(does not contain|no specific evidence|no dosage|not contain any dosage|"
-    r"cannot extract|no evidence for|not enough (text|evidence|information))",
+    r"cannot extract|no evidence for|not enough (text|evidence|information)|"
+    r"not available|no specific dosage|no established dose|insufficient evidence|"
+    r"not recommended|not applicable|no specific (contraindication|warning|safety))",
     re.IGNORECASE,
 )
 
@@ -22,6 +24,8 @@ _SAFETY_CUES = (
     "potassium",
     "hyperkal",
     "hypokal",
+    "k+",
+    "serum k",
     "hold",
     "hold if",
     "hold dose",
@@ -39,6 +43,13 @@ _SAFETY_CUES = (
     "renal function",
     "bleeding",
     "bleeding risk",
+    "qtc",
+    "qt prolongation",
+    "worsening hf",
+    "decompensation",
+    "shock",
+    "hypoperfusion",
+    "angioedema",
 )
 
 

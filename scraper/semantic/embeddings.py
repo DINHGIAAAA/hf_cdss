@@ -214,7 +214,7 @@ def _truncate_embed_input(text: str) -> str:
     max_chars = max(512, config.EMBEDDING_MAX_INPUT_CHARS)
     if len(text) <= max_chars:
         return text
-    return text[:max_chars]
+    return text[:max_chars] + " [TRUNCATED]"
 
 
 def embed_texts(

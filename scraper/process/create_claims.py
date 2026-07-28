@@ -1,4 +1,8 @@
 from scraper.io.jsonl import read_jsonl, write_jsonl
+from scraper.validation.evidence_claim_validation import (
+    validate_claim_evidence_alignment,
+    validate_claims_batch,
+)
 import argparse
 import hashlib
 import json
@@ -7,6 +11,10 @@ import re
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+# Threshold: fail the pipeline if >20% of claims are dropped due to evidence issues.
+# This signals a systemic extraction problem, not just edge cases.
+MAX_CLAIM_DROP_RATE = 0.20
 
 # Heart failure and cardiology drug patterns for extracting drug names from guideline text
 HF_DRUG_PATTERNS = [
@@ -631,7 +639,31 @@ def claims_from_records(records: list[dict], max_claims_per_section: int) -> lis
                 continue
             llm_claims.append(claim)
 
-    return dedupe_claims(dedupe_claims_by_id([*regex_claims, *llm_claims]))
+    claims = dedupe_claims(dedupe_claims_by_id([*regex_claims, *llm_claims]))
+    return _filter_evidence_aligned(claims)
+
+
+def _filter_evidence_aligned(claims: list[dict]) -> list[dict]:
+    validated = validate_claims_batch(claims)
+    passed = [r for r in validated if r["validation"]["aligned"]]
+    dropped = len(validated) - len(passed)
+    drop_rate = dropped / max(len(validated), 1)
+
+    logger.info(
+        "evidence_claim_validation: %d/%d passed (dropped %d, rate %.1f%%)",
+        len(passed),
+        len(validated),
+        dropped,
+        drop_rate * 100,
+    )
+
+    if drop_rate > MAX_CLAIM_DROP_RATE:
+        raise SystemExit(
+            f"Claim validation failed: {drop_rate*100:.1f}% drop rate "
+            f"(>{MAX_CLAIM_DROP_RATE*100:.0f}%). Systemic extraction problem — fix upstream before re-running."
+        )
+
+    return passed
 
 def main() -> None:
     from scraper.paths import data_root

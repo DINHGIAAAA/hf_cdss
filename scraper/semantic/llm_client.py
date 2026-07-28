@@ -145,7 +145,17 @@ def llm_available() -> bool:
             response = client.get(f"{config.LLM_BASE_URL.rstrip('/v1')}/api/tags")
             response.raise_for_status()
             return True
-    except Exception:
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 401 or exc.response.status_code == 403:
+            logger.error("LLM auth failed (%d) — check LLM_API_KEY. Pipeline will run in regex-only mode.", exc.response.status_code)
+        else:
+            logger.warning("LLM health check failed (%d): %s", exc.response.status_code, exc)
+        return False
+    except OSError as exc:
+        logger.warning("LLM unreachable (network error): %s", exc)
+        return False
+    except Exception as exc:
+        logger.warning("LLM availability check failed: %s", exc)
         return False
 
 

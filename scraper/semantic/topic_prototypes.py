@@ -195,6 +195,11 @@ GUIDELINE_TOPIC_PROTOTYPES: dict[str, list[str]] = {
         "Do not use in patients with history of angioedema to ACE inhibitors.",
         "Avoid in patients with bilateral renal artery stenosis.",
         "Contraindicated in patients with hypersensitivity to the drug.",
+        "Do not use concomitant ACE inhibitors and ARBs together - contraindicated.",
+        "Contraindicated in pregnancy due to teratogenic risk.",
+        "Do not use in patients with hereditary galactose intolerance.",
+        "Avoid use in patients with severe hepatic impairment.",
+        "Contraindicated in patients with history of drug-induced angioedema.",
     ],
     "comorbidities": [
         "Management of comorbid conditions such as diabetes, CKD, or atrial fibrillation.",
@@ -336,5 +341,15 @@ GUIDELINE_TOPIC_PROTOTYPES: dict[str, list[str]] = {
         "Consider socioeconomic factors in treatment planning.",
         "Culturally tailored education improves outcomes.",
         "Race-specific data may inform treatment decisions.",
+    ],
+    "clinical_numbers": [
+        "eGFR thresholds for dose adjustment such as eGFR below 30 mL/min.",
+        "Serum potassium cutoff above 5.0 or 5.5 mEq/L for safety monitoring.",
+        "Left ventricular ejection fraction less than 35 percent.",
+        "BNP or NT-proBNP target levels for diagnosis and monitoring.",
+        "NYHA functional classification from Class I to Class IV.",
+        "Blood pressure targets below 130/80 mmHg for HF patients.",
+        "Heart rate targets between 50-60 bpm for beta blocker therapy.",
+        "Serum creatinine and eGFR cutoffs for renal dose adjustment.",
     ],
 }

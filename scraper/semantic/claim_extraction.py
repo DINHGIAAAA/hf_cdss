@@ -55,7 +55,7 @@ def _build_claim(record: dict, payload: dict[str, Any], index: int) -> dict | No
     try:
         confidence_value = float(confidence)
     except (TypeError, ValueError):
-        confidence_value = 0.82
+        confidence_value = 0.5  # minimum confidence when LLM returns nothing — signals low-quality extraction
     confidence_value = max(0.5, min(round(confidence_value, 2), 1.0))
 
     conditions = normalize_conditions(payload.get("conditions") if isinstance(payload.get("conditions"), dict) else {})
@@ -94,6 +94,7 @@ def _build_claim(record: dict, payload: dict[str, Any], index: int) -> dict | No
             output["drug"] = None
             if claim_type != "general_monitoring":
                 output["claim_type"] = "general_monitoring"
+                output["_downgraded_from"] = claim_type  # provenance: original type before downgrade
         output["metadata"]["published_date"] = metadata.get("published_date")
         output["metadata"]["setid"] = metadata.get("setid")
     else:

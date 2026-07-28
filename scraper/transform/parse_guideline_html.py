@@ -17,6 +17,7 @@ class ArticleHTMLParser(HTMLParser):
         self.capture_tag: str | None = None
         self.current: list[str] = []
         self.blocks: list[tuple[str, str]] = []
+        self.short_blocks: list[tuple[str, str]] = []  # capture <20-char blocks separately
         self.skip_depth = 0
 
     def handle_starttag(self, tag: str, attrs) -> None:
@@ -38,6 +39,8 @@ class ArticleHTMLParser(HTMLParser):
             text = re.sub(r"\s+", " ", text).strip()
             if len(text) >= 20:
                 self.blocks.append((tag, text))
+            else:
+                self.short_blocks.append((tag, text))
             self.capture_tag = None
             self.current = []
 
@@ -117,6 +120,11 @@ def parse_sections(path: Path, registry: dict[str, dict]) -> list[dict]:
             current_heading = text[:180].upper()
         else:
             current_text.append(text)
+
+    # Short blocks (<20 chars) are appended to the current section — they are
+    # often safety flags, dosage markers, or callouts that belong with context.
+    for tag, text in parser.short_blocks:
+        current_text.append(text)
 
     if current_text:
         sections.append(_section_record(path, metadata, current_heading, current_text))

@@ -1,12 +1,12 @@
-# CÁC HÌNH VẼ VÀ SƠ ĐỒ
+# APPENDIX A: FIGURES AND DIAGRAMS
 
 ---
 
-## HÌNH 1: KIẾN TRÚC TỔNG THỂ HỆ THỐNG HF-CDSS
+## Figure A.1: Overall HF-CDSS System Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────────┐
-│                                    NGƯỜI DÙNG                                       │
+│                                      USER                                           │
 └─────────────────────────────────────────────────────────────────────────────────────┘
                                     │
                     ┌───────────────┴───────────────┐
@@ -65,7 +65,7 @@
 │  │                                                                              │   │
 │  │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐             │   │
 │  │  │      Chat       │  │    Reasoning    │  │    GraphRAG     │             │   │
-│  │  │  (Đieu phoi)  │  │ (Khuyen nghị)  │  │   (Truy xuat)   │             │   │
+│  │  │ (Orchestration) │  │(Recommendations)│  │   (Retrieval)   │             │   │
 │  │  └────────┬────────┘  └────────┬────────┘  └────────┬────────┘             │   │
 │  │           │                    │                    │                      │   │
 │  │  ┌────────▼────────┐  ┌────────▼────────┐  ┌────────▼────────┐             │   │
@@ -95,11 +95,11 @@
 └─────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Hình 1. Kiến trúc tổng thể hệ thống HF-CDSS (Mono App Architecture)**
+**Figure A.1. Overall HF-CDSS architecture (mono-app)**
 
 ---
 
-## HÌNH 2: LUỒNG XỬ LÝ TIN NHẮN CHAT
+## Figure A.2: Chat Message Processing Flow
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────────┐
@@ -201,15 +201,15 @@
 └─────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Hình 2. Luồng xử lý tin nhắn chat từ input đến khuyến nghị**
+**Figure A.2. Chat message processing flow from input to recommendation**
 
 ---
 
-## HÌNH 3: PIPELINE XÂY DỰNG CƠ SỞ TRI THỨC
+## Figure A.3: Knowledge-Base Construction Pipeline
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────────┐
-│                              NGUỒN DỮ LIỆU                                        │
+│                                 DATA SOURCES                                        │
 │                                                                                      │
 │   ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐               │
 │   │ FDA Drug Labels │  │ Clinical        │  │ Drug Interaction │               │
@@ -221,7 +221,7 @@
              └─────────────────────┼─────────────────────┘
                                    ▼
 ┌─────────────────────────────────────────────────────────────────────────────────────┐
-│  GIAI ĐOẠN 1: ACQUIRE (scraper/acquisition/)                                   │
+│  STAGE 1: ACQUIRE (scraper/acquisition/)                                       │
 │                                                                                      │
 │   download_sources.py                                                                │
 │   ├── HTTP/DailyMed downloads                                                      │
@@ -230,7 +230,7 @@
                                    │
                                    ▼
 ┌─────────────────────────────────────────────────────────────────────────────────────┐
-│  GIAI ĐOẠN 2: LOAD (Ephemeral Staging)                                           │
+│  STAGE 2: LOAD (Ephemeral Staging)                                           │
 │                                                                                      │
 │   ├── Sync from S3 raw bucket to staging                                            │
 │   └── Validate file formats                                                         │
@@ -238,7 +238,7 @@
                                    │
                                    ▼
 ┌─────────────────────────────────────────────────────────────────────────────────────┐
-│  GIAI ĐOẠN 3: EXTRACT                                                            │
+│  STAGE 3: EXTRACT                                                            │
 │                                                                                      │
 │   ┌─────────────────────────────────────────────────────────────────────────┐     │
 │   │ 3a. KG_BASE                                                              │     │
@@ -261,7 +261,7 @@
                                    │
                                    ▼
 ┌─────────────────────────────────────────────────────────────────────────────────────┐
-│  GIAI ĐOẠN 4: STORE                                                             │
+│  STAGE 4: STORE                                                             │
 │                                                                                      │
 │   ┌─────────────────────────────────────────────────────────────────────────┐     │
 │   │ A. Long-term Storage (S3)                                              │     │
@@ -286,7 +286,7 @@
 │                                                                                      │
 │   ┌─────────────────────────────────────────────────────────────────────────┐     │
 │   │ A. Load from S3 → local data/heart_failure/                          │     │
-│   │    └── Download artifacts từ S3 processed bucket                       │     │
+│   │    └── Download artifacts from S3 processed bucket                       │     │
 │   └─────────────────────────────────────────────────────────────────────────┘     │
 │                                                                                      │
 │   ┌─────────────────────────────────────────────────────────────────────────┐     │
@@ -299,24 +299,24 @@
 │   │    └── artifacts/entities/*.jsonl → Nodes + Edges                     │     │
 │   └─────────────────────────────────────────────────────────────────────────┘     │
 │                                                                                      │
-│   NOTE: PostgreSQL governance catalogs ĐÃ ĐƯỢC SYNC ở STORE step - không cần reload │
+│   NOTE: PostgreSQL governance catalogs were ALREADY SYNCED in the STORE step — no reload needed │
 └─────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Hình 3. Pipeline xây dựng cơ sở tri thức y khoa**
+**Figure A.3. Medical knowledge-base construction pipeline**
 
-### Tại sao cần S3 nếu đã sync trực tiếp vào PostgreSQL?
+### Why is S3 needed if data is synced directly to PostgreSQL?
 
-| Muc đích | Giải thích |
-|-----------|------------|
-| **Backup** | Neu PostgreSQL crash, co the restore tu S3 |
-| **Multi-instance** | Nhieu backend instances cung load tu 1 nguon S3 |
-| **ChromaDB/Neo4j** | Khong co direct sync - phai qua bootstrap |
-| **Versioning** | S3 giu history, rollback duoc |
+| Purpose | Explanation |
+|---------|-------------|
+| **Backup** | If PostgreSQL crashes, data can be restored from S3 |
+| **Multi-instance** | Multiple backend instances can load from a single S3 source |
+| **ChromaDB/Neo4j** | No direct sync — must go through bootstrap |
+| **Versioning** | S3 retains history; rollback is possible |
 
 ---
 
-## HÌNH 4: KIẾN TRÚC GRAPHRAG
+## Figure A.4: GraphRAG Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────────┐
@@ -378,11 +378,11 @@
                               Final Context Chunks
 ```
 
-**Hình 4. Kiến trúc GraphRAG cho truy xuất tri thức**
+**Figure A.4. GraphRAG hybrid retrieval architecture**
 
 ---
 
-## HÌNH 5: SƠ ĐỒ CƠ SỞ DỮ LIỆU
+## Figure A.5: Database Schema Overview
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────────┐
@@ -492,11 +492,11 @@
 └─────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Hình 5. Sơ đồ cơ sở dữ liệu**
+**Figure A.5. Database schema overview**
 
 ---
 
-## HÌNH 6: ROUTING & GIAO DIỆN NGƯỜI DÙNG
+## Figure A.6: Frontend Routing and UI Structure
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────────┐
@@ -552,11 +552,11 @@
                             └───────────────────────────────────────────────┘
 ```
 
-**Hình 6. Routing và cấu trúc giao diện người dùng**
+**Figure A.6. Frontend routing and UI structure**
 
 ---
 
-## HÌNH 7: SEQUENCE DIAGRAM - CHAT FLOW
+## Figure A.7: Chat-Flow Sequence Diagram
 
 ```
 ┌──────────┐     ┌──────────┐     ┌──────────┐     ┌──────────┐     ┌──────────┐
@@ -601,11 +601,11 @@
      │                │                │                │                │
 ```
 
-**Hình 7. Sequence diagram - Luồng xử lý chat**
+**Figure A.7. Chat-flow sequence diagram**
 
 ---
 
-## BẢNG 1: CÁC THÀNH PHẦN CHÍNH
+## Table A.1: Main System Components
 
 | Component | Technology | Port | Purpose |
 |-----------|-----------|------|---------|
@@ -618,7 +618,11 @@
 | **Redis** | Cache | 6379 | Draft, messages, LLM cache |
 | **LocalStack** | S3 Emulator | 4566 | Artifact storage |
 
-## BẢNG 2: ROUTES TRONG FRONTEND
+**Table A.1. Main system components and ports**
+
+---
+
+## Table A.2: Frontend Routes
 
 | Route | Component | Description |
 |-------|-----------|-------------|
@@ -635,3 +639,5 @@
 | `/admin/system` | SystemPage | System health |
 | `/admin/api` | ApiExplorerPage | API testing |
 | `/admin/users` | UsersPage | User management (admin only) |
+
+**Table A.2. Frontend routes**

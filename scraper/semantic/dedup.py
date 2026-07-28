@@ -230,7 +230,7 @@ def _semantic_dedup_key(claim: dict) -> tuple[str, ...]:
         claim.get("claim_type", ""),
         claim.get("action", ""),
         frozenset(claim.get("conditions", {}).keys()),
-        _normalize_claim_for_dedup(claim)[:100],
+        _normalize_claim_for_dedup(claim)[:300],
     )
 
 
@@ -286,6 +286,12 @@ def dedupe_claims_smart(
                 semantic_kept = [c for c in semantic_kept if c is not existing]
                 semantic_kept.append(claim)
                 seen_semantic[sem_key] = claim
+            elif claim.get("confidence", 0) == existing.get("confidence", 0):
+                # Same confidence — keep the shorter (more specific) claim
+                if len(claim.get("evidence", "")) < len(existing.get("evidence", "")):
+                    semantic_kept = [c for c in semantic_kept if c is not existing]
+                    semantic_kept.append(claim)
+                    seen_semantic[sem_key] = claim
 
     # Strategy 3: Embedding-based for remaining
     return dedupe_by_embedding(

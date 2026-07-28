@@ -168,9 +168,9 @@ def _build_structured_claim(record: dict, payload: dict[str, Any], index: int) -
         return None
 
     try:
-        confidence = max(0.5, min(float(payload.get("confidence") or 0.82), 1.0))
+        confidence = max(0.5, min(float(payload.get("confidence") or 0.5), 1.0))
     except (TypeError, ValueError):
-        confidence = 0.82
+        confidence = 0.5
 
     metadata = dict(record.get("metadata") or {})
     drug_keys = [str(item).strip().lower() for item in (payload.get("drug_keys") or []) if str(item).strip()]

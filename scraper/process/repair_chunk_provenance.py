@@ -6,12 +6,17 @@ Used after guideline HTML parse when registry lookup missed .html siblings of PD
 from __future__ import annotations
 
 import argparse
+import logging
+import re
 from pathlib import Path
 
 from scraper.io.jsonl import read_jsonl, write_jsonl
 from scraper.transform.parse_guideline_html import load_registry
 
+logger = logging.getLogger(__name__)
+
 _MOJIBAKE_REPLACEMENTS = (
+    # Original entries (mojibake patterns as string literals)
     ("Ã¡", "á"),
     ("Ã©", "é"),
     ("Ã­", "í"),
@@ -22,33 +27,92 @@ _MOJIBAKE_REPLACEMENTS = (
     ("Ã§", "ç"),
     ("Ã¤", "ä"),
     ("Ã¶", "ö"),
-    ("Ã", "Á"),
-    ("Ã‰", "É"),
-    ("Ã", "Í"),
-    ("Ã“", "Ó"),
-    ("Ãš", "Ú"),
+    ("ÃÁ", "Á"),
+    ("ÃÉ", "É"),
+    ("ÃÍ", "Í"),
+    ("ÃÓ", "Ó"),
+    ("ÃÚ", "Ú"),
     ("â€™", "'"),
     ("â€˜", "'"),
     ("â€œ", '"'),
-    ("â€", '"'),
-    ("â€“", "-"),
-    ("â€”", "-"),
+    ("â€¢", '"'),
     ("â€", '"'),
-    ("Ä‘", "đ"),
-    ("Ä", "Đ"),
+    ("â€", "-"),
+    ("Ä", "đ"),
+    ("Ä", "Đ"),
+    # Expanded: C3 stray UTF-8 lead bytes (0x80-0xBF) from double-encoding
+    ("Ã€", ""), ("Ã", ""), ("Ã", ""), ("Ã", ""), ("Ã", ""),
+    ("Ã", ""), ("Ã", ""), ("Ã", ""), ("Ã", ""), ("Ã", ""),
+    ("Ã", ""), ("Ã", ""), ("Ã", ""), ("Ã", ""), ("Ã", ""),
+    ("Ã", ""), ("Ã", ""), ("Ã", ""), ("Ã", ""), ("Ã", ""),
+    ("Ã", ""), ("Ã", ""), ("Ã", ""), ("Ã", ""), ("Ã", ""),
+    ("Ã", ""), ("Ã", ""), ("Ã", ""), ("Ã", ""), ("Ã", ""),
+    ("Ã", ""), ("Ã", ""), ("Ã", ""), ("Ã", ""), ("Ã", ""),
+    ("Ã", ""), ("Ã", ""), ("Ã", ""), ("Ã", ""), ("Ã", ""),
+    ("Ã", ""), ("Ã", ""), ("Ã", ""), ("Ã", ""), ("Ã", ""),
+    ("Ã", ""), ("Ã", ""), ("Ã", ""), ("Ã", ""), ("Ã", ""),
+    ("Ã", ""), ("Ã", ""), ("Ã", ""), ("Ã", ""), ("Ã", ""),
+    ("Ã", ""), ("Ã", ""), ("Ã", ""), ("Ã", ""), ("Ã", ""),
+    ("Ã", ""), ("Ã", ""), ("Ã", ""), ("Ã", ""), ("Ã", ""),
+    ("Ã", ""), ("Ã", ""), ("Ã", ""), ("Ã", ""), ("Ã", ""),
+    ("Ã", ""), ("Ã", ""), ("Ã", ""), ("Ã", ""), ("Ã", ""),
+    # C2 stray lead bytes
+    ("Â€", ""), ("Â", ""), ("Â", ""), ("Â", ""), ("Â", ""),
+    ("Â", ""), ("Â", ""), ("Â", ""), ("Â", ""), ("Â", ""),
+    ("Â", ""), ("Â", ""), ("Â", ""), ("Â", ""), ("Â", ""),
+    ("Â", ""), ("Â", ""), ("Â", ""), ("Â", ""), ("Â", ""),
+    ("Â", ""), ("Â", ""), ("Â", ""), ("Â", ""), ("Â", ""),
+    ("Â", ""), ("Â", ""), ("Â", ""), ("Â", ""), ("Â", ""),
+    ("Â", ""), ("Â", ""), ("Â", ""), ("Â", ""), ("Â", ""),
+    ("Â", ""), ("Â", ""), ("Â", ""), ("Â", ""), ("Â", ""),
+    ("Â", ""), ("Â", ""), ("Â", ""), ("Â", ""), ("Â", ""),
+    ("Â", ""), ("Â", ""), ("Â", ""), ("Â", ""), ("Â", ""),
+    ("Â", ""), ("Â", ""), ("Â", ""), ("Â", ""), ("Â", ""),
+    ("Â", ""), ("Â", ""), ("Â", ""), ("Â", ""), ("Â", ""),
+    ("Â", ""), ("Â", ""), ("Â", ""), ("Â", ""), ("Â", ""),
+    ("Â", ""), ("Â", ""), ("Â", ""), ("Â", ""), ("Â", ""),
+    ("Â", ""), ("Â", ""), ("Â", ""), ("Â", ""), ("Â", ""),
+    # Common full sequences
+    ("Â°", " deg"),
+    ("Â²", "2"),
+    ("Â³", "3"),
+    ("Â©", "(C)"),
+    ("Â®", "(R)"),
+    ("â€" , "-"),
+    ("â€" , "--"),
+    ("â€' ", "'"),
+    ("â€' ", "'"),
+    ("â€" , '"'),
+    ("â€" , '"'),
+    ("â€", "..."),
+    ("â€", ","),
+    ("â€", ",,"),
+    ("â" , "(TM)"),
+    ("Ã—", "x"),
+    ("Ã·", "/"),
+    # Control characters
+    ("\x00", ""),
+    ("\x01", ""), ("\x02", ""), ("\x03", ""), ("\x04", ""), ("\x05", ""),
+    ("\x06", ""), ("\x07", ""), ("\x08", ""), ("\x0b", ""), ("\x0c", ""),
+    ("\x0e", ""), ("\x0f", ""), ("\x10", ""), ("\x11", ""), ("\x12", ""),
+    ("\x13", ""), ("\x14", ""), ("\x15", ""), ("\x16", ""), ("\x17", ""),
+    ("\x18", ""), ("\x19", ""), ("\x1a", ""), ("\x1c", ""), ("\x1d", ""),
+    ("\x1e", ""), ("\x1f", ""), ("\x7f", ""),
 )
 
 
 def _fix_mojibake(text: str) -> str:
     if not text:
         return text
-    repaired = text.replace("\ufffd", "")
+    repaired = text.replace("�", "")
+    repaired = repaired.replace("\r\n", "\n").replace("\r", "\n")
     try:
-        candidate = repaired.encode("latin-1").decode("utf-8")
-        if candidate and candidate != repaired:
-            return candidate
+        cand = repaired.encode("latin-1").decode("utf-8")
+        if cand != repaired:
+            repaired = cand
     except (UnicodeDecodeError, UnicodeEncodeError):
         pass
+    repaired = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", repaired)
     for bad, good in _MOJIBAKE_REPLACEMENTS:
         if bad in repaired:
             repaired = repaired.replace(bad, good)
@@ -77,90 +141,77 @@ def repair_chunk(row: dict, registry: dict[str, dict]) -> tuple[dict, bool]:
         row["text"] = fixed_text
         changed = True
 
-    meta = dict(row.get("metadata") or {})
-    provenance = dict(meta.get("provenance") or {})
-    source = _resolve_source(meta, registry)
-
-    source_url = meta.get("source_url") or source.get("html_url") or source.get("url")
-    if source_url and meta.get("source_url") != source_url:
-        meta["source_url"] = source_url
-        changed = True
-
-    if source.get("source_id") and not meta.get("source_id"):
-        meta["source_id"] = source["source_id"]
-        changed = True
-
-    if source.get("title") and not meta.get("citation"):
-        citation = source["title"]
-        if source.get("publisher"):
-            citation = f"{citation}. {source['publisher']}."
-        meta["citation"] = citation
-        changed = True
-
-    source_locator = meta.get("source_locator") or provenance.get("source_locator")
-    if not source_locator and source_url:
-        page = meta.get("page_start") or meta.get("page")
-        source_locator = f"{source_url}#page={page}" if page else source_url
-        meta["source_locator"] = source_locator
-        changed = True
-
-    if source_locator and provenance.get("source_locator") != source_locator:
-        provenance["source_locator"] = source_locator
-        changed = True
-    if source_url and provenance.get("source_url") != source_url:
-        provenance["source_url"] = source_url
-        changed = True
-
-    if changed:
-        meta["provenance"] = provenance
+    meta = row.get("metadata") or {}
+    source_ref = _resolve_source(meta, registry)
+    if not meta.get("source_url") and source_ref.get("source_url"):
+        meta["source_url"] = source_ref["source_url"]
         row["metadata"] = meta
+        changed = True
+
+    provenance = meta.get("provenance") or {}
+    if not provenance.get("source_url") and source_ref.get("source_url"):
+        provenance["source_url"] = source_ref["source_url"]
+        if source_ref.get("source_id"):
+            provenance["source_id"] = source_ref["source_id"]
+        if source_ref.get("citation"):
+            provenance["citation"] = source_ref["citation"]
+        row.setdefault("metadata", meta)["provenance"] = provenance
+        changed = True
+
     return row, changed
 
 
-def repair_claim(row: dict) -> tuple[dict, bool]:
-    evidence = str(row.get("evidence") or "")
-    fixed = _fix_mojibake(evidence)
-    if fixed == evidence:
-        return row, False
-    row["evidence"] = fixed
-    return row, True
+def repair_chunks(
+    input_path: Path,
+    registry: dict[str, dict],
+    dry_run: bool = False,
+) -> dict[str, int]:
+    records = read_jsonl(input_path)
+    changed_count = 0
+    for row in records:
+        _, changed = repair_chunk(row, registry)
+        if changed:
+            changed_count += 1
+
+    if changed_count and not dry_run:
+        write_jsonl(records, input_path)
+        logger.info("Repaired provenance in %d/%d chunks: %s", changed_count, len(records), input_path)
+    else:
+        logger.info("Checked %d chunks: %d changed (dry run)", len(records), changed_count)
+
+    return {"total": len(records), "changed": changed_count}
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Repair chunk source_url / locator / mojibake.")
-    parser.add_argument("--chunks", default=Path("artifacts/chunks/chunks.jsonl"), type=Path)
-    parser.add_argument("--claims", default=Path("artifacts/claims/claims.jsonl"), type=Path)
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+    parser = argparse.ArgumentParser(description="Repair chunk provenance and mojibake.")
+    parser.add_argument("--chunks", type=Path, required=True)
+    parser.add_argument("--claims", type=Path, default=None)
     parser.add_argument(
         "--registry",
-        default=Path("sources/sources.example.json"),
         type=Path,
-        help="Sources registry used to backfill URLs by filename stem.",
+        default=None,
+        help="Path to sources registry JSON",
     )
+    parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
     registry = load_registry(args.registry)
-    rows = read_jsonl(args.chunks)
-    changed_count = 0
-    fixed_rows = []
-    for row in rows:
-        fixed, changed = repair_chunk(row, registry)
-        fixed_rows.append(fixed)
-        if changed:
-            changed_count += 1
-    write_jsonl(fixed_rows, args.chunks)
-    print(f"Repaired {changed_count}/{len(fixed_rows)} chunks in {args.chunks}")
+    results: dict[str, dict] = {}
 
-    if args.claims.exists():
-        claim_rows = read_jsonl(args.claims)
-        claim_changed = 0
-        fixed_claims = []
-        for row in claim_rows:
-            fixed, changed = repair_claim(row)
-            fixed_claims.append(fixed)
-            if changed:
-                claim_changed += 1
-        write_jsonl(fixed_claims, args.claims)
-        print(f"Repaired {claim_changed}/{len(fixed_claims)} claims in {args.claims}")
+    if args.chunks.exists():
+        results["chunks"] = repair_chunks(args.chunks, registry, args.dry_run)
+    if args.claims and args.claims.exists():
+        results["claims"] = repair_chunks(args.claims, registry, args.dry_run)
+
+    total_changed = sum(r["changed"] for r in results.values())
+    print(f"Repaired {total_changed} records across {len(results)} artifact types.")
+
+    if not args.dry_run and total_changed == 0:
+        print("Nothing to repair.")
+
+    if total_changed and args.dry_run:
+        print(f"Would repair {total_changed} records. Run without --dry-run to apply.")
 
 
 if __name__ == "__main__":

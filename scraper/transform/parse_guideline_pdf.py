@@ -81,8 +81,8 @@ def is_heading(line: str) -> bool:
         return False
 
     # Heuristic: A line ending with a period is not a heading,
-    # unless it's a numbered list item.
-    if line.endswith(".") and not re.match(r"^\s*\d+(\.\d+)*", line):
+    # unless it's a numbered or lettered list item.
+    if line.endswith(".") and not re.match(r"^\s*(\d+(\.\d+)*|[a-zA-Z])\s*[\)\.]", line):
         return False
 
     # Heuristic: A short line that is entirely uppercase is very likely a heading.
