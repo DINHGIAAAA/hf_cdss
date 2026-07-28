@@ -10,6 +10,7 @@ import {
   DetailFieldList,
   DetailMetaRow,
 } from "@shared/governance/DetailFieldList.jsx";
+import { AdminDetailModal } from "@shared/governance/AdminDetailModal.jsx";
 import { doseSafetyWarningTitle } from "@shared/governance/displayNames.js";
 
 function statusClass(status) {
@@ -56,7 +57,7 @@ export function DoseSafetyWarningDetail({ rule, onClose, onAction, actionLoading
   const body = rule.rule_body || {};
 
   return (
-    <aside aria-label="Dose safety warning details" className="admin-detail-panel dose-detail-panel">
+    <AdminDetailModal ariaLabel="Dose safety warning details" className="dose-detail-panel" onClose={onClose}>
       <header className="admin-detail-header">
         <div>
           <h2>{doseSafetyWarningTitle(rule)}</h2>
@@ -141,6 +142,6 @@ export function DoseSafetyWarningDetail({ rule, onClose, onAction, actionLoading
           </button>
         )}
       </footer>
-    </aside>
+    </AdminDetailModal>
   );
 }

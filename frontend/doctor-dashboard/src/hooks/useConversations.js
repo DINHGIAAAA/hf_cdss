@@ -98,6 +98,44 @@ export function useConversations() {
     setActiveId(patientId);
   }, []);
 
+  const deleteConversation = useCallback((conversationId) => {
+    setConversations((items) => {
+      const next = items.filter((item) => item.id !== conversationId);
+      setActiveId((current) => {
+        if (current !== conversationId) return current;
+        return next[0]?.id || null;
+      });
+      return next;
+    });
+  }, []);
+
+  const clearConversation = useCallback((conversationId) => {
+    setConversations((items) =>
+      items.map((item) => {
+        if (item.id !== conversationId) return item;
+        const name =
+          item.draft?.patient?.patient_identity?.full_name ||
+          item.patient?.patient_identity?.full_name ||
+          item.name ||
+          "patient";
+        return {
+          ...item,
+          attachments: [],
+          messages: [
+            {
+              id: `${conversationId}-welcome-${Date.now()}`,
+              role: "assistant",
+              content: `Patient ${name} is ready. Ask the clinical question and attach notes if needed.`,
+            },
+          ],
+          recommendation: null,
+          verification: null,
+          updatedAt: new Date().toISOString(),
+        };
+      }),
+    );
+  }, []);
+
   useEffect(() => {
     if (activeId) {
       syncConversationFromServer(activeId);
@@ -111,5 +149,7 @@ export function useConversations() {
     patchConversation,
     updateActive,
     createConversation,
+    deleteConversation,
+    clearConversation,
   };
 }

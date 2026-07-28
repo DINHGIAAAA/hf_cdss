@@ -32,6 +32,8 @@ export function ChatPage() {
     patchConversation,
     updateActive,
     createConversation,
+    deleteConversation,
+    clearConversation,
   } = useConversations();
 
   const active = conversations.find((c) => c.id === activeId) || null;
@@ -63,6 +65,7 @@ export function ChatPage() {
         activeId={activeId}
         health={health}
         open={sidebarOpen}
+        onDelete={deleteConversation}
         onNew={() => setShowModal(true)}
         onSelect={(id) => {
           selectConversation(id);
@@ -81,6 +84,9 @@ export function ChatPage() {
         <ClinicalChatThread
           active={active}
           sidebarOpen={sidebarOpen}
+          onClear={clearConversation}
+          onDelete={deleteConversation}
+          onNew={() => setShowModal(true)}
           onToggleSidebar={() =>
             setSidebarOpen((value) => {
               localStorage.setItem("hf_sidebar", value ? "0" : "1");

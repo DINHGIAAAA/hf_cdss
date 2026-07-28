@@ -6,7 +6,12 @@ import { useAuth } from "../auth/AuthContext";
 import { DoseSafetyWarningDetail } from "../components/DoseSafetyWarningDetail.jsx";
 import { ApprovalToolbar } from "@shared/governance/ApprovalToolbar.jsx";
 import { DOSE_SAFETY_CATALOG } from "@shared/governance/catalogConfig.js";
-import { doseSafetyWarningTitle, shortCatalogId } from "@shared/governance/displayNames.js";
+import { CatalogRecordLabel } from "@shared/governance/CatalogRecordLabel.jsx";
+import {
+  doseSafetyWarningTitle,
+  formatDrugSetLabel,
+  shortCatalogId,
+} from "@shared/governance/displayNames.js";
 import { fetchCatalogListWithCounts } from "@shared/governance/fetchCatalogListWithCounts.js";
 import { StatusCountCards, statusTabLabel } from "@shared/governance/StatusCountCards.jsx";
 import { useRuleSelection } from "@shared/governance/useRuleSelection.js";
@@ -29,12 +34,6 @@ function statusClass(status) {
   if (status === "approved") return "success";
   if (status === "draft") return "warning";
   return "danger";
-}
-
-function formatDrugSet(tokens = []) {
-  if (!tokens.length) return "—";
-  const preview = tokens.slice(0, 2).join(", ");
-  return tokens.length > 2 ? `${preview} +${tokens.length - 2}` : preview;
 }
 
 export function DoseSafetyWarningsPage() {
@@ -236,8 +235,7 @@ export function DoseSafetyWarningsPage() {
         </p>
       )}
 
-      <div className={`admin-split${selectedRule ? " admin-split--open" : ""}`}>
-        <section className="admin-table-panel">
+      <section className="admin-table-panel">
           {loading ? (
             <div className="admin-empty" aria-busy="true">
               <LoaderCircle className="spin" size={24} />
@@ -256,8 +254,8 @@ export function DoseSafetyWarningsPage() {
                   <th>Warning</th>
                   <th>Severity</th>
                   <th>Status</th>
-                  <th>Drug keys</th>
-                  <th />
+                  <th>Drugs</th>
+                  <th className="admin-col-actions">Review</th>
                 </tr>
               </thead>
               <tbody>
@@ -276,11 +274,12 @@ export function DoseSafetyWarningsPage() {
                       </td>
                     )}
                     <td>
-                      <strong title={rule.dose_safety_warning_id}>{doseSafetyWarningTitle(rule)}</strong>
-                      <small>
-                        {shortCatalogId(rule.dose_safety_warning_id)} · v{rule.version} ·{" "}
-                        {rule.target || "—"}
-                      </small>
+                      <CatalogRecordLabel
+                        id={shortCatalogId(rule.dose_safety_warning_id)}
+                        meta={`v${rule.version}`}
+                        title={doseSafetyWarningTitle(rule)}
+                        titleAttr={rule.dose_safety_warning_id}
+                      />
                     </td>
                     <td>
                       <code className="dose-code">{rule.default_severity}</code>
@@ -288,8 +287,10 @@ export function DoseSafetyWarningsPage() {
                     <td>
                       <span className={`badge ${statusClass(rule.status)}`}>{rule.status}</span>
                     </td>
-                    <td>{formatDrugSet(rule.drug_keys)}</td>
-                    <td>
+                    <td className="cell-clamp" title={(rule.drug_keys || []).join(", ")}>
+                      {formatDrugSetLabel(rule.drug_keys)}
+                    </td>
+                    <td className="admin-col-actions">
                       <button className="link-btn" onClick={() => openRule(rule.id)} type="button">
                         Review <ChevronRight size={14} />
                       </button>
@@ -314,7 +315,6 @@ export function DoseSafetyWarningsPage() {
             rule={selectedRule}
           />
         )}
-      </div>
     </div>
   );
 }

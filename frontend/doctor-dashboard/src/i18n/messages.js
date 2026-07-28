@@ -2,6 +2,7 @@ export const MESSAGES = {
   en: {
     sidebar: {
       newChat: "New chat",
+      deleteChat: "Delete conversation",
       signOut: "Sign out",
       adminDashboard: "Admin dashboard",
       apiStatus: "API {status}",
@@ -18,6 +19,12 @@ export const MESSAGES = {
       composerPlaceholder:
         "Ask about GDMT, medication safety, titration, or clinical evidence...",
       resizePanel: "Resize evidence panel",
+      conversationActions: "Conversation actions",
+      newChat: "New chat",
+      clearChat: "Clear messages",
+      deleteChat: "Delete conversation",
+      clearConfirm: "Clear all messages in this conversation? Patient context is kept.",
+      deleteConfirm: "Delete this conversation? This cannot be undone.",
       disclaimer:
         "HF CDSS supports clinical decisions — not a substitute for physician judgment.",
       suggestions: [
@@ -66,6 +73,14 @@ export const MESSAGES = {
       openSource: "Open source",
       showMore: "Show more",
       showLess: "Show less",
+      matchScore: "Relevance to this answer",
+      sourceDetails: "Source details",
+      fact: {
+        type: "Type",
+        page: "Page",
+        publisher: "Publisher",
+        year: "Year",
+      },
       missing: "missing",
       conditions: "Conditions:",
       meds: "Meds:",
@@ -157,6 +172,7 @@ export const MESSAGES = {
   vi: {
     sidebar: {
       newChat: "Hội thoại mới",
+      deleteChat: "Xóa hội thoại",
       signOut: "Đăng xuất",
       adminDashboard: "Bảng quản trị",
       apiStatus: "API {status}",
@@ -173,6 +189,12 @@ export const MESSAGES = {
       composerPlaceholder:
         "Hỏi về GDMT, an toàn thuốc, titration hoặc bằng chứng lâm sàng...",
       resizePanel: "Thay đổi kích thước panel bằng chứng",
+      conversationActions: "Thao tác hội thoại",
+      newChat: "Hội thoại mới",
+      clearChat: "Xóa tin nhắn",
+      deleteChat: "Xóa hội thoại",
+      clearConfirm: "Xóa toàn bộ tin nhắn trong hội thoại này? Giữ nguyên ngữ cảnh bệnh nhân.",
+      deleteConfirm: "Xóa hội thoại này? Thao tác không thể hoàn tác.",
       disclaimer:
         "HF CDSS hỗ trợ quyết định lâm sàng — không thay thế phán đoán của bác sĩ.",
       suggestions: [
@@ -221,6 +243,14 @@ export const MESSAGES = {
       openSource: "Mở nguồn",
       showMore: "Xem thêm",
       showLess: "Thu gọn",
+      matchScore: "Độ liên quan với câu trả lời",
+      sourceDetails: "Chi tiết nguồn",
+      fact: {
+        type: "Loại",
+        page: "Trang",
+        publisher: "Nhà xuất bản",
+        year: "Năm",
+      },
       missing: "thiếu",
       conditions: "Bệnh kèm:",
       meds: "Thuốc:",

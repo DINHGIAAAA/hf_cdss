@@ -10,6 +10,7 @@ import {
   DetailFieldList,
   DetailMetaRow,
 } from "@shared/governance/DetailFieldList.jsx";
+import { AdminDetailModal } from "@shared/governance/AdminDetailModal.jsx";
 import { doseRuleTitle } from "@shared/governance/displayNames.js";
 
 function statusClass(status) {
@@ -83,7 +84,7 @@ export function DoseRuleDetail({ rule, onClose, onAction, actionLoading, canAppr
   const summary = summarizeRuleBody(body);
 
   return (
-    <aside aria-label="Dose rule details" className="admin-detail-panel dose-detail-panel">
+    <AdminDetailModal ariaLabel="Dose rule details" className="dose-detail-panel" onClose={onClose}>
       <header className="admin-detail-header">
         <div>
           <h2>{doseRuleTitle(rule)}</h2>
@@ -182,6 +183,6 @@ export function DoseRuleDetail({ rule, onClose, onAction, actionLoading, canAppr
           </button>
         )}
       </footer>
-    </aside>
+    </AdminDetailModal>
   );
 }

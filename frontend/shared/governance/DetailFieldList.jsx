@@ -162,12 +162,12 @@ export function DetailMetaRow({ id, version, status, statusClassName, badges = [
   );
 }
 
-/** Raw JSON payload — collapsed by default; expand only when needed. */
-export function CollapsiblePayload({ title = "Full payload", data }) {
+/** Raw JSON payload. Defaults to open so Review shows full details immediately. */
+export function CollapsiblePayload({ title = "Full payload", data, defaultOpen = true }) {
   if (data == null) return null;
 
   return (
-    <details className="payload-details">
+    <details className="payload-details" defaultOpen={defaultOpen}>
       <summary className="payload-details-summary">{title}</summary>
       <pre className="dose-json-block">{JSON.stringify(data, null, 2)}</pre>
     </details>

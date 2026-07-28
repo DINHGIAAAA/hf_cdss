@@ -8,6 +8,7 @@ import { RuleVisibilityBadge } from "../components/RuleVisibilityBadge.jsx";
 import { ruleVisibilityMeta, tabVisibilityBanner } from "../utils/ruleVisibility.js";
 import { ApprovalToolbar } from "@shared/governance/ApprovalToolbar.jsx";
 import { CONSTRAINT_CATALOG } from "@shared/governance/catalogConfig.js";
+import { CatalogRecordLabel } from "@shared/governance/CatalogRecordLabel.jsx";
 import { constraintRuleTitle, shortCatalogId } from "@shared/governance/displayNames.js";
 import { fetchCatalogListWithCounts } from "@shared/governance/fetchCatalogListWithCounts.js";
 import { StatusCountCards, statusTabLabel } from "@shared/governance/StatusCountCards.jsx";
@@ -241,8 +242,7 @@ export function RulesPage() {
         </p>
       )}
 
-      <div className={`admin-split${selectedRule ? " admin-split--open" : ""}`}>
-        <section className="admin-table-panel">
+      <section className="admin-table-panel">
           {loading ? (
             <div className="admin-empty" aria-busy="true">
               <LoaderCircle className="spin" size={24} />
@@ -255,16 +255,6 @@ export function RulesPage() {
             </div>
           ) : (
             <table className="admin-table admin-table--rules">
-              <colgroup>
-                {tab === "draft" && <col className="col-select" />}
-                <col className="col-constraint" />
-                <col className="col-action" />
-                <col className="col-status" />
-                <col className="col-visibility" />
-                <col className="col-tier" />
-                <col className="col-target" />
-                <col className="col-actions" />
-              </colgroup>
               <thead>
                 <tr>
                   {tab === "draft" && <th>Select</th>}
@@ -274,7 +264,7 @@ export function RulesPage() {
                   <th>Visibility</th>
                   <th>Tier</th>
                   <th>Drug class</th>
-                  <th />
+                  <th className="admin-col-actions">Review</th>
                 </tr>
               </thead>
               <tbody>
@@ -294,13 +284,15 @@ export function RulesPage() {
                           ) : null}
                         </td>
                       )}
-                      <td className="cell-ellipsis" title={rule.constraint_id}>
-                        <strong>{constraintRuleTitle(rule)}</strong>
-                        <small>
-                          {shortCatalogId(rule.constraint_id)} · v{rule.version}
-                        </small>
+                      <td>
+                        <CatalogRecordLabel
+                          id={shortCatalogId(rule.constraint_id)}
+                          meta={`v${rule.version}`}
+                          title={constraintRuleTitle(rule)}
+                          titleAttr={rule.constraint_id}
+                        />
                       </td>
-                      <td className="cell-ellipsis" title={rule.action}>
+                      <td className="cell-clamp" title={rule.action}>
                         {rule.action}
                       </td>
                       <td>
@@ -310,10 +302,10 @@ export function RulesPage() {
                         <RuleVisibilityBadge status={rule.status} title={visibility.hint} />
                       </td>
                       <td>{needsConditionBadge(rule) || "—"}</td>
-                      <td className="cell-ellipsis" title={rule.target_drug_class || undefined}>
+                      <td className="cell-clamp" title={rule.target_drug_class || undefined}>
                         {rule.target_drug_class || "—"}
                       </td>
-                      <td>
+                      <td className="admin-col-actions">
                         <button className="link-btn" onClick={() => openRule(rule.id)} type="button">
                           Review <ChevronRight size={14} />
                         </button>
@@ -340,7 +332,6 @@ export function RulesPage() {
             rule={selectedRule}
           />
         )}
-      </div>
     </div>
   );
 }

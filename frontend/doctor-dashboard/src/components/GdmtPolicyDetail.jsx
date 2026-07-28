@@ -5,6 +5,7 @@ import { adminApi } from "../api/index.js";
 import { VersionDiffPanel } from "@shared/governance/VersionDiffPanel.jsx";
 import { StatusHistoryList } from "@shared/governance/StatusHistoryList.jsx";
 import { DetailFieldList, DetailMetaRow, CollapsiblePayload } from "@shared/governance/DetailFieldList.jsx";
+import { AdminDetailModal } from "@shared/governance/AdminDetailModal.jsx";
 
 function statusClass(status) {
   if (status === "approved") return "success";
@@ -45,7 +46,7 @@ export function GdmtPolicyDetail({ policy, onClose, onAction, actionLoading, can
   const guidance = body.guidance || {};
 
   return (
-    <aside aria-label="GDMT policy details" className="admin-detail-panel dose-detail-panel">
+    <AdminDetailModal ariaLabel="GDMT policy details" className="dose-detail-panel" onClose={onClose}>
       <header className="admin-detail-header">
         <div>
           <h2>{policy.display_label}</h2>
@@ -144,6 +145,6 @@ export function GdmtPolicyDetail({ policy, onClose, onAction, actionLoading, can
           </button>
         )}
       </footer>
-    </aside>
+    </AdminDetailModal>
   );
 }

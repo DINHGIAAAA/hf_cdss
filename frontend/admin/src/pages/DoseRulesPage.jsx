@@ -6,7 +6,8 @@ import { useAuth } from "../auth/AuthContext";
 import { DoseRuleDetail } from "../components/DoseRuleDetail.jsx";
 import { ApprovalToolbar } from "@shared/governance/ApprovalToolbar.jsx";
 import { DOSE_CATALOG } from "@shared/governance/catalogConfig.js";
-import { doseRuleTitle, shortCatalogId } from "@shared/governance/displayNames.js";
+import { CatalogRecordLabel } from "@shared/governance/CatalogRecordLabel.jsx";
+import { doseRuleTitle, formatDrugSetLabel, shortCatalogId } from "@shared/governance/displayNames.js";
 import { useRuleSelection } from "@shared/governance/useRuleSelection.js";
 
 const STATUS_TABS = [
@@ -27,11 +28,6 @@ function statusClass(status) {
   if (status === "approved") return "success";
   if (status === "draft") return "warning";
   return "danger";
-}
-
-function formatDrugKeys(keys = []) {
-  if (!keys.length) return "—";
-  return keys.slice(0, 2).join(", ") + (keys.length > 2 ? ` +${keys.length - 2}` : "");
 }
 
 export function DoseRulesPage() {
@@ -230,8 +226,7 @@ export function DoseRulesPage() {
         </p>
       )}
 
-      <div className={`admin-split${selectedRule ? " admin-split--open" : ""}`}>
-        <section className="admin-table-panel">
+      <section className="admin-table-panel">
           {loading ? (
             <div className="admin-empty" aria-busy="true">
               <LoaderCircle className="spin" size={24} />
@@ -251,7 +246,7 @@ export function DoseRulesPage() {
                   <th>Calculation</th>
                   <th>Status</th>
                   <th>Drugs</th>
-                  <th />
+                  <th className="admin-col-actions">Review</th>
                 </tr>
               </thead>
               <tbody>
@@ -270,19 +265,23 @@ export function DoseRulesPage() {
                       </td>
                     )}
                     <td>
-                      <strong title={rule.dose_rule_id}>{doseRuleTitle(rule)}</strong>
-                      <small>
-                        {shortCatalogId(rule.dose_rule_id)} · v{rule.version} · {rule.drug_class || "—"}
-                      </small>
+                      <CatalogRecordLabel
+                        id={shortCatalogId(rule.dose_rule_id)}
+                        meta={`v${rule.version}`}
+                        title={doseRuleTitle(rule)}
+                        titleAttr={rule.dose_rule_id}
+                      />
                     </td>
-                    <td>
+                    <td className="cell-clamp" title={rule.calculation_type}>
                       <code className="dose-code">{rule.calculation_type}</code>
                     </td>
                     <td>
                       <span className={`badge ${statusClass(rule.status)}`}>{rule.status}</span>
                     </td>
-                    <td>{formatDrugKeys(rule.drug_keys)}</td>
-                    <td>
+                    <td className="cell-clamp" title={(rule.drug_keys || []).join(", ")}>
+                      {formatDrugSetLabel(rule.drug_keys)}
+                    </td>
+                    <td className="admin-col-actions">
                       <button className="link-btn" onClick={() => openRule(rule.id)} type="button">
                         Review <ChevronRight size={14} />
                       </button>
@@ -307,7 +306,6 @@ export function DoseRulesPage() {
             rule={selectedRule}
           />
         )}
-      </div>
     </div>
   );
 }

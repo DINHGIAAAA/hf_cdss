@@ -6,6 +6,8 @@ import { useAuth } from "../auth/AuthContext";
 import { GdmtPolicyDetail } from "../components/GdmtPolicyDetail.jsx";
 import { ApprovalToolbar } from "@shared/governance/ApprovalToolbar.jsx";
 import { GDMT_CATALOG } from "@shared/governance/catalogConfig.js";
+import { CatalogRecordLabel } from "@shared/governance/CatalogRecordLabel.jsx";
+import { gdmtPolicyTitle, shortCatalogId } from "@shared/governance/displayNames.js";
 import { useRuleSelection } from "@shared/governance/useRuleSelection.js";
 
 const STATUS_TABS = [
@@ -223,8 +225,7 @@ export function GdmtPoliciesPage() {
         </p>
       )}
 
-      <div className={`admin-split${selectedPolicy ? " admin-split--open" : ""}`}>
-        <section className="admin-table-panel">
+      <section className="admin-table-panel">
           {loading ? (
             <div className="admin-empty" aria-busy="true">
               <LoaderCircle className="spin" size={24} />
@@ -244,7 +245,7 @@ export function GdmtPoliciesPage() {
                   <th>Class key</th>
                   <th>Status</th>
                   <th>Order</th>
-                  <th />
+                  <th className="admin-col-actions">Review</th>
                 </tr>
               </thead>
               <tbody>
@@ -263,19 +264,21 @@ export function GdmtPoliciesPage() {
                       </td>
                     )}
                     <td>
-                      <strong>{policy.display_label}</strong>
-                      <small>
-                        {policy.gdmt_policy_id} · v{policy.version}
-                      </small>
+                      <CatalogRecordLabel
+                        id={shortCatalogId(policy.gdmt_policy_id)}
+                        meta={`v${policy.version}`}
+                        title={gdmtPolicyTitle(policy)}
+                        titleAttr={policy.gdmt_policy_id}
+                      />
                     </td>
-                    <td>
+                    <td className="cell-clamp" title={policy.drug_class_key}>
                       <code className="dose-code">{policy.drug_class_key}</code>
                     </td>
                     <td>
                       <span className={`badge ${statusClass(policy.status)}`}>{policy.status}</span>
                     </td>
                     <td>{policy.sort_order}</td>
-                    <td>
+                    <td className="admin-col-actions">
                       <button className="link-btn" onClick={() => openPolicy(policy.id)} type="button">
                         Review <ChevronRight size={14} />
                       </button>
@@ -300,7 +303,6 @@ export function GdmtPoliciesPage() {
             policy={selectedPolicy}
           />
         )}
-      </div>
     </div>
   );
 }

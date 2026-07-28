@@ -9,12 +9,24 @@ import {
   DetailFieldList,
   DetailMetaRow,
 } from "@shared/governance/DetailFieldList.jsx";
-import { constraintRuleTitle } from "@shared/governance/displayNames.js";
+import { AdminDetailModal } from "@shared/governance/AdminDetailModal.jsx";
+import {
+  constraintRuleTitle,
+  formatConstraintConditionFields,
+} from "@shared/governance/displayNames.js";
+import { ConstraintConditionPanel } from "@shared/governance/ConstraintConditionPanel.jsx";
 
 function statusClass(status) {
   if (status === "approved") return "success";
   if (status === "draft") return "warning";
   return "danger";
+}
+
+function ruleNeedsCondition(rule) {
+  const meta = rule?.metadata || {};
+  if (meta.needs_condition === true || meta.needs_condition === "true") return true;
+  if (meta.needs_condition === false || meta.needs_condition === "false") return false;
+  return meta.safety_tier === "needs_condition_refinement";
 }
 
 export function RuleDetail({ rule, onClose, onAction, actionLoading, canApprove, canAdmin }) {
@@ -40,12 +52,21 @@ export function RuleDetail({ rule, onClose, onAction, actionLoading, canApprove,
 
   if (!rule) return null;
 
+  const conditionFields = formatConstraintConditionFields(rule);
+  const needsCondition = ruleNeedsCondition(rule);
+  const safetyTier = rule.metadata?.safety_tier || null;
+
   return (
-    <aside aria-label="Rule details" className="admin-detail-panel">
+    <AdminDetailModal ariaLabel="Rule details" onClose={onClose}>
       <header className="admin-detail-header">
         <div>
           <h2>{constraintRuleTitle(rule)}</h2>
           <DetailMetaRow
+            badges={
+              safetyTier
+                ? [{ label: String(safetyTier).replace(/_/g, " "), className: "muted" }]
+                : []
+            }
             id={rule.constraint_id}
             status={rule.status}
             statusClassName={statusClass(rule.status)}
@@ -58,10 +79,20 @@ export function RuleDetail({ rule, onClose, onAction, actionLoading, canApprove,
       </header>
 
       <div className="admin-detail-body">
+        <ConstraintConditionPanel
+          fields={conditionFields}
+          needsCondition={needsCondition}
+          rule={rule}
+        />
+
         <DetailFieldList
           fields={[
             { label: "Action", value: rule.action },
             { label: "Target class", value: rule.target_drug_class || "—" },
+            {
+              label: "Severity",
+              value: (rule.severity_any || []).length ? rule.severity_any : "—",
+            },
             { label: "Reason", value: rule.reason, wide: true },
             { label: "Risks", value: (rule.risk_names || []).length ? rule.risk_names : "—" },
             { label: "Evidence", value: rule.evidence_ref || "—", mono: true },
@@ -119,6 +150,6 @@ export function RuleDetail({ rule, onClose, onAction, actionLoading, canApprove,
           </button>
         )}
       </footer>
-    </aside>
+    </AdminDetailModal>
   );
 }

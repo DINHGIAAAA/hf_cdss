@@ -211,7 +211,7 @@ export function ApiExplorerPage() {
 
           {tool.needsInput ? (
             <label className="tool-input">
-              {tool.inputLabel}
+              <span className="tool-input-label">{tool.inputLabel}</span>
               <input
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={(e) => {

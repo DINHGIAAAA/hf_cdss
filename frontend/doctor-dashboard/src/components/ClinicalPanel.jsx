@@ -2,9 +2,11 @@ import { useState } from "react";
 import { ExternalLink, FileText, ShieldAlert } from "lucide-react";
 import { patientSummary, sourceLink, statusClass, titleCase } from "../utils";
 import {
+  evidenceDocumentTitle,
+  evidenceMatchPercent,
+  evidenceReadableFacts,
   evidenceSectionLabel,
   repairEvidenceText,
-  shortenChunkId,
 } from "@/lib/evidenceDisplay";
 import {
   collectSharedVitalChips,
@@ -26,56 +28,41 @@ function statusTone(status) {
   return "border-emerald-500/30 bg-emerald-50 text-emerald-700";
 }
 
-function EvidenceMeta({ label, value, mono = false, title }) {
-  if (!value) return null;
-  return (
-    <div className="min-w-0 w-full max-w-full overflow-hidden">
-      <div className="text-[11px] font-semibold uppercase tracking-wide text-foreground/60">{label}</div>
-      <div
-        className={cn(
-          "mt-0.5 text-xs leading-relaxed text-muted-foreground [overflow-wrap:anywhere] break-all",
-          mono && "font-mono text-[11px]",
-        )}
-        title={title || (typeof value === "string" ? value : undefined)}
-      >
-        {value}
-      </div>
-    </div>
-  );
-}
-
 function EvidenceCard({ chunk }) {
   const { t } = useLanguage();
   const [expanded, setExpanded] = useState(false);
   const link = sourceLink(chunk);
-  const locator = chunk.metadata?.source_locator;
-  const showLocator = locator && locator !== link;
   const excerpt = repairEvidenceText(chunk.text);
+  const title = evidenceDocumentTitle(chunk);
   const sectionLabel = evidenceSectionLabel(chunk);
-  const chunkLabel = shortenChunkId(chunk.chunk_id);
+  const matchPct = evidenceMatchPercent(chunk);
+  const facts = evidenceReadableFacts(chunk);
 
   return (
     <Card className="w-full max-w-full min-w-0 gap-0 overflow-hidden border-border/80 py-0 shadow-sm">
       <CardHeader className="gap-2 space-y-0 border-b border-border/60 px-3 py-3">
         <div className="flex min-w-0 items-start justify-between gap-2">
           <div className="min-w-0 flex-1 overflow-hidden">
-            <CardTitle className="line-clamp-2 text-sm leading-snug">
-              {titleCase(chunk.document_id)}
-            </CardTitle>
-            {sectionLabel && (
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              {t("clinicalPanel.evidence")}
+            </p>
+            <CardTitle className="mt-1 line-clamp-2 text-sm leading-snug">{title}</CardTitle>
+            {sectionLabel ? (
               <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
                 {sectionLabel}
               </p>
-            )}
+            ) : null}
           </div>
-          <Badge className="shrink-0" variant="secondary">
-            {Math.round((chunk.quality_score ?? chunk.score ?? 0) * 100)}%
-          </Badge>
+          {matchPct != null ? (
+            <Badge className="shrink-0" title={t("clinicalPanel.matchScore")} variant="secondary">
+              {matchPct}%
+            </Badge>
+          ) : null}
         </div>
       </CardHeader>
 
       <CardContent className="min-w-0 space-y-3 overflow-hidden px-3 py-3">
-        {excerpt && (
+        {excerpt ? (
           <div className="rounded-md border border-border/60 bg-background/80 px-3 py-2.5">
             <p
               className={cn(
@@ -85,33 +72,38 @@ function EvidenceCard({ chunk }) {
             >
               {excerpt}
             </p>
-            {excerpt.length > 220 && (
+            {excerpt.length > 220 ? (
               <Button
-                className="mt-2 h-7 px-2 text-xs"
+                className="mt-2 h-7 cursor-pointer px-2 text-xs"
                 onClick={() => setExpanded((open) => !open)}
                 type="button"
                 variant="ghost"
               >
                 {expanded ? t("clinicalPanel.showLess") : t("clinicalPanel.showMore")}
               </Button>
-            )}
+            ) : null}
           </div>
-        )}
+        ) : null}
 
-        <dl className="grid min-w-0 gap-2 border-t border-border/60 pt-2">
-          {chunk.chunk_id && (
-            <EvidenceMeta label={t("clinicalPanel.chunk")} mono title={chunk.chunk_id} value={chunkLabel} />
-          )}
-          {chunk.page != null && <EvidenceMeta label={t("clinicalPanel.page")} value={String(chunk.page)} />}
-          {showLocator && <EvidenceMeta label={t("clinicalPanel.source")} value={locator} />}
-          {chunk.metadata?.publisher && (
-            <EvidenceMeta label={t("clinicalPanel.publisher")} value={chunk.metadata.publisher} />
-          )}
-        </dl>
+        {facts.length ? (
+          <ul className="flex flex-wrap gap-2" aria-label={t("clinicalPanel.sourceDetails")}>
+            {facts.map((fact) => (
+              <li
+                className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-border/70 bg-muted/30 px-2.5 py-1 text-xs text-foreground/80"
+                key={fact.key}
+              >
+                <span className="font-semibold text-muted-foreground">
+                  {t(`clinicalPanel.fact.${fact.key}`)}
+                </span>
+                <span className="min-w-0 truncate">{fact.value}</span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
 
-        {link && (
+        {link ? (
           <a
-            className="inline-flex max-w-full items-center gap-1 text-xs text-primary hover:underline"
+            className="inline-flex max-w-full cursor-pointer items-center gap-1 text-xs font-medium text-primary transition-colors duration-200 hover:underline"
             href={link}
             rel="noreferrer"
             target="_blank"
@@ -120,7 +112,7 @@ function EvidenceCard({ chunk }) {
             <span>{t("clinicalPanel.openSource")}</span>
             <ExternalLink className="shrink-0" size={14} />
           </a>
-        )}
+        ) : null}
       </CardContent>
     </Card>
   );
@@ -281,7 +273,8 @@ function RecommendationCard({ item, evidenceChunks = [], sharedVitals = [] }) {
                 <ul className="space-y-1 text-xs leading-relaxed text-muted-foreground">
                   {linkedChunks.slice(0, 2).map((chunk) => (
                     <li className="break-words [overflow-wrap:anywhere]" key={chunk.chunk_id}>
-                      {titleCase(chunk.document_id)} — {chunk.section || chunk.source_type}
+                      {evidenceDocumentTitle(chunk)}
+                      {evidenceSectionLabel(chunk) ? ` — ${evidenceSectionLabel(chunk)}` : ""}
                     </li>
                   ))}
                 </ul>

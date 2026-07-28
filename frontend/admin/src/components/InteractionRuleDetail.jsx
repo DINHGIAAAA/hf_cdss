@@ -10,6 +10,7 @@ import {
   DetailFieldList,
   DetailMetaRow,
 } from "@shared/governance/DetailFieldList.jsx";
+import { AdminDetailModal } from "@shared/governance/AdminDetailModal.jsx";
 import { interactionRuleTitle } from "@shared/governance/displayNames.js";
 
 function statusClass(status) {
@@ -56,7 +57,7 @@ export function InteractionRuleDetail({ rule, onClose, onAction, actionLoading, 
   const body = rule.rule_body || {};
 
   return (
-    <aside aria-label="Interaction rule details" className="admin-detail-panel dose-detail-panel">
+    <AdminDetailModal ariaLabel="Interaction rule details" className="dose-detail-panel" onClose={onClose}>
       <header className="admin-detail-header">
         <div>
           <h2>{interactionRuleTitle(rule)}</h2>
@@ -158,6 +159,6 @@ export function InteractionRuleDetail({ rule, onClose, onAction, actionLoading, 
           </button>
         )}
       </footer>
-    </aside>
+    </AdminDetailModal>
   );
 }

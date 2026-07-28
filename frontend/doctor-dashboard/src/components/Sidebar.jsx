@@ -1,4 +1,4 @@
-import { CheckCircle2, AlertTriangle, LayoutDashboard, LogOut, Plus, Sparkles } from "lucide-react";
+import { CheckCircle2, AlertTriangle, LayoutDashboard, LogOut, Plus, Sparkles, Trash2 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { patientSummary } from "../utils";
 import { LanguageToggle } from "./LanguageToggle";
@@ -14,6 +14,7 @@ export function Sidebar({
   activeId,
   onSelect,
   onNew,
+  onDelete,
   health,
   open,
 }) {
@@ -25,6 +26,12 @@ export function Sidebar({
   async function handleLogout() {
     await logout();
     navigate("/login");
+  }
+
+  function handleDelete(event, conversationId) {
+    event.stopPropagation();
+    if (!window.confirm(t("chat.deleteConfirm"))) return;
+    onDelete?.(conversationId);
   }
 
   return (
@@ -70,39 +77,59 @@ export function Sidebar({
             const initial = (conv.name || patient?.name || "?").trim().charAt(0).toUpperCase();
 
             return (
-              <button
+              <div
                 className={cn(
-                  "w-full min-w-0 rounded-lg transition-colors hover:bg-sidebar-accent",
-                  open ? "px-3 py-2 text-left" : "flex h-9 w-9 items-center justify-center p-0",
+                  "group relative w-full min-w-0 rounded-lg transition-colors hover:bg-sidebar-accent",
+                  open ? "pr-1" : "",
                   active && "bg-sidebar-accent text-sidebar-foreground",
                 )}
                 key={conv.id}
-                onClick={() => onSelect(conv.id)}
-                title={`${conv.name} — ${patient?.name || ""}${patient?.age != null ? `, ${patient.age}` : ""}`}
-                type="button"
               >
-                {open ? (
-                  <>
-                    <strong className="block truncate text-sm font-medium">{conv.name}</strong>
-                    <span className="block truncate text-xs text-sidebar-foreground/70">
-                      {patient?.name || "—"}
-                      {patient?.age != null ? ` · ${patient.age}` : ""}
+                <button
+                  className={cn(
+                    "w-full min-w-0 rounded-lg text-left",
+                    open ? "px-3 py-2 pr-9" : "flex h-9 w-9 items-center justify-center p-0",
+                  )}
+                  onClick={() => onSelect(conv.id)}
+                  title={`${conv.name} — ${patient?.name || ""}${patient?.age != null ? `, ${patient.age}` : ""}`}
+                  type="button"
+                >
+                  {open ? (
+                    <>
+                      <strong className="block truncate text-sm font-medium">{conv.name}</strong>
+                      <span className="block truncate text-xs text-sidebar-foreground/70">
+                        {patient?.name || "—"}
+                        {patient?.age != null ? ` · ${patient.age}` : ""}
+                      </span>
+                    </>
+                  ) : (
+                    <span
+                      aria-hidden="true"
+                      className={cn(
+                        "flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold",
+                        active
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-sidebar-accent text-sidebar-foreground/80",
+                      )}
+                    >
+                      {initial}
                     </span>
-                  </>
-                ) : (
-                  <span
-                    aria-hidden="true"
-                    className={cn(
-                      "flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold",
-                      active
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-sidebar-accent text-sidebar-foreground/80",
-                    )}
+                  )}
+                </button>
+                {open ? (
+                  <Button
+                    aria-label={t("sidebar.deleteChat")}
+                    className="absolute top-1/2 right-1 h-7 w-7 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                    onClick={(event) => handleDelete(event, conv.id)}
+                    size="icon"
+                    title={t("sidebar.deleteChat")}
+                    type="button"
+                    variant="ghost"
                   >
-                    {initial}
-                  </span>
-                )}
-              </button>
+                    <Trash2 size={14} />
+                  </Button>
+                ) : null}
+              </div>
             );
           })}
         </div>

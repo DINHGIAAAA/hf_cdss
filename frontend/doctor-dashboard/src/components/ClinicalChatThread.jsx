@@ -1,9 +1,16 @@
-import { PanelLeft } from "lucide-react";
+import { Eraser, MoreVertical, PanelLeft, Plus, Trash2 } from "lucide-react";
 
 import { Thread } from "@/components/thread";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useLanguage } from "@/i18n/LanguageProvider.jsx";
 import { patientSummary } from "@/utils";
 
@@ -21,10 +28,26 @@ export function ClinicalChatThread({
   active,
   sidebarOpen,
   onToggleSidebar,
+  onNew,
+  onClear,
+  onDelete,
   streamStatus,
 }) {
   const { language, languages, setLanguage, t } = useLanguage();
   const summary = patientSummary(active?.draft?.patient || active?.patient);
+  const hasActive = Boolean(active);
+
+  function handleClear() {
+    if (!active) return;
+    if (!window.confirm(t("chat.clearConfirm"))) return;
+    onClear?.(active.id);
+  }
+
+  function handleDelete() {
+    if (!active) return;
+    if (!window.confirm(t("chat.deleteConfirm"))) return;
+    onDelete?.(active.id);
+  }
 
   return (
     <section aria-label="Clinical chat" className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
@@ -47,8 +70,51 @@ export function ClinicalChatThread({
             </div>
           )}
         </div>
-        <div className="hidden shrink-0 md:block">
-          <LanguageToggle language={language} languages={languages} onChange={setLanguage} variant="light" />
+        <div className="flex shrink-0 items-center gap-1">
+          <div className="hidden md:block">
+            <LanguageToggle language={language} languages={languages} onChange={setLanguage} variant="light" />
+          </div>
+          <Button
+            aria-label={t("chat.newChat")}
+            className="shrink-0"
+            onClick={onNew}
+            size="icon"
+            title={t("chat.newChat")}
+            type="button"
+            variant="ghost"
+          >
+            <Plus size={18} />
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                aria-label={t("chat.conversationActions")}
+                className="shrink-0"
+                disabled={!hasActive}
+                size="icon"
+                title={t("chat.conversationActions")}
+                type="button"
+                variant="ghost"
+              >
+                <MoreVertical size={18} />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onClick={onNew}>
+                <Plus />
+                {t("chat.newChat")}
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled={!hasActive} onClick={handleClear}>
+                <Eraser />
+                {t("chat.clearChat")}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem disabled={!hasActive} onClick={handleDelete} variant="destructive">
+                <Trash2 />
+                {t("chat.deleteChat")}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </header>
 

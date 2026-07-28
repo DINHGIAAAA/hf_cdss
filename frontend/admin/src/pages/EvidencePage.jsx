@@ -2,6 +2,14 @@ import { useState } from "react";
 import { ExternalLink, FileSearch, LoaderCircle, Search } from "lucide-react";
 
 import { evidenceApi } from "../api/index.js";
+import {
+  evidenceDocumentTitle,
+  evidenceMatchPercent,
+  evidenceReadableFacts,
+  evidenceSectionLabel,
+  evidenceSourceTypeLabel,
+  repairEvidenceText,
+} from "@shared/evidenceDisplay.js";
 
 export function EvidencePage() {
   const [query, setQuery] = useState("heart failure SGLT2 inhibitor");
@@ -31,13 +39,15 @@ export function EvidencePage() {
 
   const chunks = result?.evidence_chunks || [];
   const activeChunk = chunks.find((c) => c.chunk_id === activeChunkId) || chunks[0];
+  const activeFacts = activeChunk ? evidenceReadableFacts(activeChunk) : [];
+  const activeMatch = activeChunk ? evidenceMatchPercent(activeChunk) : null;
 
   return (
     <div className="admin-page">
       <header className="admin-page-header">
         <div>
-          <h1>Evidence chunks</h1>
-          <p>Search and review indexed guideline and drug-label chunks before they inform recommendations.</p>
+          <h1>Evidence</h1>
+          <p>Search guideline and drug-label passages that support clinical recommendations.</p>
         </div>
       </header>
 
@@ -61,7 +71,7 @@ export function EvidencePage() {
       {!result && !loading && !error && (
         <div className="admin-empty" role="status">
           <h2>Search clinical evidence</h2>
-          <p>Query the GraphRAG index to inspect chunk text, scores, and source links.</p>
+          <p>Find readable source passages with page and publisher details — no technical IDs.</p>
         </div>
       )}
 
@@ -69,20 +79,8 @@ export function EvidencePage() {
         <div className="evidence-layout">
           <section className="evidence-meta">
             <p>
-              <strong>{chunks.length}</strong> chunks · sources: {(result.retrieval_sources || []).join(", ") || "—"}
+              <strong>{chunks.length}</strong> passages found
             </p>
-            {(result.graph_facts || []).length > 0 && (
-              <details>
-                <summary>{result.graph_facts.length} graph facts</summary>
-                <ul>
-                  {result.graph_facts.map((fact) => (
-                    <li key={fact.fact_id}>
-                      {fact.source_id} — {fact.relationship_type} — {fact.target_id}
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            )}
           </section>
 
           <div className="evidence-split">
@@ -94,33 +92,51 @@ export function EvidencePage() {
                     onClick={() => setActiveChunkId(chunk.chunk_id)}
                     type="button"
                   >
-                    <strong>{chunk.section || chunk.document_id}</strong>
-                    <span>{chunk.source_type} · score {chunk.score?.toFixed(2)}</span>
-                    <small>{chunk.text.slice(0, 120)}…</small>
+                    <strong>{evidenceDocumentTitle(chunk)}</strong>
+                    <span>
+                      {[evidenceSourceTypeLabel(chunk), evidenceMatchPercent(chunk) != null ? `${evidenceMatchPercent(chunk)}% match` : null]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
+                    <small>{repairEvidenceText(chunk.text).slice(0, 140)}…</small>
                   </button>
                 </li>
               ))}
-              {chunks.length === 0 && <li className="admin-empty">No chunks returned for this query.</li>}
+              {chunks.length === 0 && <li className="admin-empty">No passages returned for this query.</li>}
             </ul>
 
             {activeChunk && (
               <article className="chunk-detail">
                 <header>
-                  <h2>{activeChunk.section || activeChunk.document_id}</h2>
+                  <h2>{evidenceDocumentTitle(activeChunk)}</h2>
                   <p>
-                    {activeChunk.chunk_id} · {activeChunk.source_type}
-                    {activeChunk.evidence_level && ` · ${activeChunk.evidence_level}`}
+                    {[evidenceSectionLabel(activeChunk), evidenceSourceTypeLabel(activeChunk)]
+                      .filter(Boolean)
+                      .join(" · ") || "Clinical source"}
+                    {activeMatch != null ? ` · ${activeMatch}% match` : ""}
                   </p>
                 </header>
-                <p className="chunk-text">{activeChunk.text}</p>
-                <dl className="detail-grid">
-                  <dt>Score</dt>
-                  <dd>{activeChunk.score}</dd>
-                  <dt>Page</dt>
-                  <dd>{activeChunk.page ?? "—"}</dd>
-                  <dt>Quality</dt>
-                  <dd>{activeChunk.quality_score ?? "—"}</dd>
-                </dl>
+                <p className="chunk-text">{repairEvidenceText(activeChunk.text)}</p>
+                {activeFacts.length ? (
+                  <ul className="evidence-fact-chips">
+                    {activeFacts.map((fact) => (
+                      <li key={fact.key}>
+                        <span>
+                          {fact.key === "type"
+                            ? "Type"
+                            : fact.key === "page"
+                              ? "Page"
+                              : fact.key === "publisher"
+                                ? "Publisher"
+                                : fact.key === "year"
+                                  ? "Year"
+                                  : fact.key}
+                        </span>{" "}
+                        {fact.value}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
                 {activeChunk.source_link && (
                   <a className="source-link" href={activeChunk.source_link} rel="noreferrer" target="_blank">
                     <ExternalLink size={14} /> Open source

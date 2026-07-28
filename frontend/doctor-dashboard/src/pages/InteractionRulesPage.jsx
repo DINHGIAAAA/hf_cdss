@@ -6,11 +6,8 @@ import { useAuth } from "../auth/AuthContext";
 import { InteractionRuleDetail } from "../components/InteractionRuleDetail.jsx";
 import { ApprovalToolbar } from "@shared/governance/ApprovalToolbar.jsx";
 import { INTERACTION_CATALOG } from "@shared/governance/catalogConfig.js";
-import {
-  formatDrugSetLabel,
-  formatInteractionTarget,
-  shortCatalogId,
-} from "@shared/governance/displayNames.js";
+import { CatalogRecordLabel } from "@shared/governance/CatalogRecordLabel.jsx";
+import { interactionRuleTitle, shortCatalogId } from "@shared/governance/displayNames.js";
 import { fetchCatalogListWithCounts } from "@shared/governance/fetchCatalogListWithCounts.js";
 import { StatusCountCards, statusTabLabel } from "@shared/governance/StatusCountCards.jsx";
 import { useRuleSelection } from "@shared/governance/useRuleSelection.js";
@@ -235,8 +232,7 @@ export function InteractionRulesPage() {
         </p>
       )}
 
-      <div className={`admin-split${selectedRule ? " admin-split--open" : ""}`}>
-        <section className="admin-table-panel">
+      <section className="admin-table-panel">
           {loading ? (
             <div className="admin-empty" aria-busy="true">
               <LoaderCircle className="spin" size={24} />
@@ -248,17 +244,14 @@ export function InteractionRulesPage() {
               <p>Run structured interaction extraction in the ingestion pipeline, then sync to Postgres.</p>
             </div>
           ) : (
-            <table className="admin-table admin-table--dose admin-table--interaction">
+            <table className="admin-table admin-table--dose">
               <thead>
                 <tr>
                   {tab === "draft" && <th>Select</th>}
-                  <th>Drug A</th>
-                  <th aria-hidden="true" className="ix-arrow-col" />
-                  <th>Drug B</th>
-                  <th>Target</th>
+                  <th>Interaction</th>
                   <th>Severity</th>
                   <th>Status</th>
-                  <th />
+                  <th className="admin-col-actions">Review</th>
                 </tr>
               </thead>
               <tbody>
@@ -276,20 +269,13 @@ export function InteractionRulesPage() {
                         ) : null}
                       </td>
                     )}
-                    <td className="ix-drug-cell" title={(rule.drug_set_a || []).join(", ")}>
-                      <strong>{formatDrugSetLabel(rule.drug_set_a)}</strong>
-                      <small title={rule.interaction_rule_id}>
-                        {shortCatalogId(rule.interaction_rule_id)} · v{rule.version}
-                      </small>
-                    </td>
-                    <td aria-hidden="true" className="ix-arrow-col">
-                      <span className="ix-arrow">↔</span>
-                    </td>
-                    <td className="ix-drug-cell" title={(rule.drug_set_b || []).join(", ")}>
-                      <strong>{formatDrugSetLabel(rule.drug_set_b)}</strong>
-                    </td>
-                    <td className="ix-target-cell" title={rule.target || undefined}>
-                      {formatInteractionTarget(rule.target)}
+                    <td>
+                      <CatalogRecordLabel
+                        id={shortCatalogId(rule.interaction_rule_id)}
+                        meta={`v${rule.version}`}
+                        title={interactionRuleTitle(rule)}
+                        titleAttr={rule.interaction_rule_id}
+                      />
                     </td>
                     <td>
                       <code className="dose-code">{rule.severity}</code>
@@ -297,7 +283,7 @@ export function InteractionRulesPage() {
                     <td>
                       <span className={`badge ${statusClass(rule.status)}`}>{rule.status}</span>
                     </td>
-                    <td>
+                    <td className="admin-col-actions">
                       <button className="link-btn" onClick={() => openRule(rule.id)} type="button">
                         Review <ChevronRight size={14} />
                       </button>
@@ -322,7 +308,6 @@ export function InteractionRulesPage() {
             rule={selectedRule}
           />
         )}
-      </div>
     </div>
   );
 }

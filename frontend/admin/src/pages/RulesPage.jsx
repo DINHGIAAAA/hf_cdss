@@ -6,6 +6,7 @@ import { useAuth } from "../auth/AuthContext";
 import { RuleDetail } from "../components/RuleDetail.jsx";
 import { ApprovalToolbar } from "@shared/governance/ApprovalToolbar.jsx";
 import { CONSTRAINT_CATALOG } from "@shared/governance/catalogConfig.js";
+import { CatalogRecordLabel } from "@shared/governance/CatalogRecordLabel.jsx";
 import { constraintRuleTitle, shortCatalogId } from "@shared/governance/displayNames.js";
 import { useRuleSelection } from "@shared/governance/useRuleSelection.js";
 
@@ -220,8 +221,7 @@ export function RulesPage() {
       {toast && <p className="admin-toast" role="status">{toast}</p>}
       {error && <p className="inline-error" role="alert">{error}</p>}
 
-      <div className={`admin-split${selectedRule ? " admin-split--open" : ""}`}>
-        <section className="admin-table-panel">
+      <section className="admin-table-panel">
           {loading ? (
             <div className="admin-empty" aria-busy="true">
               <LoaderCircle className="spin" size={24} />
@@ -242,7 +242,7 @@ export function RulesPage() {
                   <th>Status</th>
                   <th>Tier</th>
                   <th>Drug class</th>
-                  <th />
+                  <th className="admin-col-actions">Review</th>
                 </tr>
               </thead>
               <tbody>
@@ -261,18 +261,24 @@ export function RulesPage() {
                       </td>
                     )}
                     <td>
-                      <strong title={rule.constraint_id}>{constraintRuleTitle(rule)}</strong>
-                      <small>
-                        {shortCatalogId(rule.constraint_id)} · v{rule.version}
-                      </small>
+                      <CatalogRecordLabel
+                        id={shortCatalogId(rule.constraint_id)}
+                        meta={`v${rule.version}`}
+                        title={constraintRuleTitle(rule)}
+                        titleAttr={rule.constraint_id}
+                      />
                     </td>
-                    <td>{rule.action}</td>
+                    <td className="cell-clamp" title={rule.action}>
+                      {rule.action}
+                    </td>
                     <td>
                       <span className={`badge ${statusClass(rule.status)}`}>{rule.status}</span>
                     </td>
                     <td>{needsConditionBadge(rule) || "—"}</td>
-                    <td>{rule.target_drug_class || "—"}</td>
-                    <td>
+                    <td className="cell-clamp" title={rule.target_drug_class || undefined}>
+                      {rule.target_drug_class || "—"}
+                    </td>
+                    <td className="admin-col-actions">
                       <button className="link-btn" onClick={() => openRule(rule.id)} type="button">
                         Review <ChevronRight size={14} />
                       </button>
@@ -297,7 +303,6 @@ export function RulesPage() {
             rule={selectedRule}
           />
         )}
-      </div>
     </div>
   );
 }

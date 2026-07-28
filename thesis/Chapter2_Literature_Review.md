@@ -4,7 +4,7 @@
 
 ### 2.1.1 Definition and Scope
 
-A Clinical Decision Support System (CDSS) is software designed to assist clinicians, staff, or patients in making diagnostic or treatment decisions. The Institute of Medicine defines CDSS as "any electronic system designed to aid directly in clinical decision making" [1]. In contemporary practice, CDSS spans passive reference tools, active alerting systems embedded in electronic health records (EHRs), and conversational assistants that synthesize patient context with guideline knowledge. The defining characteristic is not automation of the final clinical judgment but structured augmentation: surfacing relevant evidence, detecting safety conflicts, and proposing actionable options within the clinician's workflow.
+A Clinical Decision Support System (CDSS) is software designed to assist clinicians, staff, or patients in making diagnostic or treatment decisions. The Institute of Medicine defines CDSS as "any electronic system designed to aid directly in clinical decision making" [16]. In contemporary practice, CDSS spans passive reference tools, active alerting systems embedded in electronic health records (EHRs), and conversational assistants that synthesize patient context with guideline knowledge. The defining characteristic is not automation of the final clinical judgment but structured augmentation: surfacing relevant evidence, detecting safety conflicts, and proposing actionable options within the clinician's workflow.
 
 The scope of CDSS has widened considerably since early expert systems. Modern implementations may integrate laboratory feeds, medication lists, problem lists, imaging reports, and unstructured clinical notes. They may operate synchronously at the point of order entry, blocking or warning before a prescription is signed, or asynchronously during care planning and medication reconciliation. For chronic diseases such as heart failure, CDSS value often lies in longitudinal therapy optimization rather than one-time diagnostic suggestion: identifying missing guideline-directed drug classes, flagging contraindications before dose escalation, and reminding clinicians of monitoring intervals after therapy changes. This thesis adopts that chronic-disease framing: HF-CDSS is designed to support GDMT titration and safety review across repeated encounters, not to replace cardiology consultation for acute decompensation.
 
@@ -20,7 +20,7 @@ A further distinction separates knowledge-driven CDSS (explicit rules, ontologie
 
 ### 2.1.3 Historical Development
 
-The evolution of CDSS reflects decades of progress in medical informatics and shifting expectations about human-computer collaboration. MYCIN (1976) pioneered rule-based sepsis therapy advice at Stanford, demonstrating that encoded clinical heuristics could match expert performance in narrow domains [2]. MYCIN represented knowledge as production rules with certainty factors, consulted the user through a structured dialogue, and explained its reasoning, a design that anticipated modern demands for transparency. Although MYCIN never entered routine clinical use, it established that medical decision logic could be formalized and that explanation mattered as much as conclusion.
+The evolution of CDSS reflects decades of progress in medical informatics and shifting expectations about human-computer collaboration. MYCIN (1976) pioneered rule-based sepsis therapy advice at Stanford, demonstrating that encoded clinical heuristics could match expert performance in narrow domains [15]. MYCIN represented knowledge as production rules with certainty factors, consulted the user through a structured dialogue, and explained its reasoning, a design that anticipated modern demands for transparency. Although MYCIN never entered routine clinical use, it established that medical decision logic could be formalized and that explanation mattered as much as conclusion.
 
 DXplain (1986) introduced symptom-driven diagnostic support across a broader internal-medicine scope, linking manifestations to disease hypotheses through weighted associations. Internist-1 and its successor Quick Medical Reference (QMR) extended differential diagnosis through disease-manifestation matrices, handling multiple concurrent conditions more systematically than early single-disease advisors. The 1990s and 2000s saw CDSS embedded in commercial EHRs: drug-allergy checking, duplicate therapy alerts, and basic dosing calculators became standard, though many alerts suffered from low specificity.
 
@@ -28,7 +28,7 @@ More recently, DeepMind Streams (2016) demonstrated acute kidney injury alerts f
 
 ### 2.1.4 Evaluation Standards: The Five Rights
 
-Osheroff's "Five Rights" of CDSS [3] provide a workflow-centric evaluation framework rather than a single accuracy number. The right information must reach the right person in the right format through the right channel at the right time. A technically correct recommendation delivered after the prescribing decision, buried in an unread alert queue, or phrased in inaccessible jargon fails clinically even when its underlying logic is sound.
+Osheroff's "Five Rights" of CDSS [17] provide a workflow-centric evaluation framework rather than a single accuracy number. The right information must reach the right person in the right format through the right channel at the right time. A technically correct recommendation delivered after the prescribing decision, buried in an unread alert queue, or phrased in inaccessible jargon fails clinically even when its underlying logic is sound.
 
 For heart-failure GDMT, "right information" includes phenotype (HFrEF versus HFpEF), renal and electrolyte safety, current medication class coverage, and washout constraints when switching between ACE inhibitors and ARNI. It also includes dose-relevant context: whether the patient is on starting dose versus target dose, whether blood pressure and heart rate permit beta-blocker uptitration, and whether potassium and eGFR permit MRA initiation or continuation. "Right person" is typically the treating physician or clinical pharmacist who holds prescribing authority or performs medication reconciliation; in some settings, nurse-led HF clinics may be the primary recipient. "Right format" may combine structured status indicators (continue, consider, avoid) with plain-language rationale and citation links to label or guideline passages. "Right channel" includes EHR-embedded alerts, dedicated CDSS dashboards, or streaming chat interfaces; HF-CDSS uses a doctor-facing web dashboard with progressive SSE disclosure so clinicians see structured recommendations before narrative explanation completes. "Right time" means at medication reconciliation, post-discharge follow-up, or outpatient titration visits when GDMT decisions are actually made, not hours later in an inbox summary.
 
@@ -54,7 +54,7 @@ Fourth, GDMT underutilization is a process problem as much as a knowledge proble
 
 ### 2.2.1 Definition and Motivation
 
-A Knowledge Graph (KG) represents knowledge as a graph of entities (nodes) and relationships (edges), often with properties and axioms that enable structured, contextual querying [4]. Unlike flat document collections, a KG makes explicit which entities participate in which relations, supporting compositional queries that traverse paths rather than relying on lexical overlap alone. In clinical informatics, graphs unify drug identities across synonyms, attach numeric properties to entities, and encode contraindications as typed edges rather than buried prose.
+A Knowledge Graph (KG) represents knowledge as a graph of entities (nodes) and relationships (edges), often with properties and axioms that enable structured, contextual querying [7]. Unlike flat document collections, a KG makes explicit which entities participate in which relations, supporting compositional queries that traverse paths rather than relying on lexical overlap alone. In clinical informatics, graphs unify drug identities across synonyms, attach numeric properties to entities, and encode contraindications as typed edges rather than buried prose.
 
 The motivation for graphs in CDSS is relational fidelity. A physician asking whether spironolactone is safe in a patient on lisinopril with eGFR 35 and potassium 5.1 must integrate drug-drug interaction, renal threshold, and electrolyte risk, three relation types that may appear in different documents. A well-constructed KG binds these facts to canonical drug and lab nodes, enabling multi-hop traversal and consistent retrieval at query time.
 
@@ -121,7 +121,7 @@ Knowledge graphs support CDSS by representing drug-disease-lab relations explici
 
 ### 2.3.1 Definition and Motivation
 
-Retrieval-Augmented Generation (RAG) combines information retrieval with LLM generation so that answers are conditioned on external evidence rather than parametric memory alone [5]. The central motivation in medicine is grounding: tying each claim to retrievable sources reduces hallucination and supports audit trails required for clinical decision support. Parametric LLM weights encode statistical regularities from training corpora but do not guarantee current label text, local formulary availability, or patient-specific constraint satisfaction.
+Retrieval-Augmented Generation (RAG) combines information retrieval with LLM generation so that answers are conditioned on external evidence rather than parametric memory alone [12]. The central motivation in medicine is grounding: tying each claim to retrievable sources reduces hallucination and supports audit trails required for clinical decision support. Parametric LLM weights encode statistical regularities from training corpora but do not guarantee current label text, local formulary availability, or patient-specific constraint satisfaction.
 
 RAG reframes the LLM as a reader-summarizer over a curated knowledge base updated independently of model weights. When guidelines change, such as expanded SGLT2i indication in HFrEF, updating indexed chunks and graph edges refreshes system behavior without retraining the generator. For regulated or privacy-sensitive environments, RAG also allows knowledge to remain on-premises in PostgreSQL, ChromaDB, and Neo4j while the LLM performs local inference via Ollama.
 
@@ -137,7 +137,7 @@ Sparse retrieval relies on lexical statistics without neural inference at query 
 
 BM25 (Best Matching 25) extends TF-IDF with document-length normalization and term-frequency saturation, yielding robust keyword ranking widely used in search engines and clinical IR baselines. Intuitively, BM25 asks how well a query's terms overlap a document's terms, down-weighting very long documents that accumulate incidental matches and capping the marginal gain from repeated term occurrences. A document that mentions "spironolactone," "hyperkalemia," and "eGFR" twenty times is not twenty times better than one that mentions each once clearly in a contraindications section.
 
-Formally, BM25 scores a document \(d\) for query \(q\) by summing over query terms \(t\): each term contributes an inverse document frequency factor multiplied by a saturated term-frequency function in \(d\), divided by a length-normalization term that prevents long SPL sections from dominating rankings merely because they contain more tokens. Parameters \(k_1\) and \(b\) control saturation and length normalization respectively; default values from classical IR literature perform adequately on clinical chunk corpora without per-deployment tuning. In HF-CDSS, BM25 runs over the same sentence-aware chunks indexed in ChromaDB, so dense and sparse retrievers share provenance metadata, a prerequisite for meaningful RRF fusion and consistent citation in verification. Sparse methods excel at exact entity mentions and regulatory phrases ("contraindicated in severe renal impairment," "36 hours") but weakly connect conceptually related text with different vocabulary.
+Formally, BM25 scores a document d for query q by summing over query terms t: each term contributes an inverse document frequency factor multiplied by a saturated term-frequency function in d, divided by a length-normalization term that prevents long SPL sections from dominating rankings merely because they contain more tokens. Parameters k_1 and b control saturation and length normalization respectively; default values from classical IR literature perform adequately on clinical chunk corpora without per-deployment tuning. In HF-CDSS, BM25 runs over the same sentence-aware chunks indexed in ChromaDB, so dense and sparse retrievers share provenance metadata, a prerequisite for meaningful RRF fusion and consistent citation in verification. Sparse methods excel at exact entity mentions and regulatory phrases ("contraindicated in severe renal impairment," "36 hours") but weakly connect conceptually related text with different vocabulary.
 
 Hybrid pipelines run dense and sparse retrievers in parallel and fuse ranked lists, a pattern adopted in HF-CDSS because clinical queries blend semantic intent ("Can I start MRA in CKD stage 4?") with lexical anchors (spironolactone, eGFR 22, potassium 5.6).
 
@@ -192,7 +192,7 @@ Cross-encoders, mentioned again in Section 2.5.4, differ from bi-encoders by joi
 
 ### 2.4.1 Definition and Historical Context
 
-Large language models are neural language models trained on large text corpora with billions of parameters, optimized to predict token sequences. Milestones include the Transformer architecture (2017) [6], GPT-3 (2020) [7], and subsequent instruction-tuned and reinforcement-learning-aligned systems that follow natural-language directives. Scale, self-supervised pretraining on diverse text, and alignment fine-tuning produced general-purpose models capable of drafting clinical prose, extracting structured fields from narratives, and answering exam-style medical questions, while still requiring external grounding for prescribing decisions.
+Large language models are neural language models trained on large text corpora with billions of parameters, optimized to predict token sequences. Milestones include the Transformer architecture (2017) [18], GPT-3 (2020) [19], and subsequent instruction-tuned and reinforcement-learning-aligned systems that follow natural-language directives. Scale, self-supervised pretraining on diverse text, and alignment fine-tuning produced general-purpose models capable of drafting clinical prose, extracting structured fields from narratives, and answering exam-style medical questions, while still requiring external grounding for prescribing decisions.
 
 In CDSS, LLMs primarily serve explanation, semantic extraction, query expansion, and verification, not unbounded autonomous prescribing. HF-CDSS assigns Qwen2.5-7B-Instruct to clinician-facing answers and Qwen2.5-1.5B to lighter tasks (HyDE, borderline section review, verification agents), all via local Ollama inference.
 
@@ -200,21 +200,21 @@ In CDSS, LLMs primarily serve explanation, semantic extraction, query expansion,
 
 Scaled dot-product attention is the core governing equation of modern LLMs:
 
-\[
-\mathrm{Attention}(Q, K, V) = \mathrm{softmax}\!\left(\frac{QK^{\mathsf{T}}}{\sqrt{d_k}}\right) V
-\]
 
-where \(Q\), \(K\), and \(V\) are query, key, and value matrices derived from input embeddings, and \(d_k\) is the key dimension. The scaling factor \(\sqrt{d_k}\) stabilizes gradients as dimension grows. Each query vector attends over all keys, producing a convex combination of values that weights context tokens by relevance, allowing the model to relate "eGFR 22" to "renal impairment" across distance in the token sequence.
+\mathrm{Attention}(Q, K, V) = \mathrm{softmax}\left(\frac{QK^{\mathsf{T}}}{\sqrt{d_k}}\right) V
 
-Multi-head attention concatenates \(h\) parallel heads with distinct learned projections:
 
-\[
-\mathrm{MultiHead}(Q, K, V) = \mathrm{Concat}(\mathrm{head}_1,\ldots,\mathrm{head}_h)\,W^{O}
-\]
+where Q, K, and V are query, key, and value matrices derived from input embeddings, and d_k is the key dimension. The scaling factor \sqrt{d_k} stabilizes gradients as dimension grows. Each query vector attends over all keys, producing a convex combination of values that weights context tokens by relevance, allowing the model to relate "eGFR 22" to "renal impairment" across distance in the token sequence.
 
-\[
+Multi-head attention concatenates h parallel heads with distinct learned projections:
+
+
+\mathrm{MultiHead}(Q, K, V) = \mathrm{Concat}(\mathrm{head}_1,\ldots,\mathrm{head}_h)W^{O}
+
+
+
 \mathrm{head}_i = \mathrm{Attention}(QW_i^{Q}, KW_i^{K}, VW_i^{V})
-\]
+
 
 Stacked encoder and decoder blocks (in encoder-decoder models) or decoder-only stacks (GPT-style) compose depth; feed-forward sublayers and residual connections enable training at scale. Positional encodings (sinusoidal or rotary) inject order information because attention alone is permutation-invariant. These formulations enable parallelizable computation during training, long-range dependency modeling critical for clinical narratives, and parameter scalability that stores broad medical facts implicitly, while also creating hallucination risk when implicit memory contradicts retrieved evidence.
 
@@ -248,20 +248,22 @@ Quantization (4-bit or 8-bit weight representations) reduces VRAM requirements s
 
 ### 2.5.1 Definition and Rationale
 
-GraphRAG augments retrieval and generation with graph structure and, in community-based variants, cluster-level summaries, as popularized by Microsoft Research [8]. The unifying idea is that some clinical questions require relational context, interactions, class hierarchies, temporal constraints, that flat chunk retrieval approximates poorly. GraphRAG does not replace vector RAG; it complements it by supplying structured facts and subgraphs fused with textual evidence before generation.
+GraphRAG augments retrieval and generation with graph structure and, in community-based variants, cluster-level summaries, as popularized by Microsoft Research [13]. The unifying idea is that some clinical questions require relational context, interactions, class hierarchies, temporal constraints, that flat chunk retrieval approximates poorly. GraphRAG does not replace vector RAG; it complements it by supplying structured facts and subgraphs fused with textual evidence before generation.
 
 For heart failure, questions like "Why must I wait before switching from ramipril to Entresto?" require linking two drug nodes through a typed contraindication with temporal property, a graph-native query. Questions like "What titration schedule does the label recommend for bisoprolol in HFrEF?" may be answered by a single dense-retrieved dosing chunk. GraphRAG pipelines orchestrate both.
 
 ### 2.5.2 Comparison with Vector RAG
 
-| Criterion | Vector RAG | GraphRAG |
-|-----------|------------|----------|
-| Relationship understanding | Limited | Strong |
-| Multi-hop retrieval | Difficult | Natural |
-| Contextual reasoning | Weaker | Stronger |
-| Global / thematic queries | Hard | Better |
-| Semantic similarity | High | High |
-| Engineering complexity | Lower | Higher |
+
+| Criterion                  | Vector RAG | GraphRAG |
+| -------------------------- | ---------- | -------- |
+| Relationship understanding | Limited    | Strong   |
+| Multi-hop retrieval        | Difficult  | Natural  |
+| Contextual reasoning       | Weaker     | Stronger |
+| Global / thematic queries  | Hard       | Better   |
+| Semantic similarity        | High       | High     |
+| Engineering complexity     | Lower      | Higher   |
+
 
 **Table 2.1.** Comparison of Vector RAG and GraphRAG.
 
@@ -269,7 +271,7 @@ Vector RAG retrieves similar text; GraphRAG additionally retrieves structured fa
 
 ### 2.5.3 Local versus Global Search
 
-Local search begins from entities mentioned in the patient profile or query, medications, conditions, lab abnormalities, and expands their \(N\)-hop neighborhood in the graph. For heart failure, local expansion from "spironolactone" might retrieve interacts_with edges to ACEi, contraindication predicates tied to eGFR and potassium, and class membership in MRA. Local search is patient-specific and supports personalized safety checks and explanation ("given your current enalapril and potassium, note hyperkalemia risk when adding MRA").
+Local search begins from entities mentioned in the patient profile or query, medications, conditions, lab abnormalities, and expands their N-hop neighborhood in the graph. For heart failure, local expansion from "spironolactone" might retrieve interacts_with edges to ACEi, contraindication predicates tied to eGFR and potassium, and class membership in MRA. Local search is patient-specific and supports personalized safety checks and explanation ("given your current enalapril and potassium, note hyperkalemia risk when adding MRA").
 
 Global search (in community GraphRAG) aggregates community summaries over densely connected subgraphs, for example, a "GDMT four pillars" community, to answer thematic questions ("What is the standard HFrEF pharmacotherapy bundle?") without anchoring on a single drug node. Global summaries are precomputed during indexing by clustering related entities and summarizing clusters with an LLM. HF-CDSS emphasizes local entity-centric graph retrieval synchronized with hybrid chunk search for query-time latency and because GDMT gap analysis is already handled deterministically; global summaries would add value for educational overviews and nurse onboarding flows in future work.
 
@@ -279,25 +281,25 @@ Community detection algorithms (Louvain, Leiden) optimize modularity on the enti
 
 Hybrid retrieval fuses ranked lists with Reciprocal Rank Fusion (RRF):
 
-\[
-\mathrm{Score}_{\mathrm{RRF}}(d) = \sum_{r \in R} \frac{1}{k + \mathrm{rank}_r(d)}
-\]
 
-where \(R\) is the set of retrievers (dense embedding search, BM25, graph-derived evidence channels), \(\mathrm{rank}_r(d)\) is the rank of document or chunk \(d\) under retriever \(r\), and \(k\) is a smoothing constant (commonly 60, configurable as `graphrag_rrf_k` in HF-CDSS). RRF avoids calibrating incompatible score scales across retrievers, a practical advantage when cosine similarities and BM25 scores coexist. Documents that rank highly in multiple lists accumulate larger RRF scores; documents strong in only one modality still surface if that retriever ranks them first.
+\mathrm{Score}*{\mathrm{RRF}}(d) = \sum*{r \in R} \frac{1}{k + \mathrm{rank}_r(d)}
+
+
+where R is the set of retrievers (dense embedding search, BM25, graph-derived evidence channels), \mathrm{rank}_r(d) is the rank of document or chunk d under retriever r, and k is a smoothing constant (commonly 60, configurable as `graphrag_rrf_k` in HF-CDSS). RRF avoids calibrating incompatible score scales across retrievers, a practical advantage when cosine similarities and BM25 scores coexist. Documents that rank highly in multiple lists accumulate larger RRF scores; documents strong in only one modality still surface if that retriever ranks them first.
 
 Cosine similarity for dense retrieval is:
 
-\[
-\mathrm{sim}(q, d) = \frac{\mathbf{e}_q \cdot \mathbf{e}_d}{\|\mathbf{e}_q\|\,\|\mathbf{e}_d\|}
-\]
 
-where \(\mathbf{e}_q\) and \(\mathbf{e}_d\) are query and document embeddings from a bi-encoder such as BGE-M3. Embeddings are typically L2-normalized so cosine similarity equals dot product, simplifying index search.
+\mathrm{sim}(q, d) = \frac{\mathbf{e}_q \cdot \mathbf{e}_d}{\mathbf{e}_q\mathbf{e}_d}
 
-Hypothetical Document Embeddings (HyDE) expand short or ambiguous clinical queries by prompting a small LLM to generate a hypothetical answer document, then embedding that document for dense retrieval [9]. The hypothetical text occupies the same semantic neighborhood as true guideline passages, improving recall when physicians ask brief questions ("start ARNI?") that poorly match label wording. HyDE can misfire if the hypothetical document invents incorrect facts; combining HyDE with BM25, graph facts, and verification reduces but does not zero that risk, another reason deterministic rules remain authoritative.
+
+where \mathbf{e}_q and \mathbf{e}_d are query and document embeddings from a bi-encoder such as BGE-M3. Embeddings are typically L2-normalized so cosine similarity equals dot product, simplifying index search.
+
+Hypothetical Document Embeddings (HyDE) expand short or ambiguous clinical queries by prompting a small LLM to generate a hypothetical answer document, then embedding that document for dense retrieval [14]. The hypothetical text occupies the same semantic neighborhood as true guideline passages, improving recall when physicians ask brief questions ("start ARNI?") that poorly match label wording. HyDE can misfire if the hypothetical document invents incorrect facts; combining HyDE with BM25, graph facts, and verification reduces but does not zero that risk, another reason deterministic rules remain authoritative.
 
 Query decomposition splits a compound clinical question into sub-queries, medication class, renal safety, interaction check, each retrieved independently before fusion, reducing single-query embedding averaging effects where one embedding must represent multiple intents. Decomposition adds latency proportional to sub-query count and is applied selectively when enabled in configuration.
 
-Reranking applies a second-stage scorer to the top-\(k\) candidate pool: a bi-encoder rescore combining semantic similarity with first-stage scores, or a cross-encoder/API reranker (Cohere rerank-v3.5 optional in HF-CDSS) that jointly encodes query and document for finer discrimination at higher compute cost. Cross-encoders are more accurate than bi-encoders for pairwise relevance but cannot precompute document representations, hence two-stage retrieve-then-rerank pipelines.
+Reranking applies a second-stage scorer to the top-k candidate pool: a bi-encoder rescore combining semantic similarity with first-stage scores, or a cross-encoder/API reranker (Cohere rerank-v3.5 optional in HF-CDSS) that jointly encodes query and document for finer discrimination at higher compute cost. Cross-encoders are more accurate than bi-encoders for pairwise relevance but cannot precompute document representations, hence two-stage retrieve-then-rerank pipelines.
 
 ```
 Construction → Indexing → Hybrid Query → Generation
@@ -404,28 +406,30 @@ Security and compliance considerations follow from CDSS handling clinical narrat
 
 The HF-CDSS system selectively implements the techniques surveyed above rather than adopting every method described in the research literature. Table 2.2 maps literature concepts to concrete deployment choices; the following discussion elaborates rationale and interaction at query time.
 
-| Literature technique | Role in HF-CDSS |
-|---------------------|-----------------|
-| HyDE query expansion | Short physician queries expanded via Qwen2.5-1.5B before BGE-M3 embedding |
-| BM25 sparse retrieval | Lexical recall over clinical chunks, fused with dense and graph lists |
-| BGE-M3 bi-encoder | Chunk embedding and dense query similarity (Ollama provider) |
-| Reciprocal Rank Fusion (RRF) | Merges Chroma, BM25, and Neo4j candidate rankings (\(k=60\)) |
-| Three-tier section filter | Keyword → BGE-M3 similarity → borderline LLM review at ingestion |
-| Hybrid regex + LLM intake | Regex/lexicon primary extraction; LLM merge when confidence low |
-| GDMT rule engine | Executable policies for ACEi/ARB/ARNI, beta blocker, MRA, SGLT2i gaps |
-| Verification agents | Safety, missing-data, evidence, and optional LLM agent cross-checks |
-| SSE streaming API | Progressive disclosure of draft, recommendation, verification, answer tokens |
-| RBAC governance | JWT roles (doctor/clinician, clinical_lead, admin) gate rule approval |
-| Optional query decomposition | Splits compound questions for parallel retrieval when enabled |
-| Optional Cohere rerank | Second-stage semantic reranking over fused top-\(k\) candidates |
-| Redis LLM response cache | Idempotent caching of HyDE and verification outputs within TTL |
-| JSONB dose catalogs | PostgreSQL stores agent-specific titration and renal adjustment objects |
-| Neo4j local graph search | Entity-centric neighborhood facts for GraphRAG context |
-| Bilingual card summarizer | Deterministic VI/EN plain-language labels on recommendation cards |
+
+| Literature technique         | Role in HF-CDSS                                                              |
+| ---------------------------- | ---------------------------------------------------------------------------- |
+| HyDE query expansion         | Short physician queries expanded via Qwen2.5-1.5B before BGE-M3 embedding    |
+| BM25 sparse retrieval        | Lexical recall over clinical chunks, fused with dense and graph lists        |
+| BGE-M3 bi-encoder            | Chunk embedding and dense query similarity (Ollama provider)                 |
+| Reciprocal Rank Fusion (RRF) | Merges Chroma, BM25, and Neo4j candidate rankings (k=60)                     |
+| Three-tier section filter    | Keyword → BGE-M3 similarity → borderline LLM review at ingestion             |
+| Hybrid regex + LLM intake    | Regex/lexicon primary extraction; LLM merge when confidence low              |
+| GDMT rule engine             | Executable policies for ACEi/ARB/ARNI, beta blocker, MRA, SGLT2i gaps        |
+| Verification agents          | Safety, missing-data, evidence, and optional LLM agent cross-checks          |
+| SSE streaming API            | Progressive disclosure of draft, recommendation, verification, answer tokens |
+| RBAC governance              | JWT roles (doctor/clinician, clinical_lead, admin) gate rule approval        |
+| Optional query decomposition | Splits compound questions for parallel retrieval when enabled                |
+| Optional Cohere rerank       | Second-stage semantic reranking over fused top-k candidates                  |
+| Redis LLM response cache     | Idempotent caching of HyDE and verification outputs within TTL               |
+| JSONB dose catalogs          | PostgreSQL stores agent-specific titration and renal adjustment objects      |
+| Neo4j local graph search     | Entity-centric neighborhood facts for GraphRAG context                       |
+| Bilingual card summarizer    | Deterministic VI/EN plain-language labels on recommendation cards            |
+
 
 **Table 2.2.** Techniques adopted in HF-CDSS.
 
-HyDE addresses vocabulary mismatch between terse clinical questions and formal label prose, but its output is never trusted without corroborating retrieved chunks and graph facts. BM25 ensures brand names, numeric cutoffs, and "36 hours" appear in candidate lists even when dense embeddings underweight them. BGE-M3 provides a single embedding model for both ingestion section filtering and query-time dense retrieval, reducing operational complexity versus maintaining separate models. RRF with \(k=60\) follows common defaults from the literature and avoids normalizing heterogeneous scores.
+HyDE addresses vocabulary mismatch between terse clinical questions and formal label prose, but its output is never trusted without corroborating retrieved chunks and graph facts. BM25 ensures brand names, numeric cutoffs, and "36 hours" appear in candidate lists even when dense embeddings underweight them. BGE-M3 provides a single embedding model for both ingestion section filtering and query-time dense retrieval, reducing operational complexity versus maintaining separate models. RRF with k=60 follows common defaults from the literature and avoids normalizing heterogeneous scores.
 
 The three-tier section filter embodies the thesis's cost-aware LLM usage pattern: deterministic and embedding methods handle the bulk of ingestion; small models adjudicate borderline sections only. Hybrid intake mirrors this at query time, regex and lexicons extract vitals, labs, and common medications reliably; LLM extraction fills gaps when confidence is low, with merge policy preferring measured numeric values over inferred ones.
 
