@@ -7,14 +7,13 @@ from pathlib import Path
 from typing import Any
 
 from scraper.semantic.dose_safety_constants import (
-    REQUIRED_FIELDS,
     has_safety_cue,
     is_refusal_message,
     trigger_is_always_only,
 )
 from scraper.semantic.stable_ids import slug, stable_id
 
-# Re-export for backward compatibility with existing importers.
+# Required fields for classification / validation (imported by classify_dose_safety_warnings).
 REQUIRED_FIELDS = ("dose_safety_warning_id", "drug_keys", "rule_body")
 
 def dose_safety_warning_id(parts: list[str]) -> str:

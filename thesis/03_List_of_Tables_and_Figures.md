@@ -5,7 +5,7 @@
 | Table 2.1 | Comparison of Vector RAG and GraphRAG | 21 |
 | Table 3.1 | Functional requirements summary | 27 |
 | Table 3.2 | Non-functional requirements summary | 28 |
-| Table 3.3 | Role–permission matrix | 47 |
+| Table 3.3 | Role-permission matrix | 47 |
 | Table 4.1 | Hardware configuration (development vs. server) | 48 |
 | Table 5.1 | Experimental data sources and volumes | 77 |
 | Table 5.2 | Drug-label extraction results by class | 78 |
@@ -31,7 +31,7 @@
 | Figure 2.3 | GraphRAG pipeline overview | 21 |
 | Figure 3.1 | Three-tier system architecture | 29 |
 | Figure 3.2 | User interaction / data-flow diagram | 30 |
-| Figure 3.3 | Knowledge graph entity–relation schema | 31 |
+| Figure 3.3 | Knowledge graph entity-relation schema | 31 |
 | Figure 3.4 | Doctor Dashboard layout sketch | 45 |
 | Figure 4.1 | Knowledge pipeline architecture | 51 |
 | Figure 4.2 | Three-tier section filtering cascade | 56 |
@@ -50,7 +50,7 @@
 
 | Symbol | Meaning | Unit |
 |--------|---------|------|
-| % | Percentage | — |
+| % | Percentage |, |
 | bpm | Beats per minute | /min |
 | °C | Degrees Celsius | °C |
 | mg | Milligram | mg |
@@ -60,8 +60,8 @@
 | mmol/L | Millimole per liter | mmol/L |
 | mL/min/1.73m² | Estimated glomerular filtration rate | mL/min/1.73m² |
 | mmHg | Millimeters of mercury | mmHg |
-| ≥, ≤, >, < | Comparison operators | — |
-| → | Leads to / implies | — |
-| ↔ | Bidirectional / equivalent | — |
-| Attention(Q, K, V) | Scaled dot-product attention | — |
-| Score_RRF | Reciprocal Rank Fusion score | — |
+| ≥, ≤, >, < | Comparison operators |, |
+| → | Leads to / implies |, |
+| ↔ | Bidirectional / equivalent |, |
+| Attention(Q, K, V) | Scaled dot-product attention |, |
+| Score_RRF | Reciprocal Rank Fusion score |, |

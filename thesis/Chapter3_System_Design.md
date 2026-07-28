@@ -4,7 +4,7 @@
 
 ### 3.1.1. Functional Requirements
 
-Based on the problem analysis and research objectives articulated in Chapter 1, the heart failure Clinical Decision Support System (CDSS) must satisfy a set of functional requirements that collectively address the four GDMT pillars, the cognitive burden of interaction checking, individualized dosing, and bilingual clinical communication. Each requirement maps to one or more modules described in Section 3.3; the narrative below states intent and design rationale, while identifiers (FR-1 through FR-6) support traceability to test cases in Chapters 4 and 5. The requirements were derived from ESC and AHA/ACC/HFSA guideline structures, FDA Structured Product Label (SPL) section semantics, and observed failure modes of purely generative LLM chatbots in clinical settings—namely hallucinated doses, omitted contraindications, and inability to audit recommendation provenance.
+Based on the problem analysis and research objectives articulated in Chapter 1, the heart failure Clinical Decision Support System (CDSS) must satisfy a set of functional requirements that collectively address the four GDMT pillars, the cognitive burden of interaction checking, individualized dosing, and bilingual clinical communication. Each requirement maps to one or more modules described in Section 3.3; the narrative below states intent and design rationale, while identifiers (FR-1 through FR-6) support traceability to test cases in Chapters 4 and 5. The requirements were derived from ESC and AHA/ACC/HFSA guideline structures, FDA Structured Product Label (SPL) section semantics, and observed failure modes of purely generative LLM chatbots in clinical settings, namely hallucinated doses, omitted contraindications, and inability to audit recommendation provenance.
 
 **FR-1: Patient Profile Analysis.** The system shall recognize and analyze patient information from chat messages, extract key clinical parameters such as ejection fraction (EF), estimated glomerular filtration rate (eGFR), potassium, and blood pressure, and build a structured patient profile suitable for downstream reasoning. Extraction combines deterministic pattern matching for numeric labs and vitals, lexicon-based medication and condition detection, negation handling, unit normalization, and selective LLM semantic parsing when regex confidence is insufficient; measured values from regex extraction take precedence over LLM inference during merge.
 
@@ -12,7 +12,7 @@ The rationale for FR-1 rests on the observation that heart-failure decision supp
 
 **FR-2: GDMT Treatment Recommendations.** The system shall assess the patient's current Guideline-Directed Medical Therapy (GDMT) implementation level, propose medication additions or changes based on treatment guidelines, and explain recommendation rationale with supporting evidence. A policy engine evaluates class coverage (ACEi/ARB/ARNI, beta blocker, MRA, SGLT2i), identifies gaps, matches PostgreSQL-backed constraint rules, and attaches evidence references retrieved via GraphRAG.
 
-FR-2 addresses the central clinical problem: fewer than 2% of eligible HFrEF patients receive all four GDMT classes at target doses in real-world practice. The reasoning service (Section 3.3.3) implements this requirement deterministically—no LLM inside the critical path—because guideline concordance must be auditable and reproducible. GraphRAG supplies explanatory evidence and citation anchors for the LLM narrative layer but does not override class-level `avoid`, `consider`, or `continue` statuses. The four-pillar decomposition mirrors ESC 2021/2022 and AHA/ACC/HFSA guideline organization, enabling per-class precision metrics (ACEi/ARB/ARNI F1 95.5%, MRA F1 90.4%, Section 5.3.1) and targeted error analysis when a single pillar underperforms.
+FR-2 addresses the central clinical problem: fewer than 2% of eligible HFrEF patients receive all four GDMT classes at target doses in real-world practice. The reasoning service (Section 3.3.3) implements this requirement deterministically, no LLM inside the critical path, because guideline concordance must be auditable and reproducible. GraphRAG supplies explanatory evidence and citation anchors for the LLM narrative layer but does not override class-level `avoid`, `consider`, or `continue` statuses. The four-pillar decomposition mirrors ESC 2021/2022 and AHA/ACC/HFSA guideline organization, enabling per-class precision metrics (ACEi/ARB/ARNI F1 95.5%, MRA F1 90.4%, Section 5.3.1) and targeted error analysis when a single pillar underperforms.
 
 **FR-3: Drug Interaction Checking.** The system shall detect dangerous drug interactions, warn about absolute contraindications, and suggest alternatives or dose adjustments when clinically appropriate. Interaction rules stored in PostgreSQL express drug-set pairs with severity and management text; the interaction checking service evaluates the patient's normalized medication list against approved interaction rules and merges results with constraint-engine outputs.
 
@@ -20,7 +20,7 @@ Interaction checking is cognitively demanding even for specialists: ACEi co-admi
 
 **FR-4: Medication Dose Calculation.** The system shall calculate starting and target doses based on patient characteristics, adjust doses according to renal function, and track dose titration progress over time. Dose plans are derived from JSONB-encoded dose rules (starting dose, target dose, renal adjustment predicates, titration schedules) loaded from the governance catalog and FDA label-derived tables.
 
-Dosing individualization is a distinct competency from binary contraindication checking. Beta blockers such as bisoprolol require week-by-week titration schedules conditional on heart rate and blood pressure tolerance; SGLT2 inhibitors and MRAs require renal band adjustments. FR-4 separates dose computation into a dedicated module (Section 3.3.4) whose JSONB rule schema avoids schema migrations for each new titration pattern—a governance trade-off favoring clinical agility over rigid relational normalization.
+Dosing individualization is a distinct competency from binary contraindication checking. Beta blockers such as bisoprolol require week-by-week titration schedules conditional on heart rate and blood pressure tolerance; SGLT2 inhibitors and MRAs require renal band adjustments. FR-4 separates dose computation into a dedicated module (Section 3.3.4) whose JSONB rule schema avoids schema migrations for each new titration pattern, a governance trade-off favoring clinical agility over rigid relational normalization.
 
 **FR-5: Safety Alerts.** The system shall generate alerts based on renal function (eGFR), serum potassium levels, and heart rate and blood pressure, ensuring that safety-critical conditions are surfaced before recommendations are finalized. Hard constraints block or flag avoidance actions; soft constraints emit warnings with monitoring instructions. Risk flags (renal impairment, hyperkalemia, hypotension, bradycardia, missing critical labs) feed both alerting and constraint matching.
 
@@ -28,7 +28,7 @@ FR-5 implements a fail-closed posture for life-threatening conditions while tole
 
 **FR-6: Multilingual Interface.** The system shall support Vietnamese and English, allowing users to switch languages without losing conversation context. Intake normalization handles Vietnamese diacritics and bilingual lexicon terms; plain-language recommendation summaries are generated in the requested locale.
 
-Vietnamese deployment context motivates FR-6: many CDSS products evaluated in Section 5.5.1 are English-only, yet local brand names and clinician–patient communication occur in Vietnamese. Bilingual support splits into intake normalization (Unicode NFKD diacritic stripping, Vietnamese medication aliases) and presentation localization (deterministic card summarizer maps, Section 3.3.6). Language switching completes in under 2 seconds with zero data loss (Section 5.4.2) because locale transformation re-renders simplified fields without re-invoking GraphRAG or reasoning—a deliberate separation of expensive inference from inexpensive presentation.
+Vietnamese deployment context motivates FR-6: many CDSS products evaluated in Section 5.5.1 are English-only, yet local brand names and clinician-patient communication occur in Vietnamese. Bilingual support splits into intake normalization (Unicode NFKD diacritic stripping, Vietnamese medication aliases) and presentation localization (deterministic card summarizer maps, Section 3.3.6). Language switching completes in under 2 seconds with zero data loss (Section 5.4.2) because locale transformation re-renders simplified fields without re-invoking GraphRAG or reasoning, a deliberate separation of expensive inference from inexpensive presentation.
 
 #### 3.1.1.1. Requirements Traceability Matrix
 
@@ -45,11 +45,11 @@ Vietnamese deployment context motivates FR-6: many CDSS products evaluated in Se
 
 **NFR-1: Performance.** Recommendation response time shall remain below 10 seconds for 95% of queries under reference deployment hardware, and the system shall support at least 50 concurrent users. GraphRAG retrieval, rule-engine evaluation, and verification agents run with bounded top-\(k\) pools; Redis caching reduces repeated constraint loads; SSE streaming begins emitting partial results before final LLM tokens complete.
 
-Performance requirements reflect clinical workflow constraints: ward rounds and outpatient encounters tolerate brief pauses but not minute-long waits characteristic of some oncology CDSS products (30–90 seconds for Watson for Oncology, Section 5.5.1). The 10-second P95 target acknowledges that LLM answer generation dominates latency (mean 3.5 seconds, Section 5.3.2); SSE streaming mitigates perceived delay by surfacing `draft_ready` and `recommendation_ready` events before answer tokens complete. Bounded top-\(k\) retrieval pools and Redis constraint caching prevent GraphRAG fan-out from scaling linearly with catalog size (6,032 constraint rules, Section 5.1.2).
+Performance requirements reflect clinical workflow constraints: ward rounds and outpatient encounters tolerate brief pauses but not minute-long waits characteristic of some oncology CDSS products (30-90 seconds for Watson for Oncology, Section 5.5.1). The 10-second P95 target acknowledges that LLM answer generation dominates latency (mean 3.5 seconds, Section 5.3.2); SSE streaming mitigates perceived delay by surfacing `draft_ready` and `recommendation_ready` events before answer tokens complete. Bounded top-\(k\) retrieval pools and Redis constraint caching prevent GraphRAG fan-out from scaling linearly with catalog size (6,032 constraint rules, Section 5.1.2).
 
 **NFR-2: Accuracy.** Treatment recommendation accuracy shall be at least 90% per ESC guidelines as measured by structured evaluation suites, and the system shall not miss alerts for dangerous interactions encoded in approved rules. Accuracy is assessed offline against labeled cases; runtime behavior prioritizes sensitivity on hard constraints over aggressive automation.
 
-The 90% accuracy floor aligns with the thesis success criteria (Section 1.5). Evaluation achieved 94.0% with 95% CI [89.2%, 98.8%] on structured recommendation objects, not LLM prose—a distinction critical to NFR-2 interpretation. Hard-constraint sensitivity prioritization means the system may emit precautionary renal alerts (12.6% false positive rate) rather than silently approve MRA initiation when eGFR is uncertain; this trade-off favors patient safety over alert minimalism.
+The 90% accuracy floor aligns with the thesis success criteria (Section 1.5). Evaluation achieved 94.0% with 95% CI [89.2%, 98.8%] on structured recommendation objects, not LLM prose, a distinction critical to NFR-2 interpretation. Hard-constraint sensitivity prioritization means the system may emit precautionary renal alerts (12.6% false positive rate) rather than silently approve MRA initiation when eGFR is uncertain; this trade-off favors patient safety over alert minimalism.
 
 **NFR-3: Security.** Patient data shall be encrypted in transit and at rest, and the system shall comply with applicable healthcare security regulations. JWT authentication, RBAC authorization, TLS 1.3 termination, and audit logging of chat and recommendation events satisfy this requirement.
 
@@ -57,7 +57,7 @@ Healthcare CDSS systems process sensitive clinical narratives that may identify 
 
 **NFR-4: Scalability.** The architecture shall be modular and extensible to other disease domains, with straightforward mechanisms for updating the knowledge base as guidelines evolve. JSONL artifacts, PostgreSQL governance tables, Chroma collections, and Neo4j imports version independently; admin APIs support approve/retire workflows without code deployment.
 
-Modularity supports the `--from-step kg_base` pipeline re-sync entry point (Chapter 4): operators can refresh embeddings and graph indexes without re-downloading DailyMed labels when only governance catalogs change. JSONB dose rules and constraint metadata accommodate new titration patterns without Alembic migrations—a scalability choice favoring clinical content velocity over relational purity.
+Modularity supports the `--from-step kg_base` pipeline re-sync entry point (Chapter 4): operators can refresh embeddings and graph indexes without re-downloading DailyMed labels when only governance catalogs change. JSONB dose rules and constraint metadata accommodate new titration patterns without Alembic migrations, a scalability choice favoring clinical content velocity over relational purity.
 
 #### 3.1.2.1. Non-Functional Requirements Rationale Summary
 
@@ -104,9 +104,9 @@ The system is designed using a three-tier architecture separating presentation, 
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-The presentation layer hosts the doctor dashboard, admin portal, and API explorer. React clients subscribe to SSE streams from the chat service, updating the clinical panel when structured events arrive. The application layer encapsulates chat streaming, deterministic reasoning, GraphRAG retrieval, multi-agent verification, dose calculation, and safety constraint enforcement; FastAPI's async endpoints allow GraphRAG prefetch concurrently with synchronous rule-engine evaluation on a thread pool, preventing admin requests from starving during long chat turns. The data layer persists governance rules in PostgreSQL, caches session and draft state in Redis, stores BGE-M3 embeddings in ChromaDB, maintains versioned JSONL artifacts on disk, and optionally syncs from object storage; Neo4j (when enabled in deployment) holds imported entity–relationship graphs for neighborhood retrieval.
+The presentation layer hosts the doctor dashboard, admin portal, and API explorer. React clients subscribe to SSE streams from the chat service, updating the clinical panel when structured events arrive. The application layer encapsulates chat streaming, deterministic reasoning, GraphRAG retrieval, multi-agent verification, dose calculation, and safety constraint enforcement; FastAPI's async endpoints allow GraphRAG prefetch concurrently with synchronous rule-engine evaluation on a thread pool, preventing admin requests from starving during long chat turns. The data layer persists governance rules in PostgreSQL, caches session and draft state in Redis, stores BGE-M3 embeddings in ChromaDB, maintains versioned JSONL artifacts on disk, and optionally syncs from object storage; Neo4j (when enabled in deployment) holds imported entity-relationship graphs for neighborhood retrieval.
 
-The three-tier separation was chosen over microservices decomposition because deployment simplicity (single backend container, Section 4.5) outweighs independent scaling benefits at the evaluation scale (50 concurrent users, NFR-1). Module boundaries within the monolith (`app/modules/`) preserve testability and future extraction if GraphRAG or ingestion workloads require dedicated services. The data tier deliberately multiplexes storage technologies—relational for governance, vector for semantic retrieval, graph for multi-hop facts, object storage for reproducible pipeline artifacts—because no single datastore satisfies all access patterns efficiently.
+The three-tier separation was chosen over microservices decomposition because deployment simplicity (single backend container, Section 4.5) outweighs independent scaling benefits at the evaluation scale (50 concurrent users, NFR-1). Module boundaries within the monolith (`app/modules/`) preserve testability and future extraction if GraphRAG or ingestion workloads require dedicated services. The data tier deliberately multiplexes storage technologies, relational for governance, vector for semantic retrieval, graph for multi-hop facts, object storage for reproducible pipeline artifacts, because no single datastore satisfies all access patterns efficiently.
 
 ### 3.2.2. Data Flow Diagram
 
@@ -194,31 +194,31 @@ Relationship Types: treats, contraindicated_with, indicated_for, interacts_with,
 
 The knowledge graph centers on heart failure as a disease node linked to GDMT drug classes through `treated_by` relationships. Each drug or class node carries contraindications, indications, and interaction edges supporting local entity retrieval and multi-hop expansion in Neo4j. At runtime, GraphRAG binds patient medication terms to graph nodes, retrieves neighboring facts (for example ACEi → contraindicated_with → ARNI), and merges graph-derived evidence with textual chunks via RRF. Entity types and relation vocabularies align with ingestion JSONL relationship records synchronized from the scraper pipeline.
 
-Graph structure complements vector retrieval: dense embeddings excel at paraphrased indication language, while graph traversal surfaces explicit contraindication triples that may be split across chunk boundaries during ingestion. The `interacts_with` and `contraindicated_with` edges directly support interaction F1 of 97.1% when combined with PostgreSQL interaction rules—the graph provides evidentiary context for verification agents, while PostgreSQL rules provide executable enforcement.
+Graph structure complements vector retrieval: dense embeddings excel at paraphrased indication language, while graph traversal surfaces explicit contraindication triples that may be split across chunk boundaries during ingestion. The `interacts_with` and `contraindicated_with` edges directly support interaction F1 of 97.1% when combined with PostgreSQL interaction rules, the graph provides evidentiary context for verification agents, while PostgreSQL rules provide executable enforcement.
 
 ### 3.2.4. End-to-End Scenario Walkthrough: Sample Patient Case
 
-To concretize the architecture, this section traces a representative clinical vignette through every module. The case—a 65-year-old male with HFrEF—mirrors evaluation test inputs and illustrates event ordering, module handoffs, and design decisions.
+To concretize the architecture, this section traces a representative clinical vignette through every module. The case, a 65-year-old male with HFrEF, mirrors evaluation test inputs and illustrates event ordering, module handoffs, and design decisions.
 
 **Initial physician message (Turn 1):**
 
 > "65-year-old male, EF 30%, currently on bisoprolol 5mg once daily. eGFR 45, K+ 4.2. Not on ACEi or MRA. Can we optimize GDMT?"
 
-**Stage 1 — Patient Profile Extraction (Module 3.3.1).** The chat service receives the POST body and invokes hybrid intake. Regex patterns match `EF 30%` → LVEF 30 (percent unit), `eGFR 45` → eGFR 45 (mL/min/1.73m² implicit), `K+ 4.2` → potassium 4.2 mEq/L, and `bisoprolol 5mg` via lexicon NER mapping to substance key `bisoprolol`. Demographics `{age: 65, sex: male}` extract from the opening phrase. Negation detection on "Not on ACEi or MRA" suppresses false positive medication assertions for those classes while recording GDMT gaps. Because numeric fields exceed regex confidence thresholds, selective LLM merge is not invoked—keeping extraction within the 1.1s P50 latency band. The module emits SSE event `draft_ready` with serialized `PatientProfile` and compressed `clinical_state` `{intent: "gdmt_optimization", hf_type: "HFrEF", focus_classes: ["ACEi/ARB/ARNI", "MRA", "SGLT2i"], key_labs: {ef: 30, egfr: 45, k: 4.2}}`.
+**Stage 1, Patient Profile Extraction (Module 3.3.1).** The chat service receives the POST body and invokes hybrid intake. Regex patterns match `EF 30%` → LVEF 30 (percent unit), `eGFR 45` → eGFR 45 (mL/min/1.73m² implicit), `K+ 4.2` → potassium 4.2 mEq/L, and `bisoprolol 5mg` via lexicon NER mapping to substance key `bisoprolol`. Demographics `{age: 65, sex: male}` extract from the opening phrase. Negation detection on "Not on ACEi or MRA" suppresses false positive medication assertions for those classes while recording GDMT gaps. Because numeric fields exceed regex confidence thresholds, selective LLM merge is not invoked, keeping extraction within the 1.1s P50 latency band. The module emits SSE event `draft_ready` with serialized `PatientProfile` and compressed `clinical_state` `{intent: "gdmt_optimization", hf_type: "HFrEF", focus_classes: ["ACEi/ARB/ARNI", "MRA", "SGLT2i"], key_labs: {ef: 30, egfr: 45, k: 4.2}}`.
 
-**Stage 2 — Missing-Field Check.** The missing-field checker confirms LVEF, eGFR, and potassium are present for MRA and RAAS evaluation. No `missing_check` event fires; the pipeline proceeds. Had potassium been absent while MRA was in scope, the system would short-circuit with a clarification prompt—a design choice prioritizing safety over speculative recommendation.
+**Stage 2, Missing-Field Check.** The missing-field checker confirms LVEF, eGFR, and potassium are present for MRA and RAAS evaluation. No `missing_check` event fires; the pipeline proceeds. Had potassium been absent while MRA was in scope, the system would short-circuit with a clarification prompt, a design choice prioritizing safety over speculative recommendation.
 
-**Stage 3 — Parallel GraphRAG Prefetch (Module 3.3.2).** Concurrently with reasoning, GraphRAG constructs queries from clinical state: "HFrEF GDMT ACE inhibitor initiation eGFR 45," "MRA spironolactone eGFR 45 potassium 4.2," "SGLT2 inhibitor HFrEF eGFR 45." HyDE expansion (if enabled) generates a hypothetical passage describing GDMT optimization for this phenotype. ChromaDB dense search returns guideline chunks on four-pillar therapy; BM25 retrieves exact drug names ("bisoprolol," "spironolactone"); Neo4j expands `HEART_FAILURE → treated_by → MRA` with `indicated_for HFrEF` facts. RRF fusion merges ranked lists; chunk window expansion restores sentences split at chunk boundaries. Output: `GraphRAGContextResponse` with 12–20 evidence chunks and 3–5 graph facts—sufficient for evidence agent validation.
+**Stage 3, Parallel GraphRAG Prefetch (Module 3.3.2).** Concurrently with reasoning, GraphRAG constructs queries from clinical state: "HFrEF GDMT ACE inhibitor initiation eGFR 45," "MRA spironolactone eGFR 45 potassium 4.2," "SGLT2 inhibitor HFrEF eGFR 45." HyDE expansion (if enabled) generates a hypothetical passage describing GDMT optimization for this phenotype. ChromaDB dense search returns guideline chunks on four-pillar therapy; BM25 retrieves exact drug names ("bisoprolol," "spironolactone"); Neo4j expands `HEART_FAILURE → treated_by → MRA` with `indicated_for HFrEF` facts. RRF fusion merges ranked lists; chunk window expansion restores sentences split at chunk boundaries. Output: `GraphRAGContextResponse` with 12-20 evidence chunks and 3-5 graph facts, sufficient for evidence agent validation.
 
-**Stage 4 — Deterministic Reasoning (Module 3.3.3).** Patient normalization classifies renal status as moderately reduced (eGFR 45), potassium normal (4.2 mEq/L), HF type HFrEF (LVEF ≤ 40%). GDMT gap analysis evaluates four pillars: ACEi/ARB/ARNI → `consider` (not on therapy, eligible); beta blocker → `continue` (on bisoprolol 5mg, below target); MRA → `consider` (not on therapy, eGFR and K+ within typical initiation bounds); SGLT2i → `consider` (HFrEF indication, eGFR > 20). Constraint matching queries approved rules; no hard `avoid` triggers. Interaction checks find no dangerous pairs. Overall status: `approved_with_warnings` (GDMT gaps present). SSE event `recommendation_ready` delivers structured JSON.
+**Stage 4, Deterministic Reasoning (Module 3.3.3).** Patient normalization classifies renal status as moderately reduced (eGFR 45), potassium normal (4.2 mEq/L), HF type HFrEF (LVEF ≤ 40%). GDMT gap analysis evaluates four pillars: ACEi/ARB/ARNI → `consider` (not on therapy, eligible); beta blocker → `continue` (on bisoprolol 5mg, below target); MRA → `consider` (not on therapy, eGFR and K+ within typical initiation bounds); SGLT2i → `consider` (HFrEF indication, eGFR > 20). Constraint matching queries approved rules; no hard `avoid` triggers. Interaction checks find no dangerous pairs. Overall status: `approved_with_warnings` (GDMT gaps present). SSE event `recommendation_ready` delivers structured JSON.
 
-**Stage 5 — Dose Calculation (Module 3.3.4).** For recommended MRA (spironolactone), dose rules emit starting dose 12.5–25 mg daily, target 25–50 mg, renal adjustment noting slower titration at eGFR 30–45, and week-by-week titration steps. Bisoprolol dose plan confirms current 5mg with pathway to 10mg target per Section 3.3.4 exemplar schedule.
+**Stage 5, Dose Calculation (Module 3.3.4).** For recommended MRA (spironolactone), dose rules emit starting dose 12.5-25 mg daily, target 25-50 mg, renal adjustment noting slower titration at eGFR 30-45, and week-by-week titration steps. Bisoprolol dose plan confirms current 5mg with pathway to 10mg target per Section 3.3.4 exemplar schedule.
 
-**Stage 6 — Verification Agents (Module 3.3.6).** Safety agent: pass (no hard avoids). Missing-data agent: pass (critical labs present). Evidence agent: pass (GraphRAG returned non-zero chunks). Citation validation maps evidence references to retrieved chunk IDs. Aggregated verdict: `pass` with informational warnings on GDMT gaps. SSE event `verification_ready`.
+**Stage 6, Verification Agents (Module 3.3.6).** Safety agent: pass (no hard avoids). Missing-data agent: pass (critical labs present). Evidence agent: pass (GraphRAG returned non-zero chunks). Citation validation maps evidence references to retrieved chunk IDs. Aggregated verdict: `pass` with informational warnings on GDMT gaps. SSE event `verification_ready`.
 
-**Stage 7 — Card Summarizer and LLM Answer.** Card summarizer attaches Vietnamese and English plain-language labels: "Blood pressure medication" / "Thuốc hạ huyết áp" for ACEi class; "Consider" / "Cân nhắc" for status. LLM (Qwen2.5-7B) generates streaming narrative grounded in recommendation and verification payloads—explaining rationale for ACEi and MRA initiation, citing retrieved guideline passages, and explicitly noting bisoprolol uptitration opportunity. SSE events `answer_delta` stream tokens; `done` terminates with conversation metadata.
+**Stage 7, Card Summarizer and LLM Answer.** Card summarizer attaches Vietnamese and English plain-language labels: "Blood pressure medication" / "Thuốc hạ huyết áp" for ACEi class; "Consider" / "Cân nhắc" for status. LLM (Qwen2.5-7B) generates streaming narrative grounded in recommendation and verification payloads, explaining rationale for ACEi and MRA initiation, citing retrieved guideline passages, and explicitly noting bisoprolol uptitration opportunity. SSE events `answer_delta` stream tokens; `done` terminates with conversation metadata.
 
-**Clinical panel update sequence.** The React dashboard renders patient summary on `draft_ready`, GDMT status grid on `recommendation_ready`, verdict badges on `verification_ready`, and chat prose incrementally on `answer_delta`. Total elapsed time: approximately 7–9 seconds on evaluation hardware (P50 7.4s, mean 8.1s, Section 5.3.2).
+**Clinical panel update sequence.** The React dashboard renders patient summary on `draft_ready`, GDMT status grid on `recommendation_ready`, verdict badges on `verification_ready`, and chat prose incrementally on `answer_delta`. Total elapsed time: approximately 7-9 seconds on evaluation hardware (P50 7.4s, mean 8.1s, Section 5.3.2).
 
 This walkthrough demonstrates the thesis design principle: structured safety and GDMT outcomes precede generative prose; GraphRAG grounds explanation without overriding deterministic statuses; and bilingual presentation layers operate independently of inference cost.
 
@@ -242,11 +242,11 @@ Output feeds `build_clinical_state`, which compresses the profile into intent, f
 
 #### 3.3.1.1. Design Trade-offs in Hybrid Intake
 
-Pure regex intake minimizes latency and cost but fails on narrative chart summaries; pure LLM intake handles nuance but introduces hallucination risk and multi-second delays. The hybrid cascade mirrors the ingestion section filter (Section 4.2.6): fast deterministic methods first, LLM only on uncertainty. The `_prefer_measured` merge policy is non-negotiable for laboratories—a design invariant supporting NFR-2 accuracy. Vietnamese diacritic normalization trades occasional homograph ambiguity for recall on unaccented clinical typing common in mobile chat interfaces.
+Pure regex intake minimizes latency and cost but fails on narrative chart summaries; pure LLM intake handles nuance but introduces hallucination risk and multi-second delays. The hybrid cascade mirrors the ingestion section filter (Section 4.2.6): fast deterministic methods first, LLM only on uncertainty. The `_prefer_measured` merge policy is non-negotiable for laboratories, a design invariant supporting NFR-2 accuracy. Vietnamese diacritic normalization trades occasional homograph ambiguity for recall on unaccented clinical typing common in mobile chat interfaces.
 
 ### 3.3.2. Knowledge Graph Engine Module (GraphRAG)
 
-The GraphRAG engine assembles explanatory context—evidence chunks and graph facts—for verification agents and the LLM answer generator. It does not replace the deterministic recommendation engine; it grounds narrative and citation validation.
+The GraphRAG engine assembles explanatory context, evidence chunks and graph facts, for verification agents and the LLM answer generator. It does not replace the deterministic recommendation engine; it grounds narrative and citation validation.
 
 **HyDE expansion.** When enabled, a lightweight model (Qwen2.5-1.5B via Ollama) generates a hypothetical clinical passage answering the physician query given patient context lines (HF phenotype, key labs, focus classes). The hypothetical document is combined with the baseline query for embedding; cache keys avoid repeated expansion within TTL bounds.
 
@@ -254,7 +254,7 @@ The GraphRAG engine assembles explanatory context—evidence chunks and graph fa
 
 **Chroma dense search.** BGE-M3 embeddings index clinical chunks in ChromaDB collection `clinical_chunks`. Metadata filters narrow by drug class, section, and chunk type. Candidate pool size adapts to case complexity (`adaptive_top_k`).
 
-**BM25 sparse retrieval.** An in-memory BM25 index over published chunks provides lexical recall complementary to dense search—critical for exact drug names and regulatory phrases. Hybrid fusion weighting is configurable (`hybrid_bm25_weight`).
+**BM25 sparse retrieval.** An in-memory BM25 index over published chunks provides lexical recall complementary to dense search, critical for exact drug names and regulatory phrases. Hybrid fusion weighting is configurable (`hybrid_bm25_weight`).
 
 **Neo4j neighborhood retrieval.** Cypher queries expand matched entity terms into `GraphFact` records (subject, predicate, object, provenance). Parallel retrieval runs alongside vector and BM25 searches.
 
@@ -266,15 +266,15 @@ Evidence filtering removes low-quality or out-of-scope chunks; clinical entity b
 
 #### 3.3.2.1. GraphRAG Design Rationale
 
-Vector-only RAG retrieves semantically similar passages but may miss exact drug names embedded in tables; BM25 alone misses paraphrased guideline language. RRF fusion (Chapter 2) combines incomparable retriever scores without manual weight tuning per query type—a robustness property validated qualitatively in Section 5.5.2. Graph neighborhood retrieval adds multi-hop facts (ACEi contraindicated with ARNI) that span chunk boundaries. HyDE expansion addresses vocabulary mismatch between terse clinical queries and verbose guideline prose, at the cost of one additional small-model inference per cache miss.
+Vector-only RAG retrieves semantically similar passages but may miss exact drug names embedded in tables; BM25 alone misses paraphrased guideline language. RRF fusion (Chapter 2) combines incomparable retriever scores without manual weight tuning per query type, a robustness property validated qualitatively in Section 5.5.2. Graph neighborhood retrieval adds multi-hop facts (ACEi contraindicated with ARNI) that span chunk boundaries. HyDE expansion addresses vocabulary mismatch between terse clinical queries and verbose guideline prose, at the cost of one additional small-model inference per cache miss.
 
 ### 3.3.3. Reasoning Service Module
 
-The reasoning service produces the authoritative `RecommendationResponse` through deterministic orchestration—no LLM inside the critical path.
+The reasoning service produces the authoritative `RecommendationResponse` through deterministic orchestration, no LLM inside the critical path.
 
 **Patient normalization** classifies renal status (normal, moderately reduced, severely reduced, kidney failure), potassium status, blood pressure status, heart rate status, HF type from LVEF thresholds, and comorbidity flags from structured intake.
 
-**Risk flag derivation** emits `RiskFlag` objects for missing critical fields, renal impairment, hyperkalemia, hypotension, bradycardia, and polypharmacy—each with severity and evidentiary text referencing observed values.
+**Risk flag derivation** emits `RiskFlag` objects for missing critical fields, renal impairment, hyperkalemia, hypotension, bradycardia, and polypharmacy, each with severity and evidentiary text referencing observed values.
 
 **GDMT gap analysis** loads executable GDMT policies from PostgreSQL and evaluates, for each pillar class (ACEi/ARB/ARNI, beta blocker, MRA, SGLT2i), whether the patient is on therapy, eligible, contraindicated, or missing data. `recommendation_for_policy` generates class-level recommendations with priority, action verbs (start, uptitrate, avoid), linked constraint IDs, and evidence references.
 
@@ -288,7 +288,7 @@ The module attaches `dose_plans` from the dose calculation service and records g
 
 #### 3.3.3.1. Deterministic Reasoning Invariants
 
-Three invariants govern reasoning design: (1) LLM output never modifies `avoid` statuses; (2) hard_block rules from PostgreSQL override permissive-sounding retrieved prose; (3) overall status aggregation is monotonic—adding a hard constraint cannot be undone by subsequent modules. These invariants directly support 100% pass on structured safety scenarios (Section 5.7.1) and 92.5% safety sensitivity (Section 5.3.1).
+Three invariants govern reasoning design: (1) LLM output never modifies `avoid` statuses; (2) hard_block rules from PostgreSQL override permissive-sounding retrieved prose; (3) overall status aggregation is monotonic, adding a hard constraint cannot be undone by subsequent modules. These invariants directly support 100% pass on structured safety scenarios (Section 5.7.1) and 92.5% safety sensitivity (Section 5.3.1).
 
 ### 3.3.4. Dose Calculation Module
 
@@ -298,7 +298,7 @@ The dose calculation module personalizes pharmacotherapy numeric guidance from J
 
 **Target dose** reads `target_dose` JSON defining guideline maxima or highest tolerated dose.
 
-**Renal adjustment** evaluates `renal_adjustment` JSON predicates against patient eGFR bands— for example halving starting dose or slowing titration when eGFR < 30.
+**Renal adjustment** evaluates `renal_adjustment` JSON predicates against patient eGFR bands, for example halving starting dose or slowing titration when eGFR < 30.
 
 **Titration schedule** expands `titration_schedule` JSON into week-by-week step instructions, conditional on tolerance flags.
 
@@ -322,7 +322,7 @@ Titration schedule:
 
 Dose plans attach to the recommendation response for display alongside GDMT class actions; dose safety warnings from a separate checker flag when planned doses exceed label maxima for the patient's renal band.
 
-JSONB encoding for dose rules trades query-time JSON parsing cost for schema flexibility when FDA labels introduce new titration patterns—a governance velocity trade-off appropriate for a domain where labeling updates occur quarterly.
+JSONB encoding for dose rules trades query-time JSON parsing cost for schema flexibility when FDA labels introduce new titration patterns, a governance velocity trade-off appropriate for a domain where labeling updates occur quarterly.
 
 ### 3.3.5. Safety Constraint Engine Module
 
@@ -330,7 +330,7 @@ The safety constraint engine materializes PostgreSQL constraint rules into runti
 
 **Hard constraints** are non-violable: absolute contraindications, life-threatening interactions, and `avoid` actions that set overall status to `blocked`. Example: concurrent ACEi and recent ARNI within 36 hours.
 
-**Soft constraints** emit warnings requiring monitoring, dose adjustment, or clinical review without automatic blocking—`consider_with_caution` actions with attached monitoring plans.
+**Soft constraints** emit warnings requiring monitoring, dose adjustment, or clinical review without automatic blocking, `consider_with_caution` actions with attached monitoring plans.
 
 ```
 Hard Constraint:
@@ -345,13 +345,13 @@ AND monitoring = ["Check potassium within 1 week"]
 
 Constraint rules carry `risk_names` and `severity_any` arrays matched against derived patient risk flags; evidence references link to label sections and guideline passages for GraphRAG citation validation. Admin workflows require `clinical_lead` approval before rules transition from `draft` to `approved`.
 
-The 667 hard_block rules classified during ingestion (11.1% of extracted rules, Section 5.2.3) feed this module exclusively after clinical_lead approval—preventing draft extraction artifacts from executing at runtime.
+The 667 hard_block rules classified during ingestion (11.1% of extracted rules, Section 5.2.3) feed this module exclusively after clinical_lead approval, preventing draft extraction artifacts from executing at runtime.
 
 ### 3.3.6. Verification Agents Module
 
 Verification agents cross-check the deterministic recommendation before streaming natural-language answers. The **safety agent** fails when hard `avoid` constraints exist; warns on `caution` constraints. The **missing-data agent** warns when critical labs or vitals remain unset. The **evidence agent** fails when GraphRAG returns zero chunks and graph facts. An optional **LLM agent** with tool access can propose refinements but does not override blocked statuses. Citation validation maps evidence references to retrieved chunk IDs. Aggregated verdicts (`pass`, `warning`, `fail`) appear in `verification_ready` SSE payloads.
 
-Verification adds mean 0.5s latency (Section 5.3.2) but closes the hallucination gap between structured recommendations and LLM narrative—a defense-in-depth layer when GraphRAG retrieves permissive-sounding adjacent passages that contradict hard constraints.
+Verification adds mean 0.5s latency (Section 5.3.2) but closes the hallucination gap between structured recommendations and LLM narrative, a defense-in-depth layer when GraphRAG retrieves permissive-sounding adjacent passages that contradict hard constraints.
 
 ## 3.4. Database Design
 
@@ -367,13 +367,13 @@ CREATE TABLE constraint_rules (
     constraint_id VARCHAR(100) UNIQUE NOT NULL,
     version INTEGER DEFAULT 1,
     target_drug_class VARCHAR(100),
-    action VARCHAR(50),  -- 'avoid', 'consider', 'continue', etc.
+    action VARCHAR(50), -- 'avoid', 'consider', 'continue', etc.
     reason TEXT,
     risk_names TEXT[],
     severity_any TEXT[],
     evidence_ref TEXT,
     clinical_sources JSONB,
-    status VARCHAR(20) DEFAULT 'draft',  -- draft, approved, retired
+    status VARCHAR(20) DEFAULT 'draft', -- draft, approved, retired
     source VARCHAR(50),
     approved_by VARCHAR(100),
     approved_at TIMESTAMP,
@@ -395,7 +395,7 @@ CREATE TABLE dose_rules (
     drug_class VARCHAR(100),
     drug_keys TEXT[],
     calculation_type VARCHAR(50),
-    starting_dose JSONB,      -- {"value": 1.25, "unit": "mg"}
+    starting_dose JSONB, -- {"value": 1.25, "unit": "mg"}
     target_dose JSONB,
     renal_adjustment JSONB,
     titration_schedule JSONB,
@@ -427,13 +427,13 @@ GDMT policy tables mirror the same draft/approved/retired lifecycle, storing exe
 
 #### 3.4.1.1. Data Model Design Discussion
 
-The relational schema encodes a governance-centric data model rather than a patient-centric EMR. Patient profiles exist ephemerally in Redis conversation caches; authoritative persisted state comprises rule catalogs and audit logs. This separation reflects the CDSS role as a decision adjunct, not a system of record—hospital EMRs retain longitudinal records while HF-CDSS evaluates snapshots from chat input.
+The relational schema encodes a governance-centric data model rather than a patient-centric EMR. Patient profiles exist ephemerally in Redis conversation caches; authoritative persisted state comprises rule catalogs and audit logs. This separation reflects the CDSS role as a decision adjunct, not a system of record, hospital EMRs retain longitudinal records while HF-CDSS evaluates snapshots from chat input.
 
-The draft/approved/retired lifecycle on every rule table implements clinical governance without code deployment: clinical_leads review extraction artifacts flagged `needs_condition_refinement` (35.2% of rules, Section 5.2.3) before promotion. Version integers support diff views in the admin portal. JSONB columns (`starting_dose`, `renal_adjustment`, `clinical_sources`) accommodate heterogeneous FDA label structures that resist rigid normalization—each SPL section may express dosing differently, yet runtime evaluators consume a uniform JSON interface.
+The draft/approved/retired lifecycle on every rule table implements clinical governance without code deployment: clinical_leads review extraction artifacts flagged `needs_condition_refinement` (35.2% of rules, Section 5.2.3) before promotion. Version integers support diff views in the admin portal. JSONB columns (`starting_dose`, `renal_adjustment`, `clinical_sources`) accommodate heterogeneous FDA label structures that resist rigid normalization, each SPL section may express dosing differently, yet runtime evaluators consume a uniform JSON interface.
 
 Array columns (`risk_names`, `drug_set_a`, `drug_keys`) enable PostgreSQL GIN indexing for membership queries during constraint matching. The 6,032 constraint rules and 1,096 interaction rules (Section 5.1.2) demonstrate catalog scale; runtime loaders filter to `approved` status and cache by drug class in Redis to bound query latency.
 
-Entity-relationship semantics: constraint rules associate with drug classes and risk flags; dose rules associate with drug keys and renal bands; interaction rules associate symmetric drug sets. GDMT policies sit at a higher abstraction level, defining pillar coverage logic independent of individual drug instances—a three-level hierarchy (policy → class → substance) matching guideline organization.
+Entity-relationship semantics: constraint rules associate with drug classes and risk flags; dose rules associate with drug keys and renal bands; interaction rules associate symmetric drug sets. GDMT policies sit at a higher abstraction level, defining pillar coverage logic independent of individual drug instances, a three-level hierarchy (policy → class → substance) matching guideline organization.
 
 ### 3.4.2. Redis Cache Structure
 
@@ -453,7 +453,7 @@ llm_cache:{hash(input)} → {response_json}
 
 Redis caches constraint lookups by drug class with TTL invalidation on admin writes, draft patient profiles and message history by conversation identifier for multi-turn continuity, and LLM or HyDE response hashes to reduce latency on repeated similar queries. Ephemeral cache entries are not authoritative; PostgreSQL approved rules remain the source of truth.
 
-Cache TTL bounds limit exposure duration for patient narratives stored in Redis (NFR-3). Admin approve/retire operations invalidate constraint cache keys synchronously to prevent stale rule execution—a consistency trade-off favoring correctness over cache hit rate.
+Cache TTL bounds limit exposure duration for patient narratives stored in Redis (NFR-3). Admin approve/retire operations invalidate constraint cache keys synchronously to prevent stale rule execution, a consistency trade-off favoring correctness over cache hit rate.
 
 ### 3.4.3. Vector Store Schema (ChromaDB)
 
@@ -462,11 +462,11 @@ Collection: "clinical_chunks"
 
 Schema:
 {
-    "id": str,              # chunk_id
+    "id": str, # chunk_id
     "embedding": float[384], # embedding vector
-    "document": str,         # text content
+    "document": str, # text content
     "metadata": {
-        "source": str,       # drug_label, guideline, etc.
+        "source": str, # drug_label, guideline, etc.
         "drug_class": str,
         "section": str,
         "chunk_type": str    # dosing, warning, indication, etc.
@@ -476,7 +476,7 @@ Schema:
 
 Embeddings are produced by BGE-M3 (dimension configuration follows deployment settings). Metadata enables pre-filtering during GraphRAG retrieval and citation linking back to source URLs and page numbers stored in chunk metadata.
 
-ChromaDB was chosen over managed vector services for on-premise deployability alongside Ollama. Embeddings are computed offline during ingestion (batch BGE-M3), keeping query-time GraphRAG at 0.8s mean—an architectural decision separating indexing cost from interactive latency.
+ChromaDB was chosen over managed vector services for on-premise deployability alongside Ollama. Embeddings are computed offline during ingestion (batch BGE-M3), keeping query-time GraphRAG at 0.8s mean, an architectural decision separating indexing cost from interactive latency.
 
 ## 3.5. API Design
 
@@ -531,26 +531,26 @@ event: answer_delta
 data: { "content": "..." }
 
 event: done
-data: { "conversation_id": "...", "status": "complete", ... }
+data: { "conversation_id": "...", "status": "complete"... }
 ```
 
 #### 3.5.1.1. SSE Event Semantics and Client Contract
 
 Each SSE event type carries explicit semantics governing client rendering and error handling:
 
-**`draft_ready`** — Emitted immediately after hybrid intake and `build_clinical_state` complete. Payload includes full `PatientProfile`, compressed `clinical_state`, and `conversation_id`. Clients MUST update the clinical panel patient summary upon receipt. This event arrives before any LLM invocation on typical structured inputs, supporting sub-2-second perceived responsiveness. Idempotency: re-emission on retry replaces prior draft for the same turn.
+**`draft_ready`**, Emitted immediately after hybrid intake and `build_clinical_state` complete. Payload includes full `PatientProfile`, compressed `clinical_state`, and `conversation_id`. Clients MUST update the clinical panel patient summary upon receipt. This event arrives before any LLM invocation on typical structured inputs, supporting sub-2-second perceived responsiveness. Idempotency: re-emission on retry replaces prior draft for the same turn.
 
-**`missing_check`** — Emitted when critical fields are absent for the requested clinical intent. Payload includes `missing_fields` array (e.g., `["potassium", "egfr"]`) and `prompt` string for clinician clarification. When present, subsequent events may include only clarification `answer_delta` tokens before `done`; `recommendation_ready` and `verification_ready` are suppressed. Clients MUST NOT render GDMT cards until missing fields are resolved in a follow-up turn.
+**`missing_check`**, Emitted when critical fields are absent for the requested clinical intent. Payload includes `missing_fields` array (e.g., `["potassium", "egfr"]`) and `prompt` string for clinician clarification. When present, subsequent events may include only clarification `answer_delta` tokens before `done`; `recommendation_ready` and `verification_ready` are suppressed. Clients MUST NOT render GDMT cards until missing fields are resolved in a follow-up turn.
 
-**`status`** — Informational progress markers (`building_recommendation`, `generating_answer`). Non-terminal; clients may display loading indicators. No clinical content.
+**`status`**, Informational progress markers (`building_recommendation`, `generating_answer`). Non-terminal; clients may display loading indicators. No clinical content.
 
-**`recommendation_ready`** — Emitted after deterministic reasoning, dose calculation, and interaction checking. Payload contains authoritative `RecommendationResponse` JSON including per-class statuses, dose plans, safety warnings, and governance version. Clients MUST render GDMT status grid and recommendation cards from this payload—not from LLM prose. This event implements the Five Rights timing principle: structured safety signals precede narrative.
+**`recommendation_ready`**, Emitted after deterministic reasoning, dose calculation, and interaction checking. Payload contains authoritative `RecommendationResponse` JSON including per-class statuses, dose plans, safety warnings, and governance version. Clients MUST render GDMT status grid and recommendation cards from this payload, not from LLM prose. This event implements the Five Rights timing principle: structured safety signals precede narrative.
 
-**`verification_ready`** — Emitted after verification agents complete. Payload includes per-agent verdicts, aggregated status (`pass`, `warning`, `fail`), and citation validation results. Clients render verdict badges. A `fail` verdict SHOULD trigger prominent warning styling even if recommendation JSON exists.
+**`verification_ready`**, Emitted after verification agents complete. Payload includes per-agent verdicts, aggregated status (`pass`, `warning`, `fail`), and citation validation results. Clients render verdict badges. A `fail` verdict SHOULD trigger prominent warning styling even if recommendation JSON exists.
 
-**`answer_delta`** — Incremental LLM token chunks for clinician-facing narrative. Payload `{ "content": "..." }` appends to chat thread. Clients MUST NOT treat answer tokens as authoritative for dosing or safety status—structured events remain source of truth.
+**`answer_delta`**, Incremental LLM token chunks for clinician-facing narrative. Payload `{ "content": "..." }` appends to chat thread. Clients MUST NOT treat answer tokens as authoritative for dosing or safety status, structured events remain source of truth.
 
-**`done`** — Terminal event with `status: "complete"`, full response metadata, and timing annotations. Clients close SSE connection or prepare for next turn. Error paths emit `done` with `status: "error"` and error detail (not shown in happy-path example).
+**`done`**, Terminal event with `status: "complete"`, full response metadata, and timing annotations. Clients close SSE connection or prepare for next turn. Error paths emit `done` with `status: "error"` and error detail (not shown in happy-path example).
 
 Event ordering invariant: `draft_ready` → (`missing_check` OR (`recommendation_ready` → `verification_ready` → `answer_delta`* → `done`)). Violations indicate server bugs and should be logged client-side.
 
@@ -622,7 +622,7 @@ The doctor dashboard uses a split layout with a chat interface on the left and a
 └───────────────────────────────┴────────────────────────────────────┘
 ```
 
-The split layout encodes a cognitive model: conversational exploration on the left, structured decision artifacts on the right. Clinicians scanning rounds can read GDMT status without parsing LLM paragraphs—a usability pattern reflected in clinical usefulness scoring of 4.5/5 (Section 5.4.3).
+The split layout encodes a cognitive model: conversational exploration on the left, structured decision artifacts on the right. Clinicians scanning rounds can read GDMT status without parsing LLM paragraphs, a usability pattern reflected in clinical usefulness scoring of 4.5/5 (Section 5.4.3).
 
 ### 3.6.2. Admin Portal
 
@@ -666,7 +666,7 @@ A brief STRIDE-oriented threat model informs the security controls above and ide
 
 **Spoofing.** An attacker could attempt to impersonate a clinical_lead to approve malicious constraint rules. Mitigation: JWT signature validation, role claims bound at login, and audit logging of approve actions with actor identity. Residual risk: compromised clinical_lead credentials; institutional MFA policies are out of scope but recommended.
 
-**Tampering.** An attacker could modify chat requests in transit to inject false laboratory values. Mitigation: TLS 1.3 on all `/api` routes. Residual risk: client-side malware altering requests before encryption—mitigated only by endpoint security policies.
+**Tampering.** An attacker could modify chat requests in transit to inject false laboratory values. Mitigation: TLS 1.3 on all `/api` routes. Residual risk: client-side malware altering requests before encryption, mitigated only by endpoint security policies.
 
 **Repudiation.** A clinician might deny having received a specific recommendation. Mitigation: server-side audit logs of chat turns, recommendation JSON, and verification verdicts with timestamps. Logs do not currently include cryptographic non-repudiation signatures.
 
@@ -676,7 +676,7 @@ A brief STRIDE-oriented threat model informs the security controls above and ide
 
 **Elevation of privilege.** A doctor role might attempt to call admin approve endpoints. Mitigation: FastAPI `require_role` dependencies on all governance routes; 403 responses without side effects. Unit and integration tests verify role boundaries (Section 4.6).
 
-**Prompt injection.** A physician (or embedded text in a forwarded note) could attempt to override system instructions during LLM intake or answer generation. Mitigation: prompt injection sanitization in intake merge; verification agents check structured statuses independently of LLM prose; deterministic rules are not LLM-modifiable. Residual risk: LLM narrative could still misphrase recommendations—human review remains required.
+**Prompt injection.** A physician (or embedded text in a forwarded note) could attempt to override system instructions during LLM intake or answer generation. Mitigation: prompt injection sanitization in intake merge; verification agents check structured statuses independently of LLM prose; deterministic rules are not LLM-modifiable. Residual risk: LLM narrative could still misphrase recommendations, human review remains required.
 
 This threat model supports NFR-3 compliance as a baseline for hospital IT security review while acknowledging that full HIPAA or local equivalent certification requires institutional processes beyond application design alone.
 

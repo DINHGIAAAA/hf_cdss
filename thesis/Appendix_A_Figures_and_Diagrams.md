@@ -30,12 +30,12 @@
 │   │                    │  /admin/rules              → RulesPage   │          │   │
 │   │                    │  /admin/dose-rules         → DoseRules  │          │   │
 │   │                    │  /admin/dose-safety-warn  → Safety     │          │   │
-│   │                    │  /admin/interaction-rules → Interact.  │          │   │
+│   │                    │  /admin/interaction-rules → Interact. │          │   │
 │   │                    │  /admin/gdmt-policies     → GDMT       │          │   │
 │   │                    │  /admin/evidence          → Evidence   │          │   │
 │   │                    │  /admin/audit             → Audit      │          │   │
 │   │                    │  /admin/system           → System     │          │   │
-│   │                    │  /admin/api              → API Exp.   │          │   │
+│   │                    │  /admin/api              → API Exp. │          │   │
 │   │                    │  /admin/users            → Users     │          │   │
 │   │                    │                                         │          │   │
 │   │                    └─────────────────────────────────────────┘          │   │
@@ -56,8 +56,8 @@
 │                                                                                      │
 │  ┌─────────────────────────────────────────────────────────────────────────────┐   │
 │  │                          API Routes Layer                                    │   │
-│  │  /chat, /chat/stream, /recommendation, /retrieval,                       │   │
-│  │  /admin/*, /auth, /evidence, /knowledge-graph, /graphrag, /llm, ...        │   │
+│  │  /chat, /chat/stream, /recommendation, /retrieval, │   │
+│  │  /admin/*, /auth, /evidence, /knowledge-graph, /graphrag, /llm... │   │
 │  └─────────────────────────────────────────────────────────────────────────────┘   │
 │                                         │                                           │
 │  ┌──────────────────────────────────────┼──────────────────────────────────────┐   │
@@ -299,7 +299,7 @@
 │   │    └── artifacts/entities/*.jsonl → Nodes + Edges                     │     │
 │   └─────────────────────────────────────────────────────────────────────────┘     │
 │                                                                                      │
-│   NOTE: PostgreSQL governance catalogs were ALREADY SYNCED in the STORE step — no reload needed │
+│   NOTE: PostgreSQL governance catalogs were ALREADY SYNCED in the STORE step, no reload needed │
 └─────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -311,7 +311,7 @@
 |---------|-------------|
 | **Backup** | If PostgreSQL crashes, data can be restored from S3 |
 | **Multi-instance** | Multiple backend instances can load from a single S3 source |
-| **ChromaDB/Neo4j** | No direct sync — must go through bootstrap |
+| **ChromaDB/Neo4j** | No direct sync, must go through bootstrap |
 | **Versioning** | S3 retains history; rollback is possible |
 
 ---
@@ -468,13 +468,13 @@
 │   ┌─────────────────────────────────────────────────────────────────────────┐     │
 │   │ id | embedding (384d) | document | metadata                            │     │
 │   │────┼──────────────────────────────┼─────────────────────────────────│     │
-│   │ 1  | [0.123, -0.456, ...]       | "ACE inhibitors are first-line..." │     │
+│   │ 1  | [0.123, -0.456...]       | "ACE inhibitors are first-line..." │     │
 │   │    |                              | source: drug_label                  │     │
 │   │    |                              | drug_class: ACE inhibitor          │     │
 │   │    |                              | section: DOSAGE_AND_ADMINISTRATION  │     │
 │   │    |                              | chunk_type: dosing                  │     │
 │   │────┼──────────────────────────────┼─────────────────────────────────│     │
-│   │ 2  | [0.234, -0.567, ...]       | "Bisoprolol starting dose..."      │     │
+│   │ 2  | [0.234, -0.567...]       | "Bisoprolol starting dose..."      │     │
 │   │    |                              | source: guideline                  │     │
 │   │    |                              | drug_class: Beta blocker            │     │
 │   └─────────────────────────────────────────────────────────────────────────┘     │

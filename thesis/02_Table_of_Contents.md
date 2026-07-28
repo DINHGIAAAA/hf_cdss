@@ -71,4 +71,4 @@
 | **References** | **228** |
 | **Appendix A: Figures and Diagrams** | **234** |
 
-*Note: Front-matter pages use lowercase Roman numerals (i, ii, iii, …). Body chapters use Arabic numerals. Page numbers are approximate placeholders for manuscript compilation.*
+*Note: Front-matter pages use lowercase Roman numerals (i, ii, iii...). Body chapters use Arabic numerals. Page numbers are approximate placeholders for manuscript compilation.*

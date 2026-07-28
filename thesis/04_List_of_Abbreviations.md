@@ -6,7 +6,7 @@
 | AHA | American Heart Association |
 | API | Application Programming Interface |
 | ARB | Angiotensin Receptor Blocker |
-| ARNI | Angiotensin Receptor–Neprilysin Inhibitor |
+| ARNI | Angiotensin Receptor-Neprilysin Inhibitor |
 | BNP | Brain Natriuretic Peptide |
 | CDSS | Clinical Decision Support System |
 | CKD | Chronic Kidney Disease |
@@ -35,17 +35,17 @@
 | NLP | Natural Language Processing |
 | NPV | Negative Predictive Value |
 | OAS | OpenAPI Specification |
-| ORM | Object–Relational Mapping |
+| ORM | Object-Relational Mapping |
 | PDF | Portable Document Format |
 | PPV | Positive Predictive Value |
-| RAAS | Renin–Angiotensin–Aldosterone System |
+| RAAS | Renin-Angiotensin-Aldosterone System |
 | RAG | Retrieval-Augmented Generation |
 | RAM | Random Access Memory |
 | RBAC | Role-Based Access Control |
 | RCT | Randomized Controlled Trial |
 | REST | Representational State Transfer |
 | RRF | Reciprocal Rank Fusion |
-| SGLT2i | Sodium–Glucose Cotransporter 2 inhibitor |
+| SGLT2i | Sodium-Glucose Cotransporter 2 inhibitor |
 | SNOMED | Systematized Nomenclature of Medicine |
 | SPL | Structured Product Label |
 | SQL | Structured Query Language |

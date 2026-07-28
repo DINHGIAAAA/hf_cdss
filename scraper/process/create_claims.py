@@ -644,15 +644,41 @@ def claims_from_records(records: list[dict], max_claims_per_section: int) -> lis
 
 
 def _filter_evidence_aligned(claims: list[dict]) -> list[dict]:
+    """Drop claims that fail evidence alignment; keep full claim records.
+
+    ``validate_claims_batch`` returns validation stubs (claim_id + confidence
+    adjustment only). Merge those stubs back onto the original claims so
+    downstream KG validation still sees document_id, claim_type, evidence, etc.
+    """
     validated = validate_claims_batch(claims)
-    passed = [r for r in validated if r["validation"]["aligned"]]
-    dropped = len(validated) - len(passed)
-    drop_rate = dropped / max(len(validated), 1)
+    by_id = {
+        result.get("claim_id"): result
+        for result in validated
+        if result.get("claim_id")
+    }
+
+    passed: list[dict] = []
+    for claim in claims:
+        result = by_id.get(claim.get("claim_id"))
+        if result is None or not result.get("validation", {}).get("aligned"):
+            continue
+        enriched = dict(claim)
+        enriched["original_confidence"] = result.get(
+            "original_confidence", claim.get("confidence", 0.8)
+        )
+        enriched["confidence"] = result.get(
+            "adjusted_confidence", claim.get("confidence", 0.8)
+        )
+        enriched["validation"] = result.get("validation")
+        passed.append(enriched)
+
+    dropped = len(claims) - len(passed)
+    drop_rate = dropped / max(len(claims), 1)
 
     logger.info(
         "evidence_claim_validation: %d/%d passed (dropped %d, rate %.1f%%)",
         len(passed),
-        len(validated),
+        len(claims),
         dropped,
         drop_rate * 100,
     )
