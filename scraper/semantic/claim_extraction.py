@@ -16,6 +16,7 @@ from scraper.prompts.claim_extraction import CLAIM_EXTRACTION_SYSTEM_PROMPT, CHA
 from scraper.semantic.llm_client import prepare_section_context
 from scraper.validation.noise_filter import filter_noise_claims
 from scraper.validation.claim_strictness import filter_strict_claims
+from scraper.validation.claim_type_gates import passes_claim_type_gate
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +49,8 @@ def _build_claim(record: dict, payload: dict[str, Any], index: int) -> dict | No
     if claim_type not in CLAIM_TYPES:
         return None
     if claim_type == "guideline_recommendation" and record.get("source_type") != "guideline":
+        return None
+    if not passes_claim_type_gate(claim_type, evidence):
         return None
 
     metadata = dict(record.get("metadata") or {})

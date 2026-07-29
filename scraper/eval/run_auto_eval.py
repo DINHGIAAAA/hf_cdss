@@ -43,10 +43,10 @@ def main() -> None:
     parser.add_argument("--no-llm", action="store_true", help="Heuristic-only (fast, no Ollama).")
     parser.add_argument(
         "--model",
-        default="qwen2.5:1.5b",
-        help="Ollama judge model. Prefer 1.5b; 7b often times out on CPU.",
+        default="qwen2.5:7b",
+        help="Ollama judge model. Default 7b for better semantic accuracy; 1.5b is faster but noisier.",
     )
-    parser.add_argument("--timeout-seconds", type=float, default=90.0)
+    parser.add_argument("--timeout-seconds", type=float, default=120.0)
     parser.add_argument(
         "--output-dir",
         type=Path,

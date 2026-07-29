@@ -115,8 +115,13 @@ def heuristic_verdict(claim: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _normalize_llm_result(result: dict[str, Any], claim: dict[str, Any]) -> dict[str, Any]:
-    """Small models often reject everything or put junk in reasons — repair obvious cases."""
+def _normalize_llm_result(
+    result: dict[str, Any],
+    claim: dict[str, Any],
+    *,
+    strong_model: bool = False,
+) -> dict[str, Any]:
+    """Repair junk outputs from small models; trust stronger models more."""
     evidence = str(claim.get("evidence") or claim.get("claim") or "")
     claim_type = str(claim.get("claim_type") or "")
     verdict = str(result.get("verdict") or "").lower()
@@ -129,11 +134,25 @@ def _normalize_llm_result(result: dict[str, Any], claim: dict[str, Any]) -> dict
     else:
         reason_list = []
 
-    # Echoing claim_type/drug as the only "reason" is not a real rejection rationale.
     junk_reasons = {claim_type, str(claim.get("drug") or ""), "contraindication", "ok"}
     only_junk = bool(reason_list) and all(
         (item.lower().strip() in {j.lower() for j in junk_reasons if j}) or len(item) < 3 for item in reason_list
     )
+
+    # Strong models: only override empty/junk reject reasons.
+    if strong_model:
+        if verdict == "reject" and only_junk and _has_type_cues(evidence, claim_type) and not _is_weak_span(evidence):
+            result = {
+                **result,
+                "verdict": "accept",
+                "reasons": ["llm_reason_junk_overridden"],
+                "judge": "llm_corrected",
+                "grounded": True,
+            }
+        else:
+            result["reasons"] = reason_list or (["ok"] if verdict == "accept" else ["llm_reject"])
+        result["verdict"] = str(result.get("verdict") or "reject").lower()
+        return result
 
     if verdict == "reject" and only_junk and _has_type_cues(evidence, claim_type) and not _is_weak_span(evidence):
         result = {
@@ -144,10 +163,8 @@ def _normalize_llm_result(result: dict[str, Any], claim: dict[str, Any]) -> dict
             "grounded": True,
         }
     elif verdict == "reject" and _has_type_cues(evidence, claim_type) and not _is_weak_span(evidence):
-        # Prefer accept for clear clinical cues unless reason is an explicit reject code.
         explicit = {"noise", "type_mismatch", "not_clinical", "weak_span", "heuristic_noise"}
         if not any(str(item).lower() in explicit for item in reason_list):
-            # Keep reject if long free-text says span is not clinical.
             joined = " ".join(reason_list).lower()
             if "not a clinical" in joined or "does not clearly" in joined or "type_mismatch" in joined:
                 result["reasons"] = reason_list or ["llm_reject"]
@@ -168,25 +185,36 @@ def _normalize_llm_result(result: dict[str, Any], claim: dict[str, Any]) -> dict
     return result
 
 
+def _is_strong_judge_model(model: str) -> bool:
+    name = (model or "").lower()
+    # Treat 7b+ instruct models as strong enough to trust explicit rejects.
+    for marker in ("7b", "14b", "32b", "72b"):
+        if marker in name:
+            return True
+    return False
+
+
 def llm_verdict(
     claim: dict[str, Any],
     *,
-    model: str = "qwen2.5:1.5b",
-    timeout_seconds: float = 90.0,
+    model: str = "qwen2.5:7b",
+    timeout_seconds: float = 120.0,
 ) -> dict[str, Any] | None:
     payload = {
+        "task": "accept_or_reject_claim_for_hf_cdss_knowledge_graph",
         "claim_type": claim.get("claim_type"),
         "drug": claim.get("drug"),
         "source_type": claim.get("source_type"),
-        "evidence": str(claim.get("evidence") or claim.get("claim") or "")[:700],
+        "evidence": str(claim.get("evidence") or claim.get("claim") or "")[:600],
     }
+    strong = _is_strong_judge_model(model)
     result = call_llm_json(
         CLAIM_AUTO_JUDGE_SYSTEM_PROMPT,
         json.dumps(payload, ensure_ascii=False),
         max_tokens=64,
         model=model,
         timeout_seconds=timeout_seconds,
-        num_ctx=1024,
+        num_ctx=1536 if strong else 1024,
     )
     if not isinstance(result, dict):
         return None
@@ -194,7 +222,7 @@ def llm_verdict(
     if verdict not in {"accept", "reject"}:
         return None
     result["model"] = model
-    result = _normalize_llm_result(result, claim)
+    result = _normalize_llm_result(result, claim, strong_model=strong)
     if "judge" not in result:
         result["judge"] = "llm"
     return result
@@ -204,8 +232,8 @@ def judge_claim(
     claim: dict[str, Any],
     *,
     use_llm: bool,
-    model: str = "qwen2.5:1.5b",
-    timeout_seconds: float = 90.0,
+    model: str = "qwen2.5:7b",
+    timeout_seconds: float = 120.0,
 ) -> dict[str, Any]:
     base = heuristic_verdict(claim)
     # Always reject clear noise / weak spans without spending LLM tokens.
@@ -217,10 +245,11 @@ def judge_claim(
     if judged is None:
         base["judge"] = "heuristic_llm_unavailable"
         return base
-    # If heuristic already flagged soft issues, keep reject unless LLM is confident accept.
+    # Soft heuristic rejects: allow confident LLM accept to override.
     if base["verdict"] == "reject" and judged.get("verdict") == "accept":
         conf = float(judged.get("confidence") or 0)
-        if conf < 0.8 and judged.get("judge") != "llm_corrected":
+        strong = _is_strong_judge_model(model)
+        if conf < (0.6 if strong else 0.8) and judged.get("judge") != "llm_corrected":
             judged["verdict"] = "reject"
             judged["reasons"] = list(judged.get("reasons") or []) + ["deferred_to_heuristic"]
     judged["noise_score"] = base["noise_score"]

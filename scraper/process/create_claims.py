@@ -1,4 +1,8 @@
 from scraper.io.jsonl import read_jsonl, write_jsonl
+from scraper.validation.claim_type_gates import (
+    is_actionable_dose_evidence,
+    is_actionable_renal_evidence,
+)
 from scraper.validation.evidence_claim_validation import (
     validate_claim_evidence_alignment,
     validate_claims_batch,
@@ -285,9 +289,6 @@ STRONG_MODAL_TERMS = (
     "is indicated",
 )
 
-_DOSE_NUMBER = re.compile(r"\b\d+(?:\.\d+)?\s*mg\b", re.I)
-
-
 def is_weak_span(sentence: str) -> bool:
     text = (sentence or "").strip()
     if len(text) < 25:
@@ -297,20 +298,7 @@ def is_weak_span(sentence: str) -> bool:
 
 
 def _has_dose_signal(haystack: str) -> bool:
-    if _DOSE_NUMBER.search(haystack):
-        return True
-    return any(
-        term in haystack
-        for term in (
-            "recommended dose",
-            "starting dose",
-            "initial dose",
-            "target dose",
-            "titrate",
-            "once daily",
-            "twice daily",
-        )
-    )
+    return is_actionable_dose_evidence(haystack)
 
 
 def _matches_claim_type(claim_type: str, haystack: str) -> bool:
@@ -335,37 +323,9 @@ def _matches_claim_type(claim_type: str, haystack: str) -> bool:
         # Pregnancy/fetal harm without dosing numbers is population, not dose.
         if any(term in haystack for term in ("fetal harm", "pregnancy", "pregnant")) and not _has_dose_signal(haystack):
             return False
-        return _has_dose_signal(haystack)
+        return is_actionable_dose_evidence(haystack)
     if claim_type == "renal_constraint":
-        if "protein bound" in haystack or "not likely to be of benefit" in haystack:
-            return False
-        return any(
-            cue in haystack
-            for cue in (
-                "egfr",
-                "creatinine clearance",
-                "crcl",
-                "renal impairment",
-                "kidney impairment",
-                "renal dysfunction",
-                "dialysis",
-            )
-        ) and any(
-            cue in haystack
-            for cue in (
-                "contraindicat",
-                "not recommended",
-                "avoid",
-                "do not",
-                "should not",
-                "adjust",
-                "reduce",
-                "less than",
-                "<",
-                "dose",
-                "impairment",
-            )
-        )
+        return is_actionable_renal_evidence(haystack)
     if claim_type == "drug_interaction":
         if any(neg in haystack for neg in INTERACTION_NEGATIVE_CUES):
             return False

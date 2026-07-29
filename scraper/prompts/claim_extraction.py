@@ -143,6 +143,8 @@ CRITICAL RULES FOR CONDITIONS EXTRACTION:
 11. Include only actionable prescribing/safety statements.
 12. For drug labels, set drug to the label drug when the claim is drug-specific.
 13. Use guideline_recommendation only for guideline sources.
+14. dose_recommendation: require a numeric dose (mg/mcg) plus dosing context (starting/target/recommended/titrate/daily). Skip missed-dose instructions, NDC/packaging, and animal/PK-only spans.
+15. renal_constraint: require eGFR/CrCl threshold or renal impairment with a prescribing action (avoid/contraindicated/not recommended/reduce dose). Skip hemodialysis/PK-only statements.
 
 Example input:
 "Spironolactone is contraindicated when eGFR < 30 mL/min/1.73 m2. ACE inhibitors are contraindicated in pregnancy. Do not use if history of angioedema."

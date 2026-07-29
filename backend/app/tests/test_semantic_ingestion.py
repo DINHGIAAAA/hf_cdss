@@ -119,6 +119,43 @@ def test_dose_recommendation_keeps_real_dosing() -> None:
     assert classify_claim(sentence, "drug_label") == "dose_recommendation"
 
 
+def test_dose_recommendation_drops_missed_dose() -> None:
+    sentence = (
+        "If a dose is missed, advise patients to take it as soon as it is remembered "
+        "unless it is almost time for the next dose."
+    )
+    assert classify_claim(sentence, "drug_label") is None
+
+
+def test_dose_recommendation_drops_ndc_packaging() -> None:
+    sentence = (
+        "Diltiazem Extended-Release Capsules Strength Quantity / NDC Number "
+        "120 mg Cartons of 100 extended-release capsules."
+    )
+    assert classify_claim(sentence, "drug_label") is None
+
+
+def test_renal_constraint_keeps_egfr_threshold() -> None:
+    sentence = (
+        "JARDIANCE is not recommended for use when eGFR is less than 20 mL/min/1.73 m2 "
+        "for the heart failure indication."
+    )
+    assert classify_claim(sentence, "drug_label") == "renal_constraint"
+
+
+def test_renal_constraint_drops_pk_only() -> None:
+    sentence = (
+        "The pharmacokinetics of telmisartan do not differ between the elderly and "
+        "younger patients with normal renal function."
+    )
+    assert classify_claim(sentence, "drug_label") is None
+
+
+def test_renal_constraint_keeps_action_without_number() -> None:
+    sentence = "Spironolactone is contraindicated in patients with anuria."
+    assert classify_claim(sentence, "drug_label") == "contraindication"
+
+
 def test_sentence_split_keeps_short_contraindication() -> None:
     sentences = sentence_split("Contraindicated in pregnancy.")
     assert sentences == ["Contraindicated in pregnancy."]
