@@ -4,6 +4,12 @@
 
 Chương này báo cáo những gì hệ hỗ trợ quyết định lâm sàng (CDSS) suy tim đạt được sau khi được xây dựng, chạy trên phần cứng thực tế, và đo lường bằng đánh giá của bác sĩ tim mạch cùng thử nghiệm khả năng sử dụng. Mục tiêu là trả lời một câu hỏi thực tiễn: thiết kế lai mô tả ở các chương trước có thực sự hoạt động đủ tốt cho mục đích lâm sàng dưới giám sát hay không? Chúng tôi báo cáo kết quả cho pipeline cơ sở tri thức, dịch vụ chat khuyến nghị, giao diện người dùng, so sánh với hệ thống khác, lỗi thường gặp, hành vi an toàn, và giới hạn của những con số này có thể chứng minh được.
 
+## 5.0 Tiêu chí thành công định trước
+
+Trước khi cài đặt, nghiên cứu đặt mục tiêu để đối chiếu kết quả Phần II. Thành công trên các claim chính nếu hệ đạt các tiêu chí sau, được đánh giá ở các mục dưới.
+
+Độ chính xác khuyến nghị so với chuyên gia khớp guideline ≥ 90% trên đối tượng có cấu trúc, trên vignette bác sĩ tim mạch duyệt. Thời gian đáp ứng end-to-end trung bình dưới 10 giây trên phần cứng tham chiếu. Với chống chỉ định cứng trong ca an toàn biên soạn, hệ không được bỏ sót rule tránh tuyệt đối dạng hard_block. Mức hài lòng bác sĩ (Likert 5 điểm) trung bình ≥ 4,0. Giao diện Việt–Anh không mất ngữ cảnh khi đổi ngôn ngữ. Pipeline tự động hóa trích xuất nhóm thuốc GDMT chính vào catalog người duyệt được. Các tiêu chí kết hợp accuracy, an toàn, latency, bảo trì và usability theo tinh thần workflow Osheroff [17].
+
 ## 5.1 Môi trường thử nghiệm
 
 ### 5.1.1 Cấu hình phần cứng và phần mềm
@@ -342,7 +348,7 @@ Chỉ số lúc truy vấn cho thấy các catalog đó, khi kết hợp intake 
 
 Phân tích lỗi và cảnh báo nối khoảng trống pipeline với triệu chứng runtime theo cách truy vết được. Khoảng trống tên thuốc tiếng Việt giảm độ phủ thuốc. Mơ hồ đơn vị creatinine làm tăng dương tính giả thận. Thiếu eGFR làm giảm độ phủ MRA. Tối ưu cảnh báo giảm gánh nặng từ 8,2 xuống 4,3 cảnh báo mỗi bệnh nhân mà không gỡ chặn cứng.
 
-Ánh xạ kết quả lên tiêu chí thành công luận văn từ Chương 1, năm trong sáu mục tiêu đạt đầy đủ. Độ chính xác khuyến nghị vượt 90%. Thời gian phản hồi trung bình và trung vị đạt mục tiêu dưới 10 giây. Kịch bản chống chỉ định cứng vượt qua toàn bộ kiểm thử an toàn biên soạn. Mức hài lòng người dùng vượt 4,0 trên 5. Chuyển đổi song ngữ hoạt động dưới 2 giây không mất dữ liệu. Hoàn thiện pipeline tri thức chỉ đạt một phần vì quy tắc liều còn tiến hành và chỉ 60 trong 127 thuốc manifest được tích hợp đầy đủ.
+Ánh xạ kết quả lên tiêu chí thành công định trước ở mục 5.0, năm trong sáu mục tiêu đạt đầy đủ. Độ chính xác khuyến nghị vượt 90%. Thời gian phản hồi trung bình và trung vị đạt mục tiêu dưới 10 giây. Kịch bản chống chỉ định cứng vượt qua toàn bộ kiểm thử an toàn biên soạn. Mức hài lòng người dùng vượt 4,0 trên 5. Chuyển đổi song ngữ hoạt động dưới 2 giây không mất dữ liệu. Hoàn thiện pipeline tri thức chỉ đạt một phần vì quy tắc liều còn tiến hành và chỉ 60 trong 127 thuốc manifest được tích hợp đầy đủ.
 
 Đánh giá ủng hộ triển khai như trợ lý nhận diện khoảng trống GDMT và kiểm tra tương tác dưới giám sát bác sĩ trong vòng khám nội trú hoặc ngoại trú, không phải phần mềm kê đơn tự trị. Triển khai tiến cứu nên theo dõi tỷ lệ ghi đè, độ đầy đủ intake, thời gian đến quyết định, và tương quan giữa thiếu xét nghiệm và độ phủ thấp hơn cho nhóm MRA và SGLT2i. Nghiên cứu kết cục vẫn là thử nghiệm cuối cùng vượt độ chính xác vignette.
 

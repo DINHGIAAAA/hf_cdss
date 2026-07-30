@@ -2,6 +2,12 @@
 
 This chapter reports what the heart failure clinical decision support system achieved when we built it, ran it on realistic hardware, and measured it with cardiologist review and usability testing. The goal is to answer a practical question: does the hybrid design described in earlier chapters actually work well enough for supervised clinical use? We report results for the knowledge base pipeline, the chat recommendation service, the user interface, comparisons with other systems, common errors, safety behavior, and the limits of what these numbers can prove.
 
+## 5.0 Predefined Success Criteria
+
+Before implementation, the study defined targets against which Part II results would be judged. The study succeeds on its primary claims if the system meets the following criteria, assessed in the sections below.
+
+Recommendation accuracy against guideline-aligned expert review should reach at least 90 percent on structured recommendation objects (drug class, action status, major safety flags), measured on curated vignettes reviewed by cardiologists. Mean end-to-end response time should remain under 10 seconds on reference hardware, measured from chat submission through SSE completion. For hard contraindications in curated safety cases, the system must not miss absolute avoid rules encoded as hard_block tiers; failure on any mandatory avoid scenario disqualifies success regardless of average accuracy. Cardiologist satisfaction on a five-point Likert scale should average at least 4.0, including clinical usefulness, trust in safety alerts, and bilingual usability. The interface must support Vietnamese and English without losing conversation context across language toggles. The knowledge pipeline should automate extraction for major GDMT drug classes into reviewable catalogs that clinical leads can govern without redeploying application code. These criteria combine accuracy, safety, latency, maintainability, and usability aligned to Osheroff-style workflow adequacy [17].
+
 ## 5.1 Experimental Environment
 
 ### 5.1.1 Hardware and Software Setup
@@ -340,7 +346,7 @@ Query-time metrics show that those catalogs, when combined with hybrid intake an
 
 Error and alert analyses connect pipeline gaps to runtime symptoms in traceable ways. Vietnamese drug name gaps reduce medication recall. Creatinine unit ambiguity inflates renal false positives. Missing eGFR depresses MRA recall. Alert optimization reduced burden from 8.2 to 4.3 alerts per patient without removing hard blocks.
 
-Mapping results to the thesis success criteria from Chapter 1, five of six targets were fully met. Recommendation accuracy exceeded 90%. Mean and median response times met the under-10-second goal. Hard contraindication scenarios passed all curated safety tests. User satisfaction exceeded 4.0 out of 5. Bilingual switching worked in under 2 seconds with no data loss. Knowledge pipeline completeness was only partially met because dose rules remained in progress and only 60 of 127 manifest drugs were fully integrated.
+Mapping results to the predefined success criteria in Section 5.0, five of six targets were fully met. Recommendation accuracy exceeded 90%. Mean and median response times met the under-10-second goal. Hard contraindication scenarios passed all curated safety tests. User satisfaction exceeded 4.0 out of 5. Bilingual switching worked in under 2 seconds with no data loss. Knowledge pipeline completeness was only partially met because dose rules remained in progress and only 60 of 127 manifest drugs were fully integrated.
 
 The evaluation supports deployment as a clinician-supervised GDMT gap identification and interaction checking assistant during ward rounds or outpatient visits, not as autonomous prescribing software. Prospective deployment should track override rates, intake completeness, time to decision, and correlation between missing laboratories and lower recall for MRA and SGLT2 inhibitor classes. Outcome studies remain the ultimate test beyond vignette accuracy.
 

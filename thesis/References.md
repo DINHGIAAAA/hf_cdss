@@ -1,6 +1,6 @@
 # REFERENCES
 
-Sources are numbered in order of first citation across the thesis body (Chapter 1, then Chapter 2). Additional sources used for background reading follow the cited list.
+Sources are numbered in order of first citation across the thesis body (Chapter 1 and Chapter 2, then later chapters). Additional sources used for background reading follow the cited list.
 
 [1] Savarese, G., & Lund, L. H. (2017). Global public health burden of heart failure. *Cardiac Failure Review*, 3(1), 7-11. https://doi.org/10.15420/cfr.2016:25:2
 

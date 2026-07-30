@@ -24,7 +24,7 @@ Beyond software, the thesis delivers reproducible artifacts: the ingestion pipel
 
 ## 6.2 Reflection on Research Questions
 
-Chapter 1 asked how structured medical knowledge, deterministic safety logic, and language model interaction could be combined so that heart failure decision support remains accurate, explainable, and clinically usable. The evaluation supports affirmative answers with important nuance.
+Chapter 1 posed three research questions on knowledge construction, hybrid reasoning, and bilingual safety-aware interfaces. The evaluation supports affirmative answers with important nuance.
 
 Can hybrid architecture achieve guideline-level recommendation accuracy without delegating safety to the language model? The 94.0% accuracy on structured recommendation objects supports a qualified yes. Accuracy was measured on deterministic outputs, not on generated prose. MRA recall at 89.3% and intake-dependent errors show remaining gaps where laboratory completeness and local drug nomenclature matter. Hard block rules and verification agents ensure encoded contraindications are not silently overridden, and all four curated safety scenarios passed. Specificity at 95.2% exceeded sensitivity at 92.5%, indicating the system errs toward caution, which is appropriate in pharmacotherapy decision support.
 

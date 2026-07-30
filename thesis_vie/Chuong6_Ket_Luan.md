@@ -26,7 +26,7 @@ Ngoài phần mềm, luận văn bàn giao artifact tái lập được: pipelin
 
 ## 6.2 Suy ngẫm về câu hỏi nghiên cứu
 
-Chương 1 hỏi làm sao kết hợp tri thức y có cấu trúc, logic an toàn tất định, và tương tác qua LLM để hỗ trợ quyết định suy tim vẫn chính xác, giải thích được và dùng được lâm sàng. Đánh giá ủng hộ câu trả lời khẳng định với sắc thái quan trọng.
+Chương 1 đặt ba câu hỏi nghiên cứu về xây tri thức, suy luận lai và giao diện song ngữ có an toàn. Đánh giá ủng hộ câu trả lời khẳng định với sắc thái quan trọng.
 
 Kiến trúc lai có đạt độ chính xác khuyến nghị mức guideline mà không ủy quyền an toàn cho LLM? Độ chính xác 94,0% trên đối tượng khuyến nghị có cấu trúc ủng hộ câu trả lời có điều kiện là có. Độ chính xác được đo trên output tất định, không trên văn xuôi sinh ra. Độ phủ MRA 89,3% và lỗi phụ thuộc intake cho thấy khoảng trống còn lại nơi độ đầy đủ xét nghiệm và danh pháp thuốc địa phương quan trọng. Quy tắc chặn cứng và agent kiểm chứng đảm bảo chống chỉ định mã hóa không bị ghi đè im lặng, và cả bốn kịch bản an toàn biên soạn đều đạt. Độ đặc hiệu 95,2% cao hơn độ nhạy 92,5%, cho thấy hệ nghiêng về thận trọng, phù hợp trong hỗ trợ quyết định dược lý.
 

@@ -12,15 +12,21 @@
 | [01_Abstract.md](01_Abstract.md) | Abstract |
 | [04_List_of_Abbreviations.md](04_List_of_Abbreviations.md) | List of Abbreviations |
 
-### Body
+### Part I — Introduction
+| File | Content |
+|------|---------|
+| [00_Part1_Introduction.md](00_Part1_Introduction.md) | Part I overview |
+| [Chapter1_Introduction.md](Chapter1_Introduction.md) | Chapter 1 — Problem statement, related work (summary), thesis outline |
+
+### Part II — Thesis content
 | File | Chapter |
 |------|---------|
-| [Chapter1_Introduction.md](Chapter1_Introduction.md) | Chapter 1, Introduction |
-| [Chapter2_Literature_Review.md](Chapter2_Literature_Review.md) | Chapter 2, Literature Review and Theory |
-| [Chapter3_System_Design.md](Chapter3_System_Design.md) | Chapter 3, System Design |
-| [Chapter4_Implementation.md](Chapter4_Implementation.md) | Chapter 4, Implementation and Deployment |
-| [Chapter5_Results_and_Evaluation.md](Chapter5_Results_and_Evaluation.md) | Chapter 5, Results and Evaluation |
-| [Chapter6_Conclusion.md](Chapter6_Conclusion.md) | Chapter 6, Conclusion |
+| [00_Part2_Thesis_Content.md](00_Part2_Thesis_Content.md) | Part II overview |
+| [Chapter2_Literature_Review.md](Chapter2_Literature_Review.md) | Chapter 2 — Literature review and theory |
+| [Chapter3_System_Design.md](Chapter3_System_Design.md) | Chapter 3 — System design |
+| [Chapter4_Implementation.md](Chapter4_Implementation.md) | Chapter 4 — Implementation and deployment |
+| [Chapter5_Results_and_Evaluation.md](Chapter5_Results_and_Evaluation.md) | Chapter 5 — Results and evaluation |
+| [Chapter6_Conclusion.md](Chapter6_Conclusion.md) | Chapter 6 — Conclusion |
 
 ### End matter
 | File | Section |
