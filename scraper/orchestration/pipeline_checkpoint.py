@@ -197,6 +197,7 @@ def _pipeline_step_order() -> list[str]:
         "classify_dose_rules",
         "extract_dose_safety_warnings",
         "generate_dose_safety_warnings",
+        "refine_dose_safety_triggers",
         "classify_dose_safety_warnings",
         "extract_interaction_rules",
         "generate_interaction_rules",

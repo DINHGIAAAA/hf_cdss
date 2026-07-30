@@ -1,16 +1,11 @@
-import json
-from pathlib import Path
-
 from app.modules.dose_safety.evaluator import evaluate_dose_safety_warnings
 from app.modules.dose_safety.rule_loader import load_executable_dose_safety_warnings
 from app.tests.conftest import hfref_patient
+from app.tests.fixtures.governance_test_data import sample_dose_safety_warnings
 
 
-RULES_PATH = Path(__file__).resolve().parents[1] / "modules" / "dose_safety" / "rules" / "hf_dose_safety_warnings_v1.json"
-
-
-def test_bundled_dose_safety_warnings_match_week7_behavior() -> None:
-    rules = json.loads(RULES_PATH.read_text(encoding="utf-8"))["warnings"]
+def test_sample_dose_safety_warnings_match_evaluator_behavior() -> None:
+    rules = sample_dose_safety_warnings()
     patient = hfref_patient(
         case_id="CASE_EVAL",
         potassium=5.6,
@@ -24,7 +19,15 @@ def test_bundled_dose_safety_warnings_match_week7_behavior() -> None:
     assert any(item.severity == "critical" for item in warnings)
 
 
-def test_load_executable_dose_safety_warnings_uses_bundled_fallback() -> None:
+def test_load_executable_dose_safety_warnings_empty_without_postgres(monkeypatch) -> None:
+    from app.modules.dose_safety import rule_loader
+    import app.modules.datastores.dose_safety_warnings_postgres as dose_safety_postgres
+
+    rule_loader.invalidate_dose_safety_warnings_cache()
+    monkeypatch.setattr(
+        dose_safety_postgres,
+        "read_approved_dose_safety_warnings",
+        lambda: (_ for _ in ()).throw(RuntimeError("postgres unavailable")),
+    )
     rules = load_executable_dose_safety_warnings()
-    assert len(rules) >= 4
-    assert any(rule.get("dose_safety_warning_id") == "dose_digoxin_renal_review" for rule in rules)
+    assert rules == []

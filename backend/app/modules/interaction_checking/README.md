@@ -4,13 +4,9 @@ Checks drug-drug interaction warnings for the CDSS recommend / interaction APIs.
 
 ## Runtime source of truth
 
-1. **Postgres `approved`** interaction rules (Admin governance) — preferred.
-2. **Bundled fallback** `rules/hf_interaction_rules_v1.json` — used when the DB is empty
-   or unavailable (CI / offline). Baseline class-level safety nets (ACEi+ARB, RAASi+MRA,
-   RAASi+NSAID, anticoagulant+antiplatelet).
+**Postgres `approved` interaction rules** synced from the ingestion pipeline (Admin governance).
 
-Do **not** treat the bundled JSON as the place to add production DDI pairs. Add rules via
-FDA XML extraction → draft sync → Admin approve.
+There is no bundled JSON fallback. When Postgres is empty or unavailable, the matcher returns no rules until catalogs are synced.
 
 ## Ingestion pipeline (FDA XML + optional guideline LLM)
 
@@ -49,7 +45,6 @@ python -m scraper.orchestration.governance_catalog_steps --catalog interaction_r
 ### Evidence refs
 
 - FDA-derived: `fda_label:{pipeline_id}:drug_interactions`
-- Bundled baseline: `guideline_consensus:…` (not a Week-7 milestone id)
 
 ## Matcher classes
 

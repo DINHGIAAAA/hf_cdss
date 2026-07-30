@@ -28,10 +28,7 @@ def dose_safety_warning_tier(warning: dict[str, Any]) -> str:
     if is_refusal_message(message):
         return "rejected_rules"
 
-    method = str(warning.get("extraction_method") or "")
-    is_baseline = method == "bundled_baseline"
-    # LLM/pipeline always-triggers are not executable safety gates.
-    if trigger_is_always_only(trigger) and not is_baseline:
+    if trigger_is_always_only(trigger):
         return "needs_refinement"
 
     confidence = float(warning.get("source_confidence") or 0)

@@ -101,6 +101,7 @@ STEP_UPLOAD_PATHS: dict[str, list[str]] = {
         "artifacts/dose_safety_warnings/structured_dose_safety_claims.jsonl",
     ],
     "generate_dose_safety_warnings": ["artifacts/dose_safety_warnings/dose_safety_warnings.jsonl"],
+    "refine_dose_safety_triggers": ["artifacts/dose_safety_warnings/dose_safety_warnings.jsonl"],
     "classify_dose_safety_warnings": [
         "artifacts/dose_safety_warnings/dose_safety_warnings_classified.jsonl",
         "artifacts/dose_safety_warnings/usable_rules.jsonl",

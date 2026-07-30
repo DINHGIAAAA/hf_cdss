@@ -69,10 +69,35 @@ def _dose_rules_extract_command(python: str) -> list[str]:
     ]
 
 
+def _dose_safety_extract_command(python: str) -> list[str]:
+    return [
+        python,
+        "-m",
+        "scraper.process.extract_structured_dose_safety_claims",
+        "--input",
+        "artifacts/dose_rules/structured_dose_claims.jsonl",
+        "--sections-input",
+        "processed/sections/drug_label_sections.jsonl",
+        "--claims-input",
+        "artifacts/claims/claims.jsonl",
+        "--extract-safety-sections",
+    ]
+
+
 def catalog_pipeline_steps(python: str, catalog: GovernanceCatalog) -> list[tuple[str, list[str]]]:
     steps: list[tuple[str, list[str]]] = []
     if catalog.name == "interaction_rules":
         steps.append(("extract_fda_xml_interaction_claims", _fda_extract_command(python)))
+    if catalog.name == "dose_safety_warnings":
+        steps.append(("extract_dose_safety_warnings", _dose_safety_extract_command(python)))
+        steps.extend(
+            [
+                (f"generate_{catalog.name}", [python, "-m", catalog.generate_module]),
+                ("refine_dose_safety_triggers", [python, "-m", "scraper.process.refine_dose_safety_triggers"]),
+                (f"classify_{catalog.name}", [python, "-m", catalog.classify_module]),
+            ]
+        )
+        return steps
     extract_cmd = (
         _dose_rules_extract_command(python)
         if catalog.name == "dose_rules"

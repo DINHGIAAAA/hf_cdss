@@ -48,65 +48,122 @@ The 35.2% refinement tier does not mean runtime failure. Those rules are held ba
 
 ### 5.2.4 Knowledge-Base Data Quality Audit
 
-Volume counts alone do not prove that extracted knowledge is clinically usable. After the ingestion pipeline finished, we audited the persisted artifacts with structural heuristics, an LLM semantic judge on stratified claim samples, and catalog-tier scans. The audit is documented in `evaluation/reports/accuracy_audit_20260728.md`. Auto-judge precision is a triage signal, not a cardiologist-certified gold standard.
+Volume counts alone do not prove that extracted knowledge is clinically usable. After the ingestion pipeline finished, we audited persisted artifacts with structural heuristics, an LLM semantic judge on stratified claim samples, and catalog-tier scans. The audit is documented in `evaluation/reports/accuracy_audit_20260728.md`. Auto-judge precision is a triage signal, not a cardiologist-certified gold standard.
 
-Claims were re-extracted and are present in the workspace (`artifacts/claims/claims.jsonl`, 16,973 rows). Constraint and other governance catalogs are intended to live in the processed S3 bucket (`hf-cdss-processed`) and to be mirrored locally under `artifacts/` for evaluation. The quality tables below therefore separate **content quality of claims that are on disk** from **catalog-tier counts for governance JSONL files present in the local mirror at audit time**.
+Claims were re-extracted and are present in the workspace (`artifacts/claims/claims.jsonl`, 16,973 rows). Filtered outputs are `claims_filtered.jsonl` (6,296 rows after pass 8) and `claims_filtered_safety.jsonl` (4,440 rows without `guideline_recommendation`). Constraint and other governance catalogs are intended to live in the processed S3 bucket (`hf-cdss-processed`) and to be mirrored locally under `artifacts/` for evaluation. The quality tables below therefore separate **content quality of claims that are on disk** from **catalog-tier counts for governance JSONL files present in the local mirror at audit time**.
 
-Local governance catalogs available for counting at audit time:
+Local governance catalogs available for counting at audit time (2026-07-30, post raw-only migration):
 
 | Catalog | Count | Usable | Needs refinement | Rejected |
 |---------|------:|-------:|-----------------:|---------:|
 | Claims (`claims.jsonl`) | 16,973 | — | — | — |
+| Claims filtered (pass 8) | 6,296 | — | — | — |
+| Claims filtered (safety-only) | 4,440 | — | — | — |
 | Interaction rules | 1,766 | 1,081 (61%) | 661 (37%) | 24 (1%) |
 | GDMT policies | 1,880 | 1,880 (100%) | 0 | 0 |
 | Dose rules | 139 | 137 (99%) | 2 (1%) | 0 |
-| Dose-safety warnings | 71 | 10 (14%) | 60 (85%) | 1 (1%) |
-| Constraint rules (`artifacts/rules/*.jsonl`) | Not in local mirror at audit | — | — | — |
+| Dose-safety warnings | 2,903 | 1,440 (50%) | 1,463 (50%) | 0 |
+| Constraint rules (`artifacts/rules/*.jsonl`) | Not in local mirror | — | — | — |
+
+Dose-safety warnings are now **100% from raw claims** (`claims_pipeline_dose_safety`); bundled baseline rows are **0** (previously 10/71 usable at 14%). Roughly half of dose-safety rows still need LLM trigger refinement (`refine_dose_safety_triggers`) before they become executable. Full audit: `evaluation/reports/data_quality_audit_20260730.md`.
 
 Constraint rule files were not present under the local `artifacts/rules/` path used for this write-up, even though claims were. If constraint catalogs were re-extracted and uploaded to S3 after an earlier empty-bucket snapshot, their usable or refinement tier counts should be taken from a restored mirror (`sync_processed_from_s3`) rather than treated as permanently missing. The claim-quality findings below are independent of that restore step because `claims.jsonl` was already local.
 
-Claim semantic quality was estimated on a stratified sample with an LLM judge (`qwen2.5:1.5b`, 10 claims per type, *n* = 90). On the raw claim file, overall estimated precision was 57.8% and hard clinical types averaged 62.0%. Heuristic-only checks on a larger sample (*n* = 270) scored 98.5%, which is over-optimistic because heuristics mainly catch empty or noisy schema rather than clinical correctness.
+#### Judge calibration and metric separation
 
-| Claim type | Estimated precision (LLM judge, raw) | Accept / Reject | Priority |
-|------------|-------------------------------------:|-----------------|----------|
-| Contraindication | 100% | 10 / 0 | OK |
-| Dose recommendation | 80% | 8 / 2 | Medium |
-| Renal constraint | 80% | 8 / 2 | Medium |
-| Guideline recommendation | 60% | 6 / 4 | Medium |
-| Hyperkalemia risk | 60% | 6 / 4 | Medium |
-| Usage constraint | 50% | 5 / 5 | High |
-| Population constraint | 40% | 4 / 6 | High |
-| Drug interaction | 30% | 3 / 7 | Critical |
-| Adverse reaction | 20% | 2 / 8 | Critical |
+We measured claim quality with a stratified LLM judge (`qwen2.5:7b`, balanced prompt, 10 claims per type, seed 42, timeout 300 s). The 1.5B judge previously reported 71.1% on filtered claims; that figure is optimistic. The 7B judge is stricter and is the default for thesis reporting.
 
-We then applied staged filters and wrote `claims_filtered.jsonl`. Round 1 kept 11,204 claims and raised LLM precision to 67.8%. Round 2 added trial/PK/device noise removal and non-actionable ADR drops, retaining **8,248** claims (48.6% of baseline) with LLM precision **71.1%** and hard-type precision **74.0%**. An over-aggressive formulary-only experiment that left only 1,546 claims was discarded because LLM precision fell to 61.1%.
+Three metrics must not be conflated:
 
-**Table 5.0a. Claim quality after each filter pass (round 2)**
+| Metric | Meaning | Latest result |
+|--------|---------|---------------|
+| Vignette recommendation accuracy (Section 5.3) | Structured CDSS cards vs cardiologist expectation | **94.0%** |
+| Claim LLM precision (safety-only, pass 8) | Semantic quality of individual KG claims (7B proxy) | **73.8%** |
+| Strict structural precision | Share passing all filter gates on a stratified sample | **100%** after pass 8 |
 
-| Pass | Claims left | Retain % | Strict structural precision | Notes |
-|------|------------:|---------:|----------------------------:|-------|
-| 0 Baseline (raw) | 16,973 | 100.0% | 54.8% | Type–evidence mismatches common |
-| 1 Type–evidence gate | 12,445 | 73.3% | 72.6% | Dropped 4,528 mismatched claims |
-| 2 Require drug on hard types | 12,084 | 71.2% | 76.3% | Dropped 361 hard claims without drug |
-| 3 Drop off-scope drugs | 10,754 | 63.4% | 85.6% | Expanded peripheral-drug list |
-| 4 Drop noise / weak spans | 10,697 | 63.0% | 87.8% | Residual schema noise |
-| 5 Drop trial / PK / device text | 10,099 | 59.5% | 90.0% | RCT arms, NDC blocks, pen instructions |
-| 6 Drop empty-drug ADR/interaction | 10,054 | 59.2% | 89.6% | Hard-to-bind GraphRAG rows |
-| 7 Drop non-actionable ADR | 8,248 | 48.6% | 100.0% | Table-like ADR without action verbs |
+High vignette accuracy does not imply every raw extracted claim is clinically precise. Runtime safety depends on governed PostgreSQL catalogs and verification; filtered claims mainly support GraphRAG explanation.
 
-**Table 5.0b. LLM semantic precision across filter rounds** (*n* = 90, same seed)
+#### Staged filtering (passes 0–8)
 
-| Round | Claims | Overall LLM precision | Hard-types LLM | Change vs raw |
-|-------|-------:|----------------------:|---------------:|--------------:|
-| Raw | 16,973 | 57.8% | 62.0% | — |
-| Round 1 (passes 1–4) | 11,204 | 67.8% | 72.0% | +10.0 pp |
-| Round 2 (passes 1–7, current) | 8,248 | 71.1% | 74.0% | +13.3 pp |
+We applied eight cumulative filter passes (`scraper/eval/filter_claims_for_quality.py`) and recorded structural quality after each step. **Table 5.0a** tracks corpus size and strict structural precision. **Table 5.0b** tracks LLM semantic precision across filter rounds. Reproducible JSON logs: `evaluation/reports/claim_filter_progression.json`, `auto_eval_20260729T094553Z.json`, `auto_eval_20260729T094630Z.json`.
 
-Drug-interaction precision rose from 30% to 80%, and adverse-reaction precision from 20% to 50%. Filtering improves the usable claim set for GraphRAG without changing clinician vignette accuracy in Section 5.3. Full logs: `evaluation/reports/claim_filter_progression.md`.
+**Table 5.0a. Claim quality after each filter pass**
 
-Residual rejects are mostly non-HF specialty drugs (esmolol, ophthalmic beta blockers, potassium binders) and soft guideline caveats. Runtime safety continues to rely on governed PostgreSQL catalogs and verification.
+| Pass | Claims left | Dropped | Retain % | Strict struct. prec. | Change (accuracy goal) |
+|------|------------:|--------:|---------:|---------------------:|------------------------|
+| 0 Baseline (raw) | 16,973 | 0 | 100.0% | 44.8% | Unfiltered extraction |
+| 1 Type–evidence gate | 12,445 | 4,528 | 73.3% | 59.6% | Drop type–evidence mismatches |
+| 2 Require drug on hard types | 12,084 | 361 | 71.2% | 56.7% | Hard types must carry a drug |
+| 3 Drop off-scope drugs | 9,989 | 2,095 | 58.9% | 71.1% | Remove non-HF formulary agents |
+| 4 Drop noise / weak spans | 9,933 | 56 | 58.5% | 72.6% | Remove boilerplate and cross-refs |
+| 5 Drop trial / PK / device | 9,283 | 650 | 54.7% | 73.7% | RCT arms, NDC, device instructions |
+| 6 Drop empty-drug ADR/interaction | 9,238 | 45 | 54.4% | 73.7% | ADR/interaction without drug |
+| 7 Drop non-actionable ADR | 7,620 | 1,618 | 44.9% | 84.8% | ADR without clinical action verbs |
+| **8 Drop weak dose / renal** | **6,296** | **1,324** | **37.1%** | **100.0%** | Dose/renal quality gates (pass 8) |
 
-These findings motivate the governance design already used at query time: deterministic catalogs and hard-block rules carry safety authority, while filtered GraphRAG claims support explanation. Next steps are syncing the latest S3 constraint catalogs into the local mirror and clinical review of remaining dose-safety refinement items.
+**Table 5.0b. LLM semantic precision across filter rounds** (qwen2.5:7b, balanced prompt)
+
+| Corpus | Claims | Sample *n* | Overall LLM prec. | Hard-type prec. |
+|--------|-------:|-----------:|--------------------:|----------------:|
+| Raw (1.5b judge, historical) | 16,973 | 90 | 57.8% | 62.0% |
+| Filtered pass 7 (all types) | 7,620 | 90 | 62.2% | 70.0% |
+| Filtered pass 7 (safety-only) | 5,764 | 80 | 66.3% | 70.0% |
+| **Filtered pass 8 (all types)** | **6,296** | **90** | **66.7%** | **70.0%** |
+| **Filtered pass 8 (safety-only)** | **4,440** | **80** | **73.8%** | **70.0% |
+
+Safety-only excludes `guideline_recommendation`, the noisiest type under the 7B judge (10% on pass 8).
+
+**Table 5.0c. Per-claim-type LLM precision (pass 8, *n* = 10 per type)**
+
+| Claim type | Pass 7 (7B) | Pass 8 (all) | Pass 8 (safety) | Note |
+|------------|------------:|-------------:|----------------:|------|
+| Contraindication | 80% | 80% | 80% | Stable |
+| Usage constraint | 80% | 80% | 80% | Stable |
+| Adverse reaction | 80% | 70% | 70% | Sample variance |
+| Drug interaction | 70% | 80% | 80% | Improved |
+| Hyperkalemia risk | 70% | 70% | 70% | Stable |
+| **Dose recommendation** | **50%** | **90%** | **90%** | Pass 8 + extractor gates |
+| **Renal constraint** | **50%** | **80%** | **80%** | Pass 8 + extractor gates |
+| Population constraint | 50% | 40% | 40% | PK/demographic noise remains |
+| Guideline recommendation | — | 10% | *(excluded)* | Not used for safety KG |
+
+Pass 8 improved dose precision from 50% to 90% and renal precision from 50% to 80%. Population constraints still need clinician gold labeling or extractor fixes.
+
+#### Changes by phase (what improved accuracy)
+
+**Phase A — Judge model and prompt**
+
+| Step | Location | Change | Effect |
+|------|----------|--------|--------|
+| A1 | `scraper/eval/auto_judge.py` | Default judge `qwen2.5:7b`; timeout 300 s; `num_ctx` 1536 | Stricter than 1.5B |
+| A2 | `scraper/prompts/claim_auto_judge.py` | Balanced prompt: explicit ACCEPT patterns for HF clinical rules; clear REJECT for noise | Reduced false rejects on valid lab/neonate rules |
+| A3 | Comparison | 1.5B vs 7B on same corpus | 1.5B 71% optimistic; **7B used for thesis** |
+
+**Phase B — Filter passes 1–7**
+
+| Pass | Change | Accuracy impact |
+|------|--------|-----------------|
+| 1 | `drop_type_mismatch` — evidence must match type cues | +15 pp strict structural |
+| 2 | Hard types require `drug` | Fewer orphan rules |
+| 3 | `OFF_SCOPE_DRUG_TOKENS` (~40 agents) | −17% corpus; cleaner scope |
+| 4 | `heuristic_noise_score`, `is_weak_span` | Remove boilerplate |
+| 5 | `TRIAL_PK_DEVICE_PATTERNS` | Remove RCT/PK/device text |
+| 6 | Empty-drug ADR/interaction | −45 claims |
+| 7 | Non-actionable ADR | −1,618 ADR rows; strict **84.8%** |
+
+**Phase C — Pass 8 dose/renal (extractor + filter)**
+
+| Location | Change | Accuracy impact |
+|----------|--------|-----------------|
+| `scraper/validation/claim_type_gates.py` (new) | Shared gates: dose = mg/mcg + dosing context; renal = eGFR/CrCl threshold or renal + action | Foundation for pass 8 |
+| `scraper/process/create_claims.py` | Regex `_matches_claim_type` uses gates | Fewer bad dose/renal at extract time |
+| `scraper/semantic/claim_extraction.py` | LLM `_build_claim` rejects early via gates | LLM path aligned with regex |
+| `scraper/prompts/claim_extraction.py` | Rules 14–15 for dose mg and renal thresholds | Steers LLM extraction |
+| `filter_claims_for_quality.py` pass 8 | `drop_weak_dose_renal` | Dose **50%→90%**, renal **50%→80%** |
+
+Drug-interaction precision rose from 30% (raw) to 80% after filtering. Adverse-reaction precision rose from 20% (raw) to 70% on pass 8 safety. Filtering improves the usable claim set for GraphRAG without changing clinician vignette accuracy in Section 5.3.
+
+Residual rejects are mostly non-HF specialty drugs, soft guideline caveats, and population PK demographics. Runtime safety continues to rely on governed PostgreSQL catalogs and verification. Next steps are syncing the latest S3 constraint catalogs into the local mirror, clinician gold review for `population_constraint`, and clinical review of remaining dose-safety refinement items.
 
 ## 5.3 CDSS Chat Service Results
 
@@ -277,7 +334,7 @@ These limits do not invalidate the core findings. They define the conditions und
 
 Taken together, the results describe a coherent performance profile shaped by the hybrid architecture's division of labor.
 
-Knowledge construction metrics show that automated ingestion can populate governable catalogs at scale. Extraction succeeded on 94.2% of drugs, section filtering retained 95.0% of content with only 6.6% borderline model review, and 53.9% of extracted rules were immediately usable. At the same time, 35.2% of rules still need refinement and dose rule completion remains unfinished, so human clinical governance remains essential. Staged claim filtering raised LLM semantic precision from 57.8% to 67.8% while retaining 11,204 of 16,973 claims, and strict structural precision on the stratified sample rose from 69.6% to 100% across filter passes. Runtime safety still depends on governed catalogs and verification, not on raw claim volume alone.
+Knowledge construction metrics show that automated ingestion can populate governable catalogs at scale. Extraction succeeded on 94.2% of drugs, section filtering retained 95.0% of content with only 6.6% borderline model review, and 53.9% of extracted rules were immediately usable. At the same time, 35.2% of rules still need refinement and dose rule completion remains unfinished, so human clinical governance remains essential. Staged claim filtering (passes 0–8) raised safety-only LLM semantic precision from 57.8% (raw, 1.5B judge) to **73.8%** (pass 8, 7B judge) while retaining 4,440 safety claims; strict structural precision on the stratified sample reached **100%** after pass 8, with dose and renal types improving from 50% to 90% and 80% respectively. Runtime safety still depends on governed catalogs and verification, not on raw claim volume alone.
 
 Query-time metrics show that those catalogs, when combined with hybrid intake and retrieval, meet the thesis success criteria on median performance. Accuracy reached 94.0%, mean latency was 8.1 seconds with a median of 7.4 seconds, and interaction F1 was 97.1%. Usability results translate those engineering outcomes into clinician value: 4.22 out of 5 overall satisfaction and 4.5 out of 5 for clinical usefulness.
 

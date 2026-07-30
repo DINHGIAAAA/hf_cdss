@@ -1,8 +1,5 @@
-import json
 import logging
 from datetime import datetime, timedelta
-from functools import lru_cache
-from pathlib import Path
 from typing import Any
 
 from app.modules.drug_normalization.service import format_constraint_target
@@ -23,7 +20,6 @@ logger = logging.getLogger(__name__)
 _CACHE_TIMESTAMP: datetime | None = None
 _CACHE_TTL_SECONDS = 300  # 5 minutes
 _cached_rules: list[dict[str, Any]] | None = None
-_MINIMUM_RULES_PATH = Path(__file__).resolve().parent / "rules" / "constraints_v1.json"
 
 
 def _should_refresh_cache() -> bool:
@@ -37,7 +33,7 @@ def invalidate_constraint_cache() -> None:
     """Drop cached rules entirely.
 
     Use after admin writes so the next load must hit Postgres. On DB failure there is
-    no in-memory stale snapshot to serve (only the bundled minimum-safety fallback).
+    no bundled fallback — only stale cache when available.
     """
     global _CACHE_TIMESTAMP, _cached_rules
     _CACHE_TIMESTAMP = None
@@ -55,43 +51,12 @@ def expire_constraint_cache() -> None:
         _CACHE_TIMESTAMP = datetime.now() - timedelta(seconds=_CACHE_TTL_SECONDS + 1)
 
 
-@lru_cache(maxsize=1)
-def _minimum_safety_rules() -> list[dict[str, Any]]:
-    """Hard safety rules bundled in the backend image (see rules/constraints_v1.json)."""
-    if not _MINIMUM_RULES_PATH.is_file():
-        return []
-
-    payload = json.loads(_MINIMUM_RULES_PATH.read_text(encoding="utf-8"))
-    rules: list[dict[str, Any]] = []
-    for index, rule in enumerate(payload, start=1):
-        if rule.get("action") != "avoid" and rule.get("constraint_type") != "hard":
-            continue
-        rules.append(
-            {
-                "id": -index,
-                "constraint_id": rule["constraint_id"],
-                "version": 1,
-                "target_drug_class": rule.get("target_drug_class"),
-                "action": rule.get("action"),
-                "reason": rule.get("reason", ""),
-                "risk_names": list(rule.get("risk_names") or []),
-                "severity_any": list(rule.get("severity_any") or []),
-                "evidence_ref": rule.get("evidence_ref"),
-                "clinical_sources": list(rule.get("clinical_sources") or []),
-                "metadata": {
-                    "constraint_type": rule.get("constraint_type", "hard"),
-                    "fallback_source": "constraints_v1.json",
-                },
-            }
-        )
-    return rules
-
-
 def load_constraint_rules() -> list[dict[str, Any]]:
-    """Load approved constraint rules from Postgres with TTL cache and safe fallbacks.
+    """Load approved constraint rules from Postgres with TTL cache.
 
     Draft rows (including needs_condition_refinement synced for admin review) are never
-    returned here — runtime CDSS only evaluates approved constraints.
+    returned here — runtime CDSS only evaluates approved constraints synced from the
+    ingestion pipeline.
     """
     global _CACHE_TIMESTAMP, _cached_rules
 
@@ -103,12 +68,9 @@ def load_constraint_rules() -> list[dict[str, Any]]:
         _CACHE_TIMESTAMP = datetime.now()
         return _cached_rules
     except CircuitOpenError:
-        logger.warning("Constraint circuit open; serving stale cache or minimum fallback")
+        logger.warning("Constraint circuit open; serving stale cache if available")
         if _cached_rules is not None:
             return _cached_rules
-        minimum = _minimum_safety_rules()
-        if minimum:
-            return minimum
         return []
     except Exception as exc:
         logger.error(
@@ -120,15 +82,7 @@ def load_constraint_rules() -> list[dict[str, Any]]:
             logger.warning("Serving stale approved constraint cache after database error")
             return _cached_rules
 
-        minimum = _minimum_safety_rules()
-        if minimum:
-            logger.critical(
-                "Serving %s minimum hardcoded safety constraint(s) after database error",
-                len(minimum),
-            )
-            return minimum
-
-        logger.critical("No approved or fallback constraints available")
+        logger.critical("No approved constraints available (sync governance catalogs to Postgres)")
         return []
 
 

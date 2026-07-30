@@ -52,61 +52,120 @@ Tầng tinh chỉnh 35,2% không có nghĩa thất bại lúc chạy. Các quy t
 
 Số lượng artifact không đủ để chứng minh tri thức trích xuất dùng được trên lâm sàng. Sau khi pipeline nạp xong, chúng tôi kiểm tra artifact đã lưu bằng heuristic cấu trúc, bộ chấm LLM ngữ nghĩa trên mẫu claim phân tầng, và quét tầng catalog. Báo cáo chi tiết nằm ở `evaluation/reports/accuracy_audit_20260728.md`. Độ chính xác auto-judge chỉ là tín hiệu ưu tiên sửa, không phải gold chuẩn bác sĩ tim mạch.
 
-Claims đã được trích lại và có trên workspace (`artifacts/claims/claims.jsonl`, 16.973 dòng). Catalog ràng buộc (constraint) và các catalog quản trị khác được thiết kế lưu trên bucket S3 processed (`hf-cdss-processed`) rồi mirror về `artifacts/` để đánh giá. Các bảng dưới tách **chất lượng nội dung claim đang có trên disk** khỏi **số đếm tầng catalog trên mirror local lúc audit**.
+Claims đã được trích lại và có trên workspace (`artifacts/claims/claims.jsonl`, 16.973 dòng). Output đã lọc: `claims_filtered.jsonl` (6.296 dòng sau pass 8) và `claims_filtered_safety.jsonl` (4.440 dòng, không có `guideline_recommendation`). Catalog ràng buộc và các catalog quản trị khác được thiết kế lưu trên bucket S3 processed (`hf-cdss-processed`) rồi mirror về `artifacts/` để đánh giá. Các bảng dưới tách **chất lượng nội dung claim đang có trên disk** khỏi **số đếm tầng catalog trên mirror local lúc audit**.
 
-Catalog quản trị có trên mirror local lúc đếm:
+Catalog quản trị có trên mirror local lúc đếm (2026-07-30, sau migration raw-only):
 
 | Catalog | Số lượng | Dùng được | Cần tinh chỉnh | Từ chối |
 |---------|---------:|----------:|---------------:|--------:|
 | Claims (`claims.jsonl`) | 16.973 | — | — | — |
+| Claims đã lọc (pass 8) | 6.296 | — | — | — |
+| Claims safety-only | 4.440 | — | — | — |
 | Quy tắc tương tác | 1.766 | 1.081 (61%) | 661 (37%) | 24 (1%) |
 | Chính sách GDMT | 1.880 | 1.880 (100%) | 0 | 0 |
 | Quy tắc liều | 139 | 137 (99%) | 2 (1%) | 0 |
-| Cảnh báo an toàn liều | 71 | 10 (14%) | 60 (85%) | 1 (1%) |
-| Quy tắc ràng buộc (`artifacts/rules/*.jsonl`) | Chưa có trên mirror local lúc audit | — | — | — |
+| Cảnh báo an toàn liều | 2.903 | 1.440 (50%) | 1.463 (50%) | 0 |
+| Quy tắc ràng buộc (`artifacts/rules/*.jsonl`) | Chưa có trên mirror local | — | — | — |
+
+Cảnh báo an toàn liều giờ **100% từ raw claims** (`claims_pipeline_dose_safety`); **0** dòng `bundled_baseline` (trước đây 10/71 usable, 14%). Khoảng một nửa cần bước `refine_dose_safety_triggers` (LLM) trước khi executable. Audit đầy đủ: `evaluation/reports/data_quality_audit_20260730.md`.
 
 File constraint chưa có dưới đường dẫn local `artifacts/rules/` dùng cho bản viết này, dù claims đã có. Nếu constraint đã re-extract và upload lên S3 sau snapshot bucket trống trước đó, số usable/refinement nên lấy từ mirror đã restore (`sync_processed_from_s3`), không coi là mất vĩnh viễn. Kết luận chất lượng claim bên dưới độc lập bước restore đó vì `claims.jsonl` đã có local.
 
-Chất lượng ngữ nghĩa claim ước lượng bằng LLM judge (`qwen2.5:1.5b`, 10 claim/loại, *n* = 90). Trên file claim thô, precision ước lượng tổng thể 57,8%; loại lâm sàng cứng trung bình 62,0%. Kiểm heuristic trên mẫu lớn hơn (*n* = 270) đạt 98,5% nhưng quá lạc quan vì chủ yếu bắt lỗi schema/rỗng.
+#### Hiệu chuẩn judge và phân tách metric
 
-| Loại claim | Precision LLM (thô) | Accept / Reject | Ưu tiên |
-|------------|--------------------:|-----------------|---------|
-| Chống chỉ định (contraindication) | 100% | 10 / 0 | OK |
-| Khuyến nghị liều | 80% | 8 / 2 | Trung bình |
-| Ràng buộc thận | 80% | 8 / 2 | Trung bình |
-| Khuyến cáo guideline | 60% | 6 / 4 | Trung bình |
-| Nguy cơ tăng kali | 60% | 6 / 4 | Trung bình |
-| Ràng buộc dùng thuốc | 50% | 5 / 5 | Cao |
-| Ràng buộc quần thể | 40% | 4 / 6 | Cao |
-| Tương tác thuốc | 30% | 3 / 7 | Nghiêm trọng |
-| Phản ứng có hại | 20% | 2 / 8 | Nghiêm trọng |
+Chất lượng claim đo bằng LLM judge phân tầng (`qwen2.5:7b`, prompt cân bằng, 10 claim/loại, seed 42, timeout 300 s). Judge 1.5B từng báo 71,1% trên claim đã lọc — con số **lạc quan**. Judge 7B nghiêm hơn và là mặc định báo cáo luận văn.
 
-Sau đó áp dụng lọc theo tầng (cổng type–evidence, bắt buộc drug với hard type, bỏ thuốc ngoài phạm vi, bỏ noise/weak span) và ghi `claims_filtered.jsonl` (giữ 11.204 / 16.973, 66,0%). Bảng 5.0a theo dõi chất lượng sau từng bước; Bảng 5.0b so LLM trước/sau cả chuỗi lọc.
+Ba metric không được trộn lẫn:
+
+| Metric | Ý nghĩa | Kết quả mới nhất |
+|--------|---------|------------------|
+| Accuracy vignette khuyến nghị (mục 5.3) | Thẻ CDSS cấu trúc vs kỳ vọng bác sĩ | **94,0%** |
+| Claim LLM precision (safety-only, pass 8) | Chất lượng ngữ nghĩa từng claim KG (proxy 7B) | **73,8%** |
+| Strict structural precision | Tỷ lệ pass mọi cổng lọc trên mẫu phân tầng | **100%** sau pass 8 |
+
+Accuracy vignette cao không đồng nghĩa mọi claim thô đều chính xác lâm sàng. An toàn runtime dựa catalog PostgreSQL có quản trị và kiểm chứng; claim đã lọc chủ yếu hỗ trợ giải thích GraphRAG.
+
+#### Lọc theo tầng (pass 0–8)
+
+Áp dụng tám bước lọc tích lũy (`scraper/eval/filter_claims_for_quality.py`) và ghi chất lượng cấu trúc sau mỗi bước. **Bảng 5.0a** theo dõi kích thước corpus và strict structural precision. **Bảng 5.0b** theo dõi LLM semantic precision qua các vòng lọc. Log JSON tái lập: `evaluation/reports/claim_filter_progression.json`, `auto_eval_20260729T094553Z.json`, `auto_eval_20260729T094630Z.json`.
 
 **Bảng 5.0a. Chất lượng claim sau từng bước lọc**
 
-| Bước | Số claim còn | Giữ % | Strict structural precision | Ghi chú |
-|------|-------------:|------:|----------------------------:|---------|
-| 0 Baseline (thô) | 16.973 | 100,0% | 69,6% | Nhiều lệch type–evidence |
-| 1 Cổng type–evidence | 12.445 | 73,3% | 88,9% | Bỏ 4.528 claim lệch |
-| 2 Bắt buộc drug (hard) | 12.084 | 71,2% | 92,2% | Bỏ 361 claim hard thiếu drug |
-| 3 Bỏ thuốc ngoài phạm vi | 11.267 | 66,4% | 98,5% | Bỏ 817 metformin/heparin/… |
-| 4 Bỏ noise / weak span | 11.204 | 66,0% | 100,0% | Bỏ 63 span còn lại |
+| Bước | Số claim còn | Bỏ | Giữ % | Strict struct. prec. | Thay đổi (mục tiêu tăng acc) |
+|------|-------------:|---:|------:|---------------------:|------------------------------|
+| 0 Baseline (thô) | 16.973 | 0 | 100,0% | 44,8% | Chưa lọc |
+| 1 Cổng type–evidence | 12.445 | 4.528 | 73,3% | 59,6% | Bỏ lệch type–evidence |
+| 2 Bắt buộc drug (hard) | 12.084 | 361 | 71,2% | 56,7% | Hard type phải có drug |
+| 3 Bỏ thuốc ngoài phạm vi | 9.989 | 2.095 | 58,9% | 71,1% | Bỏ thuốc ngoài HF formulary |
+| 4 Bỏ noise / weak span | 9.933 | 56 | 58,5% | 72,6% | Bỏ boilerplate, cross-ref |
+| 5 Bỏ trial / PK / device | 9.283 | 650 | 54,7% | 73,7% | RCT, NDC, hướng dẫn thiết bị |
+| 6 Bỏ ADR/interaction thiếu drug | 9.238 | 45 | 54,4% | 73,7% | ADR/interaction không drug |
+| 7 Bỏ ADR không actionable | 7.620 | 1.618 | 44,9% | 84,8% | ADR không có động từ lâm sàng |
+| **8 Bỏ dose/renal yếu** | **6.296** | **1.324** | **37,1%** | **100,0%** | Gate dose/renal (pass 8) |
 
-**Bảng 5.0b. Precision LLM trước vs sau lọc** (*n* = 90, cùng seed)
+**Bảng 5.0b. LLM semantic precision qua các vòng lọc** (qwen2.5:7b, prompt cân bằng)
 
-| Chỉ số | Trước | Sau | Thay đổi |
-|--------|------:|----:|---------:|
-| LLM precision tổng thể | 57,8% | 67,8% | +10,0 điểm % |
-| LLM precision hard-types | 62,0% | 72,0% | +10,0 điểm % |
-| Precision tương tác thuốc | 30% | 80% | +50 điểm % |
-| Precision phản ứng có hại | 20% | 40% | +20 điểm % |
+| Corpus | Claims | Mẫu *n* | LLM prec. tổng | Hard-type prec. |
+|--------|-------:|--------:|---------------:|----------------:|
+| Thô (judge 1.5b, lịch sử) | 16.973 | 90 | 57,8% | 62,0% |
+| Pass 7 (all types) | 7.620 | 90 | 62,2% | 70,0% |
+| Pass 7 (safety-only) | 5.764 | 80 | 66,3% | 70,0% |
+| **Pass 8 (all types)** | **6.296** | **90** | **66,7%** | **70,0%** |
+| **Pass 8 (safety-only)** | **4.440** | **80** | **73,8%** | **70,0%** |
 
-Lọc cải thiện tập claim dùng được; không đổi accuracy vignette ở mục 5.3 (đo khuyến nghị cấu trúc, không đo claim thô). Chi tiết: `evaluation/reports/claim_filter_progression.md`.
+Safety-only loại `guideline_recommendation` — type nhiễu nhất dưới judge 7B (10% ở pass 8).
 
-Lỗi còn lại: ADR vẫn vừa phải; dose-safety còn tinh chỉnh. An toàn runtime vẫn dựa catalog PostgreSQL và kiểm chứng; claim đã lọc chủ yếu làm bằng chứng GraphRAG.
+**Bảng 5.0c. LLM precision theo loại claim (pass 8, *n* = 10/loại)**
 
-Ưu tiên tiếp: đồng bộ constraint từ S3 vào mirror local; duyệt lâm sàng hàng đợi dose-safety.
+| Loại claim | Pass 7 (7B) | Pass 8 (all) | Pass 8 (safety) | Ghi chú |
+|------------|------------:|-------------:|----------------:|---------|
+| Chống chỉ định | 80% | 80% | 80% | Ổn định |
+| Ràng buộc dùng thuốc | 80% | 80% | 80% | Ổn định |
+| Phản ứng có hại | 80% | 70% | 70% | Biến thiên mẫu |
+| Tương tác thuốc | 70% | 80% | 80% | Cải thiện |
+| Nguy cơ tăng kali | 70% | 70% | 70% | Ổn định |
+| **Khuyến nghị liều** | **50%** | **90%** | **90%** | Pass 8 + gate extractor |
+| **Ràng buộc thận** | **50%** | **80%** | **80%** | Pass 8 + gate extractor |
+| Ràng buộc quần thể | 50% | 40% | 40% | Vẫn nhiễu PK/demographic |
+| Khuyến cáo guideline | — | 10% | *(loại khỏi safety)* | Không dùng KG safety |
+
+Pass 8 nâng precision liều từ 50% lên 90% và thận từ 50% lên 80%. `population_constraint` vẫn cần gold bác sĩ hoặc sửa extractor.
+
+#### Thay đổi theo phase (cải thiện accuracy)
+
+**Phase A — Judge model và prompt**
+
+| Bước | Vị trí | Thay đổi | Hiệu quả |
+|------|--------|----------|----------|
+| A1 | `scraper/eval/auto_judge.py` | Mặc định `qwen2.5:7b`; timeout 300 s; `num_ctx` 1536 | Nghiêm hơn 1.5B |
+| A2 | `scraper/prompts/claim_auto_judge.py` | Prompt cân bằng: ACCEPT pattern lâm sàng HF; REJECT noise rõ | Giảm reject nhầm rule lab/neonate |
+| A3 | So sánh | 1.5B vs 7B cùng corpus | 1.5B 71% lạc quan; **dùng 7B cho luận văn** |
+
+**Phase B — Filter pass 1–7**
+
+| Pass | Thay đổi | Ảnh hưởng acc |
+|------|----------|---------------|
+| 1 | `drop_type_mismatch` — evidence khớp type cues | +15 pp strict structural |
+| 2 | Hard type bắt buộc `drug` | Ít rule mồ côi |
+| 3 | `OFF_SCOPE_DRUG_TOKENS` (~40 thuốc) | −17% corpus; scope sạch hơn |
+| 4 | `heuristic_noise_score`, `is_weak_span` | Bỏ boilerplate |
+| 5 | `TRIAL_PK_DEVICE_PATTERNS` | Bỏ RCT/PK/device |
+| 6 | ADR/interaction thiếu drug | −45 claim |
+| 7 | ADR không actionable | −1.618 ADR; strict **84,8%** |
+
+**Phase C — Pass 8 dose/renal (extractor + filter)**
+
+| Vị trí | Thay đổi | Ảnh hưởng acc |
+|--------|----------|---------------|
+| `scraper/validation/claim_type_gates.py` (mới) | Gate chung: dose = mg/mcg + ngữ cảnh liều; renal = ngưỡng eGFR/CrCl hoặc renal + action | Nền pass 8 |
+| `scraper/process/create_claims.py` | Regex `_matches_claim_type` dùng gate | Ít dose/renal rác lúc extract |
+| `scraper/semantic/claim_extraction.py` | LLM `_build_claim` reject sớm qua gate | Đồng bộ LLM path |
+| `scraper/prompts/claim_extraction.py` | Rules 14–15 cho mg và ngưỡng thận | Hướng LLM extract |
+| `filter_claims_for_quality.py` pass 8 | `drop_weak_dose_renal` | Liều **50%→90%**, thận **50%→80%** |
+
+Precision tương tác thuốc tăng từ 30% (thô) lên 80% sau lọc. Precision ADR từ 20% (thô) lên 70% trên pass 8 safety. Lọc cải thiện tập claim GraphRAG mà không đổi accuracy vignette ở mục 5.3.
+
+Reject còn lại chủ yếu: thuốc chuyên khoa ngoài HF, caveat guideline mềm, PK/demographic ở `population_constraint`. An toàn runtime vẫn dựa catalog PostgreSQL và kiểm chứng. Bước tiếp: đồng bộ constraint từ S3, gold bác sĩ cho `population_constraint`, duyệt lâm sàng dose-safety còn tinh chỉnh.
 
 ## 5.3 Kết quả dịch vụ chat CDSS
 
@@ -277,7 +336,7 @@ Các giới hạn này không vô hiệu hóa phát hiện cốt lõi. Chúng đ
 
 Tổng hợp lại, kết quả mô tả hồ sơ hiệu suất mạch lạc do phân công lao động của kiến trúc lai.
 
-Chỉ số xây tri thức cho thấy nạp tự động có thể điền catalog có thể quản trị ở quy mô. Trích xuất thành công trên 94,2% thuốc, lọc mục giữ 95,0% nội dung với chỉ 6,6% duyệt model vùng biên, và 53,9% quy tắc trích xuất dùng được ngay. Đồng thời, 35,2% quy tắc vẫn cần tinh chỉnh và hoàn thiện quy tắc liều chưa xong, nên quản trị lâm sàng con người vẫn thiết yếu. Sau lọc claim theo tầng, precision LLM tăng từ 57,8% lên 67,8% (giữ 11.204 claim); strict structural precision trên mẫu tăng từ 69,6% lên 100% qua các bước lọc. An toàn lúc chạy vẫn phụ thuộc catalog được quản trị và kiểm chứng.
+Chỉ số xây tri thức cho thấy nạp tự động có thể điền catalog có thể quản trị ở quy mô. Trích xuất thành công trên 94,2% thuốc, lọc mục giữ 95,0% nội dung với chỉ 6,6% duyệt model vùng biên, và 53,9% quy tắc trích xuất dùng được ngay. Đồng thời, 35,2% quy tắc vẫn cần tinh chỉnh và hoàn thiện quy tắc liều chưa xong, nên quản trị lâm sàng con người vẫn thiết yếu. Lọc claim theo tầng (pass 0–8) nâng LLM semantic precision safety-only từ 57,8% (thô, judge 1.5B) lên **73,8%** (pass 8, judge 7B), giữ 4.440 claim safety; strict structural precision đạt **100%** sau pass 8; liều và thận tăng từ 50% lên 90% và 80%. An toàn lúc chạy vẫn phụ thuộc catalog được quản trị và kiểm chứng.
 
 Chỉ số lúc truy vấn cho thấy các catalog đó, khi kết hợp intake và truy xuất lai, đạt tiêu chí thành công luận văn về hiệu suất trung vị. Độ chính xác đạt 94,0%, latency trung bình 8,1 giây với trung vị 7,4 giây, và F1 tương tác 97,1%. Kết quả khả năng sử dụng chuyển các kết quả kỹ thuật thành giá trị bác sĩ: mức hài lòng tổng thể 4,22 trên 5 và 4,5 trên 5 cho hữu ích lâm sàng.
 

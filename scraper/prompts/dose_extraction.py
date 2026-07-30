@@ -69,4 +69,7 @@ Rules:
 - drug_keys: lowercase identifiers only (generic snake/space form and brand if named). Never placeholder text like "generic name".
 - When calculation_type is fixed_dose, always set recommended_dose from the labeled maintenance/usual dose (also fill standard_dose with the same amount when useful).
 - Prefer extracting every distinct labeled dosing regimen for the drug in the section (adult HF/oral first), not a single incomplete rule.
+- Set renal_adjustment=true when the source describes renal dose adjustment, hold, or contraindication by kidney function.
+- Set lab_monitoring=true when the source requires potassium, renal, electrolyte, or INR monitoring tied to dose safety.
+- Populate hold_if and reduction_criteria whenever the source states hold/reduce thresholds (eGFR, CrCl, potassium, heart rate, systolic BP).
 """

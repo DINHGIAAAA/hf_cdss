@@ -98,11 +98,11 @@ The central claim is that a hybrid CDSS, coupling deterministic GDMT and safety 
 
 Knowledge engineering spans offline ingestion into synchronized stores. FDA DailyMed SPL XML labels and HF guideline documents are acquired into versioned object storage. A three-tier section filter retains clinically relevant content while minimizing LLM cost: keyword matching on high-precision headings, BGE-M3 semantic similarity scoring, and borderline LLM review only for ambiguous sections. Surviving text undergoes sentence-aware chunking, claim extraction, and safety classification into hard_block, usable_rules, and needs_condition_refinement tiers. Artifacts sync to PostgreSQL for governance, ChromaDB for vector search, and Neo4j for graph retrieval. PostgreSQL remains authoritative for executable rules; vector and graph stores enrich explanation without overriding hard blocks.
 
-### 1.6.3 Query-Time Techniques
-
 At query time, hybrid intake converts free-text chat into a structured patient profile using regular expressions for labs and vitals, lexicons for medications and conditions with negation handling, and selective LLM parsing when deterministic confidence is low. The reasoning engine evaluates GDMT coverage, applies constraint and interaction rules, and computes dose plans synchronously from governed catalogs without depending on LLM generation for core statuses.
 
-In parallel, GraphRAG assembles explanatory context. HyDE expands the query into a hypothetical evidence passage before embedding. Retrievers run in parallel: ChromaDB dense search, BM25 sparse search, and Neo4j neighborhood traversal seeded by profile-linked entities. Ranked lists fuse through RRF. Retrieved chunks feed verification agents and the explanation LLM with citation metadata.
+In parallel, GraphRAG assembles explanatory context. HyDE expands the query into a hypothetical evidence passage before embedding. Retrievers run in parallel: ChromaDB dense1.6.3 Query-Time Techniques
+
+ search, BM25 sparse search, and Neo4j neighborhood traversal seeded by profile-linked entities. Ranked lists fuse through RRF. Retrieved chunks feed verification agents and the explanation LLM with citation metadata.
 
 A large language model (LLM) is a neural network trained on vast text to generate human-like language [18], [19]. Here the LLM is not the clinical authority. It parses ambiguous intake, expands queries via HyDE, and generates readable narrative conditioned on structured outputs and retrieved context. Verification agents check that hard avoid constraints are respected and that cited evidence was actually retrieved. Responses stream to the React dashboard over Server-Sent Events (SSE), a protocol that pushes structured safety cards to the browser before narrative text finishes generating.
 

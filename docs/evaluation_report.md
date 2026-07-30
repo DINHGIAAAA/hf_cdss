@@ -1,25 +1,15 @@
-# Evaluation Report
+# Evaluation Report (moved)
 
-## Claim KG quality (qwen2.5:7b judge + new prompt)
+**Summary tables and accuracy progression are in Chapter 5:**
+
+- English: [`thesis/Chapter5_Results_and_Evaluation.md`](../thesis/Chapter5_Results_and_Evaluation.md) — Sections **5.2.4** (claim KG quality) and **5.3.1** (vignette accuracy)
+- Vietnamese: [`thesis_vie/Chuong5_Ket_Qua_Danh_Gia.md`](../thesis_vie/Chuong5_Ket_Qua_Danh_Gia.md)
+
+Quick reference (pass 8, qwen2.5:7b):
 
 | Set | Claims | 7b precision |
 |-----|-------:|-------------:|
-| Raw (historical 1.5b) | 16,973 | ~57.8% (1.5b) |
-| Filtered all types | 7,620 | **62.2%** |
-| **Filtered safety-only** | **5,764** | **66.3%** |
+| Filtered pass 8 (safety-only) | 4,440 | **73.8%** |
+| Vignette CDSS accuracy | 50 cases | **94.0%** |
 
-Safety-only drops `guideline_recommendation` (noisiest type under 7b).
-
-Strong types @7b: contraindication / ADR / usage **80%**; interaction / hyperkalemia **70%**.
-
-## Note on 1.5b vs 7b
-
-1.5b previously reported **71%** on filtered claims — that number is **optimistic**. Prefer **7b** figures above for thesis/KG cleanliness.
-
-## Hardware
-
-GTX 1650 4GB: pause Airflow/backend embeddings before 7b judge runs.
-
-## Vignette CDSS accuracy (unchanged)
-
-94.0% structured recommendation accuracy.
+Raw JSON: `evaluation/reports/auto_eval_latest.json`

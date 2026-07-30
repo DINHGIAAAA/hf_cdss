@@ -10,6 +10,7 @@ from typing import Any
 
 from scraper.semantic import config
 from scraper.prompts.dose_extraction import STRUCTURED_DOSE_EXTRACTION_SYSTEM_PROMPT
+from scraper.semantic.dose_safety_constants import has_safety_cue
 from scraper.semantic.llm_client import call_llm_json
 
 logger = logging.getLogger(__name__)
@@ -43,6 +44,21 @@ DOSE_SECTION_KEYWORDS = (
 )
 
 # Extended keywords for heart failure dose detection
+DOSE_SAFETY_SECTION_KEYWORDS = (
+    "warnings",
+    "precautions",
+    "boxed warning",
+    "contraindications",
+    "adverse reactions",
+    "use in specific populations",
+    "renal impairment",
+    "hepatic impairment",
+    "drug interactions",
+    "hyperkalemia",
+    "laboratory tests",
+    "monitoring",
+)
+
 DOSE_HF_KEYWORDS = (
     "mg daily",
     "mg twice",
@@ -198,6 +214,8 @@ def _build_structured_claim(record: dict, payload: dict[str, Any], index: int) -
         "step_interval_weeks": payload.get("step_interval_weeks"),
         "step_multiplier": payload.get("step_multiplier"),
         "hold_if": payload.get("hold_if") if isinstance(payload.get("hold_if"), dict) else None,
+        "renal_adjustment": bool(payload.get("renal_adjustment")),
+        "lab_monitoring": bool(payload.get("lab_monitoring")),
         "monitoring": [str(item) for item in (payload.get("monitoring") or []) if str(item).strip()],
         "metadata": {
             "extraction_method": "llm_structured_dose",
@@ -232,6 +250,18 @@ def _build_structured_claim(record: dict, payload: dict[str, Any], index: int) -
     structured["reduction_criteria"] = [item for item in criteria if item]
 
     return structured
+
+
+def is_dose_safety_relevant_section(record: dict) -> bool:
+    """Sections likely to contain dose hold/reduction/monitoring language."""
+    section = str(record.get("section") or record.get("source_section") or "").lower()
+    text = str(record.get("text") or "").lower()
+    haystack = f"{section} {text[:800]}"
+    if any(keyword in haystack for keyword in DOSE_SAFETY_SECTION_KEYWORDS):
+        return True
+    if has_safety_cue(haystack):
+        return True
+    return False
 
 
 def is_dosage_and_administration_section(record: dict) -> bool:
@@ -296,12 +326,15 @@ def select_dose_extraction_records(
     *,
     drug_labels_only: bool = False,
     dosage_sections_only: bool = False,
+    safety_sections_only: bool = False,
 ) -> list[dict]:
     """Filter/prioritize sections for structured dose extraction.
 
     When dosage_sections_only is set, keep drug-label DOSAGE AND ADMINISTRATION
     (longest text per document) plus guideline dosage sections unless
     drug_labels_only is also set.
+
+    When safety_sections_only is set, keep WARNINGS/PRECAUTIONS/renal sections.
     """
     selected: list[dict] = []
     best_label_dosage: dict[str, dict] = {}
@@ -313,6 +346,12 @@ def select_dose_extraction_records(
 
         source_type = record.get("source_type")
         if drug_labels_only and source_type != "drug_label":
+            continue
+
+        if safety_sections_only:
+            if not is_dose_safety_relevant_section(record):
+                continue
+            selected.append(record)
             continue
 
         if dosage_sections_only:
@@ -383,6 +422,7 @@ def extract_structured_dose_claims_batch(
     *,
     drug_labels_only: bool = False,
     dosage_sections_only: bool = False,
+    safety_sections_only: bool = False,
     limit: int | None = None,
 ) -> list[dict]:
     claims: list[dict] = []
@@ -390,15 +430,18 @@ def extract_structured_dose_claims_batch(
         records,
         drug_labels_only=drug_labels_only,
         dosage_sections_only=dosage_sections_only,
+        safety_sections_only=safety_sections_only,
     )
     if limit is not None and limit >= 0:
         selected = selected[:limit]
     logger.info(
-        "Structured dose extraction: %s/%s sections selected (labels_only=%s, dosage_only=%s)",
+        "Structured dose extraction: %s/%s sections selected "
+        "(labels_only=%s, dosage_only=%s, safety_only=%s)",
         len(selected),
         len(records),
         drug_labels_only,
         dosage_sections_only,
+        safety_sections_only,
     )
     for index, record in enumerate(selected, start=1):
         try:

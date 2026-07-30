@@ -207,7 +207,9 @@ Verification agents cross-check the deterministic recommendation before narrativ
 
 Explanation has two layers. The card summarizer deterministically maps structured fields to Vietnamese and English plain-language labels without calling an LLM. This keeps GDMT cards stable across language switches. The LLM answer service then writes clinician-facing narrative grounded in the verified recommendation and retrieved evidence, streamed as token deltas. Separating these layers prevents decorative language generation from rewriting safety status.
 
-### 3.4.10. Governance Module
+
+
+
 
 Governance supports list, detail, diff, approve, retire, and history operations for constraint, dose, interaction, GDMT, and dose-safety catalogs. Clinical leads refine conditions that extraction could not fully encode. Bulk approve helpers may exist for trusted batches, still under role checks. Diff views help reviewers see what changed between pipeline runs before promotion.
 

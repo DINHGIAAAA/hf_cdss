@@ -1,26 +1,16 @@
-"""Build GDMT recommendation policies from structured claims and bundled baseline."""
+"""Build GDMT recommendation policies from structured claims extracted during ingestion."""
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
 from typing import Any
 
-from scraper.semantic.stable_ids import slug, stable_id
+from scraper.semantic.stable_ids import stable_id
 
 REQUIRED_FIELDS = ("drug_class_key", "display_label", "policy_body")
 
 
 def gdmt_policy_id(parts: list[str]) -> str:
     return stable_id(*parts[:1], uniqueness=list(parts[1:]), prefix="gdmt", max_label_len=32)
-
-
-def _bundled_baseline() -> list[dict[str, Any]]:
-    path = Path(__file__).resolve().parents[2] / "backend/app/modules/gdmt_policy/rules/hf_gdmt_policy_v1.json"
-    if not path.is_file():
-        return []
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    return list(payload.get("policies") or [])
 
 
 STABLE_POLICY_IDS = {
@@ -117,20 +107,6 @@ def _merge_policy_body(existing: dict[str, Any], incoming: dict[str, Any]) -> di
 
 def gdmt_policies_from_claims(claims: list[dict]) -> list[dict]:
     by_id: dict[str, dict[str, Any]] = {}
-    for baseline in _bundled_baseline():
-        policy_id = baseline["gdmt_policy_id"]
-        by_id[policy_id] = {
-            "rule_id": policy_id,
-            "gdmt_policy_id": policy_id,
-            "drug_class_key": baseline["drug_class_key"],
-            "display_label": baseline["display_label"],
-            "sort_order": baseline.get("sort_order", 0),
-            "policy_body": baseline.get("policy_body") or {},
-            "evidence_ref": baseline.get("evidence_ref"),
-            "source_refs": [],
-            "extraction_method": "bundled_baseline",
-            "source_confidence": 1.0,
-        }
     for claim in claims:
         built = build_gdmt_policy_from_claim(claim)
         if not built:

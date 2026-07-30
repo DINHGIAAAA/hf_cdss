@@ -12,15 +12,7 @@ import httpx
 
 PMC_PDFS = {
     "esc_2021_hf_guideline": ("PMC8490362", "heart_failure/2021 ESC guidelines HF.pdf"),
-    "aha_acc_hfsa_2022_hf_guideline_pdf": (
-        "PMC9238257",
-        "heart_failure/2022 AHA_ACC_HFSA Guideline for the Management of Heart Failure.pdf",
-    ),
     "esc_2024_af_guideline": ("PMC11379312", "atrial_fibrillation/2024 ESC Atrial Fibrillation Guidelines.pdf"),
-    "acc_aha_2023_af_guideline_pdf": (
-        "PMC11104284",
-        "atrial_fibrillation/2023 ACC AHA ACCP HRS Atrial Fibrillation Guideline.pdf",
-    ),
     "acc_aha_2017_bp_guideline": ("PMC6676913", "hypertension/2017 ACC AHA Hypertension Guideline.pdf"),
     # PMC7403606 EuropePMC render 500; PMC6525462 is open full-text PDF mirror.
     "acc_aha_2018_cholesterol_guideline_pdf": (

@@ -2,13 +2,10 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
 from app.core.rule_cache import RuleCache
 from app.modules.datastores.gdmt_policies_postgres import read_approved_gdmt_policies
-
-_MODULE_DIR = Path(__file__).resolve().parent
 
 
 def _normalize_policy_row(row: dict[str, Any]) -> dict[str, Any]:
@@ -37,7 +34,7 @@ def _normalize_policy_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 _CACHE = RuleCache(
     catalog_name="gdmt_policies",
     ttl_seconds_setting="gdmt_policy_cache_ttl_seconds",
-    fallback_path=_MODULE_DIR / "rules" / "hf_gdmt_policy_v1.json",
+    fallback_path=None,
     list_key="policies",
     db_loader=read_approved_gdmt_policies,
     default_version="hf_gdmt_policy_v1",
