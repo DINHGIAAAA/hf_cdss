@@ -349,6 +349,30 @@ class PatientProfile(BaseModel):
         ]
         return output
 
+    @model_validator(mode="after")
+    def validate_physiological_ranges(self) -> "PatientProfile":
+        violations = []
+        for label, cv, lo, hi in [
+            ("lvef", self.heart_failure_profile.lvef, 0, 100),
+            ("heart_rate", self.vitals.heart_rate, 20, 300),
+            ("systolic_bp", self.vitals.systolic_bp, 40, 300),
+            ("diastolic_bp", self.vitals.diastolic_bp, 20, 200),
+            ("potassium", self.labs.potassium, 1.0, 10.0),
+            ("creatinine", self.labs.creatinine, 0.1, 30.0),
+            ("egfr", self.labs.egfr, 0, 200),
+        ]:
+            if cv is None or cv.value is None:
+                continue
+            try:
+                v = float(cv.value)
+                if not (lo <= v <= hi):
+                    violations.append(f"{label}={v} outside [{lo},{hi}]")
+            except (TypeError, ValueError):
+                pass
+        if violations:
+            raise ValueError(f"Physiological range violations: {', '.join(violations)}")
+        return self
+
     @property
     def case_id(self) -> str:
         return self.patient_identity.case_id

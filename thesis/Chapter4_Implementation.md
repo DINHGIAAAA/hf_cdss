@@ -2,7 +2,7 @@
 
 ## 4.1. Development Environment
 
-This chapter explains how the designs in Chapter 3 become working software. It covers the machines and tools used to build the system, the automated pipeline that turns drug labels and guidelines into searchable medical knowledge, the FastAPI backend that answers clinical chat, the React interfaces that doctors and administrators use, and the Docker-based deployment that keeps everything running together. Wherever a technique appears, this chapter states what it does, why it exists, and how it helps clinicians or operators.
+Chapter 4 describes how the Chapter 3 designs became working software: evaluation hardware and tools, the pipeline from drug labels and guidelines to searchable knowledge, the FastAPI chat backend, React clinician and admin interfaces, and Docker-based deployment. For each technique, the text states what it does, why it exists, and how operators or clinicians use it.
 
 ### 4.1.1. Hardware Configuration
 

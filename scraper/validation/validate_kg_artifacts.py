@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 
 from scraper.io.jsonl import read_jsonl
+from scraper.validation.evidence_claim_validation import validate_claim_evidence_alignment
 
 REQUIRED_FIELDS = {
     "chunks": ("chunk_id", "document_id", "source_type", "text", "metadata"),
@@ -81,6 +82,18 @@ def validate_claim_quality(path: Path, rows: list[dict]) -> list[str]:
             errors.append(f"{path}: row {index} evidence contains likely encoding/mojibake artifacts")
         if not isinstance(confidence, int | float) or confidence < 0 or confidence > 1:
             errors.append(f"{path}: row {index} confidence must be between 0 and 1")
+        alignment = validate_claim_evidence_alignment(
+            claim={
+                "evidence": evidence,
+                "drug": row.get("drug"),
+                "conditions": row.get("conditions", {}),
+                "claim_type": row.get("claim_type", ""),
+            },
+            source_chunk=None,
+        )
+        if not alignment.get("aligned", True):
+            for issue in alignment.get("issues", []):
+                errors.append(f"{path}: row {index} evidence-alignment: {issue}")
     return errors
 
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import random
 from collections import defaultdict
 from datetime import datetime, timezone
@@ -46,7 +47,12 @@ def main() -> None:
         default="qwen2.5:7b",
         help="Ollama judge model. Default 7b for better semantic accuracy; 1.5b is faster but noisier.",
     )
-    parser.add_argument("--timeout-seconds", type=float, default=120.0)
+    parser.add_argument(
+        "--timeout-seconds",
+        type=float,
+        default=float(os.environ.get("HF_CDSS_AUTO_EVAL_TIMEOUT_SECONDS", "300")),
+        help="Per-claim Ollama judge timeout (default 300s; 7b on shared GPU often needs >120s).",
+    )
     parser.add_argument(
         "--output-dir",
         type=Path,

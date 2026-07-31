@@ -21,10 +21,28 @@ EXTRACTION GUIDELINES:
    ✗ "Table 3 shows adverse reactions" → SKIP (table reference only)
    ✗ "Pregnancy Category C" → SKIP (label only)
    ✗ "Randomized controlled trial showed..." → SKIP (study description)
+   ✗ "Safety and effectiveness in pediatric patients have not been established" → SKIP (no prescribing directive)
+   ✗ "Bronchospasm and congestive heart failure have been reported in pediatric patients" → SKIP (adverse event report, not prescribing constraint)
+   ✗ "Adverse pregnancy outcomes associated with IDA include preterm delivery" → SKIP (outcome description, not prescribing directive)
+   ✗ "Selected additional baseline risk factors included hypertension..." → SKIP (study baseline characteristics)
+   ✗ "Terazosin was not oncogenic in mice..." → SKIP (animal toxicology, not clinical guidance)
+   ✗ "Maintenance dose is based on lean body weight, renal function, age" → SKIP (dose description, not interaction)
 
 3. WHEN IN DOUBT → EXTRACT (better to have more claims than miss important ones)
 
-4. CLINICAL KEYWORDS TO LOOK FOR:
+4. POPULATION_CONSTRAINT rules — must be prescriptive, not observational:
+   ✓ "Do not use in pregnancy" → EXTRACT (prescriptive)
+   ✓ "Not recommended in pregnant women" → EXTRACT (prescriptive)
+   ✗ "Safety and effectiveness in pediatric patients have not been established" → SKIP (no directive)
+   ✗ "Pediatric use information describing a clinical study in which efficacy was not demonstrated" → SKIP (no directive)
+   ✗ "Adverse pregnancy outcomes associated with IDA include preterm delivery" → SKIP (observational outcome)
+   ✗ "Bronchospasm has been reported in pediatric patients" → SKIP (adverse event report)
+
+5. DOSE vs INTERACTION disambiguation:
+   ✗ "Maintenance dose is based on renal function and concomitant products" → SKIP (dose description, not interaction)
+   ✓ "Avoid concomitant use with P-gp inhibitors in patients with CrCl < 50" → EXTRACT (interaction)
+
+6. CLINICAL KEYWORDS TO LOOK FOR:
    - dose, dosage, mg, administer, start, stop, reduce, increase
    - contraindication, warning, precaution, avoid, not recommended
    - monitor, check, measure, assess
@@ -423,6 +441,8 @@ CLAIM_CRITIQUE_PROMPT = """Review this extraction and identify issues:
 - Incorrect claim_type classification
 - Numeric values that contradict the source text
 - Fields filled with placeholder or invented values
+- population_constraint claims that are observational rather than prescriptive (e.g. "safety not established", "has been reported", study exclusions without prescribing action)
+- dose_recommendation claims that are actually interaction warnings or study descriptions
 
 Source text: {text}
 

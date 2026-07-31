@@ -1,6 +1,6 @@
 # CHAPTER 5: RESULTS AND EVALUATION
 
-This chapter reports what the heart failure clinical decision support system achieved when we built it, ran it on realistic hardware, and measured it with cardiologist review and usability testing. The goal is to answer a practical question: does the hybrid design described in earlier chapters actually work well enough for supervised clinical use? We report results for the knowledge base pipeline, the chat recommendation service, the user interface, comparisons with other systems, common errors, safety behavior, and the limits of what these numbers can prove.
+Chapter 5 reports measured behavior of the heart failure clinical decision support system on evaluation hardware, with cardiologist review and usability testing. The central question is whether the hybrid design from Chapters 3 and 4 is adequate for supervised clinical use. Sections cover the knowledge pipeline, chat service, interface, comparisons, error patterns, safety checks, and limits on what the metrics can prove.
 
 ## 5.0 Predefined Success Criteria
 
@@ -42,7 +42,7 @@ Across drug labels and guidelines, 5,381 sections entered filtering. The filter 
 
 This design was intentionally cost-aware. A naive approach that sent every section to an LLM would have required roughly 5,381 model calls per ingestion cycle. The observed pipeline needed only 354 borderline reviews, a reduction of more than 93%. Guideline documents needed more borderline review than FDA labels because guideline headings and wording vary more across publishers.
 
-In plain terms, the filter kept almost all clinically relevant content while avoiding unnecessary model use. That balance is important for hospitals that must refresh knowledge bases when labels or guidelines change.
+The filter kept almost all clinically relevant content while avoiding unnecessary model use, which matters when hospitals refresh knowledge bases after label or guideline updates.
 
 ### 5.2.3 Rule Classification
 
@@ -56,7 +56,7 @@ The 35.2% refinement tier does not mean runtime failure. Those rules are held ba
 
 Volume counts alone do not prove that extracted knowledge is clinically usable. After the ingestion pipeline finished, we audited persisted artifacts with structural heuristics, an LLM semantic judge on stratified claim samples, and catalog-tier scans. The audit is documented in `evaluation/reports/accuracy_audit_20260728.md`. Auto-judge precision is a triage signal, not a cardiologist-certified gold standard.
 
-Claims were re-extracted and are present in the workspace (`artifacts/claims/claims.jsonl`, 16,973 rows). Filtered outputs are `claims_filtered.jsonl` (6,296 rows after pass 8) and `claims_filtered_safety.jsonl` (4,440 rows without `guideline_recommendation`). Constraint and other governance catalogs are intended to live in the processed S3 bucket (`hf-cdss-processed`) and to be mirrored locally under `artifacts/` for evaluation. The quality tables below therefore separate **content quality of claims that are on disk** from **catalog-tier counts for governance JSONL files present in the local mirror at audit time**.
+Claims were re-extracted and are present in the workspace (`artifacts/claims/claims.jsonl`, 16,973 rows). Filtered outputs are `claims_filtered.jsonl` (6,296 rows after pass 8) and `claims_filtered_safety.jsonl` (4,440 rows without `guideline_recommendation`). Constraint and other governance catalogs are intended to live in the processed S3 bucket (`hf-cdss-processed`) and to be mirrored locally under `artifacts/` for evaluation. The quality tables below therefore separate content quality of claims that are on disk from catalog-tier counts for governance JSONL files present in the local mirror at audit time.
 
 Local governance catalogs available for counting at audit time (2026-07-30, post raw-only migration):
 
@@ -71,7 +71,7 @@ Local governance catalogs available for counting at audit time (2026-07-30, post
 | Dose-safety warnings | 2,903 | 1,440 (50%) | 1,463 (50%) | 0 |
 | Constraint rules (`artifacts/rules/*.jsonl`) | Not in local mirror | — | — | — |
 
-Dose-safety warnings are now **100% from raw claims** (`claims_pipeline_dose_safety`); bundled baseline rows are **0** (previously 10/71 usable at 14%). Roughly half of dose-safety rows still need LLM trigger refinement (`refine_dose_safety_triggers`) before they become executable. Full audit: `evaluation/reports/data_quality_audit_20260730.md`.
+Dose-safety warnings are now 100% from raw claims (`claims_pipeline_dose_safety`); bundled baseline rows are 0 (previously 10/71 usable at 14%). Roughly half of dose-safety rows still need LLM trigger refinement (`refine_dose_safety_triggers`) before they become executable. Full audit: `evaluation/reports/data_quality_audit_20260730.md`.
 
 Constraint rule files were not present under the local `artifacts/rules/` path used for this write-up, even though claims were. If constraint catalogs were re-extracted and uploaded to S3 after an earlier empty-bucket snapshot, their usable or refinement tier counts should be taken from a restored mirror (`sync_processed_from_s3`) rather than treated as permanently missing. The claim-quality findings below are independent of that restore step because `claims.jsonl` was already local.
 
@@ -83,9 +83,9 @@ Three metrics must not be conflated:
 
 | Metric | Meaning | Latest result |
 |--------|---------|---------------|
-| Vignette recommendation accuracy (Section 5.3) | Structured CDSS cards vs cardiologist expectation | **94.0%** |
-| Claim LLM precision (safety-only, pass 8) | Semantic quality of individual KG claims (7B proxy) | **73.8%** |
-| Strict structural precision | Share passing all filter gates on a stratified sample | **100%** after pass 8 |
+| Vignette recommendation accuracy (Section 5.3) | Structured CDSS cards vs cardiologist expectation | 94.0% |
+| Claim LLM precision (safety-only, pass 8) | Semantic quality of individual KG claims (7B proxy) | 73.8% |
+| Strict structural precision | Share passing all filter gates on a stratified sample | 100% after pass 8 |
 
 High vignette accuracy does not imply every raw extracted claim is clinically precise. Runtime safety depends on governed PostgreSQL catalogs and verification; filtered claims mainly support GraphRAG explanation.
 
@@ -105,7 +105,7 @@ We applied eight cumulative filter passes (`scraper/eval/filter_claims_for_quali
 | 5 Drop trial / PK / device | 9,283 | 650 | 54.7% | 73.7% | RCT arms, NDC, device instructions |
 | 6 Drop empty-drug ADR/interaction | 9,238 | 45 | 54.4% | 73.7% | ADR/interaction without drug |
 | 7 Drop non-actionable ADR | 7,620 | 1,618 | 44.9% | 84.8% | ADR without clinical action verbs |
-| **8 Drop weak dose / renal** | **6,296** | **1,324** | **37.1%** | **100.0%** | Dose/renal quality gates (pass 8) |
+| 8 Drop weak dose / renal | 6,296 | 1,324 | 37.1% | 100.0% | Dose/renal quality gates (pass 8) |
 
 **Table 5.0b. LLM semantic precision across filter rounds** (qwen2.5:7b, balanced prompt)
 
@@ -114,7 +114,7 @@ We applied eight cumulative filter passes (`scraper/eval/filter_claims_for_quali
 | Raw (1.5b judge, historical) | 16,973 | 90 | 57.8% | 62.0% |
 | Filtered pass 7 (all types) | 7,620 | 90 | 62.2% | 70.0% |
 | Filtered pass 7 (safety-only) | 5,764 | 80 | 66.3% | 70.0% |
-| **Filtered pass 8 (all types)** | **6,296** | **90** | **66.7%** | **70.0%** |
+| Filtered pass 8 (all types) | **6,296** | **90** | **66.7%** | **70.0%** |
 | **Filtered pass 8 (safety-only)** | **4,440** | **80** | **73.8%** | **70.0% |
 
 Safety-only excludes `guideline_recommendation`, the noisiest type under the 7B judge (10% on pass 8).
@@ -128,8 +128,8 @@ Safety-only excludes `guideline_recommendation`, the noisiest type under the 7B 
 | Adverse reaction | 80% | 70% | 70% | Sample variance |
 | Drug interaction | 70% | 80% | 80% | Improved |
 | Hyperkalemia risk | 70% | 70% | 70% | Stable |
-| **Dose recommendation** | **50%** | **90%** | **90%** | Pass 8 + extractor gates |
-| **Renal constraint** | **50%** | **80%** | **80%** | Pass 8 + extractor gates |
+| Dose recommendation | 50% | 90% | 90% | Pass 8 + extractor gates |
+| Renal constraint | 50% | 80% | 80% | Pass 8 + extractor gates |
 | Population constraint | 50% | 40% | 40% | PK/demographic noise remains |
 | Guideline recommendation | — | 10% | *(excluded)* | Not used for safety KG |
 
@@ -137,27 +137,27 @@ Pass 8 improved dose precision from 50% to 90% and renal precision from 50% to 8
 
 #### Changes by phase (what improved accuracy)
 
-**Phase A — Judge model and prompt**
+Phase A: judge model and prompt
 
 | Step | Location | Change | Effect |
 |------|----------|--------|--------|
 | A1 | `scraper/eval/auto_judge.py` | Default judge `qwen2.5:7b`; timeout 300 s; `num_ctx` 1536 | Stricter than 1.5B |
 | A2 | `scraper/prompts/claim_auto_judge.py` | Balanced prompt: explicit ACCEPT patterns for HF clinical rules; clear REJECT for noise | Reduced false rejects on valid lab/neonate rules |
-| A3 | Comparison | 1.5B vs 7B on same corpus | 1.5B 71% optimistic; **7B used for thesis** |
+| A3 | Comparison | 1.5B vs 7B on same corpus | 1.5B 71% optimistic; 7B used for thesis |
 
-**Phase B — Filter passes 1–7**
+Phase B: filter passes 1–7
 
 | Pass | Change | Accuracy impact |
 |------|--------|-----------------|
-| 1 | `drop_type_mismatch` — evidence must match type cues | +15 pp strict structural |
+| 1 | `drop_type_mismatch`: evidence must match type cues | +15 pp strict structural |
 | 2 | Hard types require `drug` | Fewer orphan rules |
 | 3 | `OFF_SCOPE_DRUG_TOKENS` (~40 agents) | −17% corpus; cleaner scope |
 | 4 | `heuristic_noise_score`, `is_weak_span` | Remove boilerplate |
 | 5 | `TRIAL_PK_DEVICE_PATTERNS` | Remove RCT/PK/device text |
 | 6 | Empty-drug ADR/interaction | −45 claims |
-| 7 | Non-actionable ADR | −1,618 ADR rows; strict **84.8%** |
+| 7 | Non-actionable ADR | −1,618 ADR rows; strict 84.8% |
 
-**Phase C — Pass 8 dose/renal (extractor + filter)**
+Phase C: pass 8 dose/renal (extractor + filter)
 
 | Location | Change | Accuracy impact |
 |----------|--------|-----------------|
@@ -165,7 +165,7 @@ Pass 8 improved dose precision from 50% to 90% and renal precision from 50% to 8
 | `scraper/process/create_claims.py` | Regex `_matches_claim_type` uses gates | Fewer bad dose/renal at extract time |
 | `scraper/semantic/claim_extraction.py` | LLM `_build_claim` rejects early via gates | LLM path aligned with regex |
 | `scraper/prompts/claim_extraction.py` | Rules 14–15 for dose mg and renal thresholds | Steers LLM extraction |
-| `filter_claims_for_quality.py` pass 8 | `drop_weak_dose_renal` | Dose **50%→90%**, renal **50%→80%** |
+| `filter_claims_for_quality.py` pass 8 | `drop_weak_dose_renal` | Dose 50%→90%, renal 50%→80% |
 
 Drug-interaction precision rose from 30% (raw) to 80% after filtering. Adverse-reaction precision rose from 20% (raw) to 70% on pass 8 safety. Filtering improves the usable claim set for GraphRAG without changing clinician vignette accuracy in Section 5.3.
 
@@ -175,7 +175,7 @@ Residual rejects are mostly non-HF specialty drugs, soft guideline caveats, and 
 
 ### 5.3.1 Recommendation Accuracy
 
-**Accuracy** here means how often the system's structured recommendation matched what two independent cardiologists expected from guideline-concordant care. We evaluated 50 sample clinical cases drawn from treatment guidelines (`golden_cases.jsonl`). Each case was submitted as free text and processed through the full pipeline: patient intake, deterministic reasoning, hybrid retrieval, verification, and answer generation. Scoring used structured recommendation fields (drug class, action status, and primary safety flags), not free-form answer prose.
+Accuracy here means how often the system's structured recommendation matched what two independent cardiologists expected from guideline-concordant care. We evaluated 50 sample clinical cases drawn from treatment guidelines (`golden_cases.jsonl`). Each case was submitted as free text and processed through the full pipeline: patient intake, deterministic reasoning, hybrid retrieval, verification, and answer generation. Scoring used structured recommendation fields (drug class, action status, and primary safety flags), not free-form answer prose.
 
 Table 5.1 summarizes the overall recommendation metrics.
 
@@ -191,7 +191,7 @@ Table 5.1 summarizes the overall recommendation metrics.
 
 A confidence interval is a range that expresses uncertainty from sample size. With 50 cases, the true accuracy likely falls somewhere in that range. The result exceeded the project's 90% target.
 
-**Sensitivity** slightly below **specificity** means the system errs toward caution: it is somewhat more likely to warn when warning is not strictly needed than to miss a case that needed attention. For medication safety, that bias is generally acceptable.
+Sensitivity slightly below specificity means the system errs toward caution: it is somewhat more likely to warn when warning is not strictly needed than to miss a case that needed attention. For medication safety, that bias is generally acceptable.
 
 Table 5.2 breaks performance down by clinical focus area. Where a full precision–recall pair was not separately reported for every class, the table records the strongest available metric and a qualitative note from the review.
 
@@ -204,7 +204,7 @@ Table 5.2 breaks performance down by clinical focus area. Where a full precision
 | Drug interaction detection | F1 score | 97.1% | Strongest safety sub-task |
 | Overall structured recommendation | Accuracy | 94.0% | Exceeds 90% target |
 
-**F1 score** is a single number that balances precision and recall. An F1 of 97.1% for interactions means the system was highly reliable at finding true drug interaction problems while keeping false alarms relatively low. This strength came from both explicit interaction rules in PostgreSQL and retrieval of supporting evidence that verification agents could cross-check.
+F1 score is a single number that balances precision and recall. An F1 of 97.1% for interactions means the system was highly reliable at finding true drug interaction problems while keeping false alarms relatively low. This strength came from both explicit interaction rules in PostgreSQL and retrieval of supporting evidence that verification agents could cross-check.
 
 MRA recall at 89.3% means the system occasionally missed an MRA-related recommendation when one was expected. That pattern matched cases where laboratory values were incomplete or intake failed to normalize creatinine correctly.
 
@@ -212,9 +212,9 @@ These results support the core thesis claim: deterministic catalogs can carry sa
 
 ### 5.3.2 System Performance and Latency
 
-**Latency** means how long the user waits for a complete response. End-to-end latency was measured from the moment a chat message was sent until the streamed response finished.
+Latency means how long the user waits for a complete response. End-to-end latency was measured from the moment a chat message was sent until the streamed response finished.
 
-The mean response time was 8.1 seconds. The median, called **P50**, was 7.4 seconds, meaning half of requests finished faster than that. **P95** was 12.6 seconds, meaning 95% of requests finished within that time. On average, the system met the under-10-second goal. The median also met the goal. Some slower cases still exceeded 10 seconds at the tail of the distribution.
+The mean response time was 8.1 seconds. The median (P50) was 7.4 seconds, meaning half of requests finished faster than that. P95 was 12.6 seconds, meaning 95% of requests finished within that time. On average, the system met the under-10-second goal. The median also met the goal. Some slower cases still exceeded 10 seconds at the tail of the distribution.
 
 Patient intake took a mean of 1.2 seconds. This confirms that regex-first intake avoids model calls on typical structured case presentations. GraphRAG retrieval averaged 0.8 seconds. Deterministic reasoning averaged 2.1 seconds. Verification averaged 0.5 seconds. LLM answer generation averaged 3.5 seconds and was the largest single contributor to total wait time.
 
@@ -222,7 +222,7 @@ Streaming delivery materially improved perceived speed. Clinicians often saw pat
 
 ### 5.3.3 Alert Rates and Alert Burden
 
-**Alert burden** means how many safety alerts a clinician sees per patient. Before optimization, the system averaged 8.2 alerts per patient. After deduplication, tiered suppression, and consolidation of overlapping warnings, alert burden fell to 4.3 alerts per patient. That is a 47.6% reduction in alert volume.
+Alert burden means how many safety alerts a clinician sees per patient. Before optimization, the system averaged 8.2 alerts per patient. After deduplication, tiered suppression, and consolidation of overlapping warnings, alert burden fell to 4.3 alerts per patient. That is a 47.6% reduction in alert volume.
 
 Table 5.3 summarizes alert burden and false-positive rates after review.
 
@@ -256,7 +256,7 @@ This confirms that localization is mostly a presentation concern in the current 
 
 Twenty-five cardiologists completed a structured usability survey after guided tasks covering GDMT gap review, interaction checking, language toggling, and streaming chat. Scores used a 1-to-5 scale, where 5 means strongly agree or very satisfied.
 
-Ease of use averaged 4.2. Clinical usefulness averaged 4.5, the highest score. Perceived recommendation accuracy averaged 4.1. User interface quality averaged 4.3. Response time averaged 4.0, the lowest score. Overall **satisfaction** averaged 4.22 out of 5.
+Ease of use averaged 4.2. Clinical usefulness averaged 4.5, the highest score. Perceived recommendation accuracy averaged 4.1. User interface quality averaged 4.3. Response time averaged 4.0, the lowest score. Overall satisfaction averaged 4.22 out of 5.
 
 Clinicians valued GDMT gap identification and interaction support even when they occasionally disagreed with a class-level suggestion. That pattern is common in decision support research: workflow help often matters as much as perfect autonomous correctness. Response time scored lower than other criteria, which aligns with the measured latency profile, but streaming partial results partially offset the wait.
 
@@ -312,7 +312,7 @@ Near-term priorities target root causes rather than symptoms. Vietnamese synonym
 
 Safety testing examined high-risk scenarios where incorrect advice could cause direct harm. Each case ran through the full recommendation and verification pipeline. Pass criteria required the structured recommendation to show "avoid" or an appropriate warning, regardless of how the language model phrased the explanation.
 
-Four curated scenarios all passed: ACE inhibitor plus ARNI contraindication, SGLT2 inhibitor initiation at eGFR below 20, hyperkalemia with MRA therapy, and beta blocker initiation in bradycardia. Verification agents additionally checked that generated answers did not contradict structured avoid statuses.
+Four curated scenarios all passed: ACE inhibitor plus ARNI contraindication, SGLT2 inhibitor initiation at eGFR below 20, hyperkalemia with MRA therapy, and beta blocker initiation in bradycardia. Verification agents also checked that generated answers did not contradict structured avoid statuses.
 
 These tests validate the architectural separation between deterministic safety classification and generative explanation. Safety logic lives in governed catalogs and reasoning services, not in model prose alone.
 
@@ -340,7 +340,7 @@ These limits do not invalidate the core findings. They define the conditions und
 
 Taken together, the results describe a coherent performance profile shaped by the hybrid architecture's division of labor.
 
-Knowledge construction metrics show that automated ingestion can populate governable catalogs at scale. Extraction succeeded on 94.2% of drugs, section filtering retained 95.0% of content with only 6.6% borderline model review, and 53.9% of extracted rules were immediately usable. At the same time, 35.2% of rules still need refinement and dose rule completion remains unfinished, so human clinical governance remains essential. Staged claim filtering (passes 0–8) raised safety-only LLM semantic precision from 57.8% (raw, 1.5B judge) to **73.8%** (pass 8, 7B judge) while retaining 4,440 safety claims; strict structural precision on the stratified sample reached **100%** after pass 8, with dose and renal types improving from 50% to 90% and 80% respectively. Runtime safety still depends on governed catalogs and verification, not on raw claim volume alone.
+Knowledge construction metrics show that automated ingestion can populate governable catalogs at scale. Extraction succeeded on 94.2% of drugs, section filtering retained 95.0% of content with only 6.6% borderline model review, and 53.9% of extracted rules were immediately usable. At the same time, 35.2% of rules still need refinement and dose rule completion remains unfinished, so human clinical governance remains essential. Staged claim filtering (passes 0–8) raised safety-only LLM semantic precision from 57.8% (raw, 1.5B judge) to 73.8% (pass 8, 7B judge) while retaining 4,440 safety claims; strict structural precision on the stratified sample reached 100% after pass 8, with dose and renal types improving from 50% to 90% and 80% respectively. Runtime safety still depends on governed catalogs and verification, not on raw claim volume alone.
 
 Query-time metrics show that those catalogs, when combined with hybrid intake and retrieval, meet the thesis success criteria on median performance. Accuracy reached 94.0%, mean latency was 8.1 seconds with a median of 7.4 seconds, and interaction F1 was 97.1%. Usability results translate those engineering outcomes into clinician value: 4.22 out of 5 overall satisfaction and 4.5 out of 5 for clinical usefulness.
 

@@ -414,6 +414,14 @@ def run_store(python: str, args: argparse.Namespace, step_kwargs: dict) -> None:
     """Promote current/runs, re-sync promoted paths to S3, sync Postgres, cleanup staging."""
     run_id = step_kwargs["run_id"]
 
+    if args.require_human_approval:
+        approved = input(
+            f"[store] Pipeline run {run_id} — type 'yes' to promote extracted artifacts to production KB: "
+        ).strip()
+        if approved.lower() != "yes":
+            print("[store] Aborted by user. Artifacts not promoted.")
+            return
+
     run_step(
         "promote_artifacts",
         [python, "-m", "scraper.store.promote_artifacts", "--workspace", ".", "--run-id", run_id],
@@ -496,6 +504,12 @@ def main() -> None:
         action=argparse.BooleanOptionalAction,
         default=os.environ.get("HF_CDSS_CLEANUP_WORKSPACE_OUTPUTS", "true").lower() in {"1", "true", "yes"},
         help="After store finishes, delete local processed/ and artifacts/ (default: true).",
+    )
+    parser.add_argument(
+        "--require-human-approval",
+        action=argparse.BooleanOptionalAction,
+        default=os.environ.get("HF_REQUIRE_HUMAN_APPROVAL", "false").lower() in {"1", "true", "yes"},
+        help="Pause before promoting to production KB for manual confirmation (default: false, use in CI with --no-require-human-approval).",
     )
     args = parser.parse_args()
     args.registry = Path(args.registry) if args.registry else sources_registry_path()

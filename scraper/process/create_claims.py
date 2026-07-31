@@ -150,6 +150,7 @@ CLAIM_PATTERNS = {
         "mg twice daily",
         "titrate",
         "dose is",
+        "maintenance dose",
     ),
     "drug_interaction": (
         "drug interaction",
@@ -221,6 +222,26 @@ WEAK_SPAN_PATTERNS = (
     r"\bconsult the prescribing information of any drug\b",
     r"^\s*drug interactions?\s*$",
     r"^\s*drug interaction studies\b",
+    # Study baseline characteristics misclassified as clinical guidance
+    r"\b(?:selected )?additional baseline risk factors included\b",
+    # Animal / toxicology studies — not clinical guidance
+    r"\b(?:oncogenic|carcinogenic|genotoxic|mutagenic)\b.*\b(?:in )?(?:mice|rats|dogs|animals)\b",
+    r"\b(?:in )?(?:mice|rats|dogs)\b.*\b(?:oncogenic|carcinogenic|genotoxic|mutagenic)\b",
+    r"\bgestation day\b",
+    r"\bmaternal dosage\b",
+    # Generic safety/effectiveness statements with no prescribing action
+    r"\bsafety and effectiveness in pediatric patients (have not been|is not)\b",
+    r"\b(?:efficacy|safety) (in|for) pediatric\b.*\b(?:not (?:been |)established|demonstrated)\b",
+    r"\bpediatric use information\b.*\b(?:not demonstrated|not approved)\b",
+    # Adverse event reports without prescribing action
+    r"\b(?:have been|was) reported\b.*\b(?:in|during)\b.*\b(?:pediatric|children|infants)\b.*\b(?:therapy|treatment|use)\b",
+    r"\b(?:bronchospasm|congestive heart failure) (?:have been|was) reported\b",
+    # Pregnancy outcome descriptions without prescribing directive
+    r"\b(?:associated with|increased risk of) preterm delivery\b",
+    r"\b(?:associated with|increased risk of) low birth weight\b",
+    r"\badverse pregnancy outcomes\b",
+    # "maintenance dose" in context of describing dose basis — not an actionable interaction
+    r"\bmaintenance dose is based on\b",
 )
 
 INTERACTION_MECH_CUES = (
@@ -331,6 +352,9 @@ def _matches_claim_type(claim_type: str, haystack: str) -> bool:
             return False
         if re.search(r"\btable\s+\d+\b.*\bdrug interactions?\b", haystack):
             return False
+        # "maintenance dose is based on [factors]" is a dose note, not an interaction warning.
+        if re.search(r"\bmaintenance dose\b", haystack):
+            return False
         # Section title / header with little clinical content.
         if re.match(r"^\s*drug interactions?\b", haystack) and len(haystack) < 100:
             if not any(cue in haystack for cue in INTERACTION_EFFECT_CUES):
@@ -353,10 +377,23 @@ def _matches_claim_type(claim_type: str, haystack: str) -> bool:
             return False
         return True
     if claim_type == "population_constraint":
-        return any(
-            cue in haystack
-            for cue in ("pregnancy", "pregnant", "fetal", "lactation", "pediatric", "geriatric", "specific populations")
-        )
+        if not any(cue in haystack for cue in ("pregnancy", "pregnant", "fetal", "lactation", "pediatric", "geriatric", "specific populations")):
+            return False
+        # Reject generic "no data" / "safety not established" statements.
+        if any(cue in haystack for cue in (
+            "safety and effectiveness",
+            "have not been established",
+            "has not been established",
+            "have not been demonstrated",
+            "has not been demonstrated",
+            "is approved for",
+            "information describing a clinical study",
+        )):
+            return False
+        # Reject adverse event reports without prescribing directive.
+        if "reported" in haystack and not any(cue in haystack for cue in ("contraindicated", "not recommended", "avoid", "do not", "should not", "must not")):
+            return False
+        return True
     if claim_type == "guideline_recommendation":
         if "classes of recommendation" in haystack:
             return False
@@ -600,7 +637,42 @@ def claims_from_records(records: list[dict], max_claims_per_section: int) -> lis
             llm_claims.append(claim)
 
     claims = dedupe_claims(dedupe_claims_by_id([*regex_claims, *llm_claims]))
+    claims = _filter_prescriptive_only(claims)
     return _filter_evidence_aligned(claims)
+
+
+def _filter_prescriptive_only(claims: list[dict]) -> list[dict]:
+    """Drop observational population_constraint claims from LLM extraction.
+
+    Regex extraction already filters via _matches_claim_type (lines 383-396).
+    LLM extraction bypasses that gate, so we apply it here on all claims.
+    """
+    filtered = []
+    for claim in claims:
+        if claim.get("claim_type") != "population_constraint":
+            filtered.append(claim)
+            continue
+        evidence = claim.get("evidence", "")
+        # Same exclusion rules as _matches_claim_type for population_constraint
+        observational_cues = (
+            "safety and effectiveness",
+            "have not been established",
+            "has not been established",
+            "have not been demonstrated",
+            "has not been demonstrated",
+            "is approved for",
+            "information describing a clinical study",
+        )
+        directive_cues = ("contraindicated", "not recommended", "avoid", "do not", "should not", "must not")
+        if any(cue in evidence for cue in observational_cues):
+            continue
+        if "reported" in evidence and not any(cue in evidence for cue in directive_cues):
+            continue
+        filtered.append(claim)
+    dropped = len(claims) - len(filtered)
+    if dropped:
+        logger.info("prescriptive_filter: dropped %d observational claims", dropped)
+    return filtered
 
 
 def _filter_evidence_aligned(claims: list[dict]) -> list[dict]:

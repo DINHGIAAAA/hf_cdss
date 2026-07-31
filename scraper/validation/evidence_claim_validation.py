@@ -74,7 +74,7 @@ def validate_claim_evidence_alignment(
                     break
 
         if not drug_found:
-            warnings.append(f"Drug '{drug}' not explicitly found in evidence")
+            issues.append(f"Drug '{drug}' not explicitly found in evidence — possible wrong-drug claim")
 
     # Check 2: Numeric thresholds appear in evidence
     for key, value in conditions.items():

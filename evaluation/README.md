@@ -10,8 +10,8 @@ $env:HF_CDSS_DATA_ROOT="c:\Users\VinhNgo\hf_cdss\data\heart_failure"
 # Fast: heuristic only
 py -m scraper.eval.run_auto_eval --no-llm --per-type 20
 
-# Stronger: heuristic + Ollama judge (needs LLM reachable)
-py -m scraper.eval.run_auto_eval --per-type 20
+# Stronger: heuristic + Ollama judge (needs LLM reachable; default 300s timeout per claim)
+py -u -m scraper.eval.run_auto_eval --per-type 10 --seed 42 --model qwen2.5:7b --timeout-seconds 300
 ```
 
 Outputs:
