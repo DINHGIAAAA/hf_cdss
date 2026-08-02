@@ -5,32 +5,36 @@
 ## Structure
 
 ### Front matter
-| File | Section |
-|------|---------|
-| [00_Acknowledgments.md](00_Acknowledgments.md) | Acknowledgments |
-| [00b_Declaration.md](00b_Declaration.md) | Declaration |
-| [01_Abstract.md](01_Abstract.md) | Abstract |
+
+| File                                                       | Section               |
+| ---------------------------------------------------------- | --------------------- |
+| [00_Acknowledgments.md](00_Acknowledgments.md)             | Acknowledgments       |
+| [00b_Declaration.md](00b_Declaration.md)                   | Declaration           |
+| [01_Abstract.md](01_Abstract.md)                           | Abstract              |
 | [04_List_of_Abbreviations.md](04_List_of_Abbreviations.md) | List of Abbreviations |
 
 ### Part I — Introduction
-| File | Content |
-|------|---------|
-| [00_Part1_Introduction.md](00_Part1_Introduction.md) | Part I overview |
+
+| File                                                 | Content                                                               |
+| ---------------------------------------------------- | --------------------------------------------------------------------- |
+| [00_Part1_Introduction.md](00_Part1_Introduction.md) | Part I overview                                                       |
 | [Chapter1_Introduction.md](Chapter1_Introduction.md) | Chapter 1 — Problem statement, related work (summary), thesis outline |
 
 ### Part II — Thesis content
-| File | Chapter |
-|------|---------|
-| [00_Part2_Thesis_Content.md](00_Part2_Thesis_Content.md) | Part II overview |
-| [Chapter2_Literature_Review.md](Chapter2_Literature_Review.md) | Chapter 2 — Literature review and theory |
-| [Chapter3_System_Design.md](Chapter3_System_Design.md) | Chapter 3 — System design |
-| [Chapter4_Implementation.md](Chapter4_Implementation.md) | Chapter 4 — Implementation and deployment |
-| [Chapter5_Results_and_Evaluation.md](Chapter5_Results_and_Evaluation.md) | Chapter 5 — Results and evaluation |
-| [Chapter6_Conclusion.md](Chapter6_Conclusion.md) | Chapter 6 — Conclusion |
+
+| File                                                                     | Chapter                                   |
+| ------------------------------------------------------------------------ | ----------------------------------------- |
+| [00_Part2_Thesis_Content.md](00_Part2_Thesis_Content.md)                 | Part II overview                          |
+| [Chapter2_Literature_Review.md](Chapter2_Literature_Review.md)           | Chapter 2 — Literature review and theory  |
+| [Chapter3_System_Design.md](Chapter3_System_Design.md)                   | Chapter 3 — System design                 |
+| [Chapter4_Implementation.md](Chapter4_Implementation.md)                 | Chapter 4 — Implementation and deployment |
+| [Chapter5_Results_and_Evaluation.md](Chapter5_Results_and_Evaluation.md) | Chapter 5 — Results and evaluation        |
+| [Chapter6_Conclusion.md](Chapter6_Conclusion.md)                         | Chapter 6 — Conclusion                    |
 
 ### End matter
-| File | Section |
-|------|---------|
-| [References.md](References.md) | References |
-| [Appendix_A_Figures_and_Diagrams.md](Appendix_A_Figures_and_Diagrams.md) | Appendix A, Figures and Diagrams |
+
+| File                                                                               | Section                               |
+| ---------------------------------------------------------------------------------- | ------------------------------------- |
+| [References.md](References.md)                                                     | References                            |
+| [Appendix_A_Figures_and_Diagrams.md](Appendix_A_Figures_and_Diagrams.md)           | Appendix A, Figures and Diagrams      |
 | [Appendix_B_Database_Schema_Reference.md](Appendix_B_Database_Schema_Reference.md) | Appendix B, Database Schema Reference |

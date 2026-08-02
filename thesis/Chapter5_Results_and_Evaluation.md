@@ -89,9 +89,19 @@ Three metrics must not be conflated:
 
 High vignette accuracy does not imply every raw extracted claim is clinically precise. Runtime safety depends on governed PostgreSQL catalogs and verification; filtered claims mainly support GraphRAG explanation.
 
+<figure class="thesis-archify-figure">
+  <iframe src="figures/chapters/figure-5-1-eval-metrics-split.html" title="Figure 5.1 Evaluation metrics"></iframe>
+  <figcaption><strong>Figure 5.1.</strong> Separation of vignette recommendation accuracy, claim LLM precision, and strict structural precision (Section 5.2.4).</figcaption>
+</figure>
+
 #### Staged filtering (passes 0–8)
 
 We applied eight cumulative filter passes (`scraper/eval/filter_claims_for_quality.py`) and recorded structural quality after each step. **Table 5.0a** tracks corpus size and strict structural precision. **Table 5.0b** tracks LLM semantic precision across filter rounds. Reproducible JSON logs: `evaluation/reports/claim_filter_progression.json`, `auto_eval_20260729T094553Z.json`, `auto_eval_20260729T094630Z.json`.
+
+<figure class="thesis-archify-figure">
+  <iframe src="figures/chapters/figure-5-2-claim-filter-progression.html" title="Figure 5.2 Claim filter progression"></iframe>
+  <figcaption><strong>Figure 5.2.</strong> Claim corpus reduction and quality gates across filter passes 0–8 (Section 5.2.4).</figcaption>
+</figure>
 
 **Table 5.0a. Claim quality after each filter pass**
 
@@ -176,6 +186,11 @@ Residual rejects are mostly non-HF specialty drugs, soft guideline caveats, and 
 ### 5.3.1 Recommendation Accuracy
 
 Accuracy here means how often the system's structured recommendation matched what two independent cardiologists expected from guideline-concordant care. We evaluated 50 sample clinical cases drawn from treatment guidelines (`golden_cases.jsonl`). Each case was submitted as free text and processed through the full pipeline: patient intake, deterministic reasoning, hybrid retrieval, verification, and answer generation. Scoring used structured recommendation fields (drug class, action status, and primary safety flags), not free-form answer prose.
+
+<figure class="thesis-archify-figure">
+  <iframe src="figures/chapters/figure-5-3-vignette-eval.html" title="Figure 5.3 Vignette evaluation"></iframe>
+  <figcaption><strong>Figure 5.3.</strong> Golden vignette path from free-text cases to cardiologist-scored structured recommendation accuracy (Section 5.3.1).</figcaption>
+</figure>
 
 Table 5.1 summarizes the overall recommendation metrics.
 

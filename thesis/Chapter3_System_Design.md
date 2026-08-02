@@ -1,5 +1,7 @@
 # CHAPTER 3: SYSTEM DESIGN
 
+<link rel="stylesheet" href="figures/thesis-figures.css">
+
 ## 3.0 Research Purpose, Scope, and Approach
 
 ### 3.0.1 Purpose of the Study
@@ -104,25 +106,15 @@ The **application tier** is a FastAPI modular monolith. It orchestrates hybrid i
 
 The **data tier** uses several stores because no single database fits every access pattern. PostgreSQL holds governable rule catalogs, chat history, patient drafts, users, and audit events. Redis caches session slices, constraint lookups, rate limits, and repeated LLM response hashes. ChromaDB stores dense embeddings for semantic retrieval. Neo4j holds entity-relationship graphs for multi-hop clinical facts. S3-compatible object storage holds raw downloads and processed JSONL artifacts for reproducible pipeline runs. Ollama hosts local embedding and generation models.
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        PRESENTATION LAYER                             │
-│  Doctor Dashboard (React)  |  Admin Portal (React)  |  API Explorer   │
-└─────────────────────────────────────────────────────────────────────┘
-                                  │  HTTPS / SSE
-                                  ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│                         APPLICATION LAYER                            │
-│  Auth | Chat (SSE) | Intake | Reasoning | GraphRAG | Verification     │
-│  Dose | Dose Safety | Explanation | Governance Admin | Health        │
-└─────────────────────────────────────────────────────────────────────┘
-                                  │
-                                  ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│                           DATA LAYER                                 │
-│  PostgreSQL | Redis | ChromaDB | Neo4j | S3/LocalStack | Ollama      │
-└─────────────────────────────────────────────────────────────────────┘
-```
+<figure class="thesis-archify-figure">
+  <iframe src="figures/chapters/figure-3-1-architecture.html" title="Figure 3.1 System architecture"></iframe>
+  <figcaption><strong>Figure 3.1.</strong> Overall HF-CDSS runtime architecture (mono-app). Interactive duplicate: Appendix A, Figure A.1.</figcaption>
+</figure>
+
+<figure class="thesis-archify-figure">
+  <iframe src="figures/chapters/figure-3-2-datastores.html" title="Figure 3.2 Data stores"></iframe>
+  <figcaption><strong>Figure 3.2.</strong> Persistence layer: PostgreSQL governance catalogs, Neo4j, ChromaDB, and Redis. Appendix A, Figure A.5.</figcaption>
+</figure>
 
 A single backend container was chosen over microservices because deployment simplicity matters more than independent scaling at pilot load. Internal module boundaries preserve testability and allow future extraction of GraphRAG or ingestion workers if needed.
 
@@ -159,6 +151,16 @@ When required fields are present, GraphRAG prefetch starts asynchronously while 
 
 Finally, the explanation layer streams `answer_delta` tokens grounded in the verified recommendation and retrieved evidence, then emits `done`. Cards and safety statuses remain authoritative; narrative text remains explanatory.
 
+<figure class="thesis-archify-figure">
+  <iframe src="figures/chapters/figure-3-4-chat-workflow.html" title="Figure 3.4 Chat pipeline"></iframe>
+  <figcaption><strong>Figure 3.4.</strong> Chat message processing from dashboard input through backend stages to SSE clinical panel. Appendix A, Figure A.2.</figcaption>
+</figure>
+
+<figure class="thesis-archify-figure">
+  <iframe src="figures/chapters/figure-3-5-chat-sequence.html" title="Figure 3.5 Chat sequence"></iframe>
+  <figcaption><strong>Figure 3.5.</strong> Sequence of one chat turn (doctor, dashboard, API, services, Ollama). Appendix A, Figure A.7.</figcaption>
+</figure>
+
 ### 3.2.5. Knowledge Graph and Hybrid Retrieval Architecture
 
 The knowledge graph centers on heart-failure entities linked to GDMT drug classes and agents. Entity types include drugs, drug classes, diseases, laboratory concepts, and related clinical nodes. Relationship types include treats, contraindicated with, indicated for, interacts with, and related monitoring edges. At runtime, GraphRAG binds patient medication terms to graph nodes, retrieves neighboring facts, and merges graph-derived evidence with textual chunks.
@@ -166,6 +168,11 @@ The knowledge graph centers on heart-failure entities linked to GDMT drug classe
 Hybrid retrieval combines four complementary signals. HyDE expansion can turn a short clinician question into a hypothetical answer document before embedding, bridging vocabulary gaps. Dense ChromaDB search with BGE-M3 finds paraphrased guideline language. BM25 sparse search favors exact drug names and regulatory phrases. Neo4j neighborhood traversal surfaces multi-hop facts that may be split across chunk boundaries. Reciprocal Rank Fusion merges ranked lists without brittle hand-tuned score calibration. Optional reranking can refine the top pool when latency budgets allow.
 
 PostgreSQL rules provide executable enforcement. The graph and vector indexes provide evidentiary context for verification and explanation. This split is the architectural heart of the thesis: retrieval grounds language; rules govern safety.
+
+<figure class="thesis-archify-figure">
+  <iframe src="figures/chapters/figure-3-3-graphrag.html" title="Figure 3.3 GraphRAG"></iframe>
+  <figcaption><strong>Figure 3.3.</strong> GraphRAG hybrid retrieval (HyDE, multi-retriever fusion, reranking). Appendix A, Figure A.4.</figcaption>
+</figure>
 
 ### 3.2.6. Component Map of the Application Tier
 

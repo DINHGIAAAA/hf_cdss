@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "Evaluation Metric Separation",
+    "subtitle": "Three scores that must not be conflated (Section 5.2.4)",
+    "quality_profile": "showcase",
+    "viewBox": [1100, 520]
+  },
+  "stages": [
+    { "label": "Inputs" },
+    { "label": "Method" },
+    { "label": "Score" }
+  ],
+  "nodes": [
+    { "id": "vignettes", "type": "external", "label": "Golden vignettes", "sublabel": "50 HF cases", "stage": 0, "row": 0 },
+    { "id": "claims-raw", "type": "external", "label": "Claims corpus", "sublabel": "claims.jsonl", "stage": 0, "row": 1, "yOffset": 24 },
+    { "id": "chat-path", "type": "backend", "label": "Full chat pipeline", "sublabel": "intake + rules + RAG", "stage": 1, "row": 0 },
+    { "id": "filter-path", "type": "backend", "label": "Filter passes 1–8", "sublabel": "structural gates", "stage": 1, "row": 1, "yOffset": -24 },
+    { "id": "cardiologist", "type": "external", "label": "Expert review", "sublabel": "structured cards", "stage": 2, "row": 0, "tag": "94.0%" },
+    { "id": "auto-judge", "type": "backend", "label": "LLM auto-judge", "sublabel": "qwen2.5:7b sample", "stage": 1, "row": 2 },
+    { "id": "claim-prec", "type": "cloud", "label": "Claim precision", "sublabel": "safety-only KG", "stage": 2, "row": 2, "tag": "73.8%" },
+    { "id": "struct-prec", "type": "security", "label": "Strict structural", "sublabel": "pass 8 sample", "stage": 2, "row": 1, "tag": "100%" }
+  ],
+  "flows": [
+    { "id": "f1", "from": "vignettes", "to": "chat-path", "label": "free text", "variant": "emphasis" },
+    { "id": "f2", "from": "chat-path", "to": "cardiologist", "label": "Structured cards", "variant": "emphasis", "labelDy": 52 },
+    { "id": "f3", "from": "claims-raw", "to": "filter-path", "label": "batch" },
+    { "id": "f4", "from": "filter-path", "to": "struct-prec", "label": "heuristics", "variant": "security" },
+    { "id": "f5", "from": "claims-raw", "to": "auto-judge", "label": "stratified sample", "variant": "dashed" },
+    { "id": "f6", "from": "auto-judge", "to": "claim-prec", "label": "accept rate" }
+  ],
+  "cards": [
+    { "dot": "rose", "title": "Thesis reporting", "items": ["Vignette accuracy measures runtime CDSS cards", "Claim precision measures KG corpus quality", "Structural precision measures filter gates on a sample"] }
+  ]
+}
