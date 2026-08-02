@@ -12,23 +12,23 @@ That GPU matters for a practical reason. The system runs a local large language 
 
 ### 4.1.2. Software Stack and Why Each Piece Exists
 
-The backend is written in Python 3.11. Python was chosen because the scientific and medical-informatics ecosystem is mature, asynchronous networking is strong, and typed validation libraries such as Pydantic integrate cleanly with FastAPI. FastAPI is the web framework. It receives HTTP requests, validates JSON against schemas, and streams Server-Sent Events (SSE) to the browser. SSE is a simple one-way stream from server to client. It lets the doctor dashboard show a patient draft and recommendation cards while the conversational answer is still being written, which reduces perceived waiting time.
+The backend is written in Python. Python was chosen because the scientific and medical-informatics ecosystem is mature and asynchronous networking is strong. FastAPI is the web framework. It receives HTTP requests, validates data against schemas, and streams Server-Sent Events (SSE) to the browser. SSE is a simple one-way stream from server to client. It lets the doctor dashboard show a patient draft and recommendation cards while the conversational answer is still being written, which reduces perceived waiting time.
 
-PostgreSQL 15 stores the governed clinical catalogs: constraint rules, dose rules, interaction rules, GDMT policies, dose-safety warnings, chat history, and audit events. PostgreSQL is used here as the source of truth for safety. Anything that can block or approve therapy must live in a transactional database that administrators can review, approve, or retire.
+PostgreSQL stores the governed clinical catalogs: constraint rules, dose rules, interaction rules, GDMT policies, dose-safety warnings, chat history, and audit events. PostgreSQL is used here as the source of truth for safety. Anything that can block or approve therapy must live in a transactional database that administrators can review, approve, or retire.
 
-Redis 7 caches session data, rate-limit counters, and repeated language-model responses. Caching does not replace rules. It only speeds up repeated work such as loading the same constraint slice many times during a busy clinic hour.
+Redis caches session data, rate-limit counters, and repeated language-model responses. Caching does not replace rules. It only speeds up repeated work such as loading the same constraint slice many times during a busy clinic hour.
 
-Neo4j 5 stores the medical knowledge graph as nodes and relationships. GraphRAG uses Neo4j to answer multi-hop questions such as which drugs interact through a shared pathway. ChromaDB stores dense embeddings of evidence passages so that semantic search can find relevant paragraphs even when the doctor’s wording differs from the label text. LocalStack provides an S3-compatible object store during development. Raw FDA XML files and processed JSONL artifacts land in versioned buckets so pipeline runs remain reproducible.
+Neo4j stores the medical knowledge graph as nodes and relationships. GraphRAG uses Neo4j to answer multi-hop questions such as which drugs interact through a shared pathway. ChromaDB stores dense embeddings of evidence passages so that semantic search can find relevant paragraphs even when the doctor’s wording differs from the label text. Object storage provides versioned buckets for raw FDA files and processed artifacts so pipeline runs remain reproducible.
 
-Ollama hosts local models. Generation uses `qwen2.5:7b` for clinician-facing answers. Lightweight helpers such as HyDE expansion and verification prompts may use a smaller model such as `qwen2.5:1.5b`. Embeddings use `bge-m3`. Keeping inference local supports privacy-sensitive pilots and avoids per-token cloud costs.
+Ollama hosts local models. Generation uses a 7-billion-parameter instruction-tuned model for clinician-facing answers. Lightweight helpers such as HyDE expansion and verification prompts may use a smaller distilled model. Embeddings use a multilingual model optimized for retrieval. Keeping inference local supports privacy-sensitive pilots and avoids per-token cloud costs.
 
-The frontend uses Node.js 18 or later, React 18, and Vite. React builds interactive interfaces. Vite packages them quickly for development and production. Nginx sits in front of the stack as a reverse proxy: it serves the doctor dashboard, routes `/admin` to the governance portal, and forwards `/api` and SSE traffic to FastAPI.
+The frontend uses Node.js and React with a modern build tool for fast development and production builds. Nginx sits in front of the stack as a reverse proxy: it serves the doctor dashboard, routes admin traffic to the governance portal, and forwards API and streaming traffic to the backend.
 
 ### 4.1.3. Environment Setup
 
-Local setup follows a fixed order so developers do not fight missing databases. First the repository is cloned. Next a Python virtual environment is created and backend dependencies are installed from `requirements.txt`. Frontend packages install with `npm` inside the doctor-dashboard directory. Docker Compose then starts PostgreSQL, Redis, Neo4j, ChromaDB, LocalStack, and Ollama. Application settings load from `infrastructure/.env` using names prefixed with `HF_CDSS_` so development, Docker, and pipeline runs share one configuration vocabulary.
+Local setup follows a fixed order so developers do not fight missing databases. First the repository is cloned. Next the Python virtual environment is created and backend dependencies are installed. Frontend packages install inside the doctor-dashboard directory. Docker Compose then starts PostgreSQL, Redis, Neo4j, ChromaDB, object storage, and Ollama. Application settings load from environment variables so development, Docker, and pipeline runs share one configuration vocabulary.
 
-After containers are healthy, Ollama pulls the required models once. Model weights persist in a Docker volume, so later restarts do not re-download them. The FastAPI service can then start with Uvicorn. In development, reload mode restarts the API when Python files change. The Vite development server proxies `/api` to the backend so browser code can call the same relative paths used in production.
+After containers are healthy, Ollama pulls the required models once. Model weights persist in a Docker volume, so later restarts do not re-download them. The FastAPI service starts with its ASGI server. In development, reload mode restarts the API when Python files change. The Vite development server proxies API calls to the backend so browser code can call the same relative paths used in production.
 
 ## 4.2. Knowledge Construction Pipeline
 
@@ -36,15 +36,15 @@ After containers are healthy, Ollama pulls the required models once. Model weigh
 
 A clinical decision support system is only as trustworthy as its knowledge base. Manually typing thousands of label warnings into a database is slow and error-prone. The ingestion pipeline therefore automates four broad stages: acquire raw sources, load and normalize them, extract structured clinical artifacts, and store those artifacts into PostgreSQL, ChromaDB, and Neo4j.
 
-The orchestrator lives in `scraper/orchestration/run_ingestion_pipeline.py`. Operators can run the full pipeline or resume from a named step such as `kg_base`, `constraints`, `dose_rules`, `interaction_rules`, or `gdmt_policies`. Checkpoints record completed steps so a failed overnight job can continue without repeating successful work. Artifacts publish to the processed S3 bucket while local workspace files remain available for debugging.
+The orchestrator supports running the full pipeline or resuming from a named step such as knowledge-base foundation, constraint extraction, dose rules, interaction rules, or GDMT policies. Checkpoints record completed steps so a failed overnight job can continue without repeating successful work. Artifacts publish to the processed object-storage bucket while local workspace files remain available for debugging.
 
-Idempotency is a first-class design goal. Content hashes and on-disk LLM response caches under `data/heart_failure/.ingestion_llm_cache/` prevent identical prompts from being sent to the model again during threshold tuning. The flag `HF_CDSS_INGESTION_SKIP_DOWNLOAD=true` lets operators reprocess staged files without hitting DailyMed again. These mechanisms matter because pipeline iteration is frequent during research, and repeated cloud or local LLM calls would otherwise dominate cost and time.
+Idempotency is a first-class design goal. Content hashes and on-disk LLM response caches prevent identical prompts from being sent to the model again during threshold tuning. An environment flag lets operators reprocess staged files without re-downloading from upstream sources. These mechanisms matter because pipeline iteration is frequent during research, and repeated cloud or local LLM calls would otherwise dominate cost and time.
 
 ### 4.2.2. Acquisition: Bringing Sources Into the System
 
-Acquisition downloads authoritative documents and stores them unchanged. For FDA Structured Product Labels, `scraper/acquisition/download_sources.py` queries the DailyMed API, resolves a drug name to an SPL set identifier, and downloads the XML label. Guidelines from ESC, AHA/ACC, and HFSA arrive as PDF or HTML according to the sources registry. Interaction supplements may arrive as curated JSON or CSV entries registered alongside labels.
+Acquisition downloads authoritative documents and stores them unchanged. For FDA Structured Product Labels, the system queries the DailyMed API, resolves a drug name to an SPL set identifier, and downloads the XML label. Guidelines from ESC, AHA/ACC, and HFSA arrive as PDF or HTML according to the sources registry. Interaction supplements may arrive as curated JSON or CSV entries registered alongside labels.
 
-Keeping raw files immutable is deliberate. If a later parsing bug is discovered, operators can re-parse the same bytes without guessing whether the upstream website changed. Asynchronous HTTP with `httpx` downloads many labels concurrently, which shortens wall-clock time when the manifest contains dozens of GDMT-relevant agents.
+Keeping raw files immutable is deliberate. If a later parsing bug is discovered, operators can re-parse the same bytes without guessing whether the upstream website changed. Asynchronous HTTP downloads many labels concurrently, which shortens wall-clock time when the manifest contains dozens of GDMT-relevant agents.
 
 A practical limitation appears when local brand names or synonym spellings are missing from the acquisition registry. DailyMed then cannot resolve the product, and that drug never enters extraction. This gap is the same Vietnamese synonym problem later observed in chat intake evaluation. The implementation records registry coverage so operators know which agents still need mapping.
 
@@ -56,13 +56,13 @@ Each section receives a stable identifier, document provenance, and length stati
 
 ### 4.2.4. Chunking for Retrieval
 
-Chunking splits long sections into passages suitable for vector search. The chunker in `scraper/transform/chunk_sections.py` uses a sentence-aware window of about 512 tokens with overlap. It accumulates whole sentences until the budget is nearly full, then carries the last sentences into the next chunk. Overlap exists because a contraindication often spans two sentences: the first names the drug, the second states the lab threshold. A hard cut between those sentences would leave each chunk incomplete.
+Chunking splits long sections into passages suitable for vector search. The chunker uses a sentence-aware window of about 512 tokens with overlap. It accumulates whole sentences until the budget is nearly full, then carries the last sentences into the next chunk. Overlap exists because a contraindication often spans two sentences: the first names the drug, the second states the lab threshold. A hard cut between those sentences would leave each chunk incomplete.
 
 Good chunks improve GraphRAG later. Dense retrieval ranks passages by meaning. Sparse BM25 ranks passages by exact words. Both need coherent local context. Overly large chunks dilute relevance. Overly small chunks lose conditional language. The 512-token overlapping window is the engineering compromise used throughout evaluation.
 
 ### 4.2.5. Three-Tier Section Filtering
 
-Not every section in a drug label is clinically useful for heart-failure decision support. Storage instructions and packaging details rarely help GDMT reasoning. Sending every section to a language model would be expensive and slow. The section filter in `scraper/semantic/section_filter.py` therefore applies three tiers.
+Not every section in a drug label is clinically useful for heart-failure decision support. Storage instructions and packaging details rarely help GDMT reasoning. Sending every section to a language model would be expensive and slow. The section filter therefore applies three tiers.
 
 Tier one matches high-value headings with keywords such as dosage, warnings, contraindications, and drug interactions. Matching sections are kept immediately. Tier two embeds the title and opening text with BGE-M3 and compares them to prototype vectors for clinical section types. Scores at or above 0.52 are kept. Tier three reviews only the uncertain band from 0.40 to 0.52 with a short LLM keep-or-drop prompt. Scores below 0.40 drop without an LLM call. A hard cap of 400 borderline LLM calls per run bounds worst-case spend.
 
@@ -72,19 +72,19 @@ This cascade is the offline twin of hybrid chat intake. Fast deterministic metho
 
 Extraction converts kept text into objects the runtime can evaluate. Several specialized builders cooperate. Constraint rule extraction produces conditional avoid and caution statements. Dose rule extraction captures starting doses, target doses, renal bands, and titration schedules. Interaction extraction builds drug-set pairs with severity and management text. GDMT policy extraction encodes four-pillar coverage expectations for HFrEF. Dose-safety warning extraction captures label maxima that should fire when a planned dose exceeds safe limits for the patient’s renal band.
 
-The hybrid strategy is regex first, LLM second. High-frequency SPL phrasing is cheap to match with patterns. When patterns are sparse, `scraper/semantic/rule_builder.py` calls the local Ollama chat API with a JSON schema validated by Pydantic. Invalid JSON is rejected before it enters the artifact stream. Prompt hashes feed the ingestion cache so identical sections do not re-spend tokens on every rerun.
+The hybrid strategy is regex first, language model second. High-frequency SPL phrasing is cheap to match with patterns. When patterns are sparse, the system calls the local chat API with a schema-validated prompt. Invalid responses are rejected before they enter the artifact stream. Prompt hashes feed the ingestion cache so identical sections do not re-spend tokens on every rerun.
 
 Named entity recognition and relation linking attach drugs, classes, labs, and conditions to each claim. Evidence linking stores chunk identifiers so a later recommendation card can show the passage that motivated a rule. Deduplication collapses near-identical extractions from overlapping label sections.
 
 ### 4.2.7. Classification and Governance Gates
 
-Classification assigns deployability before rules reach clinicians. Safety tiers include `hard_block` for absolute contraindications, `usable_rules` for complete executable conditions, and `needs_condition_refinement` for drafts that parse but still need human clarification. Action types include avoid, consider with caution, consider, and continue. These labels map directly to recommendation card badges in the doctor dashboard.
+Classification assigns deployability before rules reach clinicians. Safety tiers include hard_block for absolute contraindications, usable_rules for complete executable conditions, and needs_condition_refinement for drafts that parse but still need human clarification. Action types include avoid, consider with caution, consider, and continue. These labels map directly to recommendation card badges in the doctor dashboard.
 
 Rules marked for refinement sync into PostgreSQL for admin review rather than disappearing. Runtime loaders ignore unfinished drafts until a clinical lead promotes them. This gate is essential. Automated extraction is powerful, but heart-failure safety cannot depend on unreviewed model guesses.
 
 ### 4.2.8. Synchronization to Runtime Stores
 
-The store stage upserts approved and draft catalogs into PostgreSQL, publishes processed JSONL to S3, and prepares artifacts for ChromaDB and Neo4j hydration. Backend bootstrap can pull processed artifacts on startup so a fresh container does not need to re-scrape DailyMed. Operators can also rebuild graph and vector indexes from `kg_base` without repeating acquisition when only embeddings or relationships need refresh.
+The store stage upserts approved and draft catalogs into PostgreSQL, publishes processed artifacts to object storage, and prepares artifacts for ChromaDB and Neo4j hydration. Backend bootstrap can pull processed artifacts on startup so a fresh container does not need to re-scrape DailyMed. Operators can also rebuild graph and vector indexes from the knowledge-base foundation step without repeating acquisition when only embeddings or relationships need refresh.
 
 PostgreSQL remains authoritative for executable rules. ChromaDB and Neo4j enrich explanation and verification. Redis is never treated as the long-term home of clinical truth. That separation keeps audit trails and admin workflows centered on one relational catalog.
 
@@ -92,77 +92,157 @@ PostgreSQL remains authoritative for executable rules. ChromaDB and Neo4j enrich
 
 ### 4.3.1. Modular Monolith Layout
 
-The backend is a modular monolith: one FastAPI process, many internal modules with clear boundaries. `app/main.py` wires routes and startup tasks. Domain packages under `app/modules/` include chat orchestration, clinical intake extraction, constraint building, dose calculation, dose safety, GraphRAG, reasoning, verification agents, explanation helpers, and datastore adapters. Schemas under `app/schemas/` define the contracts shared by SSE payloads, database mappings, and frontend TypeScript-facing JSON.
+The backend is a single FastAPI process organized as a modular monolith. The main entry point registers routes at startup and runs the bootstrap sequence. Route modules cover chat streaming, recommendations, clinical normalization and risks, dosing evaluation, medication safety checking, graph-augmented retrieval, evidence search, knowledge graph queries, LLM interaction, audit logging, authentication, health probes, metrics, and administrative governance. A central router assembles these modules under a versioned API prefix.
 
-This layout matches Chapter 3 requirements. Intake owns patient profile analysis. Reasoning owns GDMT and interaction decisions. Dose modules own titration plans. Constraint and dose-safety modules own alerts. GraphRAG owns evidence assembly. Explanation modules own bilingual card labels and narrative generation. Datastore adapters isolate SQL, Redis, Chroma, and Neo4j details so clinical logic stays readable.
+Core utilities provide configuration from environment variables, JWT encoding and role extraction, password hashing, and request middleware for rate limiting and request identification. Internal modules implement clinical intake extraction using regex, lexicon matching, and selective language-model merge; pure classification functions for normalization; binary risk flag extraction; constraint rule evaluation with a TTL cache; dose ceiling evaluation; FDA label dose planning; drug-drug interaction detection; the full recommendation pipeline; graph-augmented retrieval combining dense, sparse, and graph methods; negative evidence filtering; chunk-to-claim linking; evidence quality scoring; citation-to-chunk verification; a six-agent verification pipeline; card summarization and plain-language answer generation; chat orchestration with server-sent events; and a governance diff engine for bulk approval. Datastore adapters isolate SQL, Redis, vector, and graph details from clinical logic. Each module has a dedicated test file covering its public interface.
 
 ### 4.3.2. Chat Orchestration and SSE Event Order
 
-The streaming chat entry point is `stream_chat` in `app/modules/chat/service.py`. It turns one clinician message into an ordered series of SSE events. The order is intentional and clinically meaningful.
+The SSE pipeline is the primary clinical interaction surface. The stream function processes one clinician message into an ordered event stream. The sequence begins with authentication and conversation setup. Intake extraction merges extracted patient fields with prior draft and streams the draft immediately. A missing-field gate halts the pipeline if critical labs are absent. Otherwise, graph-augmented retrieval and rule evaluation run concurrently. After both complete, verification agents audit the recommendation and evidence. Deterministic card labels are merged with language-model summaries. Recommendation and verification events stream to the client, followed by incremental answer tokens and a final snapshot.
 
-First the service emits a status event acknowledging receipt and ensuring a conversation identifier exists. It appends the user message to history. It then extracts patient facts from the new message, merges them with any prior draft for that conversation, and builds a clinical state object that normalizes units and derives missing eGFR when creatinine, age, and sex are available. The merged draft is saved and streamed as `draft_ready`.
+The thread offload moves synchronous PostgreSQL rule evaluation off the event loop. Without it, a long constraint scan would block unrelated requests such as health checks or admin list queries. With it, concurrent API traffic is unaffected. GraphRAG prefetch starts as soon as the draft is saved so that total latency equals the maximum of reasoning time and retrieval time rather than their sum.
 
-Next a missing-field checker decides whether critical labs are absent for the inferred intent. If potassium is missing and an MRA decision is in scope, the pipeline short-circuits. It asks for the missing value instead of guessing. That behavior protects patients from silent unsafe recommendations.
+The fail-closed gate ensures the pipeline stops when critical labs are absent rather than emitting an unsafe recommendation based on incomplete information.
 
-When required fields are present, GraphRAG prefetch starts as an asynchronous task while deterministic recommendation building runs in a worker thread. The thread offload keeps the FastAPI event loop free for other API traffic during PostgreSQL rule evaluation. After both complete, verification agents audit the recommendation against hard blocks and retrieved evidence. Plain-language summaries and deterministic simplified card fields attach next. The service then emits `recommendation_ready` and `verification_ready` before generating the conversational answer.
+The intake pipeline is three-stage, as designed in Section 3.4.1.
 
-Answer generation streams `answer_delta` tokens grounded in the verified recommendation object. It does not invent a new dose status. A final `done` event carries the complete response payload for clients that prefer one snapshot at the end.
+**Stage 1 — Regex extraction.** Patterns cover:
+- Numeric labs: LVEF, eGFR, potassium, systolic blood pressure, heart rate, weight, INR
+- Vietnamese unit support: “kali máu 4.4”, “huyết ap 118/74”, “mạch 74 lần/phút”
+- Medication with dose and frequency
 
-This implementation encodes Osheroff’s timing principle in software: critical structured information arrives before narrative prose finishes.
+**Stage 2 — Semantic matching.** Embedding-based catalog lookup for brand names absent from the static lexicon. Thread-safe, Lock-protected cache avoids repeated embedding calls.
 
-### 4.3.3. Hybrid Clinical Intake
+**Stage 3 — Selective LLM merge.** A decision engine calls the LLM only when input is vague or conflicts exist; simple structured text skips this stage entirely. Prompt injection defense strips attack patterns before the LLM call. Retry logic uses exponential backoff.
 
-Clinical intake converts messy chat into typed fields. Regular expressions capture numeric patterns such as “EF 30%”, “eGFR 45”, and “K+ 4.2”. Lexicons map medication strings, including Vietnamese aliases and brand names, onto internal drug keys. Negation handling prevents “not on ACE inhibitor” from becoming an active medication. Unit normalization converts related lab expressions into comparable values.
+**Conversation context contribution:** Prior messages in the conversation are passed as context to extraction, so multi-turn chat accumulates a profile without forcing the doctor to retype lab values.
 
-When regex confidence is low, a selective LLM extraction path proposes additional fields. Merge prefers measured regex values over model proposals. That preference is a clinical epistemology encoded in code: instrument-like numbers beat probabilistic guesses. Conversation history can also contribute previously stated facts so multi-turn chat accumulates a profile instead of forcing the doctor to retype everything.
+**Output:** PatientProfile — legacy flat or nested domain. The LLM enriches with full_name, age, sex, weight_kg when extraction confidence is low.
 
-Attachments such as pasted notes or uploaded text files append to the extraction message. Clinical documents provided in the request merge into the patient object when present. The result is a `PatientProfile` rich enough for rule evaluation yet still traceable to the words the clinician typed.
+### 4.3.4. Clinical Normalization and Risk Extraction
 
-### 4.3.4. Deterministic Reasoning Engine
+Normalization functions (Section 3.4.2) are pure — no I/O, no randomness. Unit thresholds implemented:
 
-The reasoning service builds a structured recommendation object from PostgreSQL catalogs. It evaluates GDMT class coverage for ACE inhibitor or ARB or ARNI, beta blocker, MRA, and SGLT2 inhibitor. For each class it assigns a status such as start, continue, caution, or avoid. Constraint rules match patient risk flags and labs. Interaction rules compare normalized medication sets. Dose rules produce starting and target plans when the catalog contains complete rows for the agent and renal band.
+| Classification | Thresholds |
+|---|---|
+| Renal status | <15 kidney_failure · 15–29 severely_reduced · 30–44 moderately_reduced · 45–59 mildly_reduced · ≥60 preserved |
+| Potassium status | <3.5 low · 3.5–5.0 normal · 5.0–5.3 elevated · ≥5.3 high |
+| Blood pressure status | <90 hypotension · 90–99 low · 100–130 acceptable · >130 elevated |
+| Heart rate status | <60 bradycardia · ≤100 acceptable · >100 tachycardia |
 
-No language model sits inside this critical path. Reproducibility and auditability require that the same patient state yield the same structured statuses. GraphRAG may later explain why a status appeared, but it cannot flip a hard block to an approval.
+Normalization applies whitespace trimming and lowercase normalization to comorbidities.
 
-### 4.3.5. GraphRAG Service Implementation
+Risk extraction (Section 3.4.3) feeds the constraint builder. Tests verify all flag logic, including the ckd_history preservation invariant: when CKD appears in comorbidities but eGFR is not in a reduced band, ckd_history is set but renal_impairment is not — the comorbidity context is preserved without double-counting the risk.
 
-GraphRAG assembly lives mainly in `app/modules/graphrag/service.py` with helpers for HyDE expansion, query decomposition, BM25 indexing, RRF fusion, and optional reranking.
+### 4.3.5. Constraint Builder Implementation
 
-Query construction collects terms from the clinician message, the patient profile, and clinical state. If the query is short or ambiguous, HyDE may generate a hypothetical answer document and embed that document instead of the raw short question. The purpose is vocabulary bridging: a physician typing “Start MRA?” should still retrieve passages that discuss spironolactone, eplerenone, potassium, and renal monitoring.
+Constraint building follows three steps:
 
-Dense retrieval queries ChromaDB for nearest evidence chunks. Sparse BM25 retrieval favors exact drug names and regulatory phrases. Neo4j neighborhood queries gather multi-hop graph facts around matched drugs and conditions. Reciprocal Rank Fusion merges the ranked lists with a stable formula that rewards passages appearing highly in more than one list. Optional semantic reranking can reorder the fused top candidates when latency budgets allow.
+1. **Load approved rules** from PostgreSQL. TTL cache (5 min) reduces repeated DB reads. On DB error: stale cache is served if available; empty list is returned if no prior cache exists. This fail-stale design prevents cache poisoning while maintaining availability.
+2. **Build constraints** by iterating over rules; match when every risk_name in the rule is present AND at least one severity matches the patient’s band. Result is a set of drug-class and action tuples.
+3. **Cache management:** invalidation called synchronously from admin approve/retire routes.
 
-Metadata filters may restrict candidates by drug class or chunk type when clinical state already focuses the conversation. Quality scoring and evidence filtering remove weak or off-scope chunks before they reach the explanation model. Citation helpers attach source links so the Evidence panel can open DailyMed or guideline pages.
+Tests verify rule loading, cache hit behavior, stale cache on DB error, empty list on fresh DB error, and constraint firing for MRA, RAAS, and beta blocker risk profiles.
 
-BM25 indexes rebuild in memory on backend startup from published chunk metadata. That choice favors low query latency over continuous incremental updates. After a knowledge refresh, restarting or reloading the backend rebuilds the sparse index from the new artifacts.
+### 4.3.6. Dose Calculation and Dose Safety Implementation
 
-### 4.3.6. Verification Agents
+Dose calculation reads structured rules from the PostgreSQL governance catalog. Given a patient and a drug, it selects the matching eGFR band and returns a dose plan with start dose, target dose, titration steps, and rationale. If the catalog row is incomplete, the function returns no fabricated number.
 
-Verification runs after recommendation and GraphRAG complete. Agents check consistency questions that neither rules nor retrieval alone fully cover. Does a hard block fire while the narrative would sound permissive? Did retrieval return any evidence for cited claims? Do recommended drugs match the normalized medication list? Lightweight models may assist with phrasing checks, but fail-closed hard blocks still come from deterministic catalogs.
+Dose safety evaluation iterates all approved warning rules. For each rule:
+- Drug key matching: rule target medications intersect patient’s medication list
+- Condition evaluation: each condition group supports operators always, missing, present, lt, lte, gt, gte, missing_or_lt, missing_or_lte
+- Severity resolution: highest applicable severity from severity_rules chain (critical > high > moderate > low)
 
-Verification results stream to the UI as badges and structured payloads. They give clinicians a second signal besides the recommendation cards themselves.
+Tests verify that digoxin with reduced renal function triggers a critical warning. Tests also verify graceful degradation when the database is unavailable.
 
-### 4.3.7. Card Summarizer and Answer Generation
+### 4.3.7. Medication Safety — Interaction Checking
 
-The card summarizer maps structured fields to Vietnamese and English plain-language labels without calling an LLM. Drug class codes become readable phrases. Status codes become badge text. Because this mapping is deterministic, cards stay stable across language switches and do not flicker when narrative tone changes.
+Interaction checking normalizes the patient’s medication list through the drug normalization pipeline before comparing against approved interaction pairs. Tests verify that triple RAAS (ACE + ARB), RAAS + MRA hyperkalemia, and anticoagulant + antiplatelet bleeding interactions all fire with correct warning IDs.
 
-Answer generation then writes a clinician-facing explanation grounded in the verified recommendation and retrieved evidence. Streaming tokens update the chat thread. The architectural rule remains constant: cards and safety statuses are authoritative; prose is explanatory.
+Tests confirm that when a recommendation is built, the resulting objects carry safety warning IDs from both dose safety and interaction checks, and the warnings list is non-empty for affected classes.
 
-### 4.3.8. Persistence, Caching, and Audit
+### 4.3.8. Reasoning Service Implementation
 
-Patient drafts, messages, and recommendation artifacts persist through datastore adapters. Redis can cache drafts and idempotent responses so repeated identical requests do not recompute everything. Audit events record missing-field stops, recommendation outcomes, and governance actions. These logs support later clinical review and debugging without reading raw application logs alone.
+The reasoning service orchestrates nine pipeline steps in order. It normalizes the patient, extracts risk flags, builds constraints (thread-offloaded to avoid blocking), evaluates dose safety warnings from the cache, checks interactions against a normalized medication list, loads GDMT policies, generates per-pillar recommendations, builds dose plans from FDA label data, and computes an overall status of blocked, approved with warnings, or approved.
+
+The overall_status logic: **blocked** if any avoid constraint or any critical warning; **approved_with_warnings** if any risk or warning is present; **approved** otherwise. Governance version strings are attached to the response, enabling post-hoc reconstruction of which catalog generation produced a given result.
+
+### 4.3.9. GraphRAG and Evidence Retrieval Implementation
+
+Query construction collects terms from the clinician message, patient profile, and clinical state (Section 3.4.11). Query decomposition may emit sub-queries for complex turns.
+
+The retrieval pipeline begins with query term collection from the message, patient profile, and clinical state. Optional HyDE expansion enriches short queries. Dense retrieval via BGE-M3 embeddings, sparse BM25 keyword matching, and Neo4j multi-hop neighborhood queries run in parallel. Reciprocal Rank Fusion merges candidates, which then pass through evidence filtering and clinical entity boosting before ranking.
+
+BM25 indexes rebuild in memory at backend startup from published chunk metadata. This favors low query latency at the cost of requiring a restart after knowledge refresh.
+
+Evidence filtering drops chunks where the score falls below 0.40, the section belongs to an irrelevant category such as contact or packaging information, or the text lacks any patient-specific entity such as medication names, lab terms, or condition names. Constraint-pinned chunks bypass this filter entirely. When fewer than the minimum results threshold remain, fallback chunks are included to reach the top_k floor.
+
+### 4.3.10. Verification Agents Implementation
+
+Six agents run after both RecommendationResponse and GraphRAGContextResponse are available. Each agent produces a typed verdict:
+
+- **Safety agent**: Fails if any avoid constraint is present and the narrative does not explicitly block. Warns if caution constraints fire.
+- **Missing data agent**: Warns if any missing_* risk flag is present and the recommendation affected that drug class.
+- **Evidence agent**: Fails if evidence_chunks is empty.
+- **Guideline alignment agent**: Passes if all GDMT pillar statuses are within guideline-allowed bounds.
+- **Citation validator agent**: Validates citations against retrieved chunks; sets citation status.
+- **Final reviewer agent**: Aggregates verdicts — final verdict is fail if any agent fails, warning if any warns, else pass.
+
+Tests verify both graph facts and evidence chunks appear in the GraphRAG response. Tests confirm all six agents produce results. Tests verify final verdict and citation status range.
+
+### 4.3.11. Citation Validation Implementation
+
+Citation validation cross-checks each constraint’s evidence_ref (a chunk ID) against the retrieved evidence_chunks list. Matched constraints gain a CitationSupport object with evidence_refs, source_links constructed with page fragments, evidence_verdict (supported / weakly_supported / unsupported), and confidence score (0.0–1.0).
+
+Tests verify supported citations carry evidence references and page fragments with confidence greater than zero.
+
+### 4.3.12. Explanation and Card Summarizer Implementation
+
+Deterministic card summarizer maps structured fields to Vietnamese and English labels without LLM calls. The merge function fills in LLM-generated summaries where available, falling back to deterministic for each item independently. The parse function ignores drug classes not in the recommendation.
+
+LLM answer service:
+- Attaches plain language summaries — async, calls Ollama with JSON-schema prompt; response cached in Redis with 24-hour TTL keyed by recommendation hash
+- Falls back to structured plain_language_summary when LLM is disabled or unavailable
+- Compacts recommendation payload to fit the context window
+
+Tests verify Vietnamese deterministic output contains ARNI/RAAS and excludes placeholder text. Tests verify no language model call is made when completions are disabled.
+
+### 4.3.13. Governance and Admin API Implementation
+
+Governance diff engine compares before and after states, returning a list of Change objects with path, change_type (added/removed/modified), before_value, and after_value. Separate field lists cover constraints, dose rules, interactions, GDMT policies, and dose safety warnings.
+
+**Status transition enforcement** (Section 3.4.17): Tests verify HTTP 400 on invalid draft-to-retired transitions (must pass through approved first).
+
+**Cache invalidation:** invalidation called synchronously from every approve/retire route, ensuring the next chat request loads fresh rules.
+
+**Bulk approve:** dry-run mode available so clinical leads can preview what would be approved before committing.
+
+### 4.3.14. Auth and Security Implementation
+
+JWT encoding: 15-minute expiry, HS256, payload with user_id, roles, and expiry. Both cookie and bearer token modes supported.
+
+Production hardening:
+- API key required on all unversioned chat paths; deprecated without API key returns 401
+- Request ID propagated on success and error responses
+- PHI not echoed in validation errors (only field names)
+- Degraded dependency state returns HTTP 503
+- Rate limiting: sliding window on chat and chat/stream endpoints
+- Prometheus metrics exposed at /metrics
+- Bearer JWT accepted as fallback authentication for clinical routes
+
+Token revocation: inactive users rejected even with a valid signature. Login rate limiting: sliding window tracked in middleware; blocks after N failures within the window.
 
 ## 4.4. Frontend Implementation
 
 ### 4.4.1. Application Structure
 
-The frontend monorepo under `frontend/` contains the doctor dashboard, the admin portal, and shared packages for API clients and display helpers. The doctor dashboard is the primary clinical surface. It includes chat runtime components, a clinical side panel, conversation sidebar controls, evidence browsing, and bilingual message catalogs.
+The frontend monorepo contains the doctor dashboard, the admin portal, and shared packages for API clients and display helpers. The doctor dashboard is the primary clinical surface. It includes chat runtime components, a clinical side panel, conversation sidebar controls, evidence browsing, and bilingual message catalogs.
 
 State for conversations can persist locally so a clinician can return to a case. Creating a conversation captures a patient name and opens a welcome message. Deleting or clearing a conversation removes local history and returns the UI to a clean case setup when needed. These controls sound small, but they matter for usability during demonstrations and multi-case review sessions.
 
 ### 4.4.2. SSE Client and Progressive Rendering
 
-The client module that consumes chat streams parses SSE frames and dispatches them by event type. When `draft_ready` arrives, the clinical panel can show extracted vitals and medications. When `recommendation_ready` arrives, GDMT cards render. When `verification_ready` arrives, verification badges update. Answer tokens append to the assistant message as they stream.
+The client module that consumes chat streams parses SSE frames and dispatches them by event type. When the patient draft arrives, the clinical panel can show extracted vitals and medications. When recommendations arrive, GDMT cards render. When verification data arrives, badges update. Answer tokens append to the assistant message as they stream.
 
 Progressive rendering is not cosmetic. It implements the same safety-first ordering as the backend. A doctor can begin reading structured advice before the full paragraph finishes, which is valuable on rounds where seconds matter.
 
@@ -172,7 +252,7 @@ The clinical panel shows patient context, recommendation cards, dose plans when 
 
 ### 4.4.4. Language Switching
 
-`LanguageProvider` stores the preferred locale, updates accessibility attributes, and supplies translation functions to components. Switching between Vietnamese and English regenerates card labels and UI chrome. Conversation identifiers and structured patient state remain unchanged. Because simplification is deterministic and cheap, language switching stays under two seconds in evaluation without re-running GraphRAG or reasoning.
+A language provider stores the preferred locale, updates accessibility attributes, and supplies translation functions to components. Switching between Vietnamese and English regenerates card labels and UI chrome. Conversation identifiers and structured patient state remain unchanged. Because simplification is deterministic and fast, language switching completes without re-running retrieval or reasoning.
 
 ### 4.4.5. Admin Portal Implementation
 
@@ -182,7 +262,7 @@ Admin workflows close the loop with the ingestion pipeline. Extraction can draft
 
 ### 4.4.6. Admin Approve and Retire Flow
 
-When a clinical lead opens a draft constraint in the admin portal, the UI shows the condition object, rationale, linked evidence, and current governance status. Approving the record updates PostgreSQL and can invalidate Redis caches that held older catalog slices. Retiring a rule keeps historical rows for audit but removes them from runtime loaders. Editing a condition may move a rule from `needs_condition_refinement` to `usable_rules` after validation. These operations sound administrative, yet they are the operational heart of maintainability: the chat service never needs a code deploy merely because a label added a new potassium warning.
+When a clinical lead opens a draft constraint in the admin portal, the UI shows the condition object, rationale, linked evidence, and current governance status. Approving the record updates PostgreSQL and can invalidate caches that held older catalog slices. Retiring a rule keeps historical rows for audit but removes them from runtime loaders. Editing a condition may move a rule from the refinement-needed tier to the usable tier after validation. These operations sound administrative, yet they are the operational heart of maintainability: the chat service never needs a code deploy merely because a label added a new potassium warning.
 
 Version diffs and detail panes help reviewers see what changed between pipeline runs. Condition panels surface structured predicates that would otherwise hide inside JSON. Catalog list pages use short clinical titles with technical identifiers kept secondary so reviewers scan by drug and action rather than by hash strings.
 
@@ -204,7 +284,7 @@ Volumes persist database files, model weights, and object-store data across rest
 
 ### 4.5.2. Nginx Routing
 
-Nginx terminates HTTP and routes by path. The doctor dashboard is served at the site root. The admin portal is served under `/admin`. API and SSE traffic under `/api` proxy to FastAPI with buffering disabled so streams flush promptly. A single origin simplifies browser security by avoiding cross-origin complexity in production.
+Nginx terminates HTTP and routes by path. The doctor dashboard is served at the site root. The admin portal is served under a dedicated path. API and streaming traffic proxy to the backend with buffering disabled so streams flush promptly. A single origin simplifies browser security by avoiding cross-origin complexity in production.
 
 ### 4.5.3. Configuration Management
 
@@ -216,25 +296,206 @@ Local Ollama was preferred over cloud LLM APIs to keep vignettes on premises, co
 
 ## 4.6. Testing
 
-### 4.6.1. Testing Philosophy
+### 4.6.1. Test Philosophy
 
-Testing follows the hybrid architecture. Deterministic modules must pass without depending on model randomness. Generative components are mocked in continuous integration so GPU hardware is not required for every pull request. Clinical accuracy still needs cardiologist review, reported in Chapter 5, because vignette judgment is not fully automatable.
+The test suite follows the same authority separation as the production system. Deterministic modules — normalization, constraint matching, dose evaluation, clinical classification — are unit-tested with no mocks. Their correctness depends only on their input, making failures fast and reproducible. Generative components — LLM extraction, LLM summarization, verification agents — are mocked in CI so GPU hardware is not required for every pull request. Clinical accuracy of recommendations on vignettes still requires cardiologist review (Chapter 5), because judgment about therapeutic trade-offs is not fully automatable.
 
-### 4.6.2. Unit Tests
+The test infrastructure is designed so that all 53 test files run without live PostgreSQL, Redis, ChromaDB, Neo4j, or Ollama instances. Fixture data lives in the fixtures directory. Session-level monkey-patching isolates the application from external services. This enables developers to run the full suite on a laptop.
 
-Unit tests cover card summarizer mappings, intake merge preference for measured values, negation detection, eGFR derivation, constraint matching, dose renal-band selection, RRF ranking invariants, and JWT role checks on admin routes. These tests fail fast when a safety mapping or merge policy changes accidentally.
+### 4.6.2. Test Infrastructure
 
-### 4.6.3. Integration Tests
+The test setup establishes the test environment with the following mechanisms:
 
-Integration tests drive the chat pipeline with mocked Ollama responses. They assert that a typical HFrEF vignette produces a patient draft and recommendation, that SSE events arrive in the required order, and that missing potassium suppresses recommendation emission when MRA evaluation is required. GraphRAG tests use fixture embeddings to verify fusion and filtering behavior.
+**Session fixtures:**
+- Authenticated test client with API key header
+- Unauthenticated client for testing auth failures
 
-### 4.6.4. Pipeline Tests
+**Auto-use fixtures (every test):**
+- Configures test auth and patches session dependencies
+- Disables HyDE retrieval in tests
+- Stubs LLM extraction with a no-op except for intake-specific test files
+- Resets in-memory caches before and after each test
+- Isolates session clients by clearing cookies between tests
 
-Ingestion tests check section-filter tier boundaries, hard-block classification for ACE inhibitor and ARNI washout patterns, PostgreSQL upsert idempotency, and cache invalidation after admin approval. A data-quality report compares catalog counts with golden baselines so silent pipeline regressions become visible.
+**Helper fixtures:**
+- Standard HFrEF patient with typical lab values and comorbidities
+- API path helper that adds the versioned prefix
 
-### 4.6.5. Frontend Tests
+**Dependency isolation:**
+- Fakes bootstrap completion
+- Patches GraphRAG loaders to return sample data
+- Patches rule readers to return fixture data
+- Patches datastore status to return healthy responses
+- Patches chat persistence to use in-memory structures instead of PostgreSQL
 
-Frontend tests cover SSE frame parsing, language preference persistence, and recommendation card fallbacks when simplified fields are absent. Recorded SSE fixtures replay progressive panel updates without a live backend.
+**Fixture data:**
+- Sample constraint rule rows for tests
+- Sample dose safety warning rules with condition-based triggers
+
+### 4.6.3. Unit Tests — Clinical Intake and Normalization
+
+**Intake extraction tests:**
+
+| TC | Input | Expected output |
+|----|-------|----------------|
+| TC-I-01 | Full Vietnamese patient description with labs, vitals, medications, and allergy | LVEF, eGFR, potassium, blood pressure, heart rate extracted; metoprolol dose and frequency parsed; allergy recorded |
+| TC-I-02 | No CKD, no diabetes, no spironolactone, NKDA | Comorbidities empty; spironolactone not in medications; no known drug allergies |
+| TC-I-03 | Taking Entresto and Farxiga | Current medications normalized correctly |
+| TC-I-04 | Active bleeding today | Red flag for active bleeding present |
+| TC-I-05 | Structured input with all required fields | Language model extractor not invoked |
+| TC-I-06 | Vague request with mock language model | Patient identity populated; pattern-extracted values override model guesses |
+
+**Normalization tests:**
+
+| TC | Classification | Input | Expected |
+|----|----------|-------|---------|
+| TC-N-01 | Heart failure type | 40 | HFrEF |
+| TC-N-01 | Heart failure type | 45 | HFmrEF |
+| TC-N-01 | Heart failure type | 55 | HFpEF |
+| TC-N-01 | Heart failure type | None | unknown |
+| TC-N-02 | Renal status | 12 | kidney failure |
+| TC-N-02 | Renal status | 28 | severely reduced |
+| TC-N-02 | Renal status | 38 | moderately reduced |
+| TC-N-02 | Renal status | 55 | mildly reduced |
+| TC-N-02 | Renal status | 90 | preserved |
+| TC-N-03 | Potassium status | 3.2 | low |
+| TC-N-03 | Potassium status | 4.9 | normal |
+| TC-N-03 | Potassium status | 5.2 | elevated |
+| TC-N-03 | Potassium status | 5.5 | high |
+| TC-N-04 | Blood pressure status | 88 | hypotension |
+| TC-N-04 | Blood pressure status | 120 | acceptable |
+| TC-N-05 | Polypharmacy | Five medications | True |
+| TC-N-05 | Polypharmacy | Empty list | False |
+| TC-N-06 | Normalize patient | " Chronic_Kidney Disease " | "chronic kidney disease" in normalized comorbidities |
+
+### 4.6.4. Unit Tests — Risk Extraction
+
+| TC | Patient profile | Expected risk flags |
+|----|----------------|--------------------|
+| TC-R-01 | eGFR=28, K=5.6, SBP=88, HR=55, five medications, diabetes | Renal impairment, hyperkalemia, hypotension, bradycardia, polypharmacy, diabetes |
+| TC-R-02 | No LVEF provided | Missing LVEF flag in risk names |
+| TC-R-03 | LVEF=35 only | Renal impairment not present; hyperkalemia not present; missing eGFR, potassium, blood pressure, heart rate in risk names |
+| TC-R-04 | LVEF=35, eGFR=70, CKD comorbidity | CKD history present; renal impairment not present |
+
+### 4.6.5. Unit Tests — Patient Schema
+
+| TC | Payload shape | Assertions |
+|----|-------------|-----------|
+| TC-S-01 | Legacy flat fields | All flat fields map via computed properties |
+| TC-S-02 | Nested fields with demographics and labs | Patient identity populated; eGFR and medications correctly parsed |
+
+### 4.6.6. Unit Tests — Drug Normalization and Evidence Linking
+
+| TC | Call | Expected |
+|----|------|---------|
+| TC-D-01 | Resolve "Jardiance" | empagliflozin |
+| TC-D-01 | Resolve "entresto" | sacubitril and valsartan |
+| TC-D-02 | Expand drug search terms for "entresto" | Set includes both brand name and generic form |
+| TC-D-03 | Find chunk for matching document, section, and text | Returns matched chunk with correct document prefix |
+| TC-D-04 | Enrich recommendation evidence | Recommendation evidence field contains the linked chunk ID |
+| TC-D-05 | Prioritize context chunks with high linked score | Linked chunk appears first in evidence chunks |
+
+### 4.6.7. Unit Tests — Constraint Builder
+
+| TC | Patient | Expected |
+|----|---------|---------|
+| TC-C-01 | Any | Returns list of constraint rules; each has rule identifier |
+| TC-C-02 | — | Call load twice; database read function called exactly once |
+| TC-C-03 | — | Database errors after first successful load; second call returns cached result |
+| TC-C-04 | — | Database errors with no prior cache; returns empty list |
+| TC-C-05 | eGFR=25, potassium=4.8 | MRA avoid constraint fires |
+| TC-C-06 | eGFR=80, potassium=5.2, systolic BP=96 | ARNI/ACEi/ARB caution constraint fires |
+| TC-C-07 | Heart rate=55 | Beta blocker caution constraint fires |
+| TC-C-08 | eGFR=75, potassium=4.2, BP=118, HR=72 | No constraints |
+
+### 4.6.8. Unit Tests — Dose Safety and Interaction Checking
+
+| TC | Patient medications | Expected warnings |
+|----|--------------------|--------------------|
+| TC-DS-01 | Digoxin, spironolactone, furosemide | Digoxin renal review, MRA renal potassium review, loop diuretic lab monitoring present |
+| TC-DS-02 | Same as above | Any warning with critical severity |
+| TC-DS-03 | Any | Database unavailable returns empty list |
+| TC-DS-04 | Lisinopril, losartan | ACEi-ARB combination warning fires |
+| TC-DS-05 | Lisinopril, spironolactone | RAAS plus MRA hyperkalemia monitoring warning fires |
+| TC-DS-06 | Apixaban, aspirin | Anticoagulant-antiplatelet bleeding warning fires |
+| TC-DS-07 | Lisinopril, spironolactone, digoxin | MRA recommendation carries appropriate warnings |
+
+### 4.6.9. Unit Tests — Recommendation Engine
+
+| TC | Patient profile | Expected |
+|----|----------------|---------|
+| TC-REC-01 | LVEF=30, eGFR=28, K=5.4, SBP=92, HR=58, CKD | Overall status blocked; risk flags include renal impairment, hyperkalemia, hypotension, bradycardia; MRA status avoid; SGLT2i status consider with caution |
+| TC-REC-02 | LVEF=32, eGFR=78, K=4.4, SBP=118, HR=74, hypertension | Overall status approved; no risk flags; no constraints; all GDMT classes status consider |
+| TC-REC-03 | LVEF=55 | Overall status approved; heart failure type is HFpEF; all GDMT classes status review |
+| TC-REC-04 | LVEF=30, SBP=96; missing eGFR, K, HR | Overall status approved with warnings; risk flags include missing eGFR, potassium, heart rate; all GDMT classes status consider with caution |
+
+### 4.6.10. Unit Tests — Evidence Filter and Citation Validation
+
+| TC | Setup | Expected |
+|----|-------|---------|
+| TC-E-01 | Patient with eGFR, spironolactone, CKD | Patient entities include spironolactone, eGFR, hyperkalemia |
+| TC-E-02 | Three chunks: renal, contact, generic | With top_k=1 returns only renal chunk |
+| TC-E-03 | Chunk with pinned flag, low score | Passes evidence filter regardless of score |
+| TC-E-04 | Two chunks: renal and generic; min_results=2 | Both chunks included; renal first |
+| TC-CV-01 | Recommendation with evidence reference; matching chunk | Citations validated; verdict is supported or weakly supported |
+| TC-CV-02 | Chunk with source URL, page number | Page fragment constructed correctly |
+| TC-CV-03 | Any supported citation | Confidence score greater than zero |
+
+### 4.6.11. Unit Tests — Card Summarizer and Explanation
+
+| TC | Input | Expected |
+|----|-------|---------|
+| TC-CS-01 | Vietnamese language; ARNI consider item | Output contains ARNI or RAAS; no placeholder text |
+| TC-CS-02 | Vietnamese; card details | All lines plain language; no technical phrases |
+| TC-CS-03 | Language model response with unknown drug class | Ignored; output contains only known classes |
+| TC-CS-04 | Two-item recommendation; LLM summary only for first | Second item falls back to deterministic; no empty summary |
+| TC-CS-05 | Item with plain language summary populated | Summary included verbatim |
+| TC-CS-06 | Compact recommendation payload | Output includes plain language summary |
+| TC-CS-07 | Language model disabled | Returns result with plain language summary; no model call made |
+| TC-CS-08 | Mock language model JSON with RAAS/ARNI summary | Mapped summary attached to correct drug class |
+
+### 4.6.12. Integration Tests — Chat and SSE
+
+| TC | Request | Expected |
+|----|---------|---------|
+| TC-CH-01 | Message with LVEF, eGFR, K, no SBP | HTTP 200; status indicates missing information; missing fields includes systolic blood pressure |
+| TC-CH-02 | Same message, stream endpoint | SSE body contains draft, missing check, answer, and done events |
+| TC-CH-03 | Nested patient payload with weight | Weight preserved in patient draft |
+| TC-CH-04 | Patient taking Entresto and Farxiga | Medications normalized correctly; conditions is empty |
+| TC-CH-05 | Full chat flow | History endpoint returns messages after stream completes |
+
+### 4.6.13. Integration Tests — GraphRAG and Verification
+
+| TC | Request | Expected |
+|----|---------|---------|
+| TC-G-01 | HFrEF patient with multiple conditions | HTTP 200; graph facts and evidence chunks non-empty; retrieval sources include relationships and chunks |
+| TC-G-02 | Same patient | All six verification agents produce results |
+| TC-G-03 | Same patient | Final verdict is pass, warning, or fail |
+| TC-G-04 | Same patient | Citation status is strong, weak, or missing |
+
+### 4.6.14. Integration Tests — Admin and Governance
+
+| TC | Action | Expected |
+|----|--------|---------|
+| TC-AD-01 | Request without token | HTTP 401 |
+| TC-AD-02 | Login as clinical lead; get active constraints | HTTP 200; response is a list |
+| TC-AD-03 | Login as viewer; get all constraints | HTTP 403 |
+| TC-AD-04 | Login as lead; get users | HTTP 403 |
+| TC-AD-05 | Bearer token without API key; recommend | HTTP 200; valid recommendation response |
+| TC-AD-06 | Login as lead; approve a constraint | HTTP 200; status is approved |
+| TC-AD-07 | Attempt invalid status transition | HTTP 400 |
+| TC-AD-08 | Diff map with changed field | One change reported with correct path and type |
+| TC-AD-09 | Diff map with identical payload | Empty list returned |
+
+**Test users for auth testing:**
+
+| Username | Roles | Test purpose |
+|----------|-------|-------------|
+| lead | clinical_lead | Rule approval, governance read |
+| viewer | viewer | Read-only active catalogs only |
+| adminonly | admin | Full access including user management |
+
+All seed users use the same test password. Tests verify password verification against seeded bcrypt hashes.
 
 ## 4.7. Operations and Maintenance
 
@@ -258,29 +519,29 @@ Day-to-day clinical use needs little pipeline work. Doctors create conversations
 
 ### 4.8.1. Pipeline Extract Phases in Practice
 
-The extract stage is not a single script. After a knowledge-base foundation (`kg_base`) produces sections, chunks, entities, and relationships, specialized phases build each catalog family. The constraints phase turns claims into conditional avoid and caution rules. The dose-rules phase builds starting and target dose objects with renal predicates. The dose-safety-warnings phase derives numeric maxima that later flag unsafe planned doses. The interaction-rules phase normalizes drug-pair claims into severity-tagged sets. The GDMT-policies phase encodes four-pillar coverage expectations. A finalize phase validates identifiers, repairs provenance links when needed, and prepares promotion packages for store.
+The extract stage is not a single script. After a knowledge-base foundation produces sections, chunks, entities, and relationships, specialized phases build each catalog family. The constraints phase turns claims into conditional avoid and caution rules. The dose-rules phase builds starting and target dose objects with renal predicates. The dose-safety-warnings phase derives numeric maxima that later flag unsafe planned doses. The interaction-rules phase normalizes drug-pair claims into severity-tagged sets. The GDMT-policies phase encodes four-pillar coverage expectations. A finalize phase validates identifiers, repairs provenance links when needed, and prepares promotion packages for store.
 
-Operators often re-run only one phase. For example, after improving the interaction prompt, they resume from `interaction_rules` without re-downloading DailyMed or re-embedding every section. Checkpoint files record which step finished, so interrupted overnight jobs continue cleanly. This phased design is what makes a research pipeline operable rather than a one-shot notebook.
+Operators often re-run only one phase. For example, after improving the interaction prompt, they resume from that phase without re-downloading DailyMed or re-embedding every section. Checkpoint files record which step finished, so interrupted overnight jobs continue cleanly. This phased design is what makes a research pipeline operable rather than a one-shot notebook.
 
 ### 4.8.2. Example Constraint Rule Shape
 
 A constraint rule stored for runtime evaluation is a structured object, not free text. In simplified form it contains a stable rule identifier, one or more drug or class keys, an action such as avoid or consider with caution, a condition object that may require eGFR below a threshold or potassium above a threshold, a human-readable rationale, provenance pointing to a source chunk, a safety tier, and a governance status such as draft, approved, or retired. The reasoning engine evaluates the condition against the typed patient profile. If the condition matches and the tier is executable, the corresponding recommendation status updates.
 
-This shape is why extraction must emit JSON that passes Pydantic validation. A beautiful paragraph that says “use caution in renal impairment” is not enough for software. The machine needs a predicate it can test. When extraction cannot build a complete predicate, classification marks `needs_condition_refinement` so a clinical lead can finish the logic instead of letting a half-rule execute.
+This shape is why extraction must emit validated structured data. A beautiful paragraph that says “use caution in renal impairment” is not enough for software. The machine needs a predicate it can test. When extraction cannot build a complete predicate, classification marks the needs_condition_refinement tier so a clinical lead can finish the logic instead of letting a half-rule execute.
 
 ### 4.8.3. Chat SSE Payload Sequence
 
-The streaming protocol is easiest to understand as a timeline. After the browser sends a chat request, the server may emit status frames such as received, extracting patient, building recommendation, verifying evidence, and generating answer. Structured milestones then appear as typed events. `draft_ready` carries the merged patient draft and clinical state. `missing_check` reports whether required fields are absent. If the pipeline continues, `recommendation_ready` carries GDMT items, interactions, dose plans, and risk flags. `verification_ready` carries agent verdicts and citation checks. `answer_delta` frames append narrative text. `done` closes the turn with the full response object.
+The streaming protocol is easiest to understand as a timeline. After the browser sends a chat request, the server may emit status frames such as received, extracting patient, building recommendation, verifying evidence, and generating answer. Structured milestones then appear as typed events. The patient draft event carries merged draft and clinical state. The missing check reports whether required fields are absent. If the pipeline continues, recommendation events carry GDMT items, interactions, dose plans, and risk flags. Verification events carry agent verdicts and citation checks. Answer frames append narrative text. A done event closes the turn with the full response object.
 
-The frontend does not wait for `done` to become useful. As soon as `recommendation_ready` arrives, cards render. That is the practical benefit of SSE compared with a single JSON response at the end of a multi-second pipeline.
+The frontend does not wait for the final event to become useful. As soon as recommendations arrive, cards render. That is the practical benefit of streaming compared with a single response at the end of a multi-second pipeline.
 
 ### 4.8.4. Parallelism Inside One Chat Turn
 
-Two concurrency tools matter in the chat service. First, `asyncio.create_task` starts GraphRAG while reasoning runs. Second, `asyncio.to_thread` moves synchronous PostgreSQL rule evaluation off the event loop. Without the thread offload, a long rule scan would block unrelated API requests such as health checks or admin list queries. Without GraphRAG prefetch, verification would wait for retrieval to start only after reasoning finished, adding avoidable latency. The fork-join join point is verification: it awaits both the recommendation object and the prefetched GraphRAG context before streaming safety outcomes.
+Two concurrency tools matter in the chat service. First, asynchronous tasks start graph-augmented retrieval while reasoning runs. Second, thread offload moves synchronous rule evaluation off the event loop. Without the thread offload, a long rule scan would block unrelated API requests such as health checks or admin list queries. Without retrieval prefetch, verification would wait for retrieval to start only after reasoning finished, adding avoidable latency. The fork-join point is verification: it awaits both the recommendation object and the prefetched context before streaming safety outcomes.
 
 ### 4.8.5. Dose Calculation Module
 
-Dose calculation reads JSONB dose rules that describe starting dose, target dose, titration steps, and renal adjustment bands. Given a patient eGFR and a candidate drug, the module selects the matching band and returns a dose plan object for the card panel. If the catalog row is incomplete, the module returns no fabricated number. This honesty is important: evaluation noted dose-rule completeness lagged other catalogs, and the UI must not invent milligram strengths when the governed row is missing.
+Dose calculation reads dose rules that describe starting dose, target dose, titration steps, and renal adjustment bands. Given a patient eGFR and a candidate drug, the module selects the matching band and returns a dose plan object for the card panel. If the catalog row is incomplete, the module returns no fabricated number. This honesty is important: evaluation noted dose-rule completeness lagged other catalogs, and the UI must not invent milligram strengths when the governed row is missing.
 
 Dose-safety warnings complement dose plans. They fire when a planned dose exceeds a label-derived maximum for the patient’s renal status. Together, dose plans and dose-safety warnings turn label prose into executable numeric checks.
 
@@ -300,19 +561,19 @@ Besides streaming chat, the backend exposes history retrieval for a conversation
 
 ### 4.8.9. Repository Layout Summary
 
-At repository level, `backend/` holds the FastAPI application. `frontend/doctor-dashboard/` holds the clinician UI. `frontend/admin/` holds governance screens. `frontend/shared/` holds shared API and display utilities. `scraper/` holds the ingestion pipeline. `infrastructure/` holds Docker Compose, Nginx, and environment templates. `data/heart_failure/` holds local caches and workspace outputs during development. This layout keeps research pipeline code separate from interactive serving code while still sharing clinical vocabulary and identifiers.
+At repository level, the backend directory holds the FastAPI application. The frontend directory holds the clinician dashboard, admin portal, and shared API and display utilities. A scraper directory holds the ingestion pipeline. Infrastructure directory holds Docker Compose, Nginx configuration, and environment templates. Data directories hold local caches and workspace outputs during development. This layout keeps research pipeline code separate from interactive serving code while still sharing clinical vocabulary and identifiers.
 
 ## 4.9. End-to-End Implementation Walkthrough
 
 Consider a physician who types: “68-year-old man with HFrEF, LVEF 30%, eGFR 38, potassium 4.9, on lisinopril 10 mg and carvedilol 12.5 mg twice daily. Can we add MRA and SGLT2 inhibitor?”
 
-The request reaches FastAPI and receives a conversation identifier. Intake regexes capture age, LVEF, eGFR, and potassium. The lexicon maps lisinopril to an ACE inhibitor key and carvedilol to an evidence-based beta blocker key. Clinical state records HFrEF and reduced kidney function. Because potassium and eGFR are present, missing-field checks pass and the UI receives `draft_ready`.
+The request reaches the backend and receives a conversation identifier. Intake patterns capture age, LVEF, eGFR, and potassium. The lexicon maps lisinopril to an ACE inhibitor key and carvedilol to an evidence-based beta blocker key. Clinical state records HFrEF and reduced kidney function. Because potassium and eGFR are present, missing-field checks pass.
 
-GraphRAG prefetch begins. HyDE may expand the short question into a richer hypothetical passage about MRA initiation and SGLT2 therapy in reduced ejection fraction. Dense search, BM25, and Neo4j neighborhood queries run, then RRF merges candidates. Meanwhile the reasoning engine compares GDMT pillars against current therapy, finds missing MRA and SGLT2 coverage, evaluates potassium and eGFR against MRA constraints, and checks interactions with the active ACE inhibitor. Dose modules attach plans when catalog rows exist.
+Retrieval prefetch begins. Hypothetical document expansion may enrich the short question into a richer passage about MRA initiation and SGLT2 therapy in reduced ejection fraction. Dense search, sparse keyword matching, and graph neighborhood queries run, then reciprocal rank fusion merges candidates. Meanwhile the reasoning engine compares GDMT pillars against current therapy, finds missing MRA and SGLT2 coverage, evaluates potassium and eGFR against MRA constraints, and checks interactions with the active ACE inhibitor. Dose modules attach plans when catalog rows exist.
 
 Verification audits hard blocks and evidence presence. Simplified Vietnamese or English labels attach. The dashboard renders recommendation cards and verification badges, then streams the explanatory answer with evidence snippets in the side panel. If the clinician switches language, cards relabel immediately without repeating retrieval.
 
-If the same physician had omitted potassium, the pipeline would stop after `missing_check`, ask for the value, and refuse to emit an MRA recommendation based on a guessed electrolyte. That branch is as important as the happy path because it shows fail-closed behavior implemented in code, not only described in design documents.
+If the same physician had omitted potassium, the pipeline would stop after the missing check, ask for the value, and refuse to emit an MRA recommendation based on a guessed electrolyte. That branch is as important as the happy path because it shows fail-closed behavior implemented in code, not only described in design documents.
 
 ## 4.10. Lessons From Implementation
 
@@ -320,4 +581,8 @@ Several engineering lessons emerged while building the system. First, separating
 
 ## 4.11. Chapter Summary
 
-This chapter mapped system design to concrete implementation in greater depth. The ingestion pipeline acquires FDA labels and guidelines, filters sections with a three-tier cascade, extracts governed artifacts across specialized phases, and synchronizes PostgreSQL, ChromaDB, and Neo4j. The FastAPI backend orchestrates hybrid intake, deterministic reasoning, dose calculation, GraphRAG retrieval, verification, and SSE streaming so structured safety outcomes appear before narrative text. The React doctor dashboard and admin portal turn those events into clinical and governance workflows, including conversation management, evidence display, and language switching. Docker Compose, Nginx, environment configuration, testing, and operational procedures make the stack reproducible on modest hospital hardware. The walkthrough and implementation lessons show how these pieces cooperate on a real HFrEF vignette. Chapter 5 reports how this implementation behaved under curated evaluation.
+This chapter mapped system design to concrete implementation. The ingestion pipeline acquires FDA labels and guidelines, filters sections with a three-tier cascade, extracts governed artifacts across specialized phases, and synchronizes PostgreSQL, ChromaDB, and Neo4j.
+
+The FastAPI backend (Section 4.3) implements the modular monolith. The SSE pipeline encodes Osheroff's timing principle in software: patient drafts arrive before recommendations; structured cards precede narrative. Concurrent design keeps the event loop free for concurrent clinical traffic. Each module has a dedicated test file.
+
+The testing chapter (Section 4.6) documents test files covering every module in the clinical pipeline. The test infrastructure uses fixture data and session-level mocking so all tests run without live databases or GPU hardware. Test cases are organized by module: intake extraction, normalization, risk extraction, patient schema, drug normalization, constraint builder, dose safety, recommendation, evidence filter, citation validation, card summarizer, chat and SSE, GraphRAG and verification, and admin governance. The end-to-end walkthrough and implementation lessons show how these pieces cooperate on a real HFrEF vignette. Chapter 5 reports how this implementation behaved under curated evaluation.

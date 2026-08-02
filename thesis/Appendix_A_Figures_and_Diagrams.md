@@ -388,113 +388,39 @@
 ┌─────────────────────────────────────────────────────────────────────────────────────┐
 │                                    PostgreSQL (Port 55432)                          │
 │                                                                                      │
-│   ┌─────────────────────────┐  ┌─────────────────────────┐                       │
-│   │    constraint_rules     │  │      dose_rules         │                       │
-│   ├─────────────────────────┤  ├─────────────────────────┤                       │
-│   │ id (PK)                │  │ id (PK)                │                       │
-│   │ constraint_id (UNIQUE)  │  │ dose_rule_id (UNIQUE)  │                       │
-│   │ version                 │  │ version                 │                       │
-│   │ target_drug_class      │  │ drug_class              │                       │
-│   │ action                 │  │ starting_dose (JSONB)   │                       │
-│   │ reason                 │  │ target_dose (JSONB)     │                       │
-│   │ status                 │  │ safety_tier            │                       │
-│   │ metadata (JSONB)       │  └─────────────────────────┘                       │
-│   └─────────────────────────┘                                                │
-│                                                                                      │
-│   ┌─────────────────────────┐  ┌─────────────────────────┐                       │
-│   │  interaction_rules     │  │    dose_safety_warnings │                       │
-│   ├─────────────────────────┤  ├─────────────────────────┤                       │
-│   │ id (PK)                │  │ id (PK)                │                       │
-│   │ drug_set_a (TEXT[])   │  │ warning_id (UNIQUE)    │                       │
-│   │ drug_set_b (TEXT[])   │  │ drug_keys (TEXT[])      │                       │
-│   │ interaction_type        │  │ target (JSONB)         │                       │
-│   │ severity               │  │ rule_body (JSONB)       │                       │
-│   │ description            │  └─────────────────────────┘                       │
-│   └─────────────────────────┘                                                │
-│                                                                                      │
-│   ┌─────────────────────────┐  ┌─────────────────────────┐                       │
-│   │    gdmt_policies       │  │  chat_conversations     │                       │
-│   ├─────────────────────────┤  ├─────────────────────────┤                       │
-│   │ id (PK)                │  │ id (UUID)              │                       │
-│   │ gdmt_policy_id (UNIQUE)│  │ created_at             │                       │
-│   │ version                 │  └─────────────────────────┘                       │
-│   │ drug_class_key          │  ┌─────────────────────────┐                       │
-│   │ policy_body (JSONB)    │  │    chat_messages      │                       │
-│   │ status                 │  ├─────────────────────────┤                       │
-│   └─────────────────────────┘  │ conversation_id (FK)   │                       │
-│                                 │ role                  │                       │
-│   ┌─────────────────────────┐  │ content               │                       │
-│   │    cdss_audit_events   │  └─────────────────────────┘                       │
-│   ├─────────────────────────┤                                                  │
-│   │ id (PK)                │                                                  │
-│   │ event_type             │                                                  │
-│   │ conversation_id        │                                                  │
-│   │ event_data (JSONB)    │                                                  │
-│   └─────────────────────────┘                                                  │
+│  ┌──────────────────────────────────────────────────────────────────────────────┐  │
+│  │  GOVERNANCE TABLES                    │  CHAT TABLES                           │  │
+│  ├──────────────────────────────────────┼───────────────────────────────────────┤  │
+│  │  constraint_rules + _history          │  chat_conversations                    │  │
+│  │  dose_rules + _history               │  chat_messages                         │  │
+│  │  interaction_rules + _history         │  chat_patient_drafts                   │  │
+│  │  gdmt_policies + _history            │                                        │  │
+│  │  dose_safety_warnings + _history     │                                        │  │
+│  ├──────────────────────────────────────┼───────────────────────────────────────┤  │
+│  │  users                               │  cdss_audit_events                     │  │
+│  └──────────────────────────────────────┴───────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────────────────────┐
-│                                 Neo4j (Port 7474)                                  │
-│                                                                                      │
-│                              ┌──────────────┐                                      │
-│                              │ HEART_FAILURE │                                      │
-│                              │  (Disease)   │                                      │
-│                              └───────┬──────┘                                      │
-│                        treated_by │        │ indicated_for                           │
-│                    ┌─────────────┼────────┼─────────────┐                           │
-│                    ▼             ▼        ▼             ▼                           │
-│             ┌──────────┐ ┌────────┐ ┌───────┐ ┌──────────┐                     │
-│             │   ACEi   │ │  ARNI  │ │ Beta  │ │  SGLT2i │                     │
-│             │  (Drug)  │ │ (Drug) │ │Blocker│ │  (Drug)  │                     │
-│             └────┬─────┘ └───┬────┘ └───┬────┘ └────┬─────┘                     │
-│                  │contraind│         │         │                          │
-│                  │ with    │         │         │                          │
-│                  │ ARNI    │         │         │                          │
-│                  └────┬────┘         │         │                          │
-│                       │◄────────────┘         │                          │
-│                       │ interacts             │                          │
-│                       ▼                       ▼                          │
-│              ┌──────────────┐         ┌──────────────┐                 │
-│              │ HYPERKALEMIA  │         │  eGFR < 30   │                 │
-│              │  (Lab)        │         │  (Condition) │                 │
-│              └──────────────┘         └──────────────┘                 │
-└─────────────────────────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────────────────────────┐
-│                                 ChromaDB (Port 8001)                               │
-│                                                                                      │
-│   Collection: "heart_failure_evidence"                                           │
-│                                                                                      │
-│   ┌─────────────────────────────────────────────────────────────────────────┐     │
-│   │ id | embedding (384d) | document | metadata                            │     │
-│   │────┼──────────────────────────────┼─────────────────────────────────│     │
-│   │ 1  | [0.123, -0.456...]       | "ACE inhibitors are first-line..." │     │
-│   │    |                              | source: drug_label                  │     │
-│   │    |                              | drug_class: ACE inhibitor          │     │
-│   │    |                              | section: DOSAGE_AND_ADMINISTRATION  │     │
-│   │    |                              | chunk_type: dosing                  │     │
-│   │────┼──────────────────────────────┼─────────────────────────────────│     │
-│   │ 2  | [0.234, -0.567...]       | "Bisoprolol starting dose..."      │     │
-│   │    |                              | source: guideline                  │     │
-│   │    |                              | drug_class: Beta blocker            │     │
-│   └─────────────────────────────────────────────────────────────────────────┘     │
-└─────────────────────────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────────────────────────┐
-│                                    Redis (Port 6379)                               │
-│                                                                                      │
-│   Keys:                                                                       │
-│   ├── draft:{conversation_id}     → PatientDraft JSON                           │
-│   ├── messages:{conversation_id} → [ChatMessage] JSON                        │
-│   ├── llm_cache:{hash}           → Cached LLM responses                       │
-│   ├── idempotency:{hash}        → Cached response for retries                │
-│   └── constraint_cache:{class}   → Loaded constraint rules                   │
+│  Neo4j (7474)                              │  ChromaDB (8001)                       │
+│  Heart-failure knowledge graph             │  heart_failure_evidence collection      │
+│  Entity types: Drug, DrugClass, Disease,  │  BGE-M3 384-d embeddings               │
+│  LabConcept, Condition, Guideline          │  metadata: source, drug_class,          │
+│  Relationship types: TREATED_BY,          │  section, chunk_type                   │
+│  CONTRAINDICATED_WITH, INDICATED_FOR,    │                                        │
+│  INTERACTS_WITH, MONITORS, RELATED_TO     │                                        │
+├───────────────────────────────────────────┴───────────────────────────────────────┤
+│  Redis (6379)                              │  S3 / LocalStack (4566)               │
+│  draft:{conversation_id}                  │  raw bucket: DailyMed XML/SPL,         │
+│  messages:{conversation_id}               │  guideline PDFs                        │
+│  llm_cache:{hash}, idempotency:{hash}    │  processed bucket: JSONL chunks,       │
+│  constraint_cache:{drug_class}            │  rule exports, graph artifacts         │
 └─────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 **Figure A.5. Database schema overview**
 
----
+For detailed table schemas with all columns, data types, constraints, and indexes, see **Appendix B: Database Schema Reference**.
 
 ## Figure A.6: Frontend Routing and UI Structure
 

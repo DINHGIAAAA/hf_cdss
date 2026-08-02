@@ -33,3 +33,4 @@
 |------|---------|
 | [References.md](References.md) | References |
 | [Appendix_A_Figures_and_Diagrams.md](Appendix_A_Figures_and_Diagrams.md) | Appendix A, Figures and Diagrams |
+| [Appendix_B_Database_Schema_Reference.md](Appendix_B_Database_Schema_Reference.md) | Appendix B, Database Schema Reference |
