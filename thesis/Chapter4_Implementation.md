@@ -1,5 +1,7 @@
 # CHAPTER 4: IMPLEMENTATION AND DEPLOYMENT
 
+<link rel="stylesheet" href="figures/thesis-figures.css">
+
 ## 4.1. Development Environment
 
 Chapter 4 describes how the Chapter 3 designs became working software: evaluation hardware and tools, the pipeline from drug labels and guidelines to searchable knowledge, the FastAPI chat backend, React clinician and admin interfaces, and Docker-based deployment. For each technique, the text states what it does, why it exists, and how operators or clinicians use it.
@@ -31,6 +33,11 @@ Local setup follows a fixed order so developers do not fight missing databases. 
 After containers are healthy, Ollama pulls the required models once. Model weights persist in a Docker volume, so later restarts do not re-download them. The FastAPI service can then start with Uvicorn. In development, reload mode restarts the API when Python files change. The Vite development server proxies `/api` to the backend so browser code can call the same relative paths used in production.
 
 ## 4.2. Knowledge Construction Pipeline
+
+<figure class="thesis-archify-figure">
+  <iframe src="figures/chapters/figure-4-1-kb-pipeline.html" title="Figure 4.1 KB pipeline"></iframe>
+  <figcaption><strong>Figure 4.1.</strong> Medical knowledge-base construction pipeline (acquire → extract → store → bootstrap). Appendix A, Figure A.3.</figcaption>
+</figure>
 
 ### 4.2.1. Purpose and High-Level Stages
 
@@ -153,6 +160,11 @@ Answer generation then writes a clinician-facing explanation grounded in the ver
 Patient drafts, messages, and recommendation artifacts persist through datastore adapters. Redis can cache drafts and idempotent responses so repeated identical requests do not recompute everything. Audit events record missing-field stops, recommendation outcomes, and governance actions. These logs support later clinical review and debugging without reading raw application logs alone.
 
 ## 4.4. Frontend Implementation
+
+<figure class="thesis-archify-figure">
+  <iframe src="figures/chapters/figure-4-2-frontend-routes.html" title="Figure 4.2 Frontend routes"></iframe>
+  <figcaption><strong>Figure 4.2.</strong> Doctor dashboard routing: home, chat, and admin governance pages. Appendix A, Figure A.6.</figcaption>
+</figure>
 
 ### 4.4.1. Application Structure
 
