@@ -1,7 +1,13 @@
 from scraper.io.jsonl import read_jsonl, write_jsonl
 from scraper.validation.claim_type_gates import (
+    is_actionable_contraindication_evidence,
     is_actionable_dose_evidence,
+    is_actionable_guideline_evidence,
+    is_actionable_hyperkalemia_evidence,
     is_actionable_renal_evidence,
+    is_imaging_mra_evidence,
+    is_trial_pk_noise_span,
+    passes_claim_type_gate_for_claim,
 )
 from scraper.validation.evidence_claim_validation import (
     validate_claim_evidence_alignment,
@@ -242,6 +248,12 @@ WEAK_SPAN_PATTERNS = (
     r"\badverse pregnancy outcomes\b",
     # "maintenance dose" in context of describing dose basis — not an actionable interaction
     r"\bmaintenance dose is based on\b",
+    r"\bfor a condition for which it (?:was )?not prescribed\b",
+    r"\bwithin \d+ inches of (?:mobile|wireless|tablet|computer)\b",
+    r"\b(on-body|infusor)\b.*\b(?:phone|wireless|bluetooth)\b",
+    r"\boverwrap has been previously opened\b",
+    r"\bsee CLINICAL PHARMACOLOGY\b.*\bADVERSE\b",
+    r"\bsee adverse reactions\b",
 )
 
 INTERACTION_MECH_CUES = (
@@ -325,23 +337,8 @@ def _has_dose_signal(haystack: str) -> bool:
 def _matches_claim_type(claim_type: str, haystack: str) -> bool:
     """Extra gates after keyword hit — reduces type misfires."""
     if claim_type == "contraindication":
-        # Require a real prohibition, not a cross-ref or incidental mention.
-        return any(
-            cue in haystack
-            for cue in (
-                "is contraindicated",
-                "are contraindicated",
-                "contraindicated in",
-                "contraindicated for",
-                "contraindicated with",
-                "must not",
-                "do not use",
-                "do not administer",
-                "should not be used",
-            )
-        )
+        return is_actionable_contraindication_evidence(haystack)
     if claim_type == "dose_recommendation":
-        # Pregnancy/fetal harm without dosing numbers is population, not dose.
         if any(term in haystack for term in ("fetal harm", "pregnancy", "pregnant")) and not _has_dose_signal(haystack):
             return False
         return is_actionable_dose_evidence(haystack)
@@ -397,16 +394,9 @@ def _matches_claim_type(claim_type: str, haystack: str) -> bool:
     if claim_type == "guideline_recommendation":
         if "classes of recommendation" in haystack:
             return False
-        return any(
-            cue in haystack
-            for cue in ("is recommended", "are recommended", "should be", "is indicated", "are indicated", "is useful")
-        )
+        return is_actionable_guideline_evidence(haystack)
     if claim_type == "hyperkalemia_risk":
-        # Bare "potassium" without hyperkalemia/serum risk language is too noisy.
-        return any(
-            cue in haystack
-            for cue in ("hyperkalemia", "hyperkalaemia", "serum potassium", "potassium greater", "potassium >")
-        )
+        return is_actionable_hyperkalemia_evidence(haystack)
     return True
 
 
@@ -421,6 +411,10 @@ def sentence_split(text: str) -> list[str]:
 def classify_claim(sentence: str, source_type: str) -> str | None:
     haystack = sentence.lower()
     if is_weak_span(sentence):
+        return None
+    if is_trial_pk_noise_span(sentence):
+        return None
+    if is_imaging_mra_evidence(sentence) and "contraindicated" not in haystack:
         return None
 
     # Fetal harm / pregnancy without dose numbers → population, not dose.
@@ -483,6 +477,9 @@ def create_claim_regex(record: dict, sentence: str, index: int) -> dict | None:
     claim_type = classify_claim(sentence, record.get("source_type", ""))
     if claim_type is None:
         return None
+    doc_id = str(record.get("document_id") or (record.get("metadata") or {}).get("source_id") or "")
+    if claim_type == "guideline_recommendation" and not is_actionable_guideline_evidence(sentence, doc_id or None):
+        return None
 
     metadata = record.get("metadata") or {}
     source_type = record.get("source_type", "")
@@ -499,8 +496,9 @@ def create_claim_regex(record: dict, sentence: str, index: int) -> dict | None:
         # For guidelines, extract drug from the sentence/text
         drug = extract_drug_from_text(sentence)
         if not drug:
-            # Also try the full text of the chunk for context
             drug = extract_drug_from_text(record.get("text", ""))
+        if drug and str(drug).lower() == "mra" and is_imaging_mra_evidence(sentence):
+            drug = None
 
     output = {
         "claim_id": claim_id(record, sentence, index),
@@ -642,18 +640,15 @@ def claims_from_records(records: list[dict], max_claims_per_section: int) -> lis
 
 
 def _filter_prescriptive_only(claims: list[dict]) -> list[dict]:
-    """Drop observational population_constraint claims from LLM extraction.
-
-    Regex extraction already filters via _matches_claim_type (lines 383-396).
-    LLM extraction bypasses that gate, so we apply it here on all claims.
-    """
+    """Drop claims that fail shared type gates (regex + LLM paths)."""
     filtered = []
     for claim in claims:
+        if not passes_claim_type_gate_for_claim(claim):
+            continue
         if claim.get("claim_type") != "population_constraint":
             filtered.append(claim)
             continue
         evidence = claim.get("evidence", "")
-        # Same exclusion rules as _matches_claim_type for population_constraint
         observational_cues = (
             "safety and effectiveness",
             "have not been established",

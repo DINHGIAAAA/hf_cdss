@@ -26,9 +26,12 @@ EXTRACTION GUIDELINES:
    ✗ "Adverse pregnancy outcomes associated with IDA include preterm delivery" → SKIP (outcome description, not prescribing directive)
    ✗ "Selected additional baseline risk factors included hypertension..." → SKIP (study baseline characteristics)
    ✗ "Terazosin was not oncogenic in mice..." → SKIP (animal toxicology, not clinical guidance)
-   ✗ "Maintenance dose is based on lean body weight, renal function, age" → SKIP (dose description, not interaction)
+   ✗ "Do not use tadalafil for a condition for which it was not prescribed" → SKIP (SPL boilerplate)
+   ✗ "Do not administer within 12 inches of mobile phones" → SKIP (device instruction)
+   ✗ "In patients with CLTI, amputation is recommended..." → SKIP (PAD guideline, not HF pharmacotherapy)
+   ✗ "Metabolic and Nutritional: hyperuricemia, hyperkalemia, ..." → SKIP (AE list header, not a rule)
 
-3. WHEN IN DOUBT → EXTRACT (better to have more claims than miss important ones)
+3. WHEN IN DOUBT → SKIP unless the span is a prescriptive heart-failure, GDMT, or drug-safety rule with a clear action (avoid, contraindicated, dose mg, eGFR cutoff, monitor). Do not extract PAD revascularization, diabetes technology, valvular surgery, or SPL boilerplate ("for a condition for which it was not prescribed", device/Bluetooth warnings).
 
 4. POPULATION_CONSTRAINT rules — must be prescriptive, not observational:
    ✓ "Do not use in pregnancy" → EXTRACT (prescriptive)

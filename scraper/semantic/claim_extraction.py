@@ -50,7 +50,11 @@ def _build_claim(record: dict, payload: dict[str, Any], index: int) -> dict | No
         return None
     if claim_type == "guideline_recommendation" and record.get("source_type") != "guideline":
         return None
-    if not passes_claim_type_gate(claim_type, evidence):
+    if not passes_claim_type_gate(
+        claim_type,
+        evidence,
+        str(record.get("document_id") or metadata.get("source_id") or "") or None,
+    ):
         return None
 
     metadata = dict(record.get("metadata") or {})

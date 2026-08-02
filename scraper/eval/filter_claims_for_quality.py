@@ -31,7 +31,14 @@ from scraper.eval.sample_gold_candidates import CLAIM_TYPES
 from scraper.io.jsonl import read_jsonl, write_jsonl
 from scraper.paths import data_root
 from scraper.process.create_claims import HF_DRUG_PATTERNS
-from scraper.validation.claim_type_gates import passes_claim_type_gate_for_claim
+from scraper.validation.claim_type_gates import (
+    CONTRAINDICATION_DROP_PATTERNS,
+    OFF_TOPIC_GUIDELINE_DOC_PREFIXES,
+    is_actionable_adr_evidence,
+    is_actionable_guideline_evidence,
+    is_trial_pk_noise_span,
+    passes_claim_type_gate_for_claim,
+)
 
 # Explicit non-HF-primary / peripheral agents that dilute GraphRAG.
 OFF_SCOPE_DRUG_TOKENS = (
@@ -268,11 +275,27 @@ def require_actionable_hard(claim: dict[str, Any]) -> bool:
     return any(p.search(ev) for p in ACTIONABLE_CUES)
 
 
-def drop_weak_dose_renal(claim: dict[str, Any]) -> bool:
-    """Balanced gate aligned with create_claims / LLM extraction."""
-    ctype = claim.get("claim_type")
-    if ctype not in {"dose_recommendation", "renal_constraint"}:
+def drop_spl_boilerplate(claim: dict[str, Any]) -> bool:
+    ev = _evidence(claim)
+    if any(p.search(ev) for p in CONTRAINDICATION_DROP_PATTERNS):
+        return False
+    return True
+
+
+def drop_off_topic_guideline(claim: dict[str, Any]) -> bool:
+    if claim.get("claim_type") != "guideline_recommendation":
         return True
+    doc = str(claim.get("document_id") or "").lower()
+    ev = _evidence(claim)
+    if not is_actionable_guideline_evidence(ev, doc or None):
+        return False
+    if doc and any(doc.startswith(p) for p in OFF_TOPIC_GUIDELINE_DOC_PREFIXES):
+        if not is_actionable_guideline_evidence(ev, None):
+            return False
+    return True
+
+
+def drop_weak_claim_gates(claim: dict[str, Any]) -> bool:
     return passes_claim_type_gate_for_claim(claim)
 
 
@@ -281,7 +304,9 @@ PASS_SPECS: list[tuple[str, Callable[[dict[str, Any]], bool]]] = [
     ("1_type_evidence_gate", drop_type_mismatch),
     ("2_require_drug_hard_types", require_drug_on_hard),
     ("3_drop_off_scope_drugs", drop_off_scope_drug),
+    ("3b_drop_off_topic_guideline", drop_off_topic_guideline),
     ("4_drop_noise_weak_spans", drop_noise_weak),
+    ("4b_drop_spl_boilerplate", drop_spl_boilerplate),
     ("5_drop_trial_pk_device", drop_trial_pk_device_noise),
     # Milder than full formulary wipe: drop empty-drug ADR / interaction only.
     ("6_drop_empty_drug_weak_types", lambda c: not (
@@ -289,9 +314,10 @@ PASS_SPECS: list[tuple[str, Callable[[dict[str, Any]], bool]]] = [
     )),
     # ADR without actionable clinical verb is usually table noise.
     ("7_drop_nonactionable_adr", lambda c: (
-        c.get("claim_type") != "adverse_reaction" or require_actionable_hard(c)
+        c.get("claim_type") != "adverse_reaction"
+        or (require_actionable_hard(c) and is_actionable_adr_evidence(_evidence(c)))
     )),
-    ("8_drop_weak_dose_renal", drop_weak_dose_renal),
+    ("8_drop_weak_claim_gates", drop_weak_claim_gates),
 ]
 
 
@@ -347,7 +373,7 @@ def sample_heuristic_precision(claims: list[dict[str, Any]], *, per_type: int, s
             and drop_noise_weak(claim)
             and drop_off_scope_drug(claim)
             and drop_trial_pk_device_noise(claim)
-            and drop_weak_dose_renal(claim)
+            and drop_weak_claim_gates(claim)
         )
         if claim.get("claim_type") in HARD_TYPES:
             ok = ok and bool(_drug_text(claim))

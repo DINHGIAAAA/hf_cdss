@@ -48,6 +48,12 @@ def main() -> None:
         help="Ollama judge model. Default 7b for better semantic accuracy; 1.5b is faster but noisier.",
     )
     parser.add_argument(
+        "--exclude-types",
+        nargs="*",
+        default=[],
+        help="Omit claim types from sampling (e.g. guideline_recommendation for safety-only KG).",
+    )
+    parser.add_argument(
         "--timeout-seconds",
         type=float,
         default=float(os.environ.get("HF_CDSS_AUTO_EVAL_TIMEOUT_SECONDS", "300")),
@@ -62,6 +68,9 @@ def main() -> None:
 
     claims_path = args.input or (data_root() / "artifacts" / "claims" / "claims.jsonl")
     claims = read_jsonl(claims_path)
+    if args.exclude_types:
+        excluded = set(args.exclude_types)
+        claims = [c for c in claims if c.get("claim_type") not in excluded]
     sample = stratified_sample(claims, per_type=args.per_type, seed=args.seed)
     if args.limit and args.limit > 0:
         sample = sample[: args.limit]
