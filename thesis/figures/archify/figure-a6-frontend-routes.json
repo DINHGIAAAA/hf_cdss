@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Doctor Dashboard Routes",
+    "subtitle": "Mono-app navigation: home, chat, admin governance",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    { "id": "home", "type": "frontend", "label": "HomePage", "sublabel": "route /", "pos": [80, 200], "size": [120, 56] },
+    { "id": "chat", "type": "frontend", "label": "ChatPage", "sublabel": "/chat + clinical panel", "pos": [280, 200], "size": [150, 56] },
+    { "id": "admin", "type": "security", "label": "AdminLayout", "sublabel": "/admin/* shell", "pos": [520, 200], "size": [140, 56] },
+    { "id": "catalog", "type": "backend", "label": "Catalog admin", "sublabel": "rules, dose, GDMT", "pos": [720, 140], "size": [150, 56] },
+    { "id": "ops", "type": "backend", "label": "Ops admin", "sublabel": "audit, API, users", "pos": [720, 280], "size": [150, 56] }
+  ],
+  "connections": [
+    { "id": "r1", "from": "home", "to": "chat", "variant": "emphasis" },
+    { "id": "r2", "from": "home", "to": "admin", "variant": "dashed", "fromSide": "bottom", "toSide": "bottom", "via": [[140, 320], [590, 320]] },
+    { "id": "r3", "from": "admin", "to": "catalog", "fromSide": "right", "toSide": "left" },
+    { "id": "r4", "from": "admin", "to": "ops", "fromSide": "right", "toSide": "left" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Admin scope", "items": ["/admin/rules through /admin/gdmt-policies", "/admin/evidence, audit, system, api, users"] }
+  ]
+}

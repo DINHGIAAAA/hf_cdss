@@ -1,171 +1,121 @@
-# Architecture
+# Runtime Architecture — hf_cdss
 
-The thesis implementation uses a modular monolith for speed and stability. Module boundaries are shaped so they can later be extracted into services.
+```mermaid
+graph TD
+    %% ── EXTERNAL DEPENDENCIES ──────────────────────────────────────────────
+    ext_db[(PostgreSQL)]
+    ext_redis[(Redis Cache)]
+    ext_llm[(LLM API)]
+    ext_s3[(S3 / Object Store)]
 
-## Deployment Shape
+    subgraph "Trust Boundary: Data Layer"
+        ext_db
+        ext_redis
+        ext_s3
+    end
 
-The day-1 implementation runs as a small local stack:
+    %% ── FRONTEND TIER ───────────────────────────────────────────────────────
+    subgraph "Frontend (React)"
+        FE["Admin UI\n+ Doctor Dashboard"]
+    end
 
-- FastAPI backend for API contracts and domain orchestration.
-- React/Vite doctor dashboard for demo workflows.
-- PostgreSQL for future structured persistence.
-- Neo4j for future knowledge graph storage.
-- ChromaDB for future vector retrieval.
+    %% ── BACKEND TIER ─────────────────────────────────────────────────────────
+    subgraph "Backend (FastAPI)"
+        API["API Routes\n/admin · /auth · /patients · /evidence"]
+        MID["Middleware\n(production_guard · audit_log · auth)"]
+        CORE["Core Engine\nDose Safety · GDMT · Drug Interactions"]
+        KG["Knowledge Graph\n(graphrag_context · retrieval)"]
+        SCHEMAS["Pydantic Schemas\n(Patient · User · Claims · Rules)"]
+    end
 
-The backend is currently the only service with implemented application logic. Database containers are included so the local environment mirrors the planned architecture early.
+    %% ── SCRAPER / INGESTION PIPELINE ────────────────────────────────────────
+    subgraph "Scraper Pipeline (Python)"
+        ACQ["Acquisition\n(JSON fetch + S3 download)"]
+        SEM["Semantic Layer\n(claim_extraction · type_gates)"]
+        PROC["Process / Rule Engine\n(transform · validate · create_claims)"]
+        EVAL["Eval / Heuristics\n(auto_judge · filter_quality)"]
+    end
 
-## Backend Boundaries
+    %% ── TRAINING TIER ────────────────────────────────────────────────────────
+    subgraph "Training (Fine-tuning)"
+        TRAIN["BRAT → Fine-tune\n(NER / classification)"]
+    end
 
-API routes stay thin and return Pydantic response models. Business logic belongs in `app/modules`.
+    %% ── PRIMARY PATH ─────────────────────────────────────────────────────────
+    FE -->|"HTTPS"| MID
+    MID -->|"validated request"| API
+    API -->|auth token| SCHEMAS
+    SCHEMAS -->|patient + rules| CORE
+    CORE -->|lookup / cache| ext_redis
+    CORE -->|persist| ext_db
+    KG -->|context / facts| CORE
+    KG -->|reads from| ext_db
 
-Initial module boundaries:
+    %% ── INGESTION PATH ──────────────────────────────────────────────────────
+    ACQ -->|raw docs| ext_s3
+    ext_s3 -->|feeds| SEM
+    SEM -->|structured claims| PROC
+    PROC -->|validated| EVAL
+    EVAL -->|gold claims| ext_db
+    TRAIN -->|model weights| SEM
 
-- `patient`: patient profile contracts and validation helpers.
-- `clinical_normalization`: clinical value normalization.
-- `risk_extraction`: patient risk flag extraction.
-- `constraint_builder`: personalized clinical constraints.
-- `knowledge_graph`: Neo4j schema, seed data, and graph queries.
-- `vector_retrieval`: guideline and drug-label chunk retrieval.
-- `graphrag`: combines graph and vector context.
-- `reasoning`: structured medication recommendation generation.
-- `dose_checking`: dose and renal adjustment checks.
-- `interaction_checking`: drug-drug and drug-condition checks.
-- `verification_agents`: safety, dose, interaction, guideline, evidence, and final reviewer agents.
-- `explanation`: physician-facing rationale and reasoning path.
-- `audit`: input, context, output, and verification trail.
-- `evaluation`: baseline, ablation, metrics, and report generation.
+    %% ── SCRAPER → BACKEND BRIDGE ─────────────────────────────────────────────
+    PROC -->|"rule updates"| ext_db
+    TRAIN -->|"updated rules"| ext_db
 
-## Core Flow
+    classDef frontend fill:#e3f2fd,stroke:#1565c0,color:#0d47a1
+    classDef backend  fill:#f3e5f5,stroke:#6a1b9a,color:#4a148c
+    classDef scraper  fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20
+    classDef training fill:#fff3e0,stroke:#e65100,color:#bf360c
+    classDef external fill:#eceff1,stroke:#546e7a,color:#37474f
+    classDef primary  stroke:#d50000,stroke-width:3px
 
-1. Patient profile ingestion.
-2. Clinical normalization.
-3. Risk extraction.
-4. Constraint building.
-5. Knowledge graph retrieval.
-6. Vector retrieval.
-7. GraphRAG context assembly.
-8. Reasoning.
-9. Dose, interaction, guideline, and evidence verification.
-10. Explanation and audit logging.
-
-## API Principles
-
-- All API responses use Pydantic schemas.
-- Controllers do not hardcode medical rules.
-- Clinical decision logic lives inside domain modules or rule files.
-- Recommendation output must include evidence or constraint references.
-- Errors use a structured `error.code`, `error.message`, and optional `error.details` shape.
-- Every medical output includes the clinical decision support disclaimer.
-
-## Data Principles
-
-The initial data model is intentionally compact and thesis-friendly:
-
-- Patient profiles capture the minimum clinical variables needed for HFrEF-focused GDMT decisions.
-- Medication records focus on drug class, contraindications, and monitoring requirements.
-- Observations preserve raw clinical values.
-- Diagnoses connect patient cases to heart failure type and comorbidities.
-- Recommendations store patient summary, risk flags, recommendation decisions, and disclaimer.
-- Audit logs store the full trace needed to explain and reproduce a recommendation.
-
-## Day-1 Runtime
-
-Local backend:
-
-```bash
-cd backend
-pip install -r requirements.txt
-uvicorn app.main:app --reload
+    class FE,API,MID,CORE,KG,SCHEMAS backend
+    class ACQ,SEM,PROC,EVAL scraper
+    class TRAIN training
+    class ext_db,ext_redis,ext_llm,ext_s3 external
+    class FE primary
+    class CORE primary
+    class ext_db primary
 ```
 
-Local frontend:
+## Cards
 
-```bash
-cd frontend/doctor-dashboard
-npm install
-npm run dev
-```
+### 1. Admin UI + Doctor Dashboard
+React application serving two roles: clinical administration (rule management, audit history, bulk approvals) and point-of-care decision support.
 
-Docker stack:
+### 2. FastAPI Middleware Stack
+`production_guard_middleware` — blocks access in non-production; `audit_logging` — appends to audit trail on every mutation; `auth` — JWT/OAuth2 token validation.
 
-```bash
-cd infrastructure
-docker compose up --build
-```
+### 3. Core Clinical Engine
+Three rule engines in one process: **Dose Safety** (dose-range checking against rules), **GDMT Policy** (guideline-directed medical therapy adherence), **Drug Interaction** (cross-reference against constraint rules). All three share the same schema layer.
 
-## Later Extraction Path
+### 4. Knowledge Graph Retrieval
+`graphrag_context` / `retrieval_context` — builds structured clinical context from the graph DB for LLM grounding. Feeds the core engine facts retrieved at query time.
 
-If the project grows beyond the modular monolith, modules can be extracted into services in this order:
+### 5. Claim Extraction (Semantic Layer)
+`claim_extraction` parses unstructured text into structured `Claim` objects. `claim_type_gates` apply structural validation gates (numeric threshold, temporal, comparative, etc.).
 
-1. Retrieval service for Neo4j and vector context.
-2. Verification service for multi-agent checks.
-3. Audit service for durable case traces.
-4. Evaluation service for batch experiments.
+### 6. Scraper Acquisition
+JSON API fetching + S3 download. Feeds raw documents into the pipeline. `acquisition/json` community handles the download/parse logic.
 
-The day-1 repo keeps these boundaries visible without paying the operational cost of microservices too early.
+### 7. Process / Rule Engine
+`transform` → `validate` → `create_claims`. Takes raw claims through quality filtering and writes approved rules back to PostgreSQL.
 
-## Week-1 Completion Matrix
+### 8. Evaluation / Auto-Judge
+`auto_judge` + `filter_claims_for_quality` — heuristic and LLM-based scoring of claim accuracy. Produces `gold` claims for the evaluation set.
 
-| Area | Artifact | Status |
-| --- | --- | --- |
-| Repository foundation | `README.md`, folder layout, `.gitignore` | Done |
-| Backend skeleton | FastAPI app, routes, config, logging, error handlers | Done |
-| Frontend skeleton | React/Vite doctor dashboard with `/health` check | Done |
-| Runtime | Docker Compose with backend, frontend, PostgreSQL, Neo4j, ChromaDB | Done |
-| Data contracts | Pydantic schemas and `docs/data_schema.md` | Done |
-| Sample data | 10 synthetic patient profiles | Done |
-| Research scope | data sources, data scope, medication scope, comorbidity scope, guideline scope, GDMT groups, risk table | Done |
-| Report draft | Chapter 1 and Chapter 3 notes | Done |
-| Tests | health, version, validation, recommendation contract, sample cases | Done |
+### 9. Fine-tuning Pipeline
+BRAT-annotated clinical text → fine-tune NER/classification models → updated weights flow back into `claim_extraction`.
 
-## Week-2 Clinical Pipeline
+### 10. Data Layer
+- **PostgreSQL** — primary store: users, patients, rules, audit logs, gold claims
+- **Redis** — L1 cache for rule lookups (`_reset_constraint_cache` triggered on rule mutation)
+- **S3** — raw document blob store for scraped content
 
-Week 2 adds the first medical extraction pipeline:
+---
 
-1. `clinical_normalization` maps raw patient fields into normalized HF, renal, potassium, BP, HR, comorbidity, medication, and allergy fields.
-2. `risk_extraction` emits structured risk flags with severity and evidence.
-3. `constraint_builder` applies JSON rules to generate medication-class constraints.
-
-The API surface is:
-
-- `POST /normalize`
-- `POST /risks`
-- `POST /constraints`
-
-The data artifacts are:
-
-- `data/heart_failure/evaluation/synthetic_cases/week2_30_cases.json`
-- `data/heart_failure/evaluation/gold_labels/week2_expected_risks.json`
-- `backend/app/modules/constraint_builder/rules/constraints_v1.json`
-
-## Week-1 Runtime Contract
-
-The first milestone proves that the stack can be started locally and that the frontend can reach the backend. The original `/recommend` route stabilized the response shape so downstream UI and test work could depend on it.
-
-## Week-3 Clinical Recommendation MVP
-
-Week 3 upgrades `/recommend` from a placeholder contract into a rule-based clinical MVP:
-
-1. `reasoning` calls `clinical_normalization`, `risk_extraction`, and `constraint_builder`.
-2. The response includes patient summary, risk flags, medication constraints, recommendation statuses, overall status, and disclaimer.
-3. Each recommendation includes warning text and `constraint_ids` when patient-specific constraints apply.
-4. Hard constraints convert the affected medication class to `avoid`.
-5. The React dashboard calls `/recommend` for sample cases and displays clinical summary, risks, constraints, and medication-class decisions.
-
-## Traceability Strategy
-
-Future modules should preserve a trace from input to output:
-
-1. Raw request payload.
-2. Normalized patient summary.
-3. Risk flags and constraints.
-4. Graph facts and vector evidence chunks.
-5. Reasoning output.
-6. Verification results.
-7. Final physician-facing explanation.
-
-This trace will support the audit log and thesis evaluation. Week 1 defines the fields; later weeks will fill them with real context.
-
-## Safety Boundary
-
-The application is clinical decision support only. It must not present recommendations as autonomous prescriptions. The backend response includes a disclaimer from the first milestone, and the frontend should preserve that disclaimer anywhere medical output is shown.
+**Trust boundaries:**
+- Frontend is entirely outside the backend trust perimeter — every request is re-authenticated server-side
+- LLM API is an external call; no clinical facts are trusted from LLM output without graph grounding
+- Scraper pipeline writes to the same PostgreSQL as the live API; a separate eval schema (`claims_gold`) provides a staging gate before production rule activation

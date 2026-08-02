@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Persistence Layer Overview",
+    "subtitle": "Governed SQL, graph, vectors, and session cache",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    { "id": "api", "type": "backend", "label": "FastAPI", "sublabel": "clinical services", "pos": [380, 120], "size": [200, 58] },
+    { "id": "postgres", "type": "database", "label": "PostgreSQL", "sublabel": "constraint, dose, GDMT rules", "pos": [60, 280], "size": [180, 58] },
+    { "id": "neo4j", "type": "database", "label": "Neo4j", "sublabel": "Drug–disease–lab graph", "pos": [280, 280], "size": [180, 58] },
+    { "id": "chroma", "type": "database", "label": "ChromaDB", "sublabel": "heart_failure_evidence", "pos": [500, 280], "size": [180, 58] },
+    { "id": "redis", "type": "database", "label": "Redis", "sublabel": "drafts, messages, LLM cache", "pos": [720, 280], "size": [180, 58] }
+  ],
+  "connections": [
+    { "id": "p1", "from": "api", "to": "postgres", "fromSide": "bottom", "toSide": "top", "variant": "emphasis" },
+    { "id": "p2", "from": "api", "to": "neo4j", "fromSide": "bottom", "toSide": "top" },
+    { "id": "p3", "from": "api", "to": "chroma", "fromSide": "bottom", "toSide": "top" },
+    { "id": "p4", "from": "api", "to": "redis", "fromSide": "bottom", "toSide": "top", "variant": "dashed" }
+  ],
+  "cards": [
+    { "dot": "emerald", "title": "PostgreSQL", "items": ["constraint_rules, dose_rules, interaction_rules", "gdmt_policies, chat history, cdss_audit_events"] },
+    { "dot": "violet", "title": "Neo4j + Chroma", "items": ["Graph: treats, contraindicated_with, interacts", "Vectors: SPL and guideline chunks with metadata"] },
+    { "dot": "amber", "title": "Redis", "items": ["draft:{conversation_id}", "llm_cache and idempotency keys"] }
+  ]
+}

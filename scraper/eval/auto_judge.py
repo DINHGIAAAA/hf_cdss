@@ -29,6 +29,8 @@ NOISE_PATTERNS = (
 WEAK_SPAN_PATTERNS = (
     r"^see (contraindications|warnings|precautions|drug interactions)\b",
     r"\bsee (contraindications|warnings|precautions)\b\.?\s*$",
+    r"\bsee adverse reactions\b",
+    r"\bfor a condition for which it (?:was )?not prescribed\b",
     r"\bmean baseline (egfr|creatinine|egfr was)\b",
     r"\bwere not included in clinical\b",
     r"\bpackaging is open or damaged\b",

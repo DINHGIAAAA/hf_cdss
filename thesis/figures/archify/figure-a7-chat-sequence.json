@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Chat Turn Sequence",
+    "subtitle": "One message from doctor input to SSE cards and streamed answer",
+    "quality_profile": "showcase",
+    "viewBox": [920, 780]
+  },
+  "participants": [
+    { "id": "doctor", "type": "external", "label": "Doctor", "sublabel": "clinician" },
+    { "id": "ui", "type": "frontend", "label": "Dashboard", "sublabel": "React :5173" },
+    { "id": "api", "type": "backend", "label": "FastAPI", "sublabel": "orchestrator" },
+    { "id": "svc", "type": "backend", "label": "Services", "sublabel": "reason + RAG" },
+    { "id": "llm", "type": "external", "label": "Ollama", "sublabel": "qwen2.5:7b" }
+  ],
+  "segments": [
+    { "from": 150, "to": 300, "label": "Request" },
+    { "from": 320, "to": 540, "label": "Clinical work" },
+    { "from": 560, "to": 700, "label": "Stream back" }
+  ],
+  "messages": [
+    { "id": "m1", "from": "doctor", "to": "ui", "y": 180, "label": "type message" },
+    { "id": "m2", "from": "ui", "to": "api", "y": 225, "label": "POST /chat/stream", "variant": "emphasis" },
+    { "id": "m3", "from": "api", "to": "svc", "y": 280, "label": "intake + recommend" },
+    { "id": "m4", "from": "svc", "to": "api", "y": 335, "label": "profile + GDMT", "variant": "return" },
+    { "id": "m5", "from": "api", "to": "svc", "y": 390, "label": "GraphRAG context" },
+    { "id": "m6", "from": "svc", "to": "api", "y": 445, "label": "chunks + verify", "variant": "return" },
+    { "id": "m7", "from": "api", "to": "llm", "y": 500, "label": "generate answer" },
+    { "id": "m8", "from": "llm", "to": "api", "y": 555, "label": "tokens", "variant": "return" },
+    { "id": "m9", "from": "api", "to": "ui", "y": 610, "label": "SSE recommendation_ready", "variant": "emphasis" },
+    { "id": "m10", "from": "api", "to": "ui", "y": 655, "label": "SSE answer_delta", "variant": "dashed" },
+    { "id": "m11", "from": "ui", "to": "doctor", "y": 675, "label": "render UI", "variant": "return" }
+  ],
+  "activations": [
+    { "participant": "ui", "from": 220, "to": 680, "type": "frontend" },
+    { "participant": "api", "from": 225, "to": 665, "type": "backend" },
+    { "participant": "svc", "from": 275, "to": 450, "type": "backend" },
+    { "participant": "llm", "from": 495, "to": 560, "type": "external" }
+  ],
+  "cards": [
+    { "dot": "rose", "title": "SSE ordering", "items": ["recommendation_ready before answer_delta", "Clinical panel binds to structured events"] }
+  ]
+}
