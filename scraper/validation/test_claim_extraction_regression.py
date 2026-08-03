@@ -113,3 +113,29 @@ def test_regex_claim_entresto_washout() -> None:
     claim = create_claim_regex(record, record["text"], 1)
     assert claim is not None
     assert claim["claim_type"] == "contraindication"
+
+
+def test_evidence_alignment_skips_drug_name_for_drug_label() -> None:
+    from scraper.validation.evidence_claim_validation import validate_claim_evidence_alignment
+
+    claim = {
+        "source_type": "drug_label",
+        "claim_type": "contraindication",
+        "drug": "lisinopril",
+        "evidence": "Do not coadminister with aliskiren in patients with diabetes.",
+    }
+    result = validate_claim_evidence_alignment(claim)
+    assert result["aligned"] is True
+
+
+def test_evidence_alignment_class_drug_on_guideline() -> None:
+    from scraper.validation.evidence_claim_validation import validate_claim_evidence_alignment
+
+    claim = {
+        "source_type": "guideline",
+        "claim_type": "usage_constraint",
+        "drug": "sglt2i",
+        "evidence": "SGLT2 inhibitors are recommended in HFrEF to reduce hospitalization.",
+    }
+    result = validate_claim_evidence_alignment(claim)
+    assert result["aligned"] is True

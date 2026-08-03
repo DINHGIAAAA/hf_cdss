@@ -8,10 +8,10 @@ Chapter manuscripts embed **standalone wrapper pages** under `chapters/` (title,
 
 | Location | Numbering | Role |
 |----------|-----------|------|
-| **Chapter 3** (`Chapter3_System_Design.md`) | Figure 3.1–3.5 | Architecture, data stores, GraphRAG, chat pipeline, sequence |
+| **Chapter 3** (`Chapter3_System_Design.md`) | Figure 3.1–3.6 | Architecture, data stores, dual-plane, GraphRAG, chat pipeline, sequence |
 | **Chapter 4** (`Chapter4_Implementation.md`) | Figure 4.1–4.2 | Ingestion pipeline, frontend routes |
 | **Chapter 5** (`Chapter5_Results_and_Evaluation.md`) | Figure 5.1–5.3 | Metric separation, claim filter progression, vignette eval |
-| **Appendix A** (`Appendix_A_Figures_and_Diagrams.md`) | Figure A.1–A.7 | Full catalog + tables A.1–A.2 (same core HTML as Ch.3–4, appendix labels) |
+| **Appendix A** (`Appendix_A_Figures_and_Diagrams.md`) | Figure A.1–A.8, Table A.1–A.2 | Full catalog (same content as Ch.3–4 tables 3.1 / 4.1) |
 
 Chapters embed `chapters/figure-*.html`, which point at the same `html/*.html` Archify viewers; only the **caption number** changes (3.x / 4.x / 5.x vs A.x).
 
@@ -21,9 +21,10 @@ Chapters embed `chapters/figure-*.html`, which point at the same `html/*.html` A
 |-----------------|--------------|----------|---------|
 | `chapters/figure-3-1-architecture.html` | `figure-a1-architecture.html` | A.1 | **3.1** |
 | `chapters/figure-3-2-datastores.html` | `figure-a5-datastores.html` | A.5 | **3.2** |
-| `chapters/figure-3-3-graphrag.html` | `figure-a4-graphrag.html` | A.4 | **3.3** |
-| `chapters/figure-3-4-chat-workflow.html` | `figure-a2-chat-workflow.html` | A.2 | **3.4** |
-| `chapters/figure-3-5-chat-sequence.html` | `figure-a7-chat-sequence.html` | A.7 | **3.5** |
+| `chapters/figure-3-3-dual-plane.html` | `figure-a8-dual-plane.html` | A.8 | **3.3** |
+| `chapters/figure-3-4-graphrag.html` | `figure-a4-graphrag.html` | A.4 | **3.4** |
+| `chapters/figure-3-5-chat-workflow.html` | `figure-a2-chat-workflow.html` | A.2 | **3.5** |
+| `chapters/figure-3-6-chat-sequence.html` | `figure-a7-chat-sequence.html` | A.7 | **3.6** |
 | `chapters/figure-4-1-kb-pipeline.html` | `figure-a3-kb-pipeline.html` | A.3 | **4.1** |
 | `chapters/figure-4-2-frontend-routes.html` | `figure-a6-frontend-routes.html` | A.6 | **4.2** |
 | `chapters/figure-5-1-eval-metrics-split.html` | `figure-5-1-eval-metrics-split.html` | — | **5.1** |

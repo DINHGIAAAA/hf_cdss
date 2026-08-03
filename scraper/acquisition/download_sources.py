@@ -24,6 +24,8 @@ BROWSER_USER_AGENT = (
     "Chrome/125.0.0.0 Safari/537.36"
 )
 
+_PMC_ID_RE = re.compile(r"PMC(\d+)", re.IGNORECASE)
+
 
 def load_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8-sig"))
@@ -37,9 +39,34 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def download_bytes(url: str, timeout: int) -> bytes:
+def _download_via_browser_page(page, url: str, timeout_ms: int) -> bytes:
+    from playwright.sync_api import Error as PlaywrightError
+
+    if "pdf=render" in url.lower() or url.rstrip("/").endswith("/pdf"):
+        try:
+            with page.expect_download(timeout=timeout_ms) as download_info:
+                page.goto(url, wait_until="commit", timeout=timeout_ms)
+            download = download_info.value
+            path = download.path()
+            payload = Path(path).read_bytes()
+            download.delete()
+            if payload.startswith(b"%PDF"):
+                return payload
+        except PlaywrightError:
+            pass
+
+    response = page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
+    if response is None:
+        raise RuntimeError(f"No browser response for {url}")
+    if response.status >= 400:
+        raise RuntimeError(f"Browser download returned HTTP {response.status} for {url}")
+    return response.body()
+
+
+def _download_bytes_one_url(url: str, timeout: int) -> bytes:
     from playwright.sync_api import sync_playwright
 
+    timeout_ms = timeout * 1000
     with sync_playwright() as playwright:
         request_context = playwright.request.new_context(
             user_agent=BROWSER_USER_AGENT,
@@ -48,33 +75,41 @@ def download_bytes(url: str, timeout: int) -> bytes:
                 "Accept-Language": "en-US,en;q=0.9",
             },
         )
-        response = request_context.get(url, timeout=timeout * 1000)
+        response = request_context.get(url, timeout=timeout_ms)
         if response.ok:
             payload = response.body()
             request_context.dispose()
-            return payload
-        request_context.dispose()
+            if payload.startswith(b"%PDF") or payload.lstrip()[:1] in {b"{", b"<"}:
+                return payload
+        else:
+            request_context.dispose()
 
         browser = playwright.chromium.launch(headless=True)
         context = browser.new_context(
             user_agent=BROWSER_USER_AGENT,
+            accept_downloads=True,
             extra_http_headers={
                 "Accept": "application/pdf,application/xml,application/json,text/html,*/*",
                 "Accept-Language": "en-US,en;q=0.9",
             },
         )
         page = context.new_page()
-        response = page.goto(url, wait_until="domcontentloaded", timeout=timeout * 1000)
-        if response is None:
+        try:
+            return _download_via_browser_page(page, url, timeout_ms)
+        finally:
             browser.close()
-            raise RuntimeError(f"No browser response for {url}")
-        if response.status >= 400:
-            status = response.status
-            browser.close()
-            raise RuntimeError(f"Browser download returned HTTP {status} for {url}")
-        payload = response.body()
-        browser.close()
-        return payload
+
+
+def download_bytes(url: str, timeout: int) -> bytes:
+    use_chain = bool(_PMC_ID_RE.search(url)) or "pdf=render" in url.lower()
+    candidates = pdf_download_candidates(url) if use_chain else [url]
+    errors: list[str] = []
+    for candidate in candidates:
+        try:
+            return _download_bytes_one_url(candidate, timeout)
+        except Exception as exc:
+            errors.append(f"{candidate}: {exc}")
+    raise RuntimeError("; ".join(errors))
 
 
 def fetch_json(url: str, timeout: int) -> dict[str, Any]:
@@ -131,11 +166,36 @@ def artifact_kind_for_source(source: dict[str, Any]) -> str:
     return "source"
 
 
-_PMC_ID_RE = re.compile(r"PMC(\d+)", re.IGNORECASE)
-
-
 def europepmc_pdf_render_url(pmc_id: str) -> str:
     return f"https://europepmc.org/articles/PMC{pmc_id}?pdf=render"
+
+
+def europepmc_rest_pdf_url(pmc_id: str) -> str:
+    return f"https://www.ebi.ac.uk/europepmc/webservices/rest/PMC{pmc_id}/fullTextPDF"
+
+
+def ncbi_pmc_pdf_url(pmc_id: str) -> str:
+    return f"https://pmc.ncbi.nlm.nih.gov/articles/PMC{pmc_id}/pdf/"
+
+
+def pdf_download_candidates(url: str) -> list[str]:
+    """Ordered URLs to try for open-access PMC PDFs (mirrors differ in reliability)."""
+    ordered: list[str] = [url.strip()]
+    match = _PMC_ID_RE.search(url)
+    if match:
+        pmc = match.group(1)
+        for alt in (
+            europepmc_rest_pdf_url(pmc),
+            ncbi_pmc_pdf_url(pmc),
+            europepmc_pdf_render_url(pmc),
+        ):
+            if alt not in ordered:
+                ordered.append(alt)
+    deduped: list[str] = []
+    for item in ordered:
+        if item and item not in deduped:
+            deduped.append(item)
+    return deduped
 
 
 def resolve_guideline_pdf_url(source: dict[str, Any]) -> str:
@@ -349,7 +409,7 @@ def main() -> None:
     parser.add_argument("--s3-prefix", default=DEFAULT_PREFIX)
     parser.add_argument("--s3-endpoint-url", default=DEFAULT_ENDPOINT_URL)
     parser.add_argument("--allow-failures", action="store_true", help="Exit successfully even when some sources fail to download.")
-    parser.add_argument("--timeout", default=60, type=int)
+    parser.add_argument("--timeout", default=int(os.environ.get("HF_CDSS_DOWNLOAD_TIMEOUT", "120")), type=int)
     args = parser.parse_args()
 
     registry = load_json(args.registry)

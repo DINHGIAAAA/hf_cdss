@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Dual-Plane Architecture",
+    "subtitle": "Offline knowledge construction and online clinical reasoning (Section 3.2.3)",
+    "quality_profile": "showcase",
+    "viewBox": [960, 520]
+  },
+  "components": [
+    { "id": "off-acquire", "type": "external", "label": "Acquire", "sublabel": "SPL + guidelines", "pos": [72, 72], "size": [168, 52] },
+    { "id": "off-filter", "type": "backend", "label": "Filter + chunk", "sublabel": "clinical sections", "pos": [72, 148], "size": [168, 52] },
+    { "id": "off-extract", "type": "backend", "label": "Extract + classify", "sublabel": "claims + rules", "pos": [72, 224], "size": [168, 52] },
+    { "id": "off-sync", "type": "cloud", "label": "Sync stores", "sublabel": "PG · Chroma · Neo4j", "pos": [72, 300], "size": [168, 52] },
+    { "id": "off-admin", "type": "frontend", "label": "Governance", "sublabel": "approve / retire", "pos": [72, 376], "size": [168, 52] },
+    { "id": "on-chat", "type": "frontend", "label": "Chat intake", "sublabel": "free text + files", "pos": [720, 72], "size": [168, 52] },
+    { "id": "on-profile", "type": "backend", "label": "Hybrid profile", "sublabel": "PatientProfile", "pos": [720, 148], "size": [168, 52] },
+    { "id": "on-reason", "type": "backend", "label": "Reasoning", "sublabel": "GDMT + dose safety", "pos": [720, 224], "size": [168, 52] },
+    { "id": "on-rag", "type": "cloud", "label": "GraphRAG", "sublabel": "hybrid retrieval", "pos": [720, 300], "size": [168, 52] },
+    { "id": "on-out", "type": "security", "label": "Verify + SSE", "sublabel": "cards then narrative", "pos": [720, 376], "size": [168, 52] },
+    { "id": "catalogs", "type": "database", "label": "Governed catalogs", "sublabel": "executable rules", "pos": [396, 248], "size": [168, 52] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "Offline knowledge plane", "wraps": ["off-acquire", "off-filter", "off-extract", "off-sync", "off-admin"] },
+    { "kind": "region", "label": "Online reasoning plane", "wraps": ["on-chat", "on-profile", "on-reason", "on-rag", "on-out"] }
+  ],
+  "connections": [
+    { "id": "o1", "from": "off-acquire", "to": "off-filter", "fromSide": "bottom", "toSide": "top" },
+    { "id": "o2", "from": "off-filter", "to": "off-extract", "fromSide": "bottom", "toSide": "top" },
+    { "id": "o3", "from": "off-extract", "to": "off-sync", "fromSide": "bottom", "toSide": "top" },
+    { "id": "o4", "from": "off-sync", "to": "catalogs", "label": "load", "variant": "emphasis", "fromSide": "right", "toSide": "left" },
+    { "id": "o5", "from": "off-admin", "to": "catalogs", "variant": "dashed", "fromSide": "right", "toSide": "bottom" },
+    { "id": "n1", "from": "on-chat", "to": "on-profile", "fromSide": "bottom", "toSide": "top" },
+    { "id": "n2", "from": "on-profile", "to": "on-reason", "fromSide": "bottom", "toSide": "top" },
+    { "id": "n3", "from": "on-reason", "to": "on-rag", "fromSide": "bottom", "toSide": "top" },
+    { "id": "n4", "from": "on-rag", "to": "on-out", "fromSide": "bottom", "toSide": "top" },
+    { "id": "x1", "from": "catalogs", "to": "on-reason", "label": "enforce", "variant": "emphasis", "fromSide": "right", "toSide": "left" },
+    { "id": "x2", "from": "on-out", "to": "off-admin", "variant": "dashed", "fromSide": "left", "toSide": "right", "route": "orthogonal-h" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Offline plane", "items": ["Batch ingestion and extraction", "Human governance before execute"] },
+    { "dot": "rose", "title": "Online plane", "items": ["Per-patient chat path", "Rules authoritative; LLM explains", "Dashed edge: review feedback to governance"] }
+  ]
+}

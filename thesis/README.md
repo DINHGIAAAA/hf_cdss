@@ -34,4 +34,6 @@
 | [References.md](References.md) | References |
 | [Appendix_A_Figures_and_Diagrams.md](Appendix_A_Figures_and_Diagrams.md) | Appendix A, Figures and Diagrams |
 
-Figures in the body: **Chapter 3** (3.1–3.5), **Chapter 4** (4.1–4.2), and **Chapter 5** (5.1–5.3) embed standalone pages under [figures/chapters/](figures/chapters/) (Archify diagrams in [figures/html/](figures/html/)); Appendix A uses the same core HTML with A.x labels. See [figures/README.md](figures/README.md).
+Figures in the body: **Chapter 3** (3.1–3.6), **Chapter 4** (4.1–4.2), and **Chapter 5** (5.1–5.3) embed standalone pages under [figures/chapters/](figures/chapters/) (Archify diagrams in [figures/html/](figures/html/)); Appendix A uses the same core HTML with A.x labels. See [figures/README.md](figures/README.md).
+
+Tables: **Table 3.1** and **Table 4.1** mirror Appendix A.1–A.2 in Chapters 3–4; evaluation tables **5.0a–5.3** live in Chapter 5. Mapping and Appendix B guidance: [tables/README.md](tables/README.md).

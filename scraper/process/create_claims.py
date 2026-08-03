@@ -17,6 +17,7 @@ import argparse
 import hashlib
 import json
 import logging
+import os
 import re
 from pathlib import Path
 
@@ -24,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 # Threshold: fail the pipeline if >20% of claims are dropped due to evidence issues.
 # This signals a systemic extraction problem, not just edge cases.
-MAX_CLAIM_DROP_RATE = 0.20
+MAX_CLAIM_DROP_RATE = float(os.environ.get("HF_CDSS_CLAIM_MAX_DROP_RATE", "0.20"))
 
 # Heart failure and cardiology drug patterns for extracting drug names from guideline text
 HF_DRUG_PATTERNS = [

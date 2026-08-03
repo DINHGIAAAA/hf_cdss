@@ -8,6 +8,47 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+# GDMT / HF class tokens (metadata or guideline extract) → cues allowed in evidence spans.
+CLASS_DRUG_EVIDENCE_CUES: dict[str, tuple[str, ...]] = {
+    "ace_inhibitor": ("ace inhibitor", "ace-i", "ace i", "acei", "angiotensin-converting enzyme"),
+    "arb": (" angiotensin receptor", " arb ", "angiotensin ii receptor"),
+    "sglt2i": ("sglt2", "sglt-2", "sodium-glucose", "sodium glucose"),
+    "mra": ("mineralocorticoid", "aldosterone antagonist", "mra", "spironolactone", "eplerenone"),
+    "loop_diuretic": ("loop diuretic", "furosemide", "bumetanide", "torsemide"),
+    "beta_blocker": ("beta blocker", "beta-blocker", "β-blocker"),
+    "sacubitril_valsartan": ("sacubitril", "valsartan", "entresto", "arni"),
+}
+
+
+def _drug_mentioned_in_evidence(drug: str, evidence_lower: str) -> bool:
+    drug_normalized = str(drug).strip().lower().replace("_", " ")
+    if (
+        drug_normalized in evidence_lower
+        or drug.replace("_", " ").lower() in evidence_lower
+        or drug.replace("_", "-").lower() in evidence_lower
+    ):
+        return True
+
+    variations = {
+        "lisinopril": ("lisinopril", "prinivil", "zestril"),
+        "carvedilol": ("carvedilol", "coreg"),
+        "metoprolol": ("metoprolol", "lopressor", "toprol"),
+        "spironolactone": ("spironolactone", "aldactone"),
+        "furosemide": ("furosemide", "lasix"),
+        "dapagliflozin": ("dapagliflozin", "forxiga"),
+        "empagliflozin": ("empagliflozin", "jardiance"),
+    }
+    for canonical, aliases in variations.items():
+        if drug_normalized == canonical or drug_normalized in aliases:
+            return any(alias in evidence_lower for alias in aliases)
+
+    class_key = str(drug).strip().lower()
+    cues = CLASS_DRUG_EVIDENCE_CUES.get(class_key)
+    if cues and any(cue in evidence_lower for cue in cues):
+        return True
+
+    return False
+
 
 def validate_claim_evidence_alignment(
     claim: dict[str, Any],
@@ -48,33 +89,17 @@ def validate_claim_evidence_alignment(
     evidence_lower = evidence.lower()
 
     # Check 1: Drug appears in evidence (if drug is specified)
-    if drug and drug.strip():
-        drug_normalized = str(drug).strip().lower().replace("_", " ")
-        # Check for drug name variations
-        drug_found = (
-            drug_normalized in evidence_lower
-            or drug.replace("_", " ") in evidence_lower
-            or drug.replace("_", "-") in evidence_lower
-        )
-        # Also check for brand/generic name variations
-        if not drug_found:
-            # Common variations
-            variations = {
-                "lisinopril": ["lisinopril", "prinivil", "zestril"],
-                "carvedilol": ["carvedilol", "coreg"],
-                "metoprolol": ["metoprolol", "lopressor", "toprol"],
-                "spironolactone": ["spironolactone", "aldactone"],
-                "furosemide": ["furosemide", "lasix"],
-                "dapagliflozin": ["dapagliflozin", "forxiga"],
-                "empagliflozin": ["empagliflozin", "jardiance"],
-            }
-            for canonical, aliases in variations.items():
-                if drug_normalized in aliases or canonical in drug_normalized:
-                    drug_found = any(alias in evidence_lower for alias in aliases)
-                    break
-
-        if not drug_found:
-            issues.append(f"Drug '{drug}' not explicitly found in evidence — possible wrong-drug claim")
+    # drug_label: metadata drug is authoritative — SPL sentences often say "this product".
+    # guideline_recommendation: drug field may be a class name, not verbatim in span.
+    skip_drug_in_evidence = (
+        claim_type == "guideline_recommendation"
+        or claim.get("source_type") == "drug_label"
+    )
+    if drug and drug.strip() and not skip_drug_in_evidence:
+        if not _drug_mentioned_in_evidence(str(drug), evidence_lower):
+            issues.append(
+                f"Drug '{drug}' not explicitly found in evidence — possible wrong-drug claim"
+            )
 
     # Check 2: Numeric thresholds appear in evidence
     for key, value in conditions.items():

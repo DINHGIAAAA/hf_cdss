@@ -111,6 +111,25 @@ The **data tier** uses several stores because no single database fits every acce
   <figcaption><strong>Figure 3.1.</strong> Overall HF-CDSS runtime architecture (mono-app). Interactive duplicate: Appendix A, Figure A.1.</figcaption>
 </figure>
 
+Table 3.1 is the deployment-facing inventory for the architecture in Figure 3.1. Each row ties a runtime role (presentation, application logic, inference, or persistence) to the technology chosen in this study and the host port used in the Docker Compose pilot. Readers should use the table to see which service owns governed rules versus vectors versus graph edges, not to memorize port numbers: the important design point is that clinical authority stays in PostgreSQL while ChromaDB and Neo4j support retrieval and explanation.
+
+**Table 3.1. Main system components and ports** (Appendix A, Table A.1)
+
+| Component | Technology | Port | Purpose |
+|-----------|-----------|------|---------|
+| **Frontend (Mono App)** | React + Vite | 5173 | Doctor Dashboard + Admin Portal |
+| **Backend API** | FastAPI + Python | 8000 | Clinical logic |
+| **LLM Server** | Ollama | 11434 | Local LLM inference |
+| **PostgreSQL** | Database | 55432 | Rules, audit, chat history |
+| **Neo4j** | Graph DB | 7474 | Knowledge graph |
+| **ChromaDB** | Vector DB | 8001 | Evidence embeddings |
+| **Redis** | Cache | 6379 | Draft, messages, LLM cache |
+| **LocalStack** | S3 Emulator | 4566 | Artifact storage |
+
+Together, these processes form one deployable stack: the browser talks to FastAPI and static assets; FastAPI talks to the data tier and Ollama; batch ingestion (Chapter 4) writes the same artifact layout that bootstrap loads at backend startup. Port values may change in production behind Nginx, but the responsibility split in the table remains the contract for operations and security review.
+
+Standalone HTML: [`tables/chapters/table-3-1-components.html`](tables/chapters/table-3-1-components.html).
+
 <figure class="thesis-archify-figure">
   <iframe src="figures/chapters/figure-3-2-datastores.html" title="Figure 3.2 Data stores"></iframe>
   <figcaption><strong>Figure 3.2.</strong> Persistence layer: PostgreSQL governance catalogs, Neo4j, ChromaDB, and Redis. Appendix A, Figure A.5.</figcaption>
@@ -128,16 +147,10 @@ The **online reasoning plane** accepts clinician chat, builds a patient profile,
 
 Without the offline plane, chat would have nothing trustworthy to enforce or cite. Without the online plane, catalogs would remain inert databases. Chapter 4 details implementation of both planes; this chapter specifies their design contracts and interactions.
 
-```
- Offline plane                         Online plane
- ┌──────────────────────┐              ┌──────────────────────────┐
- │ Acquire labels/PDFs  │              │ Chat + attachments       │
- │ Filter + chunk       │              │ Hybrid intake            │
- │ Extract + classify   │─────────────▶│ Reasoning + dose/safety  │
- │ Sync PG/Chroma/Neo4j │   catalogs   │ GraphRAG + verification  │
- │ Admin approve/retire │◀─────────────│ SSE cards + narrative    │
- └──────────────────────┘   feedback   └──────────────────────────┘
-```
+<figure class="thesis-archify-figure">
+  <iframe src="figures/chapters/figure-3-3-dual-plane.html" title="Figure 3.3 Dual-plane architecture"></iframe>
+  <figcaption><strong>Figure 3.3.</strong> Dual-plane architecture: offline ingestion and governance feed governed catalogs that the online chat path enforces; dashed return path marks clinician review feedback. Appendix A, Figure A.8.</figcaption>
+</figure>
 
 ### 3.2.4. End-to-End Online Data Flow
 
@@ -152,13 +165,13 @@ When required fields are present, GraphRAG prefetch starts asynchronously while 
 Finally, the explanation layer streams `answer_delta` tokens grounded in the verified recommendation and retrieved evidence, then emits `done`. Cards and safety statuses remain authoritative; narrative text remains explanatory.
 
 <figure class="thesis-archify-figure">
-  <iframe src="figures/chapters/figure-3-4-chat-workflow.html" title="Figure 3.4 Chat pipeline"></iframe>
-  <figcaption><strong>Figure 3.4.</strong> Chat message processing from dashboard input through backend stages to SSE clinical panel. Appendix A, Figure A.2.</figcaption>
+  <iframe src="figures/chapters/figure-3-5-chat-workflow.html" title="Figure 3.5 Chat pipeline"></iframe>
+  <figcaption><strong>Figure 3.5.</strong> Chat message processing from dashboard input through backend stages to SSE clinical panel. Appendix A, Figure A.2.</figcaption>
 </figure>
 
 <figure class="thesis-archify-figure">
-  <iframe src="figures/chapters/figure-3-5-chat-sequence.html" title="Figure 3.5 Chat sequence"></iframe>
-  <figcaption><strong>Figure 3.5.</strong> Sequence of one chat turn (doctor, dashboard, API, services, Ollama). Appendix A, Figure A.7.</figcaption>
+  <iframe src="figures/chapters/figure-3-6-chat-sequence.html" title="Figure 3.6 Chat sequence"></iframe>
+  <figcaption><strong>Figure 3.6.</strong> Sequence of one chat turn (doctor, dashboard, API, services, Ollama). Appendix A, Figure A.7.</figcaption>
 </figure>
 
 ### 3.2.5. Knowledge Graph and Hybrid Retrieval Architecture
@@ -170,8 +183,8 @@ Hybrid retrieval combines four complementary signals. HyDE expansion can turn a 
 PostgreSQL rules provide executable enforcement. The graph and vector indexes provide evidentiary context for verification and explanation. This split is the architectural heart of the thesis: retrieval grounds language; rules govern safety.
 
 <figure class="thesis-archify-figure">
-  <iframe src="figures/chapters/figure-3-3-graphrag.html" title="Figure 3.3 GraphRAG"></iframe>
-  <figcaption><strong>Figure 3.3.</strong> GraphRAG hybrid retrieval (HyDE, multi-retriever fusion, reranking). Appendix A, Figure A.4.</figcaption>
+  <iframe src="figures/chapters/figure-3-4-graphrag.html" title="Figure 3.4 GraphRAG"></iframe>
+  <figcaption><strong>Figure 3.4.</strong> GraphRAG hybrid retrieval (HyDE, multi-retriever fusion, reranking). Appendix A, Figure A.4.</figcaption>
 </figure>
 
 ### 3.2.6. Component Map of the Application Tier

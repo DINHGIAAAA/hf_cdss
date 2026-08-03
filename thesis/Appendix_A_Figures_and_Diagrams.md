@@ -78,6 +78,15 @@ Interactive diagrams (Archify, showcase validation) live under [`figures/html/`]
 
 ---
 
+## Figure A.8: Dual-Plane Architecture (Offline / Online)
+
+<figure class="thesis-archify-figure">
+  <iframe src="figures/html/figure-a8-dual-plane.html" title="Figure A.8 Dual-plane architecture"></iframe>
+  <figcaption><strong>Figure A.8.</strong> Offline knowledge plane and online reasoning plane (Chapter 3, Figure 3.3)</figcaption>
+</figure>
+
+---
+
 ## Table A.1: Main System Components
 
 | Component | Technology | Port | Purpose |
@@ -91,7 +100,7 @@ Interactive diagrams (Archify, showcase validation) live under [`figures/html/`]
 | **Redis** | Cache | 6379 | Draft, messages, LLM cache |
 | **LocalStack** | S3 Emulator | 4566 | Artifact storage |
 
-**Table A.1. Main system components and ports**
+**Table A.1. Main system components and ports** — full copy in **Chapter 3, Table 3.1** (Section 3.2.2).
 
 ---
 
@@ -113,7 +122,7 @@ Interactive diagrams (Archify, showcase validation) live under [`figures/html/`]
 | `/admin/api` | ApiExplorerPage | API testing |
 | `/admin/users` | UsersPage | User management (admin only) |
 
-**Table A.2. Frontend routes**
+**Table A.2. Frontend routes** — full copy in **Chapter 4, Table 4.1** (Section 4.4).
 
 ---
 

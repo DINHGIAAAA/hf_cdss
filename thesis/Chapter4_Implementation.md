@@ -166,6 +166,30 @@ Patient drafts, messages, and recommendation artifacts persist through datastore
   <figcaption><strong>Figure 4.2.</strong> Doctor dashboard routing: home, chat, and admin governance pages. Appendix A, Figure A.6.</figcaption>
 </figure>
 
+Table 4.1 maps URLs in the Vite mono-app to React pages. The split between `/chat` and `/admin/*` mirrors the design boundary in Chapter 3: clinicians stay on the chat and evidence surfaces, while clinical leads use nested admin routes to approve or retire governed catalogs without redeploying the backend. The table is the authoritative route list for integration testing and for Nginx path rules described in Section 4.5.2.
+
+**Table 4.1. Frontend routes** (Appendix A, Table A.2)
+
+| Route | Component | Description |
+|-------|-----------|-------------|
+| `/` | HomePage | Landing page |
+| `/chat` | ChatPage | Main chat interface |
+| `/admin` | AdminLayout | Admin portal (redirects to /admin/rules) |
+| `/admin/rules` | RulesPage | Constraint rules management |
+| `/admin/dose-rules` | DoseRulesPage | Dose rules management |
+| `/admin/dose-safety-warnings` | DoseSafetyWarningsPage | Safety warnings |
+| `/admin/interaction-rules` | InteractionRulesPage | Drug interactions |
+| `/admin/gdmt-policies` | GdmtPoliciesPage | GDMT policies |
+| `/admin/evidence` | EvidencePage | Evidence management |
+| `/admin/audit` | AuditPage | Audit logs |
+| `/admin/system` | SystemPage | System health |
+| `/admin/api` | ApiExplorerPage | API testing |
+| `/admin/users` | UsersPage | User management (admin only) |
+
+In practice, most clinical traffic hits `/` and `/chat`, while governance workflows fan out under `/admin` with one page per catalog family (constraints, dose, interactions, GDMT, evidence, audit). Shared packages keep field labels consistent across those admin screens and the doctor dashboard cards fed by the same API types.
+
+Standalone HTML: [`tables/chapters/table-4-1-frontend-routes.html`](tables/chapters/table-4-1-frontend-routes.html).
+
 ### 4.4.1. Application Structure
 
 The frontend monorepo under `frontend/` contains the doctor dashboard, the admin portal, and shared packages for API clients and display helpers. The doctor dashboard is the primary clinical surface. It includes chat runtime components, a clinical side panel, conversation sidebar controls, evidence browsing, and bilingual message catalogs.
