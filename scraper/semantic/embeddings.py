@@ -97,22 +97,26 @@ def _with_embed_retries(operation_name: str, call, *, timeout: float):
 
 def _embed_batch_ollama(texts: list[str], timeout: float) -> list[list[float]]:
     """True batch embedding via Ollama /api/embed (input=list)."""
+    request_timeout = config.embedding_batch_timeout_seconds(len(texts), timeout)
 
     def _call() -> list[list[float]]:
-        with httpx.Client(timeout=timeout) as client:
+        with httpx.Client(timeout=request_timeout) as client:
             response = client.post(
                 _ollama_embed_url(),
                 json={
                     "model": config.EMBEDDING_MODEL,
                     "input": texts,
-                    # Do not pin the embed model on GPU for hours — blocks chat LLMs.
-                    "keep_alive": "0",
+                    "keep_alive": config.EMBEDDING_KEEP_ALIVE,
                 },
             )
             response.raise_for_status()
             return _parse_embedding_vectors(response.json())
 
-    return _with_embed_retries(f"/api/embed x{len(texts)}", _call, timeout=timeout)
+    return _with_embed_retries(
+        f"/api/embed x{len(texts)}",
+        _call,
+        timeout=request_timeout,
+    )
 
 
 def _embed_single_text(text: str, timeout: float) -> list[float]:
@@ -125,7 +129,7 @@ def _embed_single_text(text: str, timeout: float) -> list[float]:
                 json={
                     "model": config.EMBEDDING_MODEL,
                     "prompt": text,
-                    "keep_alive": "0",
+                    "keep_alive": config.EMBEDDING_KEEP_ALIVE,
                 },
             )
             response.raise_for_status()

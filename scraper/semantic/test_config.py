@@ -13,12 +13,22 @@ def test_timeout_values_are_positive():
     assert config.LLM_TIMEOUT_SECONDS > 0
     assert config.CONDITION_REFINE_LLM_TIMEOUT_SECONDS >= config.LLM_TIMEOUT_SECONDS
     assert config.INGESTION_LLM_TIMEOUT_SECONDS >= config.LLM_TIMEOUT_SECONDS
-    assert config.EMBEDDING_TIMEOUT_SECONDS > 0
+    assert config.EMBEDDING_TIMEOUT_SECONDS >= config.EMBEDDING_TIMEOUT_MIN_SECONDS
 
 
 def test_max_tokens_positive():
     assert config.LLM_MAX_TOKENS > 0
     assert config.CONDITION_REFINE_LLM_MAX_TOKENS > 0
+
+
+def test_embedding_keep_alive_default_nonzero():
+    assert config.EMBEDDING_KEEP_ALIVE.strip() not in {"", "0"}
+
+
+def test_embedding_batch_timeout_scales_with_batch_len():
+    base = config.EMBEDDING_TIMEOUT_SECONDS
+    assert config.embedding_batch_timeout_seconds(1, base) == base
+    assert config.embedding_batch_timeout_seconds(16, base) >= base * 3
 
 
 def test_concurrency_at_least_one():

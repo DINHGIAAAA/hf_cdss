@@ -80,12 +80,34 @@ EMBEDDING_MODEL = os.environ.get("HF_CDSS_EMBEDDING_MODEL", EMBEDDING_MODEL)
 EMBEDDING_BATCH_SIZE = _env_int("HF_CDSS_EMBEDDING_BATCH_SIZE", 32)
 EMBEDDING_PARALLEL_WORKERS = _env_int("HF_CDSS_EMBEDDING_PARALLEL_WORKERS", 4)
 # bge-m3 on CPU often needs > LLM chat timeout; keep a dedicated budget.
-EMBEDDING_TIMEOUT_SECONDS = _env_float(
-    "HF_CDSS_EMBEDDING_TIMEOUT_SECONDS",
-    max(LLM_TIMEOUT_SECONDS, 180.0),
+EMBEDDING_TIMEOUT_MIN_SECONDS = 300.0
+EMBEDDING_TIMEOUT_SECONDS = max(
+    EMBEDDING_TIMEOUT_MIN_SECONDS,
+    _env_float(
+        "HF_CDSS_EMBEDDING_TIMEOUT_SECONDS",
+        max(LLM_TIMEOUT_SECONDS, EMBEDDING_TIMEOUT_MIN_SECONDS),
+    ),
+)
+EMBEDDING_BATCH_TIMEOUT_CAP_SECONDS = _env_float(
+    "HF_CDSS_EMBEDDING_BATCH_TIMEOUT_CAP_SECONDS",
+    900.0,
 )
 EMBEDDING_MAX_RETRIES = _env_int("HF_CDSS_EMBEDDING_MAX_RETRIES", 2)
+# Ollama keep_alive for embed requests. "0" unloads after each call (slow on CPU ingestion).
+# Use "5m" during batch ingest; set "0" on shared Ollama if chat models must not wait on bge-m3.
+EMBEDDING_KEEP_ALIVE = os.environ.get("HF_CDSS_EMBEDDING_KEEP_ALIVE", "5m").strip() or "5m"
 EMBEDDING_CACHE_ENABLED = os.environ.get("HF_CDSS_EMBEDDING_CACHE_ENABLED", "true").lower() in {"1", "true", "yes"}
+
+
+def embedding_batch_timeout_seconds(batch_len: int, base_timeout: float | None = None) -> float:
+    """Scale HTTP timeout for multi-text /api/embed batches on CPU Ollama."""
+    base = base_timeout if base_timeout is not None else EMBEDDING_TIMEOUT_SECONDS
+    if batch_len <= 1:
+        return base
+    scaled = base * max(1.0, batch_len / 4.0)
+    return min(EMBEDDING_BATCH_TIMEOUT_CAP_SECONDS, scaled)
+
+
 EMBEDDING_CACHE_DIR = _resolved_cache_dir("HF_CDSS_EMBEDDING_CACHE_DIR", "embeddings")
 EMBEDDING_DEDUP_ENABLED = os.environ.get("HF_CDSS_EMBEDDING_DEDUP_ENABLED", "false").lower() in {"1", "true", "yes"}
 

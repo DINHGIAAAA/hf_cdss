@@ -63,8 +63,12 @@ def test_filter_calls_llm_only_for_borderline(monkeypatch):
         "scraper.semantic.section_filter.warmup_prototype_vectors",
         lambda *args, **kwargs: None,
     )
+    monkeypatch.setattr(
+        "scraper.semantic.section_filter.embed_texts",
+        lambda texts, **kwargs: [[1.0, 0.0] for _ in texts],
+    )
 
-    def fake_guideline_probe(record):
+    def fake_guideline_probe(record, haystack_vector=None):
         title = record.get("section")
         if title == "clear_keep":
             return SemanticProbe(matches=["dosing"], best_score=0.80, best_topic="dosing")
@@ -116,13 +120,17 @@ def test_borderline_llm_prioritizes_higher_scores(monkeypatch):
         "scraper.semantic.section_filter.warmup_prototype_vectors",
         lambda *args, **kwargs: None,
     )
+    monkeypatch.setattr(
+        "scraper.semantic.section_filter.embed_texts",
+        lambda texts, **kwargs: [[1.0, 0.0] for _ in texts],
+    )
     monkeypatch.setattr("scraper.semantic.section_filter.guideline_matches", lambda record: [])
     monkeypatch.setattr(
         "scraper.semantic.section_filter.is_extracted_table_section",
         lambda record: False,
     )
 
-    def fake_probe(record):
+    def fake_probe(record, haystack_vector=None):
         score = float(record["score"])
         return SemanticProbe(matches=[], best_score=score, best_topic="dosing")
 
@@ -155,6 +163,10 @@ def test_low_score_text_rescue(monkeypatch):
         "scraper.semantic.section_filter.warmup_prototype_vectors",
         lambda *args, **kwargs: None,
     )
+    monkeypatch.setattr(
+        "scraper.semantic.section_filter.embed_texts",
+        lambda texts, **kwargs: [[1.0, 0.0] for _ in texts],
+    )
     monkeypatch.setattr("scraper.semantic.section_filter.guideline_matches", lambda record: [])
     monkeypatch.setattr(
         "scraper.semantic.section_filter.is_extracted_table_section",
@@ -162,7 +174,9 @@ def test_low_score_text_rescue(monkeypatch):
     )
     monkeypatch.setattr(
         "scraper.semantic.section_filter._semantic_guideline_probe",
-        lambda record: SemanticProbe(matches=[], best_score=0.22, best_topic="dosing"),
+        lambda record, haystack_vector=None: SemanticProbe(
+            matches=[], best_score=0.22, best_topic="dosing"
+        ),
     )
     kept = filter_important_sections(
         [

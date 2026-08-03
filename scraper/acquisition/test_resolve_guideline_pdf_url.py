@@ -1,6 +1,17 @@
 """Tests for guideline PDF download URL resolution."""
 
-from scraper.acquisition.download_sources import pdf_download_candidates, resolve_guideline_pdf_url
+from scraper.acquisition.download_sources import html_fallback_urls, pdf_download_candidates, resolve_guideline_pdf_url
+
+
+def test_html_fallback_urls_includes_pubmed_for_med_link():
+    urls = html_fallback_urls(
+        {
+            "html_url": "https://europepmc.org/article/MED/34709879",
+            "notes": "Publisher blocks automated download.",
+        }
+    )
+    assert urls[0].endswith("/34709879")
+    assert any("pubmed.ncbi.nlm.nih.gov/34709879" in u for u in urls)
 
 
 def test_pdf_download_candidates_orders_mirrors():

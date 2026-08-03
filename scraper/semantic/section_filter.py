@@ -8,7 +8,11 @@ from dataclasses import dataclass, field
 
 from scraper.prompts.section_importance import SECTION_IMPORTANCE_SYSTEM_PROMPT
 from scraper.semantic import config
-from scraper.semantic.embeddings import embed_text, max_similarity_vector_to_prototypes, warmup_prototype_vectors
+from scraper.semantic.embeddings import (
+    embed_texts,
+    max_similarity_vector_to_prototypes,
+    warmup_prototype_vectors,
+)
 from scraper.semantic.llm_client import call_llm_json, llm_available
 from scraper.semantic.topic_prototypes import DRUG_SECTION_PROTOTYPES, GUIDELINE_TOPIC_PROTOTYPES
 from scraper.transform.extract_important_sections import (
@@ -127,24 +131,37 @@ def _probe_from_prototypes(
     )
 
 
-def _semantic_drug_probe(record: dict) -> SemanticProbe:
+def _drug_haystack(record: dict) -> str | None:
     section = normalize(record.get("section", ""))
     raw_text = record.get("text") or ""
     truncated_text = raw_text[:2000]
     haystack = f"{section}\n{truncated_text}".strip()
-    if not haystack:
-        return SemanticProbe()
+    return haystack or None
 
+
+def _drug_probe_alias_match(record: dict) -> SemanticProbe | None:
+    section = normalize(record.get("section", ""))
     for canonical, aliases in DRUG_SECTION_ALIASES.items():
         if section in aliases:
             return SemanticProbe(matches=[canonical], best_score=1.0, best_topic=canonical)
+    return None
 
-    try:
-        haystack_vector = embed_text(haystack)
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("Semantic drug embed skipped for section=%r: %s", section[:80], exc)
+
+def _semantic_drug_probe(record: dict, haystack_vector: list[float] | None = None) -> SemanticProbe:
+    alias_probe = _drug_probe_alias_match(record)
+    if alias_probe is not None:
+        return alias_probe
+
+    haystack = _drug_haystack(record)
+    if not haystack:
         return SemanticProbe()
 
+    if haystack_vector is None:
+        try:
+            haystack_vector = embed_texts([haystack])[0]
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Semantic drug embed skipped for section=%r: %s", haystack[:80], exc)
+            return SemanticProbe()
     return _probe_from_prototypes(
         haystack_vector,
         DRUG_SECTION_PROTOTYPES,
@@ -152,26 +169,31 @@ def _semantic_drug_probe(record: dict) -> SemanticProbe:
     )
 
 
-def _semantic_guideline_probe(record: dict) -> SemanticProbe:
+def _guideline_haystack(record: dict) -> str | None:
     section = record.get("section", "")
     raw_text = record.get("text") or ""
     if len(raw_text) > 2000:
-        # Extract from the end where dose/safety tables typically appear in guidelines
         haystack = f"{section}\n{raw_text[-2000:]}".strip()
     else:
         haystack = f"{section}\n{raw_text}".strip()
+    return haystack or None
+
+
+def _semantic_guideline_probe(record: dict, haystack_vector: list[float] | None = None) -> SemanticProbe:
+    haystack = _guideline_haystack(record)
     if not haystack:
         return SemanticProbe()
 
-    try:
-        haystack_vector = embed_text(haystack)
-    except Exception as exc:  # noqa: BLE001
-        logger.warning(
-            "Semantic guideline embed skipped for section=%r: %s",
-            str(record.get("section") or "")[:80],
-            exc,
-        )
-        return SemanticProbe()
+    if haystack_vector is None:
+        try:
+            haystack_vector = embed_texts([haystack])[0]
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "Semantic guideline embed skipped for section=%r: %s",
+                str(record.get("section") or "")[:80],
+                exc,
+            )
+            return SemanticProbe()
 
     return _probe_from_prototypes(
         haystack_vector,
@@ -301,8 +323,51 @@ def filter_important_sections(records: list[dict]) -> list[dict]:
         config.SECTION_BORDERLINE_LLM_MAX,
     )
 
+    # Pre-collect haystacks for batch Ollama /api/embed (avoids one HTTP round-trip per section).
+    embed_plan: list[tuple[int, str, str]] = []  # record_index, kind, haystack
+    for record_index, record in enumerate(records):
+        if is_extracted_table_section(record):
+            continue
+        if record.get("source_type") == "drug_label":
+            if drug_matches(record):
+                continue
+            if _drug_probe_alias_match(record) is not None:
+                continue
+            haystack = _drug_haystack(record)
+            if haystack:
+                embed_plan.append((record_index, "drug_label", haystack))
+        elif record.get("source_type") == "guideline":
+            if guideline_matches(record):
+                continue
+            haystack = _guideline_haystack(record)
+            if haystack:
+                embed_plan.append((record_index, "guideline", haystack))
+
+    embed_vectors: dict[int, list[float]] = {}
+    if embed_plan:
+        logger.info(
+            "Section filter: batch embedding %s haystacks "
+            "(batch_size=%s, timeout_base=%ss, keep_alive=%s)...",
+            len(embed_plan),
+            config.EMBEDDING_BATCH_SIZE,
+            config.EMBEDDING_TIMEOUT_SECONDS,
+            config.EMBEDDING_KEEP_ALIVE,
+        )
+        haystacks = [haystack for _, _, haystack in embed_plan]
+        try:
+            vectors = embed_texts(haystacks)
+            for (record_index, _, _), vector in zip(embed_plan, vectors):
+                embed_vectors[record_index] = vector
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "Batch section embedding failed (%s haystacks): %s; falling back per-section",
+                len(haystacks),
+                exc,
+            )
+
     # Pass 1: keyword / embed keep, queue borderline, rescue strong body cues below low threshold.
     for index, record in enumerate(records, start=1):
+        record_index = index - 1
         if is_extracted_table_section(record):
             keyword_matches = guideline_matches(record) or ["tables"]
             _append_important(important, record, keyword_matches, match_method="extracted_table")
@@ -314,12 +379,12 @@ def filter_important_sections(records: list[dict]) -> list[dict]:
             keyword_matches = drug_matches(record)
             if not keyword_matches:
                 semantic_embed_calls += 1
-                probe = _semantic_drug_probe(record)
+                probe = _semantic_drug_probe(record, embed_vectors.get(record_index))
         elif record.get("source_type") == "guideline":
             keyword_matches = guideline_matches(record)
             if not keyword_matches:
                 semantic_embed_calls += 1
-                probe = _semantic_guideline_probe(record)
+                probe = _semantic_guideline_probe(record, embed_vectors.get(record_index))
 
         semantic_matches = list(probe.matches)
         merged = sorted(set(keyword_matches) | set(semantic_matches))

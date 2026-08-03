@@ -100,16 +100,61 @@ def _download_bytes_one_url(url: str, timeout: int) -> bytes:
             browser.close()
 
 
-def download_bytes(url: str, timeout: int) -> bytes:
+_TRANSIENT_DOWNLOAD_MARKERS = (
+    "TLS connection",
+    "socket disconnected",
+    "Timeout",
+    "timed out",
+    "ECONNRESET",
+    "ETIMEDOUT",
+    "net::ERR",
+)
+
+
+def _is_transient_download_error(exc: BaseException) -> bool:
+    message = str(exc)
+    return any(marker in message for marker in _TRANSIENT_DOWNLOAD_MARKERS)
+
+
+def download_bytes(url: str, timeout: int, *, attempts: int = 3) -> bytes:
     use_chain = bool(_PMC_ID_RE.search(url)) or "pdf=render" in url.lower()
     candidates = pdf_download_candidates(url) if use_chain else [url]
     errors: list[str] = []
     for candidate in candidates:
-        try:
-            return _download_bytes_one_url(candidate, timeout)
-        except Exception as exc:
-            errors.append(f"{candidate}: {exc}")
-    raise RuntimeError("; ".join(errors))
+        for attempt in range(attempts):
+            try:
+                return _download_bytes_one_url(candidate, timeout)
+            except Exception as exc:
+                errors.append(f"{candidate} (try {attempt + 1}/{attempts}): {exc}")
+                if attempt + 1 < attempts and _is_transient_download_error(exc):
+                    time.sleep(min(8, 2**attempt))
+                    continue
+                break
+    raise RuntimeError("; ".join(errors[-6:]))
+
+
+def html_fallback_urls(source: dict[str, Any]) -> list[str]:
+    """Extra URLs to try when primary PDF and html_url fail (publisher-gated guidelines)."""
+    urls: list[str] = []
+    primary = str(source.get("html_url") or "").strip()
+    if primary:
+        urls.append(primary)
+    notes = str(source.get("notes") or "")
+    for match in re.finditer(r"PMID[:\s]*(\d+)", notes, re.I):
+        pmid = match.group(1)
+        urls.append(f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/")
+    # Europe PMC MED pages often 500 from batch bots; PubMed HTML is a weaker but reachable fallback.
+    med_match = re.search(r"/article/MED/(\d+)", primary)
+    if med_match:
+        pmid = med_match.group(1)
+        pubmed = f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/"
+        if pubmed not in urls:
+            urls.append(pubmed)
+    deduped: list[str] = []
+    for item in urls:
+        if item and item not in deduped:
+            deduped.append(item)
+    return deduped
 
 
 def fetch_json(url: str, timeout: int) -> dict[str, Any]:
@@ -494,8 +539,9 @@ def main() -> None:
             )
         except Exception as exc:
             detail = str(exc)
-            fallback_url = resolved_source.get("html_url")
-            if fallback_url:
+            fallback_errors: list[str] = []
+            saved = False
+            for fallback_url in html_fallback_urls(resolved_source):
                 try:
                     payload = download_bytes(fallback_url, args.timeout)
                     item = coerce_download_item(
@@ -538,16 +584,21 @@ def main() -> None:
                             resolved_source,
                             target,
                             "downloaded",
-                            detail=f"Primary download failed ({detail}); saved HTML fallback.",
+                            detail=f"Primary download failed ({detail}); saved HTML fallback from {fallback_url}.",
                             storage_uri=f"s3://{args.s3_bucket}/{s3_key(args.s3_prefix, item['target_path'])}",
                             byte_count=len(payload),
                             sha256=item_sha,
                             artifacts=artifacts,
                         )
                     )
-                    continue
+                    saved = True
+                    break
                 except Exception as fallback_exc:
-                    detail = f"{detail}; html fallback failed: {fallback_exc}"
+                    fallback_errors.append(f"{fallback_url}: {fallback_exc}")
+            if saved:
+                continue
+            if fallback_errors:
+                detail = f"{detail}; html fallback failed: {'; '.join(fallback_errors[-3:])}"
             rows.append(manifest_row(resolved_source, target, "failed", detail, storage_uri=storage_uri))
 
     args.manifest.parent.mkdir(parents=True, exist_ok=True)
