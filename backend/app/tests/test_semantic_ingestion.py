@@ -403,6 +403,8 @@ def test_section_filter_embeds_haystack_once_per_record(monkeypatch) -> None:
             haystack_embed_calls.append(text)
         return [[1.0, 0.0] for _ in texts]
 
+    monkeypatch.setattr("scraper.semantic.section_filter.warmup_prototype_vectors", lambda *a, **k: None)
+    monkeypatch.setattr("scraper.semantic.section_filter.embed_texts", fake_embed_texts)
     monkeypatch.setattr("scraper.semantic.embeddings.embed_texts", fake_embed_texts)
 
     records = [

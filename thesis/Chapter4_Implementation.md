@@ -128,7 +128,9 @@ The intake pipeline is three-stage, as designed in Section 3.4.1.
 
 ### 4.3.4. Clinical Normalization and Risk Extraction
 
-Normalization functions (Section 3.4.2) are pure — no I/O, no randomness. Unit thresholds implemented:
+Normalization functions (Section 3.4.2) are pure — no I/O, no randomness. **Table 4.2** lists the numeric bands the implementation uses when classifying renal function, potassium, blood pressure, and heart rate from typed labs and vitals. These thresholds are fixed constants in code (not learned), so unit tests can assert exact labels for boundary values.
+
+**Table 4.2. Clinical normalization thresholds**
 
 | Classification | Thresholds |
 |---|---|
@@ -370,7 +372,9 @@ The test setup establishes the test environment with the following mechanisms:
 
 ### 4.6.3. Unit Tests — Clinical Intake and Normalization
 
-**Intake extraction tests:**
+**Table 4.3** documents pytest cases for the three-stage intake extractor: Vietnamese free text, brand-name medications, red flags, structured bypass of the LLM, and merge behavior when regex and model disagree.
+
+**Table 4.3. Intake extraction test cases**
 
 | TC | Input | Expected output |
 |----|-------|----------------|
@@ -381,7 +385,9 @@ The test setup establishes the test environment with the following mechanisms:
 | TC-I-05 | Structured input with all required fields | Language model extractor not invoked |
 | TC-I-06 | Vague request with mock language model | Patient identity populated; pattern-extracted values override model guesses |
 
-**Normalization tests:**
+**Table 4.4** verifies heart-failure typing from LVEF, renal and electrolyte bands, blood pressure and heart rate classes, polypharmacy detection, and comorbidity string normalization—each row is a boundary or regression check on the pure functions in §4.3.4.
+
+**Table 4.4. Normalization classification test cases**
 
 | TC | Classification | Input | Expected |
 |----|----------|-------|---------|
@@ -406,6 +412,10 @@ The test setup establishes the test environment with the following mechanisms:
 
 ### 4.6.4. Unit Tests — Risk Extraction
 
+**Table 4.5** covers binary risk flags derived after normalization: combined high-risk profiles, missing-lab flags, and the invariant that documented CKD history does not double-count as renal impairment when eGFR is preserved.
+
+**Table 4.5. Risk extraction test cases**
+
 | TC | Patient profile | Expected risk flags |
 |----|----------------|--------------------|
 | TC-R-01 | eGFR=28, K=5.6, SBP=88, HR=55, five medications, diabetes | Renal impairment, hyperkalemia, hypotension, bradycardia, polypharmacy, diabetes |
@@ -415,12 +425,20 @@ The test setup establishes the test environment with the following mechanisms:
 
 ### 4.6.5. Unit Tests — Patient Schema
 
+**Table 4.6** ensures the Pydantic patient model accepts both legacy flat payloads and nested demographics/labs while exposing the same computed properties to downstream reasoning.
+
+**Table 4.6. Patient schema compatibility test cases**
+
 | TC | Payload shape | Assertions |
 |----|-------------|-----------|
 | TC-S-01 | Legacy flat fields | All flat fields map via computed properties |
 | TC-S-02 | Nested fields with demographics and labs | Patient identity populated; eGFR and medications correctly parsed |
 
 ### 4.6.6. Unit Tests — Drug Normalization and Evidence Linking
+
+**Table 4.7** exercises brand-to-generic resolution, search-term expansion for retrieval, and chunk linking so recommendation cards carry stable evidence identifiers and ranked context.
+
+**Table 4.7. Drug normalization and evidence linking test cases**
 
 | TC | Call | Expected |
 |----|------|---------|
@@ -432,6 +450,10 @@ The test setup establishes the test environment with the following mechanisms:
 | TC-D-05 | Prioritize context chunks with high linked score | Linked chunk appears first in evidence chunks |
 
 ### 4.6.7. Unit Tests — Constraint Builder
+
+**Table 4.8** validates PostgreSQL rule loading, TTL cache hit and fail-stale behavior, and firing of MRA avoid, RAAS caution, and beta-blocker caution constraints on representative lab profiles.
+
+**Table 4.8. Constraint builder test cases**
 
 | TC | Patient | Expected |
 |----|---------|---------|
@@ -446,6 +468,10 @@ The test setup establishes the test environment with the following mechanisms:
 
 ### 4.6.8. Unit Tests — Dose Safety and Interaction Checking
 
+**Table 4.9** checks dose-safety warning rules and interaction pairs (ACE+ARB, RAAS+MRA, anticoagulant+antiplatelet), including graceful empty results when the governance database is unavailable.
+
+**Table 4.9. Dose safety and interaction test cases**
+
 | TC | Patient medications | Expected warnings |
 |----|--------------------|--------------------|
 | TC-DS-01 | Digoxin, spironolactone, furosemide | Digoxin renal review, MRA renal potassium review, loop diuretic lab monitoring present |
@@ -458,6 +484,10 @@ The test setup establishes the test environment with the following mechanisms:
 
 ### 4.6.9. Unit Tests — Recommendation Engine
 
+**Table 4.10** summarizes end-to-end recommendation engine outcomes: blocked versus approved status, GDMT class actions, HF type classification, and warning paths when critical labs are missing.
+
+**Table 4.10. Recommendation engine integration test cases**
+
 | TC | Patient profile | Expected |
 |----|----------------|---------|
 | TC-REC-01 | LVEF=30, eGFR=28, K=5.4, SBP=92, HR=58, CKD | Overall status blocked; risk flags include renal impairment, hyperkalemia, hypotension, bradycardia; MRA status avoid; SGLT2i status consider with caution |
@@ -466,6 +496,10 @@ The test setup establishes the test environment with the following mechanisms:
 | TC-REC-04 | LVEF=30, SBP=96; missing eGFR, K, HR | Overall status approved with warnings; risk flags include missing eGFR, potassium, heart rate; all GDMT classes status consider with caution |
 
 ### 4.6.10. Unit Tests — Evidence Filter and Citation Validation
+
+**Table 4.11** tests GraphRAG entity extraction for retrieval queries, evidence filtering (score floors, irrelevant sections, pinned chunks), and citation support objects attached to governed constraints.
+
+**Table 4.11. Evidence filter and citation validation test cases**
 
 | TC | Setup | Expected |
 |----|-------|---------|
@@ -478,6 +512,10 @@ The test setup establishes the test environment with the following mechanisms:
 | TC-CV-03 | Any supported citation | Confidence score greater than zero |
 
 ### 4.6.11. Unit Tests — Card Summarizer and Explanation
+
+**Table 4.12** covers deterministic Vietnamese card text, LLM merge fallbacks, unknown-class rejection, and behavior when completions are disabled—ensuring displayed status always mirrors structured recommendation fields.
+
+**Table 4.12. Card summarizer and explanation test cases**
 
 | TC | Input | Expected |
 |----|-------|---------|
@@ -492,6 +530,10 @@ The test setup establishes the test environment with the following mechanisms:
 
 ### 4.6.12. Integration Tests — Chat and SSE
 
+**Table 4.13** lists HTTP and SSE integration tests for the chat API: missing-field gates, event ordering on the stream, medication normalization in drafts, and conversation history persistence.
+
+**Table 4.13. Chat and SSE integration test cases**
+
 | TC | Request | Expected |
 |----|---------|---------|
 | TC-CH-01 | Message with LVEF, eGFR, K, no SBP | HTTP 200; status indicates missing information; missing fields includes systolic blood pressure |
@@ -502,6 +544,10 @@ The test setup establishes the test environment with the following mechanisms:
 
 ### 4.6.13. Integration Tests — GraphRAG and Verification
 
+**Table 4.14** confirms that a full GraphRAG request returns graph facts and evidence chunks, runs all six verification agents, and produces aggregated verdict and citation status fields.
+
+**Table 4.14. GraphRAG and verification integration test cases**
+
 | TC | Request | Expected |
 |----|---------|---------|
 | TC-G-01 | HFrEF patient with multiple conditions | HTTP 200; graph facts and evidence chunks non-empty; retrieval sources include relationships and chunks |
@@ -510,6 +556,10 @@ The test setup establishes the test environment with the following mechanisms:
 | TC-G-04 | Same patient | Citation status is strong, weak, or missing |
 
 ### 4.6.14. Integration Tests — Admin and Governance
+
+**Table 4.15** maps role-based access, constraint approval, invalid governance transitions, and diff-engine behavior for admin APIs used by the governance portal.
+
+**Table 4.15. Admin and governance integration test cases**
 
 | TC | Action | Expected |
 |----|--------|---------|
@@ -523,7 +573,9 @@ The test setup establishes the test environment with the following mechanisms:
 | TC-AD-08 | Diff map with changed field | One change reported with correct path and type |
 | TC-AD-09 | Diff map with identical payload | Empty list returned |
 
-**Test users for auth testing:**
+**Table 4.16** lists seeded JWT users exercised in auth tests; passwords are shared test secrets with bcrypt hashes loaded at bootstrap.
+
+**Table 4.16. Seeded test users for auth testing**
 
 | Username | Roles | Test purpose |
 |----------|-------|-------------|

@@ -8,12 +8,14 @@ Same pattern as [figures/README.md](../figures/README.md): **chapters carry the 
 |----------|----------------------------|---------|-----------------|
 | **Table A.1** Main components & ports | **Table 3.1** | Ch.3 §3.2.2 (after Figure 3.1) | `chapters/table-3-1-components.html` |
 | **Table A.2** Frontend routes | **Table 4.1** | Ch.4 §4.4 (after Figure 4.2) | `chapters/table-4-1-frontend-routes.html` |
+| **Table 4.2** Normalization thresholds | Ch.4 §4.3.4 | — |
+| **Tables 4.3–4.16** Test case matrices | Ch.4 §4.6 | — |
 
 Supplemental (appendix-only today, no chapter number):
 
 | Location | Content | Suggested chapter hook |
 |----------|---------|-------------------------|
-| Appendix A, under Figure A.3 | “Why S3 if PostgreSQL sync?” (4-row table) | Ch.4 §4.2.6 / §4.5.1 object storage — optional **Table 4.2** if you promote it |
+| Appendix A, under Figure A.3 | “Why S3 if PostgreSQL sync?” (4-row table) | Ch.4 §4.2.6 / §4.5.1 object storage |
 
 Edit table cells in **both** the chapter `.md` and `Appendix_A_Figures_and_Diagrams.md` (or regenerate HTML wrappers after changes).
 

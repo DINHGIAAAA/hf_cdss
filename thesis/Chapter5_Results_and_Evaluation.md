@@ -58,9 +58,9 @@ Volume counts alone do not prove that extracted knowledge is clinically usable. 
 
 Claims were re-extracted into the workspace artifacts described in Chapter 4. Filtered variants (`claims_filtered.jsonl`, `claims_filtered_safety.jsonl`) and governance JSONL files may live in the processed S3 bucket with an optional local mirror under `artifacts/`. The audit therefore distinguishes claim files present on disk from catalog tiers counted in the mirror at audit time (2026-07-30). Full method notes: `evaluation/reports/accuracy_audit_20260728.md` and `data_quality_audit_20260730.md`.
 
-**Table 5.0. Local artifact and catalog snapshot at audit time**
+**Table 5.0** is an inventory snapshot, not a quality scorecard for every row. Count columns show how much material existed; usable / needs refinement / rejected apply where tier classification was run. Claim rows list volume only because claim quality is reported separately in Tables 5.0a–5.0c. Constraint rules were missing from the local mirror at write-up time and should be refreshed from S3 if a newer extraction exists—their absence does not invalidate the claim-quality analysis when `claims.jsonl` was already local.
 
-The table below is a inventory snapshot, not a quality scorecard for every row. Count columns show how much material existed; usable / needs refinement / rejected apply where tier classification was run. Claim rows list volume only because claim quality is reported separately in Tables 5.0a–5.0c. Constraint rules were missing from the local mirror at write-up time and should be refreshed from S3 if a newer extraction exists— their absence does not invalidate the claim-quality analysis when `claims.jsonl` was already local.
+**Table 5.0. Local artifact and catalog snapshot at audit time**
 
 | Catalog | Count | Usable | Needs refinement | Rejected |
 |---------|------:|-------:|-----------------:|---------:|
@@ -81,9 +81,9 @@ Constraint rule files were not present under the local `artifacts/rules/` path u
 
 We measured claim quality with a stratified LLM judge (`qwen2.5:7b`, balanced prompt, 10 claims per type, seed 42, timeout 300 s). The 1.5B judge is retained only as a historical comparison; thesis reporting uses the stricter 7B judge.
 
-**Table 5.0d. Three metrics that must not be conflated**
+**Table 5.0d** defines three scores that answer different questions. Vignette accuracy judges the live CDSS on structured cards; claim LLM precision judges individual knowledge-graph sentences; strict structural precision judges whether filter gates accept a stratified sample. High performance on one row does not imply high performance on the others—runtime safety remains anchored in governed PostgreSQL catalogs and verification, while filtered claims primarily support GraphRAG explanation.
 
-The next table defines three scores that answer different questions. Vignette accuracy judges the live CDSS on structured cards; claim LLM precision judges individual knowledge-graph sentences; strict structural precision judges whether filter gates accept a stratified sample. High performance on one row does not imply high performance on the others—runtime safety remains anchored in governed PostgreSQL catalogs and verification, while filtered claims primarily support GraphRAG explanation.
+**Table 5.0d. Three metrics that must not be conflated**
 
 | Metric | Meaning | Latest result |
 |--------|---------|---------------|
@@ -107,9 +107,9 @@ Eight cumulative filter passes (`scraper/eval/filter_claims_for_quality.py`) ref
   <figcaption><strong>Figure 5.2.</strong> Claim corpus reduction and quality gates across filter passes 0–8 (Section 5.2.4).</figcaption>
 </figure>
 
-**Table 5.0a. Claim quality after each filter pass**
+**Table 5.0a** records each cumulative filter pass: corpus size after drops, retain percentage, and strict structural precision on a stratified sample. Each row is a checkpoint—early passes remove bulk mismatches; later passes target dose, renal, and ADR actionability.
 
-Each row is a checkpoint: “claims left” shrinks as gates remove noise, while strict structural precision rises when the remaining set better matches type–evidence rules. Early passes remove bulk mismatches; later passes target dose, renal, and ADR actionability. The retain percentage column shows the cost in corpus size for each quality gain.
+**Table 5.0a. Claim quality after each filter pass**
 
 | Pass | Claims left | Dropped | Retain % | Strict struct. prec. | Change (accuracy goal) |
 |------|------------:|--------:|---------:|---------------------:|------------------------|
@@ -123,9 +123,9 @@ Each row is a checkpoint: “claims left” shrinks as gates remove noise, while
 | 7 Drop non-actionable ADR | 7,620 | 1,618 | 44.9% | 84.8% | ADR without clinical action verbs |
 | 8 Drop weak dose / renal | 6,296 | 1,324 | 37.1% | 100.0% | Dose/renal quality gates (pass 8) |
 
-**Table 5.0b. LLM semantic precision across filter rounds** (qwen2.5:7b, balanced prompt)
+**Table 5.0b** compares fixed-size LLM judge samples across corpora at pass 7 and pass 8, including the safety-only subset that drops `guideline_recommendation`. Use it for semantic quality of KG sentences, not vignette accuracy.
 
-Table 5.0b compares corpora at a fixed judge setting rather than repeating every pass in Table 5.0a. “Safety-only” removes `guideline_recommendation`, the noisiest type under the 7B judge. Use this table when asking whether semantic quality improved enough to trust GraphRAG context, not when asking whether chat vignettes were correct.
+**Table 5.0b. LLM semantic precision across filter rounds** (qwen2.5:7b, balanced prompt)
 
 | Corpus | Claims | Sample *n* | Overall LLM prec. | Hard-type prec. |
 |--------|-------:|-----------:|--------------------:|----------------:|
@@ -135,9 +135,9 @@ Table 5.0b compares corpora at a fixed judge setting rather than repeating every
 | Filtered pass 8 (all types) | **6,296** | **90** | **66.7%** | **70.0%** |
 | **Filtered pass 8 (safety-only)** | **4,440** | **80** | **73.8%** | **70.0% |
 
-**Table 5.0c. Per-claim-type LLM precision (pass 8, *n* = 10 per type)**
+**Table 5.0c** breaks pass-8 judge scores by claim type so weak families (population PK, soft guideline language) stay visible beside stable hard types.
 
-Table 5.0c breaks pass-8 judge scores by claim type so weak families are visible. Rows with large jumps between pass 7 and pass 8 usually reflect new extractor or filter gates for dose and renal text; flat rows indicate stable hard-type behavior; guideline recommendation is shown for completeness but excluded from the safety-only corpus.
+**Table 5.0c. Per-claim-type LLM precision (pass 8, *n* = 10 per type)**
 
 | Claim type | Pass 7 (7B) | Pass 8 (all) | Pass 8 (safety) | Note |
 |------------|------------:|-------------:|----------------:|------|
@@ -159,6 +159,8 @@ The following implementation tables document *why* the pass-level trends above o
 
 Phase A: judge model and prompt
 
+**Table 5.0e** logs Phase A engineering changes: switching the auto-judge to Qwen2.5-7B, tightening the balanced prompt, and documenting why the 1.5B judge is no longer used for thesis numbers.
+
 **Table 5.0e. Phase A — LLM judge calibration**
 
 | Step | Location | Change | Effect |
@@ -170,6 +172,8 @@ Phase A: judge model and prompt
 Phase A aligned the automatic judge with cardiologist-style strictness so later precision figures are comparable across filter rounds.
 
 Phase B: filter passes 1–7
+
+**Table 5.0f** lists structural filter passes 1–7: which gate ran, what it removed, and the effect on strict structural precision before dose/renal pass 8.
 
 **Table 5.0f. Phase B — structural filter passes 1–7**
 
@@ -186,6 +190,8 @@ Phase B: filter passes 1–7
 Phase B removed bulk noise and scope violations before pass 8 targeted dose and renal quality.
 
 Phase C: pass 8 dose/renal (extractor + filter)
+
+**Table 5.0g** ties Phase C code locations—shared type gates, extractor prompts, and pass 8—to the dose and renal precision gains seen in Table 5.0c.
 
 **Table 5.0g. Phase C — shared type gates and pass 8**
 
@@ -212,9 +218,9 @@ Accuracy here means how often the system's structured recommendation matched wha
   <figcaption><strong>Figure 5.3.</strong> Golden vignette path from free-text cases to cardiologist-scored structured recommendation accuracy (Section 5.3.1).</figcaption>
 </figure>
 
-**Table 5.1. Overall vignette recommendation metrics**
+**Table 5.1** reports headline vignette metrics against the Section 5.0 success criterion on structured recommendation objects (not LLM prose). Sensitivity and specificity summarize caution bias relative to cardiologist expectation.
 
-Table 5.1 reports head-line accuracy against the Section 5.0 success criterion on structured recommendation objects (not LLM prose). The definition column states what each metric measures; the result column holds the adjudicated value. Confidence interval width reflects the fixed vignette sample size; sensitivity and specificity describe the caution bias of the system relative to expert expectation.
+**Table 5.1. Overall vignette recommendation metrics**
 
 | Metric | Definition | Result |
 |--------|------------|--------|
@@ -228,9 +234,9 @@ Table 5.1 reports head-line accuracy against the Section 5.0 success criterion o
 
 Overall accuracy exceeded the predefined target. Sensitivity slightly below specificity indicates a cautious bias: the system more often over-warns than under-warns, which is generally acceptable for medication safety when hard blocks remain authoritative.
 
-**Table 5.2. Recommendation performance by clinical focus**
+**Table 5.2** is a diagnostic breakdown by GDMT class and interaction detection; the interpretation column explains how reviewers read each row when labs or inputs were incomplete.
 
-Table 5.2 is a diagnostic view: where the structured engine was strongest or weakest by GDMT class and by interaction detection. Not every row uses the same statistical metric; the interpretation column explains how reviewers read the result in context (for example, missing labs affecting MRA recall).
+**Table 5.2. Recommendation performance by clinical focus**
 
 | Clinical focus | Primary metric | Result | Interpretation |
 |----------------|----------------|-------:|----------------|
@@ -257,9 +263,9 @@ Streaming delivery materially improved perceived speed. Clinicians often saw pat
 
 Alert burden is the number of safety messages a clinician must scan per case. After deduplication, tiered suppression, and consolidation of overlapping warnings, burden fell substantially while hard blocks were preserved.
 
-**Table 5.3. Alert burden and false-positive rates after optimization**
+**Table 5.3** contrasts alert volume and reviewer-judged false-positive rates before and after tuning; lower counts matter only if mandatory avoids remain detected (Table 5.1 sensitivity).
 
-The table contrasts the pre-optimization stream with the tuned stream. Mean alerts per patient captures workload; false-positive rates summarize reviewer judgment that an alert was not clinically meaningful in context. Lower alert counts are desirable only if mandatory avoids remain detected—see Table 5.1 sensitivity.
+**Table 5.3. Alert burden and false-positive rates after optimization**
 
 | Alert metric | Before optimization | After optimization |
 |--------------|--------------------:|-------------------:|
@@ -299,9 +305,9 @@ Clinicians valued GDMT gap identification and interaction support even when they
 
 We compared the proposed system with published characteristics of Mediwis and Watson for Oncology along dimensions relevant to heart failure workflow deployment. This comparison is qualitative because public benchmarks do not always use identical tasks or latency definitions.
 
-**Table 5.4. Qualitative comparison with other CDSS products**
+**Table 5.4** compares architecture and deployment dimensions (domain, languages, chat, dosing, latency)—not head-to-head accuracy on the same patient cohort.
 
-Each row is a capability or deployment dimension, not a scored trial. Use the table to see architectural fit—domain depth, bilingual chat, local LLM, dosing—rather than to rank accuracy on a shared patient cohort.
+**Table 5.4. Qualitative comparison with other CDSS products**
 
 | Criterion | Proposed System | Mediwis | Watson for Oncology |
 |-----------|-----------------|---------|---------------------|
