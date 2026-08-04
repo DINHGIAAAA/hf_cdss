@@ -1,6 +1,6 @@
 # CHAPTER 5: RESULTS AND EVALUATION
 
-Chapter 5 reports measured behavior of the heart failure clinical decision support system on evaluation hardware, with cardiologist review and usability testing. The central question is whether the hybrid design from Chapters 3 and 4 is adequate for supervised clinical use. Sections cover the knowledge pipeline, chat service, interface, comparisons, error patterns, safety checks, and limits on what the metrics can prove.
+Chapter 5 reports measured behavior of the heart failure CDSS on the hardware in Section 5.1.1, with cardiologist review and usability testing. The central question is whether the design in Chapter 3 and the implementation in Chapter 4 meet the success criteria in Section 5.0 for supervised clinical use.
 
 ## 5.0 Predefined Success Criteria
 
@@ -393,6 +393,4 @@ Mapping results to the predefined success criteria in Section 5.0, five of six t
 
 The evaluation supports deployment as a clinician-supervised GDMT gap identification and interaction checking assistant during ward rounds or outpatient visits, not as autonomous prescribing software. Prospective deployment should track override rates, intake completeness, time to decision, and correlation between missing laboratories and lower recall for MRA and SGLT2 inhibitor classes. Outcome studies remain the ultimate test beyond vignette accuracy.
 
-All quantitative results in this chapter come from the Docker Compose stack and configuration documented in Chapter 4. Reproducing them requires the synchronized approved-rule snapshot, the listed Ollama models, the 50-case vignette suite, and the cardiologist scoring rubric aligned to structured recommendation fields. Latency figures reflect full stream completion; first structured events typically arrive within about two seconds on evaluation hardware. Independent replication should report both mean and percentile latency, structured accuracy separate from narrative review, and section filter tier breakdowns rather than headline accuracy alone.
-
-Chapter 5 reported experimental configuration, knowledge construction metrics, chat service accuracy and latency, alert and usability results, comparative analysis, error analysis, safety evaluation, threats to validity, and clinical implications. Chapter 6 synthesizes contributions, limitations, and future work in relation to the thesis research questions.
+All quantitative results in this chapter come from the Docker Compose stack documented in Chapter 4. Reproducing them requires the approved-rule snapshot, the listed Ollama models, the 50-case vignette suite, and the cardiologist rubric for structured recommendation fields. Latency figures reflect full stream completion; first structured events typically arrive within about two seconds on the evaluation server. Replication should report mean and percentile latency, structured accuracy separate from narrative review, and section-filter tier breakdowns, not headline accuracy alone.

@@ -4,11 +4,11 @@
 
 ## 4.1. Development Environment
 
-Chapter 4 describes how the Chapter 3 designs became working software: evaluation hardware and tools, the pipeline from drug labels and guidelines to searchable knowledge, the FastAPI chat backend, React clinician and admin interfaces, and Docker-based deployment. For each technique, the text states what it does, why it exists, and how operators or clinicians use it.
+Chapter 4 describes how the Chapter 3 designs became working software: development and deployment environment, the ingestion pipeline, the FastAPI backend, React interfaces, automated tests, and Docker Compose. Evaluation hardware and numeric results appear in Chapter 5.
 
 ### 4.1.1. Hardware Configuration
 
-Implementation used ordinary development laptops and one dedicated application server. Development machines need at least eight CPU cores, 16 GB of RAM, and about 100 GB of SSD storage. A graphics processing unit (GPU) is helpful but not required on a laptop because overnight ingestion jobs can run on the CPU. The evaluation and demonstration server used sixteen CPU cores, 32 GB of RAM, a 500 GB SSD, and an NVIDIA RTX 3080 GPU with 10 GB of video memory.
+Implementation used development laptops and a dedicated server that later served Chapter 5 evaluation runs. Development machines need at least eight CPU cores, 16 GB of RAM, and about 100 GB of SSD storage. A GPU is optional on a laptop when ingestion runs on CPU overnight. The evaluation server (Chapter 5, Section 5.1.1) used sixteen CPU cores, 32 GB of RAM, a 500 GB SSD, and an NVIDIA RTX 3080 GPU with 10 GB of video memory.
 
 That GPU matters for a practical reason. The system runs a local large language model through Ollama so that clinical vignettes do not need to leave the hospital network. The chosen generation model, Qwen2.5-7B-Instruct, needs enough video memory to answer within a few seconds. The embedding model BGE-M3 also uses the GPU when building or searching dense vector indexes. Without a GPU, chat still works, but latency grows and the sub-ten-second median target becomes harder to meet. The split between CPU-friendly development and GPU-backed interactive chat is therefore intentional: engineers can write and test code on modest laptops, while clinicians evaluate the system on hardware that matches a realistic hospital workstation.
 
