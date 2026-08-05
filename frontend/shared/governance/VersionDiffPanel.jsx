@@ -2,7 +2,9 @@ import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Expand, GitCompare, LoaderCircle, X } from "lucide-react";
 
-import { expandDiffChanges, fieldPathParts, valueToEntries } from "./diffDisplay.js";
+import { expandDiffChanges, compactReviewFieldLabel, valueToEntries } from "./diffDisplay.js";
+import { diffClinicalIdentityWarning, normalizeReviewDiffValue } from "./clinicalReviewDisplay.js";
+import "./governance-ui.css";
 
 const BASELINE_OPTIONS = [
   { value: "approved", label: "vs approved (live)" },
@@ -25,8 +27,24 @@ function countByType(changes = []) {
   );
 }
 
-function DiffValueView({ value }) {
-  const entries = valueToEntries(value);
+function ValueText({ text }) {
+  const value = String(text ?? "");
+  if (/^https?:\/\//i.test(value)) {
+    return (
+      <a className="gov-diff-value-link" href={value} rel="noreferrer" target="_blank">
+        Open label source
+      </a>
+    );
+  }
+  return <span className="gov-diff-value-text">{value}</span>;
+}
+
+function DiffValueView({ value, path }) {
+  const normalized = normalizeReviewDiffValue(path, value);
+  const entries = valueToEntries(normalized);
+  if (!entries.length || (entries.length === 1 && entries[0].text === "—")) {
+    return <span className="gov-diff-value-text gov-diff-value-text--empty">—</span>;
+  }
   return (
     <div className="gov-diff-value">
       {entries.map((entry, index) => (
@@ -41,7 +59,7 @@ function DiffValueView({ value }) {
               ))}
             </div>
           ) : (
-            <span className="gov-diff-value-text">{entry.text}</span>
+            <ValueText text={entry.text} />
           )}
         </div>
       ))}
@@ -90,94 +108,37 @@ function ChangeSummary({ changes }) {
   );
 }
 
-function pathColumnHeaders(depth) {
-  if (depth <= 1) return ["Field"];
-  return Array.from({ length: depth }, (_, index) => {
-    if (index === 0) return "Field";
-    if (index === depth - 1) return "Property";
-    return `Subfield ${index}`;
-  });
-}
-
-/** Blank repeated parent path cells so nested rows read as sub-columns. */
-function withPathDisplay(rows, depth) {
-  let previous = null;
-  return rows.map((row) => {
-    const parts = Array.from({ length: depth }, (_, index) => row.parts[index] || "");
-    const display = parts.map((part, index) => {
-      if (
-        previous &&
-        parts.slice(0, index + 1).every((value, offset) => value === previous[offset])
-      ) {
-        return "";
-      }
-      return part;
-    });
-    previous = parts;
-    return { ...row, parts, display };
-  });
-}
-
 function DiffRows({ changes }) {
-  const expanded = expandDiffChanges(changes).map((change) => ({
-    ...change,
-    parts: fieldPathParts(change.path),
-  }));
+  const expanded = expandDiffChanges(changes);
   if (!expanded.length) {
     return <p className="gov-diff-status">No field changes compared to baseline.</p>;
   }
 
-  const depth = Math.max(1, ...expanded.map((row) => row.parts.length));
-  const rows = withPathDisplay(expanded, depth);
-  const headers = pathColumnHeaders(depth);
-
   return (
-    <div className="gov-diff-table-wrap">
-      <table className="gov-diff-table" style={{ "--gov-diff-path-cols": depth }}>
-        <thead>
-          <tr>
-            {headers.map((label, index) => (
-              <th className="gov-diff-path-head" key={`path-${index}`} scope="col">
-                {label}
-              </th>
-            ))}
-            <th className="gov-diff-value-head gov-diff-value-head--before" scope="col">
-              Before
-            </th>
-            <th className="gov-diff-value-head gov-diff-value-head--after" scope="col">
-              After (current)
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((change) => (
-            <tr className={`gov-diff-row ${changeClass(change.change_type)}`} key={change.path}>
-              {change.display.map((part, index) => (
-                <th
-                  className={`gov-diff-row-field gov-diff-path-col${index === 0 ? " gov-diff-path-col--root" : ""}${index === depth - 1 ? " gov-diff-path-col--leaf" : ""}`}
-                  key={`${change.path}-${index}`}
-                  scope={index === depth - 1 ? "row" : "rowgroup"}
-                >
-                  {index === depth - 1 ? (
-                    <>
-                      <span className="gov-diff-row-title">{part || "—"}</span>
-                      <span className="gov-diff-badge">{change.change_type}</span>
-                    </>
-                  ) : (
-                    <span className="gov-diff-path-segment">{part}</span>
-                  )}
-                </th>
-              ))}
-              <td className="gov-diff-cell gov-diff-cell--before">
-                <DiffValueView value={change.before} />
-              </td>
-              <td className="gov-diff-cell gov-diff-cell--after">
-                <DiffValueView value={change.after} />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="gov-diff-table-wrap gov-diff-table-wrap--cards">
+      <ul className="gov-diff-compare-list">
+        {expanded.map((change) => (
+          <li
+            className={`gov-diff-compare-row ${changeClass(change.change_type)}`}
+            key={change.path}
+          >
+            <div className="gov-diff-compare-field">
+              <strong>{compactReviewFieldLabel(change.path)}</strong>
+              <span className="gov-diff-badge">{change.change_type}</span>
+            </div>
+            <div className="gov-diff-compare-cols">
+              <div className="gov-diff-col gov-diff-col--before">
+                <span className="gov-diff-col-label">Before</span>
+                <DiffValueView path={change.path} value={change.before} />
+              </div>
+              <div className="gov-diff-col gov-diff-col--after">
+                <span className="gov-diff-col-label">After (current)</span>
+                <DiffValueView path={change.path} value={change.after} />
+              </div>
+            </div>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -228,6 +189,8 @@ function VersionDiffDialog({
     ? `Baseline v${diff.baseline.version} (${diff.baseline.status})`
     : "Baseline (none)";
 
+  const identityWarning = diff ? diffClinicalIdentityWarning(diff.changes || []) : null;
+
   return createPortal(
     <div
       className="gov-diff-backdrop"
@@ -249,7 +212,13 @@ function VersionDiffDialog({
               <GitCompare aria-hidden size={20} /> Version review
             </h2>
             <p className="gov-diff-dialog-subtitle">
-              Side-by-side comparison with readable field labels. Changed values are highlighted.
+              Side-by-side comparison of clinical content and source references. Technical ids and
+              pipeline hashes are hidden.
+            </p>
+            <p className="gov-diff-help">
+              Green and orange columns show values on the baseline version versus the version you are
+              reviewing. Use the baseline menu to compare against the live approved rule or an earlier
+              draft.
             </p>
           </div>
           <div className="gov-diff-dialog-controls">
@@ -299,6 +268,11 @@ function VersionDiffDialog({
                   current version.
                 </p>
               )}
+              {identityWarning ? (
+                <p className="gov-diff-clinical-warning" role="status">
+                  {identityWarning.message}
+                </p>
+              ) : null}
               <DiffRows changes={diff.changes} />
             </>
           )}

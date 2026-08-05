@@ -1,3 +1,10 @@
+import { reviewPayloadToFields, sanitizeValueForReview } from "./reviewFieldFilter.js";
+import { normalizeClinicalSourceItem } from "./clinicalReviewDisplay.js";
+import { omitDuplicateReviewFields } from "./catalogDetailReview.js";
+import { doseSafetyRuleBodyToFields, isDoseSafetyStyleRuleBody } from "./ruleBodyReview.js";
+import { gdmtPolicyBodyToFields, isGdmtPolicyBody } from "./gdmtPolicyReview.js";
+import { shortCatalogId } from "./displayNames.js";
+
 /**
  * Stacked label/value fields for narrow detail panels.
  * Prefer this over a cramped two-column dl grid.
@@ -102,36 +109,26 @@ export function ClinicalSourcesList({ sources = [] }) {
       <h3>Clinical sources</h3>
       <ul className="source-list">
         {sources.map((src, i) => {
+          const normalized = normalizeClinicalSourceItem(src);
           const meta = isPlainObject(src.metadata) ? src.metadata : {};
-          const title = clinicalSourceTitle(src, meta);
+          const title =
+            normalized.title ||
+            normalized.label_reference ||
+            clinicalSourceTitle(src, meta);
           const fields = [
-            { label: "Evidence", value: src.evidence, wide: true },
-            { label: "Claim ID", value: src.claim_id, mono: true },
-            {
-              label: "Document",
-              value: src.document_id || src.document || meta.source_id,
-              mono: true,
-            },
-            { label: "Section", value: src.source_section || meta.section },
+            { label: "Quote", value: normalized.evidence, wide: true },
+            { label: "Section", value: normalized.section || src.source_section || meta.section },
             { label: "Type", value: src.source_type || meta.source_type },
             { label: "Publisher", value: meta.publisher },
-            { label: "Chunk", value: meta.chunk_id, mono: true },
-            {
-              label: "Method",
-              value: src.extraction_method || meta.extraction_method,
-            },
-            {
-              label: "Confidence",
-              value: src.confidence != null && src.confidence !== "" ? String(src.confidence) : null,
-            },
           ].filter((field) => field.value != null && field.value !== "");
+          const link = normalized.source_link || src.source_url || src.source_locator;
 
           return (
             <li key={src.claim_id || src.source_url || src.document_id || i}>
               <strong className="source-title">{title}</strong>
               {fields.length ? <DetailFieldList className="source-fields" fields={fields} /> : null}
-              {src.source_url ? (
-                <a className="source-link" href={src.source_url} rel="noreferrer" target="_blank">
+              {link ? (
+                <a className="source-link" href={link} rel="noreferrer" target="_blank">
                   Open source
                 </a>
               ) : null}
@@ -155,16 +152,40 @@ export function DetailMetaRow({ id, version, status, statusClassName, badges = [
       {version != null ? <span className="detail-meta-chip">v{version}</span> : null}
       {id ? (
         <code className="detail-meta-id" title={id}>
-          {id}
+          {shortCatalogId(id)}
         </code>
       ) : null}
     </div>
   );
 }
 
-/** Raw JSON payload. Defaults to open so Review shows full details immediately. */
-export function CollapsiblePayload({ title = "Full payload", data, defaultOpen = true }) {
+/** Structured payload for review (no raw ids/hashes). Defaults to open in detail modals. */
+export function CollapsiblePayload({
+  title = "Full payload",
+  data,
+  defaultOpen = true,
+  reviewMode = true,
+  clinicalSources = [],
+}) {
   if (data == null) return null;
+
+  if (reviewMode) {
+    const deduped =
+      clinicalSources.length > 0 ? omitDuplicateReviewFields(data, clinicalSources) : data;
+    const cleaned = sanitizeValueForReview(deduped);
+    const fields = isDoseSafetyStyleRuleBody(cleaned)
+      ? doseSafetyRuleBodyToFields(cleaned)
+      : isGdmtPolicyBody(cleaned)
+        ? gdmtPolicyBodyToFields(cleaned)
+        : reviewPayloadToFields(cleaned);
+    if (!fields.length) return null;
+    return (
+      <details className="payload-details" defaultOpen={defaultOpen}>
+        <summary className="payload-details-summary">{title}</summary>
+        <DetailFieldList className="source-fields payload-review-fields" fields={fields} />
+      </details>
+    );
+  }
 
   return (
     <details className="payload-details" defaultOpen={defaultOpen}>

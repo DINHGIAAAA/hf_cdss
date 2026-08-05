@@ -5,6 +5,8 @@ import { buildPatient } from "../utils";
 import { STORAGE_KEY } from "./constants.js";
 import { mapBackendMessages } from "./patientPayload.js";
 
+const DEMO_CONVERSATION_URL = "/demo/demo_chat_conversation.json";
+
 export function useConversations() {
   const [conversations, setConversations] = useState(() => {
     try {
@@ -98,6 +100,21 @@ export function useConversations() {
     setActiveId(patientId);
   }, []);
 
+  const loadDemoConversation = useCallback(async () => {
+    const response = await fetch(DEMO_CONVERSATION_URL);
+    if (!response.ok) {
+      throw new Error("Demo conversation file not found");
+    }
+    const seeded = await response.json();
+    const demo = Array.isArray(seeded) ? seeded[0] : seeded;
+    if (!demo?.id) {
+      throw new Error("Invalid demo conversation");
+    }
+    setConversations((items) => [demo, ...items.filter((item) => item.id !== demo.id)]);
+    setActiveId(demo.id);
+    return demo;
+  }, []);
+
   const deleteConversation = useCallback((conversationId) => {
     setConversations((items) => {
       const next = items.filter((item) => item.id !== conversationId);
@@ -149,6 +166,7 @@ export function useConversations() {
     patchConversation,
     updateActive,
     createConversation,
+    loadDemoConversation,
     deleteConversation,
     clearConversation,
   };

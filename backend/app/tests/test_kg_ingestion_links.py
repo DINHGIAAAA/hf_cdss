@@ -85,6 +85,7 @@ def test_find_chunk_for_claim_links_by_overlap() -> None:
 def test_derive_relationships_adds_grounded_in_and_contains_entity() -> None:
     claim = {
         "claim_id": "claim_1",
+        "document_id": "spironolactone_label",
         "drug": "spironolactone",
         "claim_type": "contraindication",
         "evidence": "Spironolactone is contraindicated in patients with hyperkalemia.",

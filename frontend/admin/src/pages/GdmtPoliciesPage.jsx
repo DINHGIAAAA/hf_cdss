@@ -4,10 +4,14 @@ import { ChevronRight, HeartPulse, LoaderCircle, RefreshCw } from "lucide-react"
 import { adminApi } from "../api/index.js";
 import { useAuth } from "../auth/AuthContext";
 import { GdmtPolicyDetail } from "../components/GdmtPolicyDetail.jsx";
-import { ApprovalToolbar } from "@shared/governance/ApprovalToolbar.jsx";
+import { CatalogApprovalToolbar } from "@shared/governance/CatalogApprovalToolbar.jsx";
 import { GDMT_CATALOG } from "@shared/governance/catalogConfig.js";
 import { CatalogRecordLabel } from "@shared/governance/CatalogRecordLabel.jsx";
 import { gdmtPolicyTitle, shortCatalogId } from "@shared/governance/displayNames.js";
+import { CatalogPagination } from "@shared/governance/CatalogPagination.jsx";
+import { CATALOG_PAGE_SIZE } from "@shared/governance/catalogPagination.js";
+import { useCatalogBulkApprove } from "@shared/governance/useCatalogBulkApprove.js";
+import { useCatalogListPage } from "@shared/governance/useCatalogListPage.js";
 import { useRuleSelection } from "@shared/governance/useRuleSelection.js";
 
 const STATUS_TABS = [
@@ -42,6 +46,7 @@ export function GdmtPoliciesPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [bulkLoading, setBulkLoading] = useState(false);
   const [toast, setToast] = useState("");
+  const { page, setPage, pageSize } = useCatalogListPage(tab, appliedFilters);
 
   const canApprove = isAuthenticated && hasRole("clinical_lead");
   const canAdmin = isAuthenticated && hasRole("admin");
@@ -53,6 +58,8 @@ export function GdmtPoliciesPage() {
       const result = await adminApi.listGdmtPolicies({
         status: tab === "all" ? undefined : tab,
         ...appliedFilters,
+        limit: pageSize,
+        offset: (page - 1) * pageSize,
       });
       setData(result);
     } catch (err) {
@@ -60,7 +67,7 @@ export function GdmtPoliciesPage() {
     } finally {
       setLoading(false);
     }
-  }, [tab, appliedFilters]);
+  }, [tab, appliedFilters, page, pageSize]);
 
   useEffect(() => {
     loadPolicies();
@@ -75,6 +82,19 @@ export function GdmtPoliciesPage() {
     clearSelection,
     selectedCount,
   } = useRuleSelection(items);
+
+  const { handleBulkApprove, handleBulkApproveAll } = useCatalogBulkApprove({
+    catalog: GDMT_CATALOG,
+    adminApi,
+    appliedFilters,
+    selectedIds,
+    clearSelection,
+    loadRules: loadPolicies,
+    setToast,
+    setBulkLoading,
+  });
+
+  const draftMatchCount = tab === "draft" ? (data?.total ?? 0) : 0;
 
   const activeFilterCount = useMemo(
     () => Object.values(appliedFilters).filter(Boolean).length,
@@ -111,25 +131,6 @@ export function GdmtPoliciesPage() {
       setToast(err.message);
     } finally {
       setActionLoading(false);
-    }
-  }
-
-  async function handleBulkApprove() {
-    setBulkLoading(true);
-    setToast("");
-    try {
-      const payload = {
-        rule_ids: [...selectedIds],
-        ...Object.fromEntries(Object.entries(appliedFilters).filter(([, value]) => Boolean(value))),
-      };
-      const result = await adminApi.bulkApproveGdmtPolicies(payload);
-      setToast(result.message);
-      clearSelection();
-      await loadPolicies();
-    } catch (err) {
-      setToast(err.message);
-    } finally {
-      setBulkLoading(false);
     }
   }
 
@@ -190,29 +191,29 @@ export function GdmtPoliciesPage() {
         ))}
       </div>
 
-      <ApprovalToolbar
+      <CatalogApprovalToolbar
         allVisibleSelected={allVisibleSelected}
         bulkLoading={bulkLoading}
         canBulkApprove={canApprove}
         catalog={GDMT_CATALOG}
+        fetchFilterOptions={adminApi.getCatalogFilterOptions}
         filters={filters}
         onApplyFilters={() => setAppliedFilters({ ...filters })}
         onBulkApprove={handleBulkApprove}
+        onBulkApproveAll={handleBulkApproveAll}
+        draftMatchCount={draftMatchCount}
         onClearFilters={() => {
           setFilters(EMPTY_FILTERS);
           setAppliedFilters(EMPTY_FILTERS);
         }}
-        onFilterChange={(key, value) => setFilters((prev) => ({ ...prev, [key]: value }))}
         onToggleAll={toggleAllVisible}
+        activeFilterCount={activeFilterCount}
+        resultsCount={data?.total ?? items.length}
         selectedCount={selectedCount}
+        setFilters={setFilters}
+        tab={tab}
         showBulk={tab === "draft"}
       />
-
-      {activeFilterCount > 0 && (
-        <p className="gov-filter-summary" role="status">
-          {activeFilterCount} filter(s) active · {items.length} result(s)
-        </p>
-      )}
 
       {toast && (
         <p className="admin-toast" role="status">
@@ -237,6 +238,7 @@ export function GdmtPoliciesPage() {
               <p>Run structured GDMT extraction in the ingestion pipeline, then sync to Postgres.</p>
             </div>
           ) : (
+            <>
             <table className="admin-table admin-table--dose">
               <thead>
                 <tr>
@@ -287,6 +289,15 @@ export function GdmtPoliciesPage() {
                 ))}
               </tbody>
             </table>
+            <CatalogPagination
+              loading={loading}
+              onPageChange={setPage}
+              page={page}
+              pageSize={CATALOG_PAGE_SIZE}
+              total={data?.total ?? 0}
+            />
+            </>
+
           )}
         </section>
 

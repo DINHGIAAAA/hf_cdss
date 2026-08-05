@@ -16,16 +16,23 @@ function mapAuthUser(me) {
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [bootstrapping, setBootstrapping] = useState(true);
+  const [bootstrapError, setBootstrapError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
 
     async function bootstrap() {
+      setBootstrapError("");
       try {
         const me = await fetchCurrentUser();
         if (!cancelled) setUser(mapAuthUser(me));
-      } catch {
-        if (!cancelled) setUser(null);
+      } catch (err) {
+        if (!cancelled) {
+          setUser(null);
+          if (err?.name === "AbortError") {
+            setBootstrapError("Session check timed out. The API may be starting or unreachable.");
+          }
+        }
       } finally {
         if (!cancelled) setBootstrapping(false);
       }
@@ -66,13 +73,14 @@ export function AuthProvider({ children }) {
     () => ({
       user,
       bootstrapping,
+      bootstrapError,
       isAuthenticated: Boolean(user),
       login,
       logout,
       clearSession,
       hasRole,
     }),
-    [user, bootstrapping, login, logout, clearSession, hasRole],
+    [user, bootstrapping, bootstrapError, login, logout, clearSession, hasRole],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

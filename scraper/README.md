@@ -26,6 +26,14 @@ Postgres sync (after pipeline):
 py -m scraper.process.sync_governance_catalog --catalog all
 ```
 
+**S3 vs local workspace:** Ingestion uploads to LocalStack S3 (`hf-cdss-raw`,
+`hf-cdss-processed`). The `store` stage does **not** delete S3 objects. By default
+Airflow sets `HF_CDSS_CLEANUP_WORKSPACE_OUTPUTS=false` so `data/heart_failure`
+keeps a copy after store. If local folders were removed, `load` and `extract`
+restore from `hf-cdss-processed` when `chunks.jsonl` is missing.
+
+Avoid `docker compose down -v` unless you intend to wipe LocalStack volumes.
+
 Interaction rules (FDA XML Drug Interactions → draft → Admin approve):
 
 ```powershell

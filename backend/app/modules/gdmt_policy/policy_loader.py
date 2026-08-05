@@ -6,10 +6,11 @@ from typing import Any
 
 from app.core.rule_cache import RuleCache
 from app.modules.datastores.gdmt_policies_postgres import read_approved_gdmt_policies
+from app.modules.gdmt_policy.guidance_normalize import normalize_policy_body
 
 
 def _normalize_policy_row(row: dict[str, Any]) -> dict[str, Any]:
-    body = dict(row.get("policy_body") or {})
+    body = normalize_policy_body(dict(row.get("policy_body") or {}))
     if row.get("med_detection_terms"):
         body.setdefault("med_detection_terms", row.get("med_detection_terms"))
     if row.get("warning_targets"):

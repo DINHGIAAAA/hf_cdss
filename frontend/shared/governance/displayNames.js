@@ -4,6 +4,8 @@
  * text under the title via CatalogRecordLabel — do not repeat them here.
  */
 
+import { isSuspiciousDrugSetToken } from "./interactionDrugSet.js";
+
 const JUNK_DRUG_KEYS = new Set([
   "generic_name",
   "brand_if_stated",
@@ -100,8 +102,14 @@ export function doseRuleTitle(rule = {}) {
 
 /** Interaction list/detail: short pair label. */
 export function interactionRuleTitle(rule = {}) {
-  const left = usableDrugKeys(rule.drug_set_a).slice(0, 1).map(humanizeKey).filter(Boolean)[0];
-  const right = usableDrugKeys(rule.drug_set_b).slice(0, 1).map(humanizeKey).filter(Boolean)[0];
+  const pick = (tokens) =>
+    (Array.isArray(tokens) ? tokens : [])
+      .map((t) => String(t || "").trim())
+      .filter((t) => t && !isSuspiciousDrugSetToken(t))[0];
+  const leftKey = pick(rule.drug_set_a) || usableDrugKeys(rule.drug_set_a)[0];
+  const rightKey = pick(rule.drug_set_b) || usableDrugKeys(rule.drug_set_b)[0];
+  const left = leftKey ? humanizeKey(leftKey) : "";
+  const right = rightKey ? humanizeKey(rightKey) : "";
   if (left && right) return clipText(`${left} ↔ ${right}`, 40);
   if (left) return clipText(left, 36);
   if (right) return clipText(right, 36);
@@ -109,12 +117,16 @@ export function interactionRuleTitle(rule = {}) {
 }
 
 export function formatDrugSetLabel(tokens = [], { maxItems = 2 } = {}) {
-  const list = usableDrugKeys(tokens);
-  const fallback = Array.isArray(tokens)
-    ? tokens.map((item) => String(item || "").trim()).filter(Boolean)
-    : [];
-  const source = list.length ? list : fallback;
-  const items = source.slice(0, maxItems).map(humanizeKey).filter(Boolean);
+  const raw = Array.isArray(tokens) ? tokens.map((item) => String(item || "").trim()).filter(Boolean) : [];
+  const plausible = raw.filter((token) => !isSuspiciousDrugSetToken(token));
+  const list = usableDrugKeys(plausible.length ? plausible : raw);
+  const source = list.length ? list : plausible.length ? plausible : raw;
+  const items = source.slice(0, maxItems).map((token) => {
+    if (isSuspiciousDrugSetToken(token)) {
+      return "Partner unresolved";
+    }
+    return humanizeKey(token);
+  }).filter(Boolean);
   if (!items.length) return "—";
   const extra = source.length - items.length;
   return clipText(extra > 0 ? `${items.join(", ")} +${extra}` : items.join(", "), 42);

@@ -35,4 +35,14 @@ Upload/downloads are handled by:
 py -m scraper.acquisition.download_sources --storage s3
 py -m scraper.acquisition.sync_sources_from_s3
 py -m scraper.store.sync_processed_to_s3
+py -m scraper.store.sync_processed_from_s3
 ```
+
+**Persistence:** The pipeline never deletes objects from S3. `store` may delete local
+`processed/` and `artifacts/` only when `HF_CDSS_CLEANUP_WORKSPACE_OUTPUTS=true`
+(default in CLI; Airflow compose defaults to `false`). Raw binaries live in
+`hf-cdss-raw`; KG outputs in `hf-cdss-processed`.
+
+Do **not** run `docker compose down -v` if you want to keep LocalStack data — that
+removes the `localstack_data` volume. Re-runs use `load` / `extract`, which restore
+from processed S3 when local chunks are missing.

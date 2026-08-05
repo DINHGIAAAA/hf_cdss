@@ -88,6 +88,8 @@ def validate_claim_quality(path: Path, rows: list[dict]) -> list[str]:
                 "drug": row.get("drug"),
                 "conditions": row.get("conditions", {}),
                 "claim_type": row.get("claim_type", ""),
+                "source_type": row.get("source_type") or "",
+                "document_id": row.get("document_id"),
             },
             source_chunk=None,
         )

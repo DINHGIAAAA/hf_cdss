@@ -43,9 +43,14 @@ def _langchain_embeddings():
 
 def embed_query(text: str) -> list[float]:
     normalized = normalize_evidence_text(text)
+    return list(_embed_query_cached(normalized))
+
+
+@lru_cache(maxsize=256)
+def _embed_query_cached(normalized: str) -> tuple[float, ...]:
     embeddings = _langchain_embeddings()
     try:
-        return [float(value) for value in embeddings.embed_query(normalized)]
+        return tuple(float(value) for value in embeddings.embed_query(normalized))
     except Exception as exc:
         raise RuntimeError(f"Failed to embed query '{normalized[:50]}...': {exc}") from exc
 

@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { CheckCircle2, History, RotateCcw, ShieldOff, XCircle } from "lucide-react";
+import { History, XCircle } from "lucide-react";
 
 import { adminApi } from "../api/index.js";
+import { CatalogStatusActions } from "@shared/governance/CatalogStatusActions.jsx";
 import { RuleVisibilityBadge } from "./RuleVisibilityBadge.jsx";
 import { ruleVisibilityMeta } from "../utils/ruleVisibility.js";
 import { VersionDiffPanel } from "@shared/governance/VersionDiffPanel.jsx";
@@ -16,6 +17,11 @@ import {
   constraintRuleTitle,
   formatConstraintConditionFields,
 } from "@shared/governance/displayNames.js";
+import {
+  evidenceLinkDetailField,
+  pipelineSourceDetailField,
+  textMatchesClinicalSources,
+} from "@shared/governance/catalogDetailReview.js";
 import { ConstraintConditionPanel } from "@shared/governance/ConstraintConditionPanel.jsx";
 
 function statusClass(status) {
@@ -60,6 +66,27 @@ export function RuleDetail({ rule, onClose, onAction, actionLoading, canApprove,
   const conditionFields = formatConstraintConditionFields(rule);
   const needsCondition = ruleNeedsCondition(rule);
   const safetyTier = rule.metadata?.safety_tier || null;
+  const sources = rule.clinical_sources || [];
+
+  const detailFields = [
+    { label: "Action", value: rule.action },
+    { label: "Target class", value: rule.target_drug_class || "—" },
+    {
+      label: "Severity",
+      value: (rule.severity_any || []).length ? rule.severity_any : "—",
+    },
+  ];
+  if (rule.reason && !textMatchesClinicalSources(rule.reason, sources)) {
+    detailFields.push({ label: "Reason", value: rule.reason, wide: true });
+  }
+  detailFields.push({
+    label: "Risks",
+    value: (rule.risk_names || []).length ? rule.risk_names : "—",
+  });
+  const evidenceField = evidenceLinkDetailField(rule.evidence_ref, sources);
+  if (evidenceField) detailFields.push(evidenceField);
+  const sourceField = pipelineSourceDetailField(rule.source);
+  if (sourceField) detailFields.push(sourceField);
 
   return (
     <AdminDetailModal ariaLabel="Rule details" onClose={onClose}>
@@ -95,22 +122,9 @@ export function RuleDetail({ rule, onClose, onAction, actionLoading, canApprove,
           rule={rule}
         />
 
-        <DetailFieldList
-          fields={[
-            { label: "Action", value: rule.action },
-            { label: "Target class", value: rule.target_drug_class || "—" },
-            {
-              label: "Severity",
-              value: (rule.severity_any || []).length ? rule.severity_any : "—",
-            },
-            { label: "Reason", value: rule.reason, wide: true },
-            { label: "Risks", value: (rule.risk_names || []).length ? rule.risk_names : "—" },
-            { label: "Evidence", value: rule.evidence_ref || "—", mono: true },
-            { label: "Source", value: rule.source },
-          ]}
-        />
+        <DetailFieldList fields={detailFields} />
 
-        <ClinicalSourcesList sources={rule.clinical_sources || []} />
+        <ClinicalSourcesList sources={sources} />
 
         <VersionDiffPanel
           fetchDiff={adminApi.getConstraintRuleDiff}
@@ -129,46 +143,17 @@ export function RuleDetail({ rule, onClose, onAction, actionLoading, canApprove,
       </div>
 
       <footer className="admin-detail-actions">
-        {showApprove && canApprove && (
-          <button
-            className="primary-action"
-            disabled={actionLoading}
-            onClick={() => onAction("approve", rule.id)}
-            type="button"
-          >
-            <CheckCircle2 size={16} /> Approve
-          </button>
-        )}
-        {approveDisabled && (
-          <button
-            className="primary-action"
-            disabled
-            title="Only clinical_lead can approve draft rules"
-            type="button"
-          >
-            <CheckCircle2 size={16} /> Approve (clinical_lead required)
-          </button>
-        )}
-        {rule.status === "approved" && canAdmin && (
-          <button
-            className="danger-action"
-            disabled={actionLoading}
-            onClick={() => onAction("retire", rule.id)}
-            type="button"
-          >
-            <ShieldOff size={16} /> Retire
-          </button>
-        )}
-        {rule.status === "retired" && canAdmin && (
-          <button
-            className="secondary-action"
-            disabled={actionLoading}
-            onClick={() => onAction("unretire", rule.id)}
-            type="button"
-          >
-            <RotateCcw size={16} /> Restore
-          </button>
-        )}
+        <CatalogStatusActions
+          actionLoading={actionLoading}
+          approveButtonClassName="primary-action"
+          approveDisabledHint={approveDisabled}
+          approveLabel="Approve"
+          canAdmin={canAdmin}
+          canApprove={canApprove}
+          onAction={onAction}
+          recordId={rule.id}
+          status={rule.status}
+        />
       </footer>
     </AdminDetailModal>
   );

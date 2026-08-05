@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     api_keys: str = ""
     api_key_header: str = "x-api-key"
     max_request_body_bytes: int = 1_000_000
+    user_avatar_upload_dir: str = ""
     openai_api_key: str | None = None
     llm_base_url: str = "http://localhost:11434/v1"
     llm_model: str = "qwen2.5:7b"
@@ -109,6 +110,7 @@ class Settings(BaseSettings):
     interaction_rules_cache_ttl_seconds: int = 300
     gdmt_policy_cache_ttl_seconds: int = 300
     dose_safety_warnings_cache_ttl_seconds: int = 300
+    dose_rules_cache_ttl_seconds: int = 300
     kg_dose_overlays_cache_ttl_seconds: int = 300
     governance_circuit_breaker_enabled: bool = True
     governance_db_timeout_seconds: float = 2.5
@@ -138,6 +140,8 @@ class Settings(BaseSettings):
     hyde_retrieval_min_query_chars: int = 8
     hyde_retrieval_combine_baseline: bool = True
     graphrag_lost_in_middle_reorder_enabled: bool = True
+    graphrag_default_retrieval_profile: str = "balanced"
+    graphrag_chat_retrieval_profile: str = "fast"
     evidence_negative_filter_enabled: bool = True
     evidence_negative_filter_min_quality_score: float = 0.38
     evidence_negative_filter_require_patient_entity: bool = True

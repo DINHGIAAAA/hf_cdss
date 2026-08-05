@@ -1,0 +1,64 @@
+[
+  {
+    "id": "demo_tran_minh_hfref",
+    "name": "tran_minh_hfref",
+    "patient": {
+      "patient_identity": {
+        "case_id": "demo_tran_minh_hfref",
+        "patient_id": "demo_tran_minh_hfref",
+        "full_name": "Trần Minh (demo HFrEF)",
+        "preferred_name": "Trần Minh"
+      },
+      "demographics": { "age": 68, "sex": "male" },
+      "heart_failure_profile": {
+        "lvef": { "value": 28, "unit": "%" },
+        "hf_type": "HFrEF",
+        "nyha_class": "III"
+      },
+      "labs": {
+        "egfr": { "value": 42, "unit": "mL/min/1.73m2" },
+        "potassium": { "value": 4.8, "unit": "mmol/L" }
+      },
+      "vitals": {
+        "systolic_bp": { "value": 108, "unit": "mmHg" },
+        "heart_rate": { "value": 72, "unit": "bpm" },
+        "weight_kg": { "value": 74, "unit": "kg" }
+      },
+      "conditions": [
+        { "name": "heart failure with reduced ejection fraction", "status": "active" },
+        { "name": "chronic kidney disease stage 3", "status": "active" },
+        { "name": "type 2 diabetes mellitus", "status": "active" }
+      ],
+      "medications": [
+        { "name": "bisoprolol", "status": "active" },
+        { "name": "ramipril", "status": "active" },
+        { "name": "spironolactone 25 mg daily", "status": "active" },
+        { "name": "furosemide", "status": "active" }
+      ],
+      "allergy_statements": [{ "substance": "no known drug allergies", "status": "active" }],
+      "red_flags": [{ "name": "stable", "status": "absent" }],
+      "care_context": {
+        "clinician_question": "Có nên tăng liều spironolactone hoặc thêm SGLT2 inhibitor không?",
+        "decision_context": "demo chat seed for manual CDSS testing"
+      }
+    },
+    "attachments": [],
+    "messages": [
+      {
+        "id": "demo_tran_minh_hfref-welcome",
+        "role": "assistant",
+        "content": "Patient Trần Minh (demo HFrEF) is ready. Ask the clinical question and attach notes if needed."
+      },
+      {
+        "id": "demo_tran_minh_hfref-user-1",
+        "role": "user",
+        "content": "Bệnh nhân HFrEF NYHA III, LVEF 28%, eGFR 42, K 4.8 mmol/L, đang dùng bisoprolol, ramipril, spironolactone 25 mg và furosemide. Có nên tăng MRA hoặc bắt đầu dapagliflozin không?"
+      }
+    ],
+    "draft": null,
+    "recommendation": null,
+    "verification": null,
+    "createdAt": "2026-08-04T09:00:00.000Z",
+    "updatedAt": "2026-08-04T09:00:00.000Z"
+  }
+]

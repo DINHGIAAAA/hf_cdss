@@ -94,6 +94,7 @@ def validate_claim_evidence_alignment(
     skip_drug_in_evidence = (
         claim_type == "guideline_recommendation"
         or claim.get("source_type") == "drug_label"
+        or str(claim.get("document_id") or "").endswith("_label")
     )
     if drug and drug.strip() and not skip_drug_in_evidence:
         if not _drug_mentioned_in_evidence(str(drug), evidence_lower):

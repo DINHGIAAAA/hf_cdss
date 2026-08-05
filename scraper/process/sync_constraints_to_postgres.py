@@ -152,12 +152,29 @@ def convert_rule_to_constraint(rule: dict) -> dict[str, Any]:
             "evidence": rule.get("reason", "")
         })
     
-    # Generate constraint ID
-    constraint_id = rule.get("rule_id", f"{drug}_{claim_type}_{rule.get('action', 'unknown')}")
+    # Stable per drug + pipeline rule id (avoid reusing rule_id across different drugs).
+    raw_rule_id = rule.get("rule_id")
+    if raw_rule_id:
+        constraint_id = raw_rule_id if str(raw_rule_id).startswith(f"{drug}__") else f"{drug}__{raw_rule_id}"
+    else:
+        constraint_id = f"{drug}_{claim_type}_{rule.get('action', 'unknown')}"
 
     chunks = read_chunks_jsonl(data_root() / "artifacts/chunks/chunks.jsonl")
     linked_chunk = resolve_chunk_for_rule(rule, chunks)
-    evidence_ref = chunk_evidence_ref(linked_chunk) if linked_chunk else f"rule:{rule.get('rule_id', '')}"
+    evidence_ref = chunk_evidence_ref(linked_chunk) if linked_chunk else None
+    if not evidence_ref:
+        for source_ref in rule.get("source_refs") or []:
+            if not isinstance(source_ref, dict):
+                continue
+            meta = source_ref.get("metadata") if isinstance(source_ref.get("metadata"), dict) else {}
+            cid = meta.get("chunk_id") or source_ref.get("chunk_id")
+            if cid:
+                evidence_ref = str(cid)
+                if not linked_chunk:
+                    linked_chunk = next((c for c in chunks if c.get("chunk_id") == cid), None)
+                break
+    if not evidence_ref:
+        evidence_ref = f"rule:{rule.get('rule_id', '')}"
     source_locator = chunk_source_locator(linked_chunk) if linked_chunk else None
     claim_id = None
     for source_ref in rule.get("source_refs") or []:
@@ -175,11 +192,10 @@ def convert_rule_to_constraint(rule: dict) -> dict[str, Any]:
         "evidence_ref": evidence_ref,
         "clinical_sources": [
             {
-                "source_id": src.get("claim_id"),
+                "evidence": (src.get("evidence") or "").strip() or None,
+                "source_section": src.get("source_section"),
                 "source_type": src.get("source_type", "unknown"),
                 "title": f"{src.get('source_type')} evidence",
-                "confidence": src.get("confidence", 0.8),
-                "chunk_id": evidence_ref if linked_chunk else None,
                 "source_locator": source_locator,
             }
             for src in rule.get("source_refs", [])

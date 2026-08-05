@@ -72,6 +72,7 @@ def upload_paths(
 
 
 STEP_UPLOAD_PATHS: dict[str, list[str]] = {
+    "download": ["artifacts/manifests/download_manifest.json"],
     "parse_guideline_pdf": [
         "processed/documents/guideline_documents.jsonl",
         "processed/sections/guideline_sections.jsonl",
@@ -223,6 +224,31 @@ def main() -> None:
         uploaded += 1
 
     print(f"Uploaded {uploaded} processed file(s) to s3://{args.bucket}/{args.prefix}")
+
+
+def upload_full_workspace(
+    *,
+    workspace: Path,
+    bucket: str,
+    prefix: str,
+    endpoint_url: str,
+    run_id: str | None = None,
+    dry_run: bool = False,
+) -> int:
+    relative_paths = [
+        path.relative_to(workspace).as_posix() for path in iter_outputs(workspace, safe_run_id(run_id))
+    ]
+    checkpoint = workspace / ".pipeline_checkpoint.json"
+    if checkpoint.is_file():
+        relative_paths.append(".pipeline_checkpoint.json")
+    return upload_paths(
+        workspace=workspace,
+        bucket=bucket,
+        prefix=prefix,
+        endpoint_url=endpoint_url,
+        relative_paths=relative_paths,
+        dry_run=dry_run,
+    )
 
 
 if __name__ == "__main__":

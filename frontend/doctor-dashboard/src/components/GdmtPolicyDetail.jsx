@@ -1,11 +1,22 @@
 import { useEffect, useState } from "react";
-import { CheckCircle2, History, RotateCcw, ShieldOff, XCircle } from "lucide-react";
+import { History, XCircle } from "lucide-react";
 
+import { CatalogStatusActions } from "@shared/governance/CatalogStatusActions.jsx";
 import { adminApi } from "../api/index.js";
 import { VersionDiffPanel } from "@shared/governance/VersionDiffPanel.jsx";
 import { StatusHistoryList } from "@shared/governance/StatusHistoryList.jsx";
-import { DetailFieldList, DetailMetaRow, CollapsiblePayload } from "@shared/governance/DetailFieldList.jsx";
+import {
+  ClinicalSourcesList,
+  CollapsiblePayload,
+  DetailFieldList,
+  DetailMetaRow,
+} from "@shared/governance/DetailFieldList.jsx";
 import { AdminDetailModal } from "@shared/governance/AdminDetailModal.jsx";
+import {
+  evidenceLinkDetailField,
+  pipelineSourceDetailField,
+} from "@shared/governance/catalogDetailReview.js";
+import { gdmtPolicyReviewFields } from "@shared/governance/gdmtPolicyReview.js";
 
 function statusClass(status) {
   if (status === "approved") return "success";
@@ -43,7 +54,16 @@ export function GdmtPolicyDetail({ policy, onClose, onAction, actionLoading, can
   if (!policy) return null;
 
   const body = policy.policy_body || {};
-  const guidance = body.guidance || {};
+  const sources = policy.clinical_sources || [];
+
+  const headerFields = [
+    { label: "Class key", value: policy.drug_class_key },
+    { label: "Sort order", value: policy.sort_order },
+  ];
+  const evidenceField = evidenceLinkDetailField(policy.evidence_ref, sources);
+  if (evidenceField) headerFields.push(evidenceField);
+  const sourceField = pipelineSourceDetailField(policy.source);
+  if (sourceField) headerFields.push(sourceField);
 
   return (
     <AdminDetailModal ariaLabel="GDMT policy details" className="dose-detail-panel" onClose={onClose}>
@@ -68,38 +88,18 @@ export function GdmtPolicyDetail({ policy, onClose, onAction, actionLoading, can
       </header>
 
       <div className="admin-detail-body">
-        <DetailFieldList
-          fields={[
-            { label: "Class key", value: policy.drug_class_key },
-            { label: "Sort order", value: policy.sort_order },
-            { label: "Evidence", value: policy.evidence_ref || "—", mono: true },
-            { label: "Source", value: policy.source },
-          ]}
+        <DetailFieldList fields={headerFields} />
+
+        <ClinicalSourcesList sources={sources} />
+
+        <DetailFieldList fields={gdmtPolicyReviewFields(policy)} />
+
+        <CollapsiblePayload
+          clinicalSources={sources}
+          data={body}
+          defaultOpen={false}
+          title="Policy logic"
         />
-
-        {(guidance.actions || []).length > 0 && (
-          <section>
-            <h3>Actions</h3>
-            <ul className="source-list">
-              {guidance.actions.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        {(guidance.monitoring || body.monitoring || []).length > 0 && (
-          <section>
-            <h3>Monitoring</h3>
-            <ul className="source-list">
-              {(guidance.monitoring || body.monitoring || []).map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        <CollapsiblePayload data={body} title="Full payload" />
 
         <VersionDiffPanel fetchDiff={adminApi.getGdmtPolicyDiff} ruleId={policy.id} versions={versions} />
 
@@ -114,36 +114,15 @@ export function GdmtPolicyDetail({ policy, onClose, onAction, actionLoading, can
       </div>
 
       <footer className="admin-detail-actions">
-        {policy.status === "draft" && canApprove && (
-          <button
-            className="primary-action dose-primary-action"
-            disabled={actionLoading}
-            onClick={() => onAction("approve", policy.id)}
-            type="button"
-          >
-            <CheckCircle2 size={16} /> Approve for recommendations
-          </button>
-        )}
-        {policy.status === "approved" && canAdmin && (
-          <button
-            className="danger-action"
-            disabled={actionLoading}
-            onClick={() => onAction("retire", policy.id)}
-            type="button"
-          >
-            <ShieldOff size={16} /> Retire
-          </button>
-        )}
-        {policy.status === "retired" && canAdmin && (
-          <button
-            className="secondary-action"
-            disabled={actionLoading}
-            onClick={() => onAction("unretire", policy.id)}
-            type="button"
-          >
-            <RotateCcw size={16} /> Restore
-          </button>
-        )}
+        <CatalogStatusActions
+          actionLoading={actionLoading}
+          approveLabel="Approve for recommendations"
+          canAdmin={canAdmin}
+          canApprove={canApprove}
+          onAction={onAction}
+          recordId={policy.id}
+          status={policy.status}
+        />
       </footer>
     </AdminDetailModal>
   );

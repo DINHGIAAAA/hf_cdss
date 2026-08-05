@@ -1,0 +1,64 @@
+/* Shared governance UI — loaded with @shared/governance components (mono-app + admin). */
+
+.history-item-sep {
+  color: var(--color-text-muted, #8e8e8e);
+  opacity: 0.85;
+  user-select: none;
+}
+
+.history-item-actor,
+.history-item-reason {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.history-item-meta {
+  min-width: 0;
+}
+
+.history-item-reason {
+  max-width: 100%;
+}
+
+.gov-diff-clinical-warning {
+  background: var(--color-warning-bg, #fffbeb);
+  border: 1px solid color-mix(in srgb, var(--color-warning, #d97706) 35%, white);
+  border-radius: var(--radius, 12px);
+  color: #92400e;
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0 0 var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+}
+
+.gov-diff-help {
+  color: var(--color-text-muted, #64748b);
+  font-size: 13px;
+  line-height: 1.5;
+  margin: var(--space-xs, 4px) 0 0;
+  max-width: 52ch;
+}
+
+.gov-diff-col-label {
+  color: var(--color-text-muted, #64748b);
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.gov-diff-value-link {
+  color: var(--color-primary, #2563eb);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  word-break: break-word;
+}
+
+.gov-diff-table-wrap--cards {
+  border: none;
+  max-height: min(62vh, 640px);
+  overflow: auto;
+  padding: 2px;
+}

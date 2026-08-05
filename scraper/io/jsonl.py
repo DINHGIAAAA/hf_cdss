@@ -7,11 +7,20 @@ from pathlib import Path
 from typing import Any
 
 
+def iter_jsonl(path: Path):
+    """Yield records one at a time (low RAM vs read_jsonl)."""
+    if not path.exists():
+        return
+    with path.open(encoding="utf-8-sig") as handle:
+        for line in handle:
+            if line.strip():
+                yield json.loads(line)
+
+
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
         return []
-    with path.open(encoding="utf-8-sig") as handle:
-        return [json.loads(line) for line in handle if line.strip()]
+    return list(iter_jsonl(path))
 
 
 def write_jsonl(records: list[dict[str, Any]], path: Path) -> None:

@@ -36,10 +36,12 @@ export const MESSAGES = {
       stream: {
         preparing: "Preparing clinical stream...",
         received: "Opening streaming bundle...",
+        using_supplied_profile: "Using profile from intake form (skipping LLM extract)...",
         extracting_patient: "Collecting patient draft...",
         building_recommendation: "Processing medication safety...",
         verifying_evidence: "Retrieving and validating evidence...",
         generating_answer: "Reasoning over the verified recommendation...",
+        loading_model: "Loading clinical language model...",
         draft_ready: "Patient draft collected...",
         missing_check: "Checking required clinical fields...",
         recommendation_ready: "Recommendation bundle ready...",
@@ -49,6 +51,12 @@ export const MESSAGES = {
         apiError: "API error: {message}",
         streamFailed: "Streaming chat failed",
         noStream: "Chat API did not return a stream",
+      },
+      streamPhases: {
+        intake: "Patient profile",
+        recommendation: "Safety & GDMT",
+        evidence: "Evidence retrieval",
+        reasoning: "Model reasoning",
       },
     },
     clinicalPanel: {
@@ -132,6 +140,9 @@ export const MESSAGES = {
       redFlags: "Red flags",
       redFlagsPlaceholder: "acute decompensation, chest pain, stable",
       start: "Start conversation",
+      loadDemo: "Load demo case (HFrEF)",
+      loadDemoHint: "Trần Minh — no DevTools paste needed",
+      loadDemoFailed: "Could not load demo conversation",
     },
     login: {
       description: "Clinical assistant",
@@ -206,10 +217,12 @@ export const MESSAGES = {
       stream: {
         preparing: "Đang chuẩn bị luồng lâm sàng...",
         received: "Đang mở luồng phản hồi...",
+        using_supplied_profile: "Dùng hồ sơ từ form (bỏ qua trích xuất LLM)...",
         extracting_patient: "Đang thu thập hồ sơ bệnh nhân...",
         building_recommendation: "Đang xử lý an toàn thuốc...",
         verifying_evidence: "Đang truy xuất và xác minh bằng chứng...",
         generating_answer: "Đang suy luận trên khuyến nghị đã xác minh...",
+        loading_model: "Đang tải mô hình ngôn ngữ lâm sàng...",
         draft_ready: "Đã thu thập hồ sơ bệnh nhân...",
         missing_check: "Đang kiểm tra các trường lâm sàng bắt buộc...",
         recommendation_ready: "Gói khuyến nghị đã sẵn sàng...",
@@ -219,6 +232,12 @@ export const MESSAGES = {
         apiError: "Lỗi API: {message}",
         streamFailed: "Luồng chat thất bại",
         noStream: "API chat không trả về luồng dữ liệu",
+      },
+      streamPhases: {
+        intake: "Hồ sơ bệnh nhân",
+        recommendation: "An toàn & GDMT",
+        evidence: "Truy xuất bằng chứng",
+        reasoning: "Suy luận (LLM)",
       },
     },
     clinicalPanel: {
@@ -302,6 +321,9 @@ export const MESSAGES = {
       redFlags: "Dấu hiệu nguy hiểm",
       redFlagsPlaceholder: "suy tim cấp, đau ngực, ổn định",
       start: "Bắt đầu hội thoại",
+      loadDemo: "Tải case demo (HFrEF)",
+      loadDemoHint: "Trần Minh — không cần dán vào Console",
+      loadDemoFailed: "Không tải được hội thoại demo",
     },
     login: {
       description: "Trợ lý lâm sàng",

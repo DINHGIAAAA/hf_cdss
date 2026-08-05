@@ -90,6 +90,17 @@ def _preload_runtime_caches() -> dict[str, Any]:
         logger.warning("clinical intake catalog preload unavailable: %s", exc)
         warmed["clinical_intake_catalog"] = {"status": "unavailable", "detail": str(exc)}
 
+    try:
+        from app.modules.graphrag.service import load_published_chunks, _get_bm25_index
+
+        chunks = load_published_chunks()
+        _get_bm25_index(True)
+        warmed["bm25_index"] = {"status": "ok", "chunks": len(chunks)}
+        print(f"[datastore-bootstrap] warmed BM25 index: {len(chunks)} chunk(s)", flush=True)
+    except Exception as exc:
+        logger.warning("BM25 preload unavailable: %s", exc)
+        warmed["bm25_index"] = {"status": "unavailable", "detail": str(exc)}
+
     return warmed
 
 

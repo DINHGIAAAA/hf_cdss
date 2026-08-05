@@ -5,6 +5,11 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from app.core.governance_audit_labels import (
+    supersede_history_actor,
+    supersede_history_reason,
+    supersede_retired_by,
+)
 from app.modules.datastores.postgres import _psycopg, postgres_pool
 
 
@@ -28,7 +33,11 @@ def _log_gdmt_policy_history(
     )
 
 
+from app.modules.gdmt_policy.guidance_normalize import normalize_policy_body
+
+
 def _row_to_dict(row: tuple[Any, ...]) -> dict[str, Any]:
+    policy_body = normalize_policy_body(row[6] or {})
     return {
         "id": row[0],
         "gdmt_policy_id": row[1],
@@ -36,7 +45,7 @@ def _row_to_dict(row: tuple[Any, ...]) -> dict[str, Any]:
         "drug_class_key": row[3],
         "display_label": row[4],
         "sort_order": row[5],
-        "policy_body": row[6] or {},
+        "policy_body": policy_body,
         "evidence_ref": row[7],
         "clinical_sources": row[8] or [],
         "status": row[9],
@@ -85,6 +94,7 @@ def read_gdmt_policies_filtered(
     safety_tier: str | None = None,
     q: str | None = None,
     limit: int = 500,
+    offset: int = 0,
 ) -> list[dict[str, Any]]:
     conditions: list[str] = []
     params: list[Any] = []
@@ -92,8 +102,8 @@ def read_gdmt_policies_filtered(
         conditions.append("status = %s")
         params.append(status)
     if drug_class_key:
-        conditions.append("drug_class_key ILIKE %s")
-        params.append(f"%{drug_class_key}%")
+        conditions.append("drug_class_key = %s")
+        params.append(drug_class_key)
     if safety_tier:
         conditions.append("safety_tier = %s")
         params.append(safety_tier)
@@ -101,7 +111,7 @@ def read_gdmt_policies_filtered(
         conditions.append("(gdmt_policy_id ILIKE %s OR display_label ILIKE %s)")
         params.extend([f"%{q}%", f"%{q}%"])
     where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
-    params.append(limit)
+    params.extend([limit, offset])
     with postgres_pool().connection() as connection:
         with connection.cursor() as cursor:
             cursor.execute(
@@ -110,11 +120,39 @@ def read_gdmt_policies_filtered(
                 FROM gdmt_policies
                 {where}
                 ORDER BY sort_order ASC, created_at DESC
-                LIMIT %s
+                LIMIT %s OFFSET %s
                 """,
                 tuple(params),
             )
             return [_row_to_dict(row) for row in cursor.fetchall()]
+
+
+def count_gdmt_policies_filtered(
+    *,
+    status: str | None = None,
+    drug_class_key: str | None = None,
+    safety_tier: str | None = None,
+    q: str | None = None,
+) -> int:
+    conditions: list[str] = []
+    params: list[Any] = []
+    if status:
+        conditions.append("status = %s")
+        params.append(status)
+    if drug_class_key:
+        conditions.append("drug_class_key = %s")
+        params.append(drug_class_key)
+    if safety_tier:
+        conditions.append("safety_tier = %s")
+        params.append(safety_tier)
+    if q:
+        conditions.append("(gdmt_policy_id ILIKE %s OR display_label ILIKE %s)")
+        params.extend([f"%{q}%", f"%{q}%"])
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    with postgres_pool().connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(f"SELECT COUNT(*) FROM gdmt_policies {where}", tuple(params))
+            return int(cursor.fetchone()[0])
 
 
 def count_gdmt_policies_by_status(
@@ -127,8 +165,8 @@ def count_gdmt_policies_by_status(
     conditions: list[str] = []
     params: list[Any] = []
     if drug_class_key:
-        conditions.append("drug_class_key ILIKE %s")
-        params.append(f"%{drug_class_key}%")
+        conditions.append("drug_class_key = %s")
+        params.append(drug_class_key)
     if safety_tier:
         conditions.append("safety_tier = %s")
         params.append(safety_tier)
@@ -250,7 +288,7 @@ def approve_gdmt_policy(rule_id: int, admin_user_id: str) -> bool:
                     WHERE gdmt_policy_id = %s AND status = 'approved' AND id != %s
                     RETURNING id
                     """,
-                    (f"system_auto_retire_by_{admin_user_id}", gdmt_policy_id, rule_id),
+                    (supersede_retired_by(admin_user_id), gdmt_policy_id, rule_id),
                 )
                 for _ in cursor.fetchall():
                     _log_gdmt_policy_history(
@@ -258,8 +296,8 @@ def approve_gdmt_policy(rule_id: int, admin_user_id: str) -> bool:
                         gdmt_policy_id,
                         "approved",
                         "retired",
-                        f"system_auto_retire_by_{admin_user_id}",
-                        f"Auto-retired due to new version approval (rule_id: {rule_id})",
+                        supersede_history_actor(admin_user_id),
+                        supersede_history_reason(rule_id, admin_user_id),
                     )
                 cursor.execute(
                     """
@@ -284,24 +322,31 @@ def retire_gdmt_policy(rule_id: int, admin_user_id: str) -> bool:
     try:
         with postgres_pool().connection() as connection:
             with connection.cursor() as cursor:
-                cursor.execute("SELECT gdmt_policy_id FROM gdmt_policies WHERE id = %s", (rule_id,))
+                cursor.execute(
+                    "SELECT gdmt_policy_id, status FROM gdmt_policies WHERE id = %s",
+                    (rule_id,),
+                )
                 row = cursor.fetchone()
                 if not row:
                     return False
-                gdmt_policy_id = row[0]
+                gdmt_policy_id, from_status = row[0], row[1]
+                if from_status not in ("approved", "draft"):
+                    return False
                 cursor.execute(
                     """
                     UPDATE gdmt_policies
                     SET status = 'retired', retired_by = %s, retired_at = NOW(), updated_at = NOW()
-                    WHERE id = %s AND status = 'approved'
+                    WHERE id = %s AND status = %s
                     """,
-                    (admin_user_id, rule_id),
+                    (admin_user_id, rule_id, from_status),
                 )
                 if cursor.rowcount > 0:
+                    reason = "Draft discarded" if from_status == "draft" else "GDMT policy retired"
                     _log_gdmt_policy_history(
-                        cursor, gdmt_policy_id, "approved", "retired", admin_user_id, "GDMT policy retired"
+                        cursor, gdmt_policy_id, from_status, "retired", admin_user_id, reason
                     )
-        return True
+                    return True
+        return False
     except Exception as exc:
         logger.warning("Failed to retire GDMT policy %s: %s", rule_id, exc)
         return False
@@ -325,7 +370,7 @@ def unretire_gdmt_policy(rule_id: int, admin_user_id: str) -> bool:
                     SET status = 'retired', retired_by = %s, retired_at = NOW(), updated_at = NOW()
                     WHERE gdmt_policy_id = %s AND status = 'approved' AND id != %s
                     """,
-                    (f"system_auto_retire_by_{admin_user_id}", gdmt_policy_id, rule_id),
+                    (supersede_retired_by(admin_user_id), gdmt_policy_id, rule_id),
                 )
                 cursor.execute(
                     """
@@ -418,8 +463,8 @@ def list_draft_gdmt_policy_ids(
         conditions.append("id = ANY(%s)")
         params.append(rule_ids)
     if drug_class_key:
-        conditions.append("drug_class_key ILIKE %s")
-        params.append(f"%{drug_class_key}%")
+        conditions.append("drug_class_key = %s")
+        params.append(drug_class_key)
     if safety_tier:
         conditions.append("safety_tier = %s")
         params.append(safety_tier)

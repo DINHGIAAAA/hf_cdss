@@ -7,6 +7,12 @@ from typing import Any
 
 from scraper.semantic.stable_ids import slug, stable_id
 
+try:
+    from app.modules.interaction_checking.drug_set_tokens import filter_plausible_drug_set
+except ImportError:
+    def filter_plausible_drug_set(values):  # type: ignore[misc]
+        return list(values or [])
+
 KNOWN_CLASS_PREFIX = "class:"
 
 REQUIRED_FIELDS = ("drug_set_a", "drug_set_b", "message", "severity")
@@ -30,7 +36,7 @@ def _normalize_set(values: list[Any] | None) -> list[str]:
         token = _normalize_token(str(item))
         if token and token not in output:
             output.append(token)
-    return output
+    return filter_plausible_drug_set(output)
 
 
 def _partner_drugs_from_text(text: str) -> list[str]:
@@ -124,7 +130,7 @@ def build_interaction_rule_from_structured_claim(claim: dict[str, Any]) -> dict[
         ],
         "extraction_method": (claim.get("metadata") or {}).get("extraction_method", "llm_structured_interaction"),
         "source_confidence": claim.get("confidence"),
-        "partner_matched": bool(((claim.get("metadata") or {}).get("partner_resolve") or {}).get("matched", True)),
+        "partner_matched": bool(((claim.get("metadata") or {}).get("partner_resolve") or {}).get("matched", False)),
     }
 
 

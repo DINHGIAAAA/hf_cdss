@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { CheckCircle2, History, RotateCcw, ShieldOff, XCircle } from "lucide-react";
+import { History, XCircle } from "lucide-react";
 
+import { CatalogStatusActions } from "@shared/governance/CatalogStatusActions.jsx";
 import { adminApi } from "../api/index.js";
 import { VersionDiffPanel } from "@shared/governance/VersionDiffPanel.jsx";
 import { StatusHistoryList } from "@shared/governance/StatusHistoryList.jsx";
@@ -10,8 +11,14 @@ import {
   DetailFieldList,
   DetailMetaRow,
 } from "@shared/governance/DetailFieldList.jsx";
+import { InteractionDrugSetFields } from "@shared/governance/InteractionDrugSetFields.jsx";
 import { AdminDetailModal } from "@shared/governance/AdminDetailModal.jsx";
 import { interactionRuleTitle } from "@shared/governance/displayNames.js";
+import {
+  evidenceLinkDetailField,
+  pipelineSourceDetailField,
+  textMatchesClinicalSources,
+} from "@shared/governance/catalogDetailReview.js";
 
 function statusClass(status) {
   if (status === "approved") return "success";
@@ -55,6 +62,18 @@ export function InteractionRuleDetail({ rule, onClose, onAction, actionLoading, 
   if (!rule) return null;
 
   const body = rule.rule_body || {};
+  const sources = rule.clinical_sources || [];
+
+  const headerFields = [];
+  const message = body.message;
+  if (message && !textMatchesClinicalSources(message, sources)) {
+    headerFields.push({ label: "Clinical message", value: message, wide: true });
+  }
+  headerFields.push({ label: "Action", value: body.action || "—" });
+  const evidenceField = evidenceLinkDetailField(rule.evidence_ref, sources);
+  if (evidenceField) headerFields.push(evidenceField);
+  const sourceField = pipelineSourceDetailField(rule.source);
+  if (sourceField) headerFields.push(sourceField);
 
   return (
     <AdminDetailModal ariaLabel="Interaction rule details" className="dose-detail-panel" onClose={onClose}>
@@ -80,21 +99,11 @@ export function InteractionRuleDetail({ rule, onClose, onAction, actionLoading, 
       </header>
 
       <div className="admin-detail-body">
-        <DetailFieldList
-          fields={[
-            { label: "Drug set A", value: (rule.drug_set_a || []).length ? rule.drug_set_a : "—" },
-            { label: "Drug set B", value: (rule.drug_set_b || []).length ? rule.drug_set_b : "—" },
-            { label: "Target", value: rule.target || body.target || "—" },
-            { label: "Action", value: body.action || "—" },
-            { label: "Message", value: body.message || "—", wide: true },
-            { label: "Evidence", value: rule.evidence_ref || "—", mono: true },
-            { label: "Source", value: rule.source },
-            {
-              label: "Extraction",
-              value: (rule.metadata && rule.metadata.extraction_method) || "—",
-            },
-          ]}
-        />
+        <InteractionDrugSetFields drugSetA={rule.drug_set_a} drugSetB={rule.drug_set_b} />
+        {rule.target || body.target ? (
+          <DetailFieldList fields={[{ label: "Target", value: rule.target || body.target }]} />
+        ) : null}
+        <DetailFieldList fields={headerFields} />
 
         {(body.monitoring || []).length > 0 && (
           <section>
@@ -107,9 +116,14 @@ export function InteractionRuleDetail({ rule, onClose, onAction, actionLoading, 
           <CollapsiblePayload data={body.escalation} title="Escalation" />
         )}
 
-        <ClinicalSourcesList sources={rule.clinical_sources || []} />
+        <ClinicalSourcesList sources={sources} />
 
-        <CollapsiblePayload data={body} title="Full payload" />
+        <CollapsiblePayload
+          clinicalSources={sources}
+          data={body}
+          defaultOpen={false}
+          title="Interaction logic"
+        />
 
         <VersionDiffPanel
           fetchDiff={adminApi.getInteractionRuleDiff}
@@ -128,36 +142,15 @@ export function InteractionRuleDetail({ rule, onClose, onAction, actionLoading, 
       </div>
 
       <footer className="admin-detail-actions">
-        {rule.status === "draft" && canApprove && (
-          <button
-            className="primary-action dose-primary-action"
-            disabled={actionLoading}
-            onClick={() => onAction("approve", rule.id)}
-            type="button"
-          >
-            <CheckCircle2 size={16} /> Approve for checking
-          </button>
-        )}
-        {rule.status === "approved" && canAdmin && (
-          <button
-            className="danger-action"
-            disabled={actionLoading}
-            onClick={() => onAction("retire", rule.id)}
-            type="button"
-          >
-            <ShieldOff size={16} /> Retire
-          </button>
-        )}
-        {rule.status === "retired" && canAdmin && (
-          <button
-            className="secondary-action"
-            disabled={actionLoading}
-            onClick={() => onAction("unretire", rule.id)}
-            type="button"
-          >
-            <RotateCcw size={16} /> Restore
-          </button>
-        )}
+        <CatalogStatusActions
+          actionLoading={actionLoading}
+          approveLabel="Approve for checking"
+          canAdmin={canAdmin}
+          canApprove={canApprove}
+          onAction={onAction}
+          recordId={rule.id}
+          status={rule.status}
+        />
       </footer>
     </AdminDetailModal>
   );

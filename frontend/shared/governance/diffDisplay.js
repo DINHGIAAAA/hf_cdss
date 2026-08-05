@@ -1,11 +1,19 @@
 /** Human labels for governance diff field paths. */
+import { isReviewRelevantPath, shouldOmitReviewField } from "./reviewFieldFilter.js";
+import {
+  formatSeverityRule,
+  formatTriggerCondition,
+  isSeverityRule,
+  isTriggerCondition,
+} from "./triggerDisplay.js";
+
 const FIELD_LABELS = {
   action: "Action",
   reason: "Reason",
   target_drug_class: "Target class",
   risk_names: "Risks",
   severity_any: "Severity any",
-  evidence_ref: "Evidence",
+  evidence_ref: "Evidence link",
   clinical_sources: "Clinical sources",
   metadata: "Metadata",
   calculation_type: "Calculation",
@@ -34,12 +42,21 @@ const FIELD_LABELS = {
   claim_id: "Claim ID",
   evidence: "Evidence quote",
   title: "Title",
+  source_link: "Source link",
+  label_reference: "Label reference",
+  section: "Section",
   source_url: "Source URL",
   confidence: "Confidence",
   publisher: "Publisher",
   chunk_id: "Chunk ID",
   source_id: "Source ID",
-  document: "Document",
+  operator: "Operator",
+  field: "Field",
+  value: "Value",
+  trigger: "Trigger",
+  condition_groups: "Condition groups",
+  severity_rules: "Severity rules",
+  related_observation_fields: "Related labs",
 };
 
 function humanizeKey(key) {
@@ -62,6 +79,15 @@ export function fieldPathParts(path) {
 
 export function formatFieldPath(path) {
   return fieldPathParts(path).join(" · ");
+}
+
+/** Single-line label for review cards (avoids multi-column path tables). */
+export function compactReviewFieldLabel(path) {
+  const parts = fieldPathParts(path);
+  if (!parts.length) return "Field";
+  if (parts.length === 1) return parts[0];
+  if (parts.length === 2) return `${parts[0]} · ${parts[1]}`;
+  return `${parts[0]} · ${parts[parts.length - 1]}`;
 }
 
 function isPlainObject(value) {
@@ -114,14 +140,33 @@ export function valueToEntries(value, { prefix = "" } = {}) {
     }
     return value.flatMap((item, index) => {
       const label = prefix ? `${prefix} #${index + 1}` : `Item #${index + 1}`;
+      if (Array.isArray(item)) {
+        const inner = valueToEntries(item, { prefix: label });
+        if (inner.length === 1 && !inner[0].label) {
+          return [{ label, text: inner[0].text, chips: inner[0].chips }];
+        }
+        return inner;
+      }
       if (isPlainObject(item)) {
+        if (isTriggerCondition(item)) {
+          return [{ label, text: formatTriggerCondition(item) }];
+        }
+        if (isSeverityRule(item)) {
+          return [{ label, text: formatSeverityRule(item) }];
+        }
         return valueToEntries(item, { prefix: label });
       }
-      return [entryForScalar(label, String(item))];
+      return [entryForScalar(label, item)];
     });
   }
 
   if (isPlainObject(value)) {
+    if (isTriggerCondition(value) && Object.keys(value).every((k) => ["field", "operator", "value"].includes(k))) {
+      return [{ label: prefix || null, text: formatTriggerCondition(value) }];
+    }
+    if (isSeverityRule(value)) {
+      return [{ label: prefix || null, text: formatSeverityRule(value) }];
+    }
     const keys = Object.keys(value);
     if (!keys.length) return [{ label: prefix || null, text: "—" }];
     return keys.flatMap((key) => {
@@ -164,6 +209,7 @@ function expandValueDiff(path, before, after) {
     ]);
     const nested = [];
     for (const key of keys) {
+      if (shouldOmitReviewField(path, key)) continue;
       nested.push(
         ...expandValueDiff(
           `${path}.${key}`,
@@ -173,6 +219,9 @@ function expandValueDiff(path, before, after) {
       );
     }
     if (nested.length) return nested;
+    if (type !== "unchanged") {
+      return [];
+    }
   }
 
   const beforeArr = Array.isArray(before);
@@ -180,10 +229,11 @@ function expandValueDiff(path, before, after) {
   if (beforeArr || afterArr) {
     const left = beforeArr ? before : [];
     const right = afterArr ? after : [];
-    const hasObjectItems =
-      left.some((item) => isPlainObject(item)) || right.some((item) => isPlainObject(item));
+    const hasNestedStructure =
+      left.some((item) => isPlainObject(item) || Array.isArray(item)) ||
+      right.some((item) => isPlainObject(item) || Array.isArray(item));
 
-    if (hasObjectItems) {
+    if (hasNestedStructure) {
       const nested = [];
       const len = Math.max(left.length, right.length);
       for (let index = 0; index < len; index += 1) {
@@ -208,5 +258,5 @@ export function expandDiffChanges(changes = []) {
   for (const change of changes) {
     expanded.push(...expandValueDiff(change.path, change.before, change.after));
   }
-  return expanded;
+  return expanded.filter((row) => isReviewRelevantPath(row.path));
 }

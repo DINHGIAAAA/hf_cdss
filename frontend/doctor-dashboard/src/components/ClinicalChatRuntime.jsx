@@ -57,6 +57,7 @@ export function ClinicalChatRuntimeProvider({
   patchConversation,
   updateActive,
   onStreamStatus,
+  onStreamProgress,
   onError,
   children,
 }) {
@@ -116,7 +117,9 @@ export function ClinicalChatRuntimeProvider({
         ],
       }));
       setIsRunning(true);
-      onStreamStatus?.(translate(language, "chat.stream.preparing"));
+      const preparing = { step: "preparing", label: translate(language, "chat.stream.preparing") };
+      onStreamProgress?.(preparing);
+      onStreamStatus?.(preparing.label);
       onError?.("");
 
       try {
@@ -126,6 +129,7 @@ export function ClinicalChatRuntimeProvider({
           language,
           signal: controller.signal,
           onStatus: onStreamStatus,
+          onProgress: onStreamProgress,
           onDraft: (data) => patchConversation(conversationId, () => ({ draft: data })),
           onRecommendation: (data) => patchConversation(conversationId, () => ({ recommendation: data })),
           onVerification: (data) => patchConversation(conversationId, () => ({ verification: data })),
@@ -176,18 +180,20 @@ export function ClinicalChatRuntimeProvider({
         });
       } finally {
         setIsRunning(false);
+        onStreamProgress?.(null);
         onStreamStatus?.("");
         abortRef.current = null;
       }
     },
-    [active, language, onError, onStreamStatus, patchConversation],
+    [active, language, onError, onStreamStatus, onStreamProgress, patchConversation],
   );
 
   const onCancel = useCallback(async () => {
     abortRef.current?.abort();
     setIsRunning(false);
     onStreamStatus?.("");
-  }, [onStreamStatus]);
+    onStreamProgress?.(null);
+  }, [onStreamStatus, onStreamProgress]);
 
   // Do not abort on unmount: leaving chat for admin mid-stream must not cancel the run
   // or starve the single API worker. ConversationsProvider keeps patch targets alive.

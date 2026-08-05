@@ -4,11 +4,15 @@ import { ChevronRight, LoaderCircle, Pill, RefreshCw } from "lucide-react";
 import { adminApi } from "../api/index.js";
 import { useAuth } from "../auth/AuthContext";
 import { DoseRuleDetail } from "../components/DoseRuleDetail.jsx";
-import { ApprovalToolbar } from "@shared/governance/ApprovalToolbar.jsx";
+import { CatalogApprovalToolbar } from "@shared/governance/CatalogApprovalToolbar.jsx";
+import { CatalogPagination } from "@shared/governance/CatalogPagination.jsx";
 import { DOSE_CATALOG } from "@shared/governance/catalogConfig.js";
+import { CATALOG_PAGE_SIZE } from "@shared/governance/catalogPagination.js";
 import { CatalogRecordLabel } from "@shared/governance/CatalogRecordLabel.jsx";
 import { doseRuleTitle, formatDrugSetLabel, shortCatalogId } from "@shared/governance/displayNames.js";
 import { fetchCatalogListWithCounts } from "@shared/governance/fetchCatalogListWithCounts.js";
+import { useCatalogBulkApprove } from "@shared/governance/useCatalogBulkApprove.js";
+import { useCatalogListPage } from "@shared/governance/useCatalogListPage.js";
 import { StatusCountCards, statusTabLabel } from "@shared/governance/StatusCountCards.jsx";
 import { useRuleSelection } from "@shared/governance/useRuleSelection.js";
 
@@ -45,6 +49,7 @@ export function DoseRulesPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [bulkLoading, setBulkLoading] = useState(false);
   const [toast, setToast] = useState("");
+  const { page, setPage, pageSize } = useCatalogListPage(tab, appliedFilters);
 
   const canApprove = isAuthenticated && hasRole("clinical_lead");
   const canAdmin = isAuthenticated && hasRole("admin");
@@ -61,6 +66,8 @@ export function DoseRulesPage() {
       const result = await fetchCatalogListWithCounts(adminApi.listDoseRules, {
         tab,
         filters: appliedFilters,
+        page,
+        pageSize,
       });
       setData(result);
     } catch (err) {
@@ -68,7 +75,7 @@ export function DoseRulesPage() {
     } finally {
       setLoading(false);
     }
-  }, [tab, appliedFilters, canRead]);
+  }, [tab, appliedFilters, page, pageSize, canRead]);
 
   useEffect(() => {
     loadRules();
@@ -83,6 +90,19 @@ export function DoseRulesPage() {
     clearSelection,
     selectedCount,
   } = useRuleSelection(items);
+
+  const { handleBulkApprove, handleBulkApproveAll } = useCatalogBulkApprove({
+    catalog: DOSE_CATALOG,
+    adminApi,
+    appliedFilters,
+    selectedIds,
+    clearSelection,
+    loadRules,
+    setToast,
+    setBulkLoading,
+  });
+
+  const draftMatchCount = tab === "draft" ? (data?.total ?? 0) : 0;
 
   const activeFilterCount = useMemo(
     () => Object.values(appliedFilters).filter(Boolean).length,
@@ -119,25 +139,6 @@ export function DoseRulesPage() {
       setToast(err.message);
     } finally {
       setActionLoading(false);
-    }
-  }
-
-  async function handleBulkApprove() {
-    setBulkLoading(true);
-    setToast("");
-    try {
-      const payload = {
-        rule_ids: [...selectedIds],
-        ...Object.fromEntries(Object.entries(appliedFilters).filter(([, value]) => Boolean(value))),
-      };
-      const result = await adminApi.bulkApproveDoseRules(payload);
-      setToast(result.message);
-      clearSelection();
-      await loadRules();
-    } catch (err) {
-      setToast(err.message);
-    } finally {
-      setBulkLoading(false);
     }
   }
 
@@ -195,29 +196,29 @@ export function DoseRulesPage() {
         ))}
       </div>
 
-      <ApprovalToolbar
+      <CatalogApprovalToolbar
         allVisibleSelected={allVisibleSelected}
         bulkLoading={bulkLoading}
         canBulkApprove={canApprove}
         catalog={DOSE_CATALOG}
+        draftMatchCount={draftMatchCount}
+        fetchFilterOptions={adminApi.getCatalogFilterOptions}
         filters={filters}
         onApplyFilters={() => setAppliedFilters({ ...filters })}
         onBulkApprove={handleBulkApprove}
+        onBulkApproveAll={handleBulkApproveAll}
         onClearFilters={() => {
           setFilters(EMPTY_FILTERS);
           setAppliedFilters(EMPTY_FILTERS);
         }}
-        onFilterChange={(key, value) => setFilters((prev) => ({ ...prev, [key]: value }))}
         onToggleAll={toggleAllVisible}
+        activeFilterCount={activeFilterCount}
+        resultsCount={data?.total ?? items.length}
         selectedCount={selectedCount}
+        setFilters={setFilters}
         showBulk={tab === "draft"}
+        tab={tab}
       />
-
-      {activeFilterCount > 0 && (
-        <p className="gov-filter-summary" role="status">
-          {activeFilterCount} filter(s) active · {items.length} result(s)
-        </p>
-      )}
 
       {toast && (
         <p className="admin-toast" role="status">
@@ -242,6 +243,7 @@ export function DoseRulesPage() {
               <p>Run structured dose extraction in the ingestion pipeline, then sync to Postgres.</p>
             </div>
           ) : (
+            <>
             <table className="admin-table admin-table--dose">
               <thead>
                 <tr>
@@ -294,6 +296,14 @@ export function DoseRulesPage() {
                 ))}
               </tbody>
             </table>
+            <CatalogPagination
+              loading={loading}
+              onPageChange={setPage}
+              page={page}
+              pageSize={CATALOG_PAGE_SIZE}
+              total={data?.total ?? 0}
+            />
+            </>
           )}
         </section>
 

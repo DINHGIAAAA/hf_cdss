@@ -16,6 +16,7 @@ from app.modules.graphrag.evidence_scope import (
     resolve_evidence_scope,
     resolve_evidence_scope_from_chunk_ids,
 )
+from app.modules.graphrag.retrieval_profile import RetrievalOptions, retrieval_options_for_request
 from app.modules.graphrag.hyde_expansion import (
     build_semantic_retrieval_query,
     generate_hyde_document,
@@ -137,6 +138,8 @@ def _semantic_retrieval_queries(
     *,
     baseline_query: str,
     hyde_document: str | None,
+    multi_query: bool = True,
+    query_decomposition: bool = True,
 ) -> tuple[list[str], bool]:
     queries: list[str] = []
     semantic_query = build_semantic_retrieval_query(
@@ -147,7 +150,7 @@ def _semantic_retrieval_queries(
         queries.append(semantic_query)
     if baseline_query and baseline_query not in queries:
         queries.append(baseline_query)
-    if settings.graphrag_multi_query_enabled:
+    if multi_query:
         if hyde_document and hyde_document not in queries:
             queries.append(hyde_document)
         if request.clinical_state:
@@ -156,7 +159,7 @@ def _semantic_retrieval_queries(
                 queries.append(state_text)
 
     decomposed: list[str] = []
-    if settings.graphrag_multi_query_enabled:
+    if multi_query and query_decomposition:
         decomposed = decompose_retrieval_queries(request, baseline_query=baseline_query)
         queries.extend(decomposed)
 
@@ -271,12 +274,13 @@ def _merge_evidence_rankings(
     top_k: int,
     patient: PatientProfile | None = None,
     terms: list[str] | None = None,
+    rerank: bool = True,
 ) -> list[EvidenceChunk]:
     if not ranked_lists:
         return []
     merged = reciprocal_rank_fusion(ranked_lists) if len(ranked_lists) > 1 else ranked_lists[0]
     pool_k = max(top_k, min(len(merged), top_k * 2))
-    ranked = rerank_evidence_chunks(query, merged, pool_k)
+    ranked = rerank_evidence_chunks(query, merged, pool_k) if rerank else merged[:pool_k]
 
     def rank_key(item: EvidenceChunk) -> tuple[float, float]:
         matched = matched_terms_for_chunk(item, terms or [])
@@ -309,6 +313,7 @@ def retrieve_hybrid_evidence_chunks(
     scope: EvidenceScope | None = None,
     patient: PatientProfile | None = None,
     published: bool = True,
+    rerank: bool = True,
 ) -> tuple[list[EvidenceChunk], list[str]]:
     """Single retrieval flow: ChromaDB + BM25 in parallel, merged with RRF, then rerank/filter."""
     if not terms:
@@ -352,6 +357,7 @@ def retrieve_hybrid_evidence_chunks(
         top_k=top_k,
         patient=patient,
         terms=terms,
+        rerank=rerank,
     )
     return merged, sources
 
@@ -620,6 +626,7 @@ def build_graphrag_context(request: GraphRAGContextRequest) -> GraphRAGContextRe
 
 
 async def build_graphrag_context_async(request: GraphRAGContextRequest) -> GraphRAGContextResponse:
+    options = retrieval_options_for_request(request)
     terms = query_terms_for_patient(
         request.patient,
         request.query,
@@ -630,7 +637,7 @@ async def build_graphrag_context_async(request: GraphRAGContextRequest) -> Graph
     hyde_document: str | None = None
     hyde_used = False
 
-    if should_expand_with_hyde(request.query):
+    if options.use_hyde and should_expand_with_hyde(request.query):
         hyde_document = await generate_hyde_document(
             request.query or "",
             request.patient,
@@ -650,6 +657,8 @@ async def build_graphrag_context_async(request: GraphRAGContextRequest) -> Graph
         request,
         baseline_query=baseline_query,
         hyde_document=hyde_document,
+        multi_query=options.multi_query,
+        query_decomposition=options.query_decomposition,
     )
     return _build_graphrag_context_impl(
         request,
@@ -659,6 +668,7 @@ async def build_graphrag_context_async(request: GraphRAGContextRequest) -> Graph
         hyde_used=hyde_used,
         retrieval_queries=retrieval_queries,
         query_decomposed=query_decomposed,
+        retrieval_options=options,
     )
 
 
@@ -671,8 +681,10 @@ def _build_graphrag_context_impl(
     hyde_used: bool,
     retrieval_queries: list[str] | None = None,
     query_decomposed: bool = False,
+    retrieval_options: RetrievalOptions | None = None,
 ) -> GraphRAGContextResponse:
     started = time.perf_counter()
+    options = retrieval_options or retrieval_options_for_request(request)
     if terms is None:
         terms = query_terms_for_patient(
             request.patient,
@@ -690,6 +702,8 @@ def _build_graphrag_context_impl(
         retrieval_sources.append("multi_query")
     if query_decomposed:
         retrieval_sources.append("query_decomposition")
+    if not options.use_hyde and not options.multi_query:
+        retrieval_sources.append("retrieval_profile_fast")
     evidence_scope = (
         resolve_evidence_scope(terms, chunk_ids=request.constraint_chunk_ids)
         if settings.graphrag_graph_guided_filter_enabled
@@ -707,6 +721,7 @@ def _build_graphrag_context_impl(
         primary_query=primary_query,
         scope=evidence_scope,
         patient=request.patient,
+        rerank=options.rerank,
     )
     retrieval_sources.extend(hybrid_sources)
     if hyde_used and "chromadb" in hybrid_sources:
@@ -724,7 +739,7 @@ def _build_graphrag_context_impl(
         graph_facts = retrieve_graph_facts(terms, top_k)
         retrieval_sources.append("local_relationships")
 
-    if evidence_chunks and settings.graphrag_chunk_window_size > 0:
+    if evidence_chunks and options.expand_chunk_window and settings.graphrag_chunk_window_size > 0:
         evidence_chunks = expand_chunk_windows(evidence_chunks)
         retrieval_sources.append("chunk_window")
 

@@ -14,6 +14,12 @@ from scraper.semantic import config
 from scraper.prompts.interaction_extraction import STRUCTURED_INTERACTION_EXTRACTION_SYSTEM_PROMPT
 from scraper.semantic.llm_client import call_llm_json
 
+try:
+    from app.modules.interaction_checking.drug_set_tokens import filter_plausible_drug_set
+except ImportError:
+    def filter_plausible_drug_set(values):  # type: ignore[misc]
+        return [str(v).strip().lower() for v in (values or []) if str(v).strip()]
+
 logger = logging.getLogger(__name__)
 
 INTERACTION_SECTION_KEYWORDS = (
@@ -45,8 +51,12 @@ def _build_structured_claim(record: dict, payload: dict[str, Any], index: int) -
     if len(evidence) < 20:
         return None
 
-    set_a = [str(item).strip().lower() for item in (payload.get("drug_set_a") or []) if str(item).strip()]
-    set_b = [str(item).strip().lower() for item in (payload.get("drug_set_b") or []) if str(item).strip()]
+    set_a = filter_plausible_drug_set(
+        [str(item).strip().lower() for item in (payload.get("drug_set_a") or []) if str(item).strip()]
+    )
+    set_b = filter_plausible_drug_set(
+        [str(item).strip().lower() for item in (payload.get("drug_set_b") or []) if str(item).strip()]
+    )
     if not set_a or not set_b:
         return None
 

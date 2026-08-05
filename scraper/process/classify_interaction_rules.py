@@ -7,6 +7,12 @@ from typing import Any
 
 from scraper.semantic.interaction_rule_builder import REQUIRED_FIELDS
 
+try:
+    from app.modules.interaction_checking.drug_set_tokens import is_plausible_drug_set_token
+except ImportError:
+    def is_plausible_drug_set_token(token: str) -> bool:  # type: ignore[misc]
+        return bool(str(token or "").strip())
+
 
 _JUNK_MONITORING = {"", "string"}
 
@@ -48,12 +54,21 @@ def _self_interaction(rule: dict[str, Any]) -> bool:
     return bool(set_a and set_a == set_b)
 
 
+def _invalid_drug_sets(rule: dict[str, Any]) -> bool:
+    for token in list(rule.get("drug_set_a") or []) + list(rule.get("drug_set_b") or []):
+        if not is_plausible_drug_set_token(str(token)):
+            return True
+    return False
+
+
 def interaction_rule_tier(rule: dict[str, Any]) -> str:
     missing = [field for field in REQUIRED_FIELDS if not rule.get(field)]
     if missing:
         return "rejected_rules"
     if not rule.get("drug_set_a") or not rule.get("drug_set_b"):
         return "rejected_rules"
+    if _invalid_drug_sets(rule):
+        return "needs_refinement"
     if _self_interaction(rule):
         return "rejected_rules"
 

@@ -13,6 +13,7 @@ export function ChatPage() {
   const health = useApiHealth();
   const [showModal, setShowModal] = useState(false);
   const [streamStatus, setStreamStatus] = useState("");
+  const [streamProgress, setStreamProgress] = useState(null);
   const [error, setError] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(() => localStorage.getItem("hf_sidebar") !== "0");
   const { language, t } = useLanguage();
@@ -32,6 +33,7 @@ export function ChatPage() {
     patchConversation,
     updateActive,
     createConversation,
+    loadDemoConversation,
     deleteConversation,
     clearConversation,
   } = useConversations();
@@ -41,6 +43,12 @@ export function ChatPage() {
 
   function handleCreate(form, patientId, conversationName) {
     createConversation(form, patientId, conversationName);
+    setShowModal(false);
+    setError("");
+  }
+
+  async function handleLoadDemo() {
+    await loadDemoConversation();
     setShowModal(false);
     setError("");
   }
@@ -56,6 +64,7 @@ export function ChatPage() {
       {shouldShowModal && (
         <PatientModal
           onCreate={handleCreate}
+          onLoadDemo={handleLoadDemo}
           onClose={conversations.length > 0 ? () => setShowModal(false) : undefined}
         />
       )}
@@ -78,6 +87,7 @@ export function ChatPage() {
         language={language}
         onError={setError}
         onStreamStatus={setStreamStatus}
+        onStreamProgress={setStreamProgress}
         patchConversation={patchConversation}
         updateActive={updateActive}
       >
@@ -94,6 +104,7 @@ export function ChatPage() {
             })
           }
           streamStatus={streamStatus}
+          streamProgress={streamProgress}
         />
       </ClinicalChatRuntimeProvider>
 

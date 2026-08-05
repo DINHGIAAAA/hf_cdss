@@ -1,6 +1,7 @@
 """Dose Calculation Module.
 
-Calculates HF medication doses from FDA drug-label XML (not curated rule bundles).
+Builds HF medication dose plans from approved Postgres ``dose_rules`` (primary),
+with optional FDA XML label fallback for local development.
 """
 
 from app.modules.dose_calculation.service import (

@@ -9,6 +9,7 @@ export async function streamClinicalChat({
   language,
   signal,
   onStatus,
+  onProgress,
   onDraft,
   onRecommendation,
   onVerification,
@@ -67,20 +68,26 @@ export async function streamClinicalChat({
       const { eventName, data } = parseSseBlock(block);
 
       if (eventName === "status") {
-        onStatus?.(streamStatusLabel(language, data?.step));
+        const step = data?.step || "processing";
+        onProgress?.({ step, label: streamStatusLabel(language, step) });
+        onStatus?.(streamStatusLabel(language, step));
       }
       if (eventName === "draft_ready") {
+        onProgress?.({ step: "draft_ready", label: streamStatusLabel(language, "draft_ready") });
         onStatus?.(streamStatusLabel(language, "draft_ready"));
         onDraft?.(data);
       }
       if (eventName === "missing_check") {
+        onProgress?.({ step: "missing_check", label: streamStatusLabel(language, "missing_check") });
         onStatus?.(streamStatusLabel(language, "missing_check"));
       }
       if (eventName === "recommendation_ready") {
+        onProgress?.({ step: "recommendation_ready", label: streamStatusLabel(language, "recommendation_ready") });
         onStatus?.(streamStatusLabel(language, "recommendation_ready"));
         onRecommendation?.(data);
       }
       if (eventName === "verification_ready") {
+        onProgress?.({ step: "verification_ready", label: streamStatusLabel(language, "verification_ready") });
         onStatus?.(streamStatusLabel(language, "verification_ready"));
         onVerification?.(data);
       }

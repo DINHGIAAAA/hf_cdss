@@ -58,11 +58,12 @@ def pipeline_stage(stage: str, extra: str = "") -> str:
 
 
 def extract_phase(phase: str, extra: str = "") -> str:
-    """Run one extract phase without auto-resume (always execute phase steps)."""
+    """Run one extract phase; catalog/kg phases force re-execution (no checkpoint skip)."""
     flags = "--skip-download"
-    # Finalize is idempotent after relationships; resume so retries skip derive_relationships.
     if phase == "finalize":
         flags += " --auto-resume"
+    elif phase != "all":
+        flags += " --force-extract-phase"
     if extra:
         flags += f" {extra}"
     return pipeline_stage("extract", f"--extract-phase {phase} {flags}")
@@ -97,13 +98,11 @@ with DAG(
         execution_timeout=timedelta(hours=3),
         bash_command=(
             "set -euo pipefail; "
-            "if aws --endpoint-url ${HF_CDSS_S3_ENDPOINT_URL:-http://localstack:4566} "
-            "s3 ls s3://${HF_CDSS_RAW_BUCKET:-hf-cdss-raw}/${HF_CDSS_S3_PREFIX:-heart_failure}/ "
-            "2>/dev/null | grep -q .; then "
-            "  echo 'Raw prefix already populated in S3; acquire will use --skip-download --use-existing'; "
+            f"if {data_command(f'{PYTHON} -m scraper.orchestration.acquire_preflight --endpoint-url {S3_ENDPOINT_URL}')}; then "
+            "  echo 'Raw S3 populated; acquire will use --skip-download --use-existing'; "
             f"  {pipeline_stage('acquire', '--skip-download --use-existing --allow-failures')}; "
             "else "
-            "  echo 'Raw prefix empty; downloading sources into S3'; "
+            "  echo 'Raw S3 under threshold; downloading sources into S3'; "
             f"  {pipeline_stage('acquire', '--use-existing --allow-failures')}; "
             "fi"
         ),
@@ -112,7 +111,7 @@ with DAG(
     load = BashOperator(
         task_id="load",
         execution_timeout=timedelta(hours=LOAD_TIMEOUT_HOURS),
-        bash_command=pipeline_stage("load", "--skip-download"),
+        bash_command=pipeline_stage("load", "--skip-download --auto-resume"),
     )
 
     with TaskGroup(group_id="extract", tooltip="Parse KG base then catalog extract phases") as extract:
@@ -166,7 +165,7 @@ with DAG(
             execution_timeout=timedelta(hours=STORE_TIMEOUT_HOURS),
             bash_command=pipeline_stage(
                 "store",
-                "--skip-download --cleanup-raw-staging --cleanup-workspace-outputs",
+                "--skip-download --no-cleanup-workspace-outputs --cleanup-raw-staging",
             ),
         )
 

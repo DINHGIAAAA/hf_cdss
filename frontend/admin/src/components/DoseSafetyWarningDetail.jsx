@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { CheckCircle2, History, RotateCcw, ShieldOff, XCircle } from "lucide-react";
+import { History, XCircle } from "lucide-react";
 
+import { CatalogStatusActions } from "@shared/governance/CatalogStatusActions.jsx";
 import { adminApi } from "../api/index.js";
 import { VersionDiffPanel } from "@shared/governance/VersionDiffPanel.jsx";
 import { StatusHistoryList } from "@shared/governance/StatusHistoryList.jsx";
@@ -12,6 +13,11 @@ import {
 } from "@shared/governance/DetailFieldList.jsx";
 import { AdminDetailModal } from "@shared/governance/AdminDetailModal.jsx";
 import { doseSafetyWarningTitle } from "@shared/governance/displayNames.js";
+import {
+  evidenceLinkDetailField,
+  pipelineSourceDetailField,
+  textMatchesClinicalSources,
+} from "@shared/governance/catalogDetailReview.js";
 
 function statusClass(status) {
   if (status === "approved") return "success";
@@ -55,6 +61,25 @@ export function DoseSafetyWarningDetail({ rule, onClose, onAction, actionLoading
   if (!rule) return null;
 
   const body = rule.rule_body || {};
+  const sources = rule.clinical_sources || [];
+
+  const summaryFields = [
+    {
+      label: "Drug keys",
+      value: (rule.drug_keys || []).length ? rule.drug_keys : "—",
+    },
+  ];
+  if (rule.target) {
+    summaryFields.push({ label: "Target", value: rule.target });
+  }
+  const message = body.message;
+  if (message && !textMatchesClinicalSources(message, sources)) {
+    summaryFields.push({ label: "Clinical message", value: message, wide: true });
+  }
+  const evidenceField = evidenceLinkDetailField(rule.evidence_ref, sources);
+  if (evidenceField) summaryFields.push(evidenceField);
+  const sourceField = pipelineSourceDetailField(rule.source);
+  if (sourceField) summaryFields.push(sourceField);
 
   return (
     <AdminDetailModal ariaLabel="Dose safety warning details" className="dose-detail-panel" onClose={onClose}>
@@ -80,19 +105,16 @@ export function DoseSafetyWarningDetail({ rule, onClose, onAction, actionLoading
       </header>
 
       <div className="admin-detail-body">
-        <DetailFieldList
-          fields={[
-            { label: "Drug keys", value: (rule.drug_keys || []).length ? rule.drug_keys : "?" },
-            { label: "Target", value: rule.target || "?" },
-            { label: "Message", value: body.message || "?", wide: true },
-            { label: "Evidence", value: rule.evidence_ref || "?", mono: true },
-            { label: "Source", value: rule.source },
-          ]}
+        <DetailFieldList fields={summaryFields} />
+
+        <ClinicalSourcesList sources={sources} />
+
+        <CollapsiblePayload
+          clinicalSources={sources}
+          data={body}
+          defaultOpen={false}
+          title="Trigger & monitoring logic"
         />
-
-        <ClinicalSourcesList sources={rule.clinical_sources || []} />
-
-        <CollapsiblePayload data={body} title="Full payload" />
 
         <VersionDiffPanel
           fetchDiff={adminApi.getDoseSafetyWarningDiff}
@@ -111,36 +133,15 @@ export function DoseSafetyWarningDetail({ rule, onClose, onAction, actionLoading
       </div>
 
       <footer className="admin-detail-actions">
-        {rule.status === "draft" && canApprove && (
-          <button
-            className="primary-action dose-primary-action"
-            disabled={actionLoading}
-            onClick={() => onAction("approve", rule.id)}
-            type="button"
-          >
-            <CheckCircle2 size={16} /> Approve for dosing
-          </button>
-        )}
-        {rule.status === "approved" && canAdmin && (
-          <button
-            className="danger-action"
-            disabled={actionLoading}
-            onClick={() => onAction("retire", rule.id)}
-            type="button"
-          >
-            <ShieldOff size={16} /> Retire
-          </button>
-        )}
-        {rule.status === "retired" && canAdmin && (
-          <button
-            className="secondary-action"
-            disabled={actionLoading}
-            onClick={() => onAction("unretire", rule.id)}
-            type="button"
-          >
-            <RotateCcw size={16} /> Restore
-          </button>
-        )}
+        <CatalogStatusActions
+          actionLoading={actionLoading}
+          approveLabel="Approve for dosing"
+          canAdmin={canAdmin}
+          canApprove={canApprove}
+          onAction={onAction}
+          recordId={rule.id}
+          status={rule.status}
+        />
       </footer>
     </AdminDetailModal>
   );

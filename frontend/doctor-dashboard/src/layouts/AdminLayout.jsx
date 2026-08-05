@@ -1,7 +1,6 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   Activity,
-  BookOpen,
   ClipboardList,
   FileSearch,
   HeartPulse,
@@ -17,6 +16,8 @@ import {
 } from "lucide-react";
 
 import { useAuth } from "../auth/AuthContext";
+import { profileLabel, roleSummary } from "../auth/userDisplay";
+import { ProfileAvatar } from "../components/ProfileAvatar";
 
 const NAV_ITEMS = [
   { to: "/admin/rules", label: "Constraints", icon: ShieldCheck },
@@ -74,11 +75,17 @@ export function AdminLayout() {
             <span className="admin-nav-label">Clinical chat</span>
           </NavLink>
 
-          <div className="admin-user" title={user?.id}>
-            <BookOpen size={16} />
-            <span>{user?.username || user?.id}</span>
-            <small>{(user?.roles || []).join(", ")}</small>
-          </div>
+          <NavLink
+            className={({ isActive }) => `admin-user-btn${isActive ? " active" : ""}`}
+            title="Profile & password"
+            to="/admin/profile"
+          >
+            <ProfileAvatar size="sidebar" user={user} />
+            <span className="admin-user-info">
+              <strong>{profileLabel(user)}</strong>
+              {roleSummary(user) ? <span>{roleSummary(user)}</span> : null}
+            </span>
+          </NavLink>
           <button className="admin-logout" onClick={handleLogout} type="button">
             <LogOut size={16} />
             Sign out

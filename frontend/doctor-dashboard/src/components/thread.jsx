@@ -19,7 +19,9 @@ import {
   ToolGroupRoot,
   ToolGroupTrigger,
 } from "@/components/tool-group";
+import { ClinicalStreamProgress } from "@/components/ClinicalStreamProgress";
 import { TooltipIconButton } from "@/components/tooltip-icon-button";
+import { useStreamProgress } from "@/context/StreamProgressContext.jsx";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/i18n/LanguageProvider.jsx";
@@ -46,7 +48,6 @@ import {
   DownloadIcon,
   MicIcon,
   MoreHorizontalIcon,
-  PencilIcon,
   RefreshCwIcon,
   SquareIcon,
 } from "lucide-react";
@@ -296,6 +297,7 @@ const MessageError = () => {
 
 const AssistantMessage = () => {
   const { t } = useLanguage();
+  const streamProgress = useStreamProgress();
   const {
     ToolFallback: ToolFallbackComponent = ToolFallback,
     ToolGroup,
@@ -360,6 +362,15 @@ const AssistantMessage = () => {
               case "data":
                 return part.dataRendererUI;
               case "indicator":
+                if (streamProgress?.step) {
+                  return (
+                    <ClinicalStreamProgress
+                      compact
+                      label={streamProgress.label}
+                      step={streamProgress.step}
+                    />
+                  );
+                }
                 return (
                   <span
                     data-slot="aui_assistant-message-indicator"
@@ -443,31 +454,11 @@ const UserMessage = () => {
           className="aui-user-message-content peer bg-muted text-foreground rounded-xl px-4 py-2 wrap-break-word empty:hidden">
           <MessagePrimitive.Parts />
         </div>
-        <div
-          className="aui-user-action-bar-wrapper absolute start-0 top-1/2 -translate-x-full -translate-y-1/2 pe-2 peer-empty:hidden rtl:translate-x-full">
-          <UserActionBar />
-        </div>
       </div>
       <BranchPicker
         data-slot="aui_user-branch-picker"
         className="col-span-full col-start-1 row-start-3 -me-1 justify-end" />
     </MessagePrimitive.Root>
-  );
-};
-
-const UserActionBar = () => {
-  const { t } = useLanguage();
-  return (
-    <ActionBarPrimitive.Root
-      hideWhenRunning
-      autohide="not-last"
-      className="aui-user-action-bar-root flex flex-col items-end">
-      <ActionBarPrimitive.Edit asChild>
-        <TooltipIconButton tooltip={t("thread.edit")} className="aui-user-action-edit">
-          <PencilIcon />
-        </TooltipIconButton>
-      </ActionBarPrimitive.Edit>
-    </ActionBarPrimitive.Root>
   );
 };
 

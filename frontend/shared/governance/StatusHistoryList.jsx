@@ -1,4 +1,6 @@
 import { ArrowRight } from "lucide-react";
+import { formatGovernanceActor, formatGovernanceReason } from "./formatAuditEntry.js";
+import "./governance-ui.css";
 
 function formatChangedAt(value) {
   if (!value) return "—";
@@ -38,7 +40,7 @@ export function StatusHistoryList({ items = [], error = "", emptyLabel = "No his
             <StatusPill status={item.status_to} />
           </div>
           <div className="history-item-meta">
-            <span className="history-item-actor">{item.changed_by || "Unknown"}</span>
+            <span className="history-item-actor">{formatGovernanceActor(item.changed_by)}</span>
             <span className="history-item-sep" aria-hidden>
               ·
             </span>
@@ -46,7 +48,9 @@ export function StatusHistoryList({ items = [], error = "", emptyLabel = "No his
               {formatChangedAt(item.changed_at)}
             </time>
           </div>
-          {item.reason ? <p className="history-item-reason">{item.reason}</p> : null}
+          {item.reason ? (
+            <p className="history-item-reason">{formatGovernanceReason(item.reason, item.changed_by)}</p>
+          ) : null}
         </li>
       ))}
     </ul>

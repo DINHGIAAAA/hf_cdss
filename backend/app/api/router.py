@@ -25,6 +25,7 @@ from app.api.routes.admin import (
     gdmt_policies_router,
     interaction_rules_router,
     users_router,
+    governance_filters_router,
 )
 
 
@@ -51,4 +52,5 @@ api_router.include_router(interaction_rules_router, prefix="/admin", tags=["admi
 api_router.include_router(gdmt_policies_router, prefix="/admin", tags=["admin"])
 api_router.include_router(evidence_router, prefix="/admin", tags=["admin"])
 api_router.include_router(users_router, prefix="/admin", tags=["admin"])
+api_router.include_router(governance_filters_router, prefix="/admin", tags=["admin"])
 api_router.include_router(audit_router, prefix="/admin", tags=["admin"])

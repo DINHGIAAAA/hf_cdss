@@ -241,10 +241,15 @@ def resolve_partner_token(raw: str) -> tuple[str, dict[str, Any]]:
 
     # Unmatched short tokens that look like English noise — drop
     slug = _slug(text)
-    if len(slug) < 4 or slug in { _slug(j) for j in _JUNK_PARTNERS }:
+    if len(slug) < 4 or slug in {_slug(j) for j in _JUNK_PARTNERS}:
         return "", {"matched": False, "method": "junk"}
     if re.fullmatch(r"(clinical|impact|intervention|recommendation)s?", slug):
         return "", {"matched": False, "method": "junk"}
+
+    from app.modules.interaction_checking.drug_set_tokens import is_plausible_drug_set_token
+
+    if not is_plausible_drug_set_token(slug):
+        return "", {"matched": False, "method": "unresolved_prose", "raw": text, "needs_llm": True}
 
     return slug, {"matched": False, "method": "slug_fallback", "raw": text, "needs_llm": True}
 

@@ -37,10 +37,52 @@ from scraper.paths import (
     sources_registry_path,
 )
 from scraper.store.sync_processed_from_s3 import restore_from_s3
-from scraper.store.sync_processed_to_s3 import cleanup_workspace_outputs, upload_step_artifacts
+from scraper.store.sync_processed_to_s3 import (
+    cleanup_workspace_outputs,
+    upload_full_workspace,
+    upload_step_artifacts,
+)
+from scraper.store.sync_raw_to_s3 import sync_raw_staging_to_s3
+from scraper.store.s3_inventory import count_s3_objects, min_raw_s3_objects
 
 ROOT = data_root()
 PROJECT_ROOT = project_root()
+
+
+def workspace_kg_artifacts_present(workspace: Path) -> bool:
+    """True when chunks exist locally (minimal signal that extract kg_base ran)."""
+    chunks = workspace / "artifacts/chunks/chunks.jsonl"
+    try:
+        return chunks.is_file() and chunks.stat().st_size > 0
+    except OSError:
+        return False
+
+
+def restore_processed_workspace_from_s3(
+    *,
+    workspace: Path,
+    processed_bucket: str,
+    s3_prefix: str,
+    s3_endpoint_url: str,
+    dry_run: bool,
+) -> int:
+    """Pull processed/artifacts from S3 when local workspace was cleared after store."""
+    if dry_run or workspace_kg_artifacts_present(workspace):
+        return 0
+    print(
+        "Local processed/artifacts missing or empty; restoring from "
+        f"s3://{processed_bucket}/{s3_prefix.strip('/')}/ ..."
+    )
+    restored = restore_from_s3(
+        workspace=workspace,
+        bucket=processed_bucket,
+        prefix=s3_prefix,
+        endpoint_url=s3_endpoint_url,
+    )
+    print(f"Restored {restored} file(s) from processed S3")
+    return restored
+
+
 STAGES = ("acquire", "load", "extract", "store", "all")
 EXTRACT_PHASES = (
     "kg_base",
@@ -51,6 +93,15 @@ EXTRACT_PHASES = (
     "gdmt_policies",
     "finalize",
     "all",
+)
+
+CATALOG_EXTRACT_PHASES = frozenset(
+    {
+        "dose_rules",
+        "dose_safety_warnings",
+        "interaction_rules",
+        "gdmt_policies",
+    }
 )
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -103,10 +154,67 @@ def run_step(
         print(f"[{name}] synced {uploaded} artifact file(s) to S3")
 
 
+def publish_processed_workspace_to_s3(
+    *,
+    label: str,
+    workspace: Path,
+    processed_bucket: str,
+    s3_prefix: str,
+    s3_endpoint_url: str,
+    run_id: str,
+    dry_run: bool,
+) -> None:
+    if dry_run:
+        return
+    uploaded = upload_full_workspace(
+        workspace=workspace,
+        bucket=processed_bucket,
+        prefix=s3_prefix,
+        endpoint_url=s3_endpoint_url,
+        run_id=run_id,
+        dry_run=dry_run,
+    )
+    print(f"[{label}] published {uploaded} processed workspace file(s) to s3://{processed_bucket}/{s3_prefix}")
+
+
+def backfill_raw_staging_to_s3(
+    *,
+    label: str,
+    staging_root: Path,
+    raw_bucket: str,
+    s3_prefix: str,
+    s3_endpoint_url: str,
+    dry_run: bool,
+) -> None:
+    if dry_run:
+        return
+    uploaded = sync_raw_staging_to_s3(
+        staging_root=staging_root,
+        bucket=raw_bucket,
+        prefix=s3_prefix,
+        endpoint_url=s3_endpoint_url,
+        dry_run=dry_run,
+    )
+    if uploaded:
+        print(f"[{label}] backfilled {uploaded} raw staging file(s) to s3://{raw_bucket}/{s3_prefix}")
+
+
 def run_acquire(python: str, args: argparse.Namespace, step_kwargs: dict) -> None:
     """HTTP/DailyMed fetch → raw S3 bucket only (no local raw under data/)."""
     if args.skip_download:
-        print("\n[acquire] skipped (--skip-download); expecting objects already in raw S3")
+        count = count_s3_objects(
+            bucket=args.raw_bucket,
+            prefix=args.s3_prefix,
+            endpoint_url=args.s3_endpoint_url,
+        )
+        minimum = min_raw_s3_objects()
+        if count < minimum:
+            raise SystemExit(
+                f"[acquire] --skip-download refused: only {count} object(s) under "
+                f"s3://{args.raw_bucket}/{args.s3_prefix} (need >= {minimum}). "
+                "Run acquire without --skip-download."
+            )
+        print(f"[acquire] raw S3 OK ({count} objects); skipping download")
         return
     command = [
         python,
@@ -129,22 +237,46 @@ def run_acquire(python: str, args: argparse.Namespace, step_kwargs: dict) -> Non
         command.append("--use-existing")
     if args.allow_failures:
         command.append("--allow-failures")
-    run_step("download", command, upload_artifacts=False, **step_kwargs)
+    run_step("download", command, upload_artifacts=True, **step_kwargs)
+    if not args.dry_run:
+        raw_count = count_s3_objects(
+            bucket=args.raw_bucket,
+            prefix=args.s3_prefix,
+            endpoint_url=args.s3_endpoint_url,
+        )
+        print(f"[acquire] raw S3 object count after download: {raw_count}")
+        backfill_raw_staging_to_s3(
+            label="acquire",
+            staging_root=raw_root(),
+            raw_bucket=args.raw_bucket,
+            s3_prefix=args.s3_prefix,
+            s3_endpoint_url=args.s3_endpoint_url,
+            dry_run=args.dry_run,
+        )
+        publish_processed_workspace_to_s3(
+            label="acquire",
+            workspace=ROOT,
+            processed_bucket=args.processed_bucket,
+            s3_prefix=args.s3_prefix,
+            s3_endpoint_url=args.s3_endpoint_url,
+            run_id=step_kwargs["run_id"],
+            dry_run=args.dry_run,
+        )
 
 
 def run_load(python: str, args: argparse.Namespace, step_kwargs: dict) -> None:
-    """Materialize raw S3 → ephemeral staging; optionally restore processed from S3."""
+    """Materialize raw S3 → ephemeral staging; restore processed from S3 when local workspace is empty."""
+    restore_processed_workspace_from_s3(
+        workspace=ROOT,
+        processed_bucket=args.processed_bucket,
+        s3_prefix=args.s3_prefix,
+        s3_endpoint_url=args.s3_endpoint_url,
+        dry_run=args.dry_run,
+    )
     if args.auto_resume and not args.dry_run:
         local_progress = infer_last_completed_from_artifacts(ROOT)
-        if local_progress is None:
-            print("No local pipeline artifacts found; attempting restore from processed S3...")
-            restored = restore_from_s3(
-                workspace=ROOT,
-                bucket=args.processed_bucket,
-                prefix=args.s3_prefix,
-                endpoint_url=args.s3_endpoint_url,
-            )
-            print(f"Restored {restored} file(s) from s3://{args.processed_bucket}/{args.s3_prefix}")
+        if local_progress is None and workspace_kg_artifacts_present(ROOT):
+            print("[load] local artifacts present after S3 restore; continuing")
 
     if args.download_dry_run:
         return
@@ -171,6 +303,14 @@ def run_load(python: str, args: argparse.Namespace, step_kwargs: dict) -> None:
         ],
         upload_artifacts=False,
         **step_kwargs,
+    )
+    backfill_raw_staging_to_s3(
+        label="load",
+        staging_root=raw_root(),
+        raw_bucket=args.raw_bucket,
+        s3_prefix=args.s3_prefix,
+        s3_endpoint_url=args.s3_endpoint_url,
+        dry_run=args.dry_run,
     )
     print(f"[load] raw staging ready at {raw_root()}")
 
@@ -315,10 +455,32 @@ def run_extract_governance_catalog(
     match = next((item for item in GOVERNANCE_CATALOGS if item.name == catalog), None)
     if match is None:
         raise ValueError(f"Unknown governance catalog: {catalog}")
+    if not workspace_kg_artifacts_present(ROOT):
+        restore_processed_workspace_from_s3(
+            workspace=ROOT,
+            processed_bucket=args.processed_bucket,
+            s3_prefix=args.s3_prefix,
+            s3_endpoint_url=args.s3_endpoint_url,
+            dry_run=args.dry_run,
+        )
+    if not workspace_kg_artifacts_present(ROOT):
+        raise SystemExit(
+            f"[{catalog}] cannot extract: artifacts/chunks/chunks.jsonl missing locally and on processed S3. "
+            "Run load (restore) and kg_base, or restore s3://processed/.../artifacts/chunks/."
+        )
     for name, command in catalog_pipeline_steps(python, match):
         run_step(name, command, **step_kwargs)
     if not args.dry_run:
         report_governance_catalog(ROOT, catalog)
+    publish_processed_workspace_to_s3(
+        label=f"extract/{catalog}",
+        workspace=ROOT,
+        processed_bucket=args.processed_bucket,
+        s3_prefix=args.s3_prefix,
+        s3_endpoint_url=args.s3_endpoint_url,
+        run_id=step_kwargs["run_id"],
+        dry_run=args.dry_run,
+    )
 
 
 def run_extract_finalize(python: str, args: argparse.Namespace, step_kwargs: dict) -> None:
@@ -391,6 +553,13 @@ def run_extract_finalize(python: str, args: argparse.Namespace, step_kwargs: dic
 
 def run_extract(python: str, args: argparse.Namespace, step_kwargs: dict) -> None:
     """Parse / transform / claim / rule generation, then publish to processed S3."""
+    restore_processed_workspace_from_s3(
+        workspace=ROOT,
+        processed_bucket=args.processed_bucket,
+        s3_prefix=args.s3_prefix,
+        s3_endpoint_url=args.s3_endpoint_url,
+        dry_run=args.dry_run,
+    )
     phase = getattr(args, "extract_phase", "all") or "all"
     print(f"Extract phase: {phase}")
 
@@ -408,6 +577,18 @@ def run_extract(python: str, args: argparse.Namespace, step_kwargs: dict) -> Non
         run_extract_governance_catalog(python, args, step_kwargs, catalog="gdmt_policies")
     if phase in {"finalize", "all"}:
         run_extract_finalize(python, args, step_kwargs)
+
+    phase_only = phase not in {"all", "finalize"}
+    if phase_only and not args.dry_run:
+        publish_processed_workspace_to_s3(
+            label=f"extract/{phase}",
+            workspace=ROOT,
+            processed_bucket=args.processed_bucket,
+            s3_prefix=args.s3_prefix,
+            s3_endpoint_url=args.s3_endpoint_url,
+            run_id=step_kwargs["run_id"],
+            dry_run=args.dry_run,
+        )
 
 
 def run_store(python: str, args: argparse.Namespace, step_kwargs: dict) -> None:
@@ -453,11 +634,25 @@ def run_store(python: str, args: argparse.Namespace, step_kwargs: dict) -> None:
             **step_kwargs,
         )
 
+    backfill_raw_staging_to_s3(
+        label="store",
+        staging_root=raw_root(),
+        raw_bucket=args.raw_bucket,
+        s3_prefix=args.s3_prefix,
+        s3_endpoint_url=args.s3_endpoint_url,
+        dry_run=args.dry_run,
+    )
+
     if args.cleanup_raw_staging and not args.dry_run:
         cleanup_staging(raw_root())
 
     if args.cleanup_workspace_outputs and not args.dry_run:
         cleanup_workspace_outputs(ROOT)
+    elif not args.dry_run:
+        print(
+            "[store] kept local processed/ and artifacts/ "
+            "(HF_CDSS_CLEANUP_WORKSPACE_OUTPUTS=false or --no-cleanup-workspace-outputs)"
+        )
 
 
 def main() -> None:
@@ -492,6 +687,11 @@ def main() -> None:
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--resume-from", default=None)
     parser.add_argument("--auto-resume", action="store_true")
+    parser.add_argument(
+        "--force-extract-phase",
+        action="store_true",
+        help="Re-run extract steps for this phase (ignore checkpoint resume).",
+    )
     parser.add_argument("--checkpoint-file", default=None, type=Path)
     parser.add_argument(
         "--cleanup-raw-staging",
@@ -533,6 +733,14 @@ def main() -> None:
     print(f"Raw staging (ephemeral): {raw_root()}")
     if resume_from:
         print(f"Resuming from step: {resume_from} (checkpoint={checkpoint_path})")
+
+    if (
+        args.stage in {"extract", "all"}
+        and args.force_extract_phase
+        and getattr(args, "extract_phase", "all") != "all"
+    ):
+        resume_from = None
+        print("force-extract-phase: ignoring checkpoint resume for this extract run")
 
     step_kwargs = {
         "dry_run": args.dry_run,

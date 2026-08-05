@@ -9,7 +9,6 @@ from typing import Any
 
 from app.core.config import settings
 from app.core.redis_client import redis_client
-from app.modules.clinical_intake_extraction.service import extract_patient_from_message
 from app.modules.chat.clinical_state import build_clinical_state, state_query_text
 from app.modules.datastores.postgres import (
     append_chat_message,
@@ -282,6 +281,45 @@ def _merge_named(existing: list[Any], incoming: list[Any], attr: str) -> list[An
     return list(by_name.values())
 
 
+def _prefilled_patient_complete(
+    base_patient: PatientProfile,
+    supplied_patient: PatientProfile | None,
+) -> bool:
+    prefill = _merge_patient(base_patient, supplied_patient) if supplied_patient else base_patient
+    return check_missing_fields(prefill).status == "complete"
+
+
+async def _resolve_patient_for_chat_turn(
+    *,
+    extraction_message: str,
+    conversation_id: str,
+    conversation_history: list[str],
+    base_patient: PatientProfile,
+    supplied_patient: PatientProfile | None,
+) -> PatientProfile:
+    """Use regex-only intake when form/draft profile already satisfies required chat fields."""
+    from app.modules.clinical_intake_extraction.service import (
+        _regex_extract_patient_from_message,
+        extract_patient_from_message,
+    )
+
+    prefill = _merge_patient(base_patient, supplied_patient) if supplied_patient else base_patient
+    if check_missing_fields(prefill).status == "complete":
+        logger.info("Skipping LLM clinical intake for conversation %s (profile complete)", conversation_id)
+        regex_patient = _regex_extract_patient_from_message(extraction_message, conversation_id)
+        return _merge_patient(prefill, regex_patient)
+
+    extracted = await extract_patient_from_message(
+        extraction_message,
+        conversation_id,
+        conversation_history=conversation_history,
+    )
+    merged = _merge_patient(base_patient, extracted)
+    if supplied_patient:
+        merged = _merge_patient(merged, supplied_patient)
+    return merged
+
+
 def _prior_user_messages(conversation_id: str) -> list[str]:
     messages = _messages.get(conversation_id, [])
     if not messages:
@@ -309,15 +347,18 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
     attachment_context = _attachment_context(request)
     extraction_message = "\n".join(value for value in [request.message, attachment_context] if value)
 
-    yield _sse("status", {"step": "extracting_patient"})
-    extracted_patient = await extract_patient_from_message(
-        extraction_message,
-        conversation_id,
+    if _prefilled_patient_complete(base_patient, request.patient):
+        yield _sse("status", {"step": "using_supplied_profile"})
+    else:
+        yield _sse("status", {"step": "extracting_patient"})
+    extracted_patient = await _resolve_patient_for_chat_turn(
+        extraction_message=extraction_message,
+        conversation_id=conversation_id,
         conversation_history=_prior_user_messages(conversation_id),
+        base_patient=base_patient,
+        supplied_patient=request.patient,
     )
-    merged = _merge_patient(base_patient, extracted_patient)
-    if request.patient:
-        merged = _merge_patient(merged, request.patient)
+    merged = extracted_patient
     merged = _merge_clinical_documents(merged, request)
 
     clinical_state = build_clinical_state(merged, extraction_message)
@@ -381,6 +422,7 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
         top_k=settings.verification_retrieval_top_k,
         conversation_history=_prior_user_messages(conversation_id),
         clinical_state=clinical_state,
+        retrieval_profile=settings.graphrag_chat_retrieval_profile,
     )
     graphrag_prefetch = asyncio.create_task(build_graphrag_context_async(graphrag_request))
     # Offload sync rule engine so admin/API requests are not starved on the event loop.
@@ -412,7 +454,7 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
     tool_outputs.append({"tool": "verification", "result": verification.model_dump(mode="json")})
     yield _sse("verification_ready", verification.model_dump(mode="json"))
 
-    yield _sse("status", {"step": "generating_answer"})
+    yield _sse("status", {"step": "loading_model"})
     llm_request = LLMAnswerRequest(
         user_input=request.message,
         conversation_context=_conversation_context_for_llm(request.message, conversation_id),
@@ -424,8 +466,12 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
     )
     answer_parts: list[str] = []
     llm_answer = None
+    answer_stream_started = False
     async for event in stream_llm_answer(llm_request):
         if event["type"] == "token":
+            if not answer_stream_started:
+                answer_stream_started = True
+                yield _sse("status", {"step": "generating_answer"})
             answer_parts.append(event["content"])
             yield _sse("answer_delta", {"content": event["content"]})
         elif event["type"] == "final":
@@ -487,14 +533,13 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
     base_patient = current.patient if current else _new_patient(conversation_id)
     attachment_context = _attachment_context(request)
     extraction_message = "\n".join(value for value in [request.message, attachment_context] if value)
-    extracted_patient = await extract_patient_from_message(
-        extraction_message,
-        conversation_id,
+    merged = await _resolve_patient_for_chat_turn(
+        extraction_message=extraction_message,
+        conversation_id=conversation_id,
         conversation_history=_prior_user_messages(conversation_id),
+        base_patient=base_patient,
+        supplied_patient=request.patient,
     )
-    merged = _merge_patient(base_patient, extracted_patient)
-    if request.patient:
-        merged = _merge_patient(merged, request.patient)
     merged = _merge_clinical_documents(merged, request)
 
     clinical_state = build_clinical_state(merged, extraction_message)
@@ -560,6 +605,7 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
         conversation_history=_prior_user_messages(conversation_id),
         clinical_state=clinical_state,
         constraint_chunk_ids=constraint_chunk_ids,
+        retrieval_profile=settings.graphrag_chat_retrieval_profile,
     )
     graphrag_context = await build_graphrag_context_async(graphrag_request)
     verification = await verify_recommendation(

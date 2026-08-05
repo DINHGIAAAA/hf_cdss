@@ -22,7 +22,7 @@ Return ONLY valid JSON with this shape:
 }
 
 Rules:
-- drug_set_a and drug_set_b must each have at least one token.
+- drug_set_a and drug_set_b must each have at least one token — generic drug name or class: token ONLY (never a sentence, warning text, or slug).
 - Use specific generic drug names when stated; use class tokens only when the source refers to a class (class:acei, class:arb, class:arni, class:raasi, class:mra, class:nsaid, class:anticoagulant, class:antiplatelet, class:sglt2i, class:beta_blocker, class:loop_diuretic, class:thiazide_diuretic, class:antiarrhythmic, class:vasodilator, class:sglt2i, class:diabetes_drug).
 - Include only interactions explicitly supported by the text.
 - evidence MUST be copied verbatim from the provided text.

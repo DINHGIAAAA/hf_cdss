@@ -46,13 +46,16 @@ def get_drug_info(drug_key: str) -> dict | None:
 
 
 def dose_source_version() -> str:
-    """Version string for recommendation traceability (FDA XML label source)."""
-    return DOSE_SOURCE_VERSION
+    """Version string for recommendation traceability."""
+    tables = load_dose_tables()
+    return str(tables.get("version") or DOSE_SOURCE_VERSION)
 
 
 def invalidate_dose_label_cache() -> None:
-    """Clear cached FDA-label dose tables."""
-    load_dose_tables.cache_clear()
+    """Clear cached dose tables (Postgres + XML)."""
+    from app.modules.dose_calculation.rule_loader import invalidate_dose_tables_cache
+
+    invalidate_dose_tables_cache()
 
 
 def _strip_dose_text(name: str) -> str:

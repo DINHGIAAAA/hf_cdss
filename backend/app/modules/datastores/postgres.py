@@ -4,6 +4,11 @@ from functools import lru_cache
 from typing import Any
 
 from app.core.config import settings
+from app.core.governance_audit_labels import (
+    supersede_history_actor,
+    supersede_history_reason,
+    supersede_retired_by,
+)
 from app.core.request_context import current_request_id
 
 
@@ -153,10 +158,14 @@ def initialize_postgres() -> dict[str, Any]:
                     password_hash TEXT NOT NULL,
                     roles TEXT[] NOT NULL DEFAULT '{}',
                     is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                    avatar_storage_key TEXT,
                     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 )
                 """
+            )
+            cursor.execute(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_storage_key TEXT"
             )
             cursor.execute(
                 "CREATE INDEX IF NOT EXISTS idx_users_username_active "
@@ -734,11 +743,11 @@ def _constraint_list_filters(
         conditions.append("status = %s")
         params.append(status)
     if target_drug_class:
-        conditions.append("target_drug_class ILIKE %s")
-        params.append(f"%{_escape_like(target_drug_class)}%")
+        conditions.append("target_drug_class = %s")
+        params.append(target_drug_class)
     if action:
-        conditions.append("action ILIKE %s")
-        params.append(f"%{_escape_like(action)}%")
+        conditions.append("action = %s")
+        params.append(action)
     if q:
         conditions.append("constraint_id ILIKE %s")
         params.append(f"%{_escape_like(q)}%")
@@ -761,6 +770,7 @@ def read_constraint_rules_filtered(
     safety_tier: str | None = None,
     needs_condition: bool | None = None,
     limit: int = 500,
+    offset: int = 0,
 ) -> list[dict[str, Any]]:
     conditions, params = _constraint_list_filters(
         status=status,
@@ -771,7 +781,7 @@ def read_constraint_rules_filtered(
         needs_condition=needs_condition,
     )
     where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
-    params.append(limit)
+    params.extend([limit, offset])
     with postgres_pool().connection() as connection:
         with connection.cursor() as cursor:
             cursor.execute(
@@ -783,7 +793,7 @@ def read_constraint_rules_filtered(
                 FROM constraint_rules
                 {where}
                 ORDER BY created_at DESC
-                LIMIT %s
+                LIMIT %s OFFSET %s
                 """,
                 tuple(params),
             )
@@ -819,22 +829,21 @@ def list_draft_constraint_rule_ids(
     target_drug_class: str | None = None,
     action: str | None = None,
     q: str | None = None,
+    safety_tier: str | None = None,
+    needs_condition: bool | None = None,
     limit: int = 100,
 ) -> list[int]:
-    conditions = ["status = 'draft'"]
-    params: list[Any] = []
+    conditions, params = _constraint_list_filters(
+        status="draft",
+        target_drug_class=target_drug_class,
+        action=action,
+        q=q,
+        safety_tier=safety_tier,
+        needs_condition=needs_condition,
+    )
     if rule_ids:
         conditions.append("id = ANY(%s)")
         params.append(rule_ids)
-    if target_drug_class:
-        conditions.append("target_drug_class ILIKE %s")
-        params.append(f"%{_escape_like(target_drug_class)}%")
-    if action:
-        conditions.append("action ILIKE %s")
-        params.append(f"%{_escape_like(action)}%")
-    if q:
-        conditions.append("constraint_id ILIKE %s")
-        params.append(f"%{_escape_like(q)}%")
     params.append(limit)
     with postgres_pool().connection() as connection:
         with connection.cursor() as cursor:
@@ -914,6 +923,30 @@ def read_all_constraint_rules(
                 }
                 for row in cursor.fetchall()
             ]
+
+
+def count_constraint_rules_filtered(
+    *,
+    status: str | None = None,
+    target_drug_class: str | None = None,
+    action: str | None = None,
+    q: str | None = None,
+    safety_tier: str | None = None,
+    needs_condition: bool | None = None,
+) -> int:
+    conditions, params = _constraint_list_filters(
+        status=status,
+        target_drug_class=target_drug_class,
+        action=action,
+        q=q,
+        safety_tier=safety_tier,
+        needs_condition=needs_condition,
+    )
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    with postgres_pool().connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(f"SELECT COUNT(*) FROM constraint_rules {where}", tuple(params))
+            return int(cursor.fetchone()[0])
 
 
 def get_constraint_rule_counts(
@@ -1033,10 +1066,17 @@ def approve_constraint_rule(rule_id: int, admin_user_id: str) -> bool:
                     WHERE constraint_id = %s AND status = 'approved' AND id != %s
                     RETURNING id
                     """,
-                    (f"system_auto_retire_by_{admin_user_id}", constraint_id, rule_id)
+                    (supersede_retired_by(admin_user_id), constraint_id, rule_id)
                 )
                 for retired_row in cursor.fetchall():
-                    _log_constraint_rule_history(cursor, constraint_id, 'approved', 'retired', f"system_auto_retire_by_{admin_user_id}", f"Auto-retired due to new version approval (rule_id: {rule_id})")
+                    _log_constraint_rule_history(
+                        cursor,
+                        constraint_id,
+                        'approved',
+                        'retired',
+                        supersede_history_actor(admin_user_id),
+                        supersede_history_reason(rule_id, admin_user_id),
+                    )
 
                 # Step 3: Approve the new version
                 cursor.execute(
@@ -1062,15 +1102,17 @@ def approve_constraint_rule(rule_id: int, admin_user_id: str) -> bool:
 
 
 def retire_constraint_rule(rule_id: int, admin_user_id: str) -> bool:
-    """Retire an approved constraint rule."""
+    """Retire an approved rule or discard a draft."""
     try:
         with postgres_pool().connection() as connection:
             with connection.cursor() as cursor:
-                # Get constraint_id for logging
-                cursor.execute("SELECT constraint_id FROM constraint_rules WHERE id = %s", (rule_id,))
+                cursor.execute("SELECT constraint_id, status FROM constraint_rules WHERE id = %s", (rule_id,))
                 res = cursor.fetchone()
-                if not res: return False
-                constraint_id = res[0]
+                if not res:
+                    return False
+                constraint_id, from_status = res[0], res[1]
+                if from_status not in ("approved", "draft"):
+                    return False
 
                 cursor.execute(
                     """
@@ -1079,13 +1121,17 @@ def retire_constraint_rule(rule_id: int, admin_user_id: str) -> bool:
                         retired_by = %s,
                         retired_at = NOW(),
                         updated_at = NOW()
-                    WHERE id = %s AND status = 'approved'
+                    WHERE id = %s AND status = %s
                     """,
-                    (admin_user_id, rule_id),
+                    (admin_user_id, rule_id, from_status),
                 )
                 if cursor.rowcount > 0:
-                    _log_constraint_rule_history(cursor, constraint_id, 'approved', 'retired', admin_user_id, "Rule retired")
-        return True
+                    reason = "Draft discarded" if from_status == "draft" else "Rule retired"
+                    _log_constraint_rule_history(
+                        cursor, constraint_id, from_status, "retired", admin_user_id, reason
+                    )
+                    return True
+        return False
     except Exception as exc:
         logger.warning("Failed to retire constraint rule: %s", exc)
         return False
@@ -1409,7 +1455,7 @@ def approve_dose_rule(rule_id: int, admin_user_id: str) -> bool:
                     WHERE dose_rule_id = %s AND status = 'approved' AND id != %s
                     RETURNING id
                     """,
-                    (f"system_auto_retire_by_{admin_user_id}", dose_rule_id, rule_id),
+                    (supersede_retired_by(admin_user_id), dose_rule_id, rule_id),
                 )
                 for retired_row in cursor.fetchall():
                     _log_dose_rule_history(
@@ -1417,8 +1463,8 @@ def approve_dose_rule(rule_id: int, admin_user_id: str) -> bool:
                         dose_rule_id,
                         "approved",
                         "retired",
-                        f"system_auto_retire_by_{admin_user_id}",
-                        f"Auto-retired due to new version approval (rule_id: {rule_id})",
+                        supersede_history_actor(admin_user_id),
+                        supersede_history_reason(rule_id, admin_user_id),
                     )
 
                 cursor.execute(
@@ -1442,22 +1488,29 @@ def retire_dose_rule(rule_id: int, admin_user_id: str) -> bool:
     try:
         with postgres_pool().connection() as connection:
             with connection.cursor() as cursor:
-                cursor.execute("SELECT dose_rule_id FROM dose_rules WHERE id = %s", (rule_id,))
+                cursor.execute(
+                    "SELECT dose_rule_id, status FROM dose_rules WHERE id = %s",
+                    (rule_id,),
+                )
                 row = cursor.fetchone()
                 if not row:
                     return False
-                dose_rule_id = row[0]
+                dose_rule_id, from_status = row[0], row[1]
+                if from_status not in ("approved", "draft"):
+                    return False
                 cursor.execute(
                     """
                     UPDATE dose_rules
                     SET status = 'retired', retired_by = %s, retired_at = NOW(), updated_at = NOW()
-                    WHERE id = %s AND status = 'approved'
+                    WHERE id = %s AND status = %s
                     """,
-                    (admin_user_id, rule_id),
+                    (admin_user_id, rule_id, from_status),
                 )
                 if cursor.rowcount > 0:
-                    _log_dose_rule_history(cursor, dose_rule_id, "approved", "retired", admin_user_id, "Dose rule retired")
-        return True
+                    reason = "Draft discarded" if from_status == "draft" else "Dose rule retired"
+                    _log_dose_rule_history(cursor, dose_rule_id, from_status, "retired", admin_user_id, reason)
+                    return True
+        return False
     except Exception as exc:
         logger.warning("Failed to retire dose rule: %s", exc)
         return False
@@ -1620,6 +1673,7 @@ def read_dose_rules_filtered(
     safety_tier: str | None = None,
     q: str | None = None,
     limit: int = 500,
+    offset: int = 0,
 ) -> list[dict[str, Any]]:
     conditions: list[str] = []
     params: list[Any] = []
@@ -1627,11 +1681,11 @@ def read_dose_rules_filtered(
         conditions.append("status = %s")
         params.append(status)
     if drug_class:
-        conditions.append("drug_class ILIKE %s")
-        params.append(f"%{_escape_like(drug_class)}%")
+        conditions.append("drug_class = %s")
+        params.append(drug_class)
     if calculation_type:
-        conditions.append("calculation_type ILIKE %s")
-        params.append(f"%{_escape_like(calculation_type)}%")
+        conditions.append("calculation_type = %s")
+        params.append(calculation_type)
     if safety_tier:
         conditions.append("safety_tier = %s")
         params.append(safety_tier)
@@ -1639,7 +1693,7 @@ def read_dose_rules_filtered(
         conditions.append("dose_rule_id ILIKE %s")
         params.append(f"%{_escape_like(q)}%")
     where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
-    params.append(limit)
+    params.extend([limit, offset])
     with postgres_pool().connection() as connection:
         with connection.cursor() as cursor:
             cursor.execute(
@@ -1651,7 +1705,7 @@ def read_dose_rules_filtered(
                 FROM dose_rules
                 {where}
                 ORDER BY created_at DESC
-                LIMIT %s
+                LIMIT %s OFFSET %s
                 """,
                 tuple(params),
             )
@@ -1681,6 +1735,38 @@ def read_dose_rules_filtered(
             ]
 
 
+def count_dose_rules_filtered(
+    *,
+    status: str | None = None,
+    drug_class: str | None = None,
+    calculation_type: str | None = None,
+    safety_tier: str | None = None,
+    q: str | None = None,
+) -> int:
+    conditions: list[str] = []
+    params: list[Any] = []
+    if status:
+        conditions.append("status = %s")
+        params.append(status)
+    if drug_class:
+        conditions.append("drug_class = %s")
+        params.append(drug_class)
+    if calculation_type:
+        conditions.append("calculation_type = %s")
+        params.append(calculation_type)
+    if safety_tier:
+        conditions.append("safety_tier = %s")
+        params.append(safety_tier)
+    if q:
+        conditions.append("dose_rule_id ILIKE %s")
+        params.append(f"%{_escape_like(q)}%")
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    with postgres_pool().connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(f"SELECT COUNT(*) FROM dose_rules {where}", tuple(params))
+            return int(cursor.fetchone()[0])
+
+
 def count_dose_rules_by_status(
     *,
     drug_class: str | None = None,
@@ -1692,11 +1778,11 @@ def count_dose_rules_by_status(
     conditions: list[str] = []
     params: list[Any] = []
     if drug_class:
-        conditions.append("drug_class ILIKE %s")
-        params.append(f"%{_escape_like(drug_class)}%")
+        conditions.append("drug_class = %s")
+        params.append(drug_class)
     if calculation_type:
-        conditions.append("calculation_type ILIKE %s")
-        params.append(f"%{_escape_like(calculation_type)}%")
+        conditions.append("calculation_type = %s")
+        params.append(calculation_type)
     if safety_tier:
         conditions.append("safety_tier = %s")
         params.append(safety_tier)
@@ -1734,11 +1820,11 @@ def list_draft_dose_rule_ids(
         conditions.append("id = ANY(%s)")
         params.append(rule_ids)
     if drug_class:
-        conditions.append("drug_class ILIKE %s")
-        params.append(f"%{_escape_like(drug_class)}%")
+        conditions.append("drug_class = %s")
+        params.append(drug_class)
     if calculation_type:
-        conditions.append("calculation_type ILIKE %s")
-        params.append(f"%{_escape_like(calculation_type)}%")
+        conditions.append("calculation_type = %s")
+        params.append(calculation_type)
     if safety_tier:
         conditions.append("safety_tier = %s")
         params.append(safety_tier)

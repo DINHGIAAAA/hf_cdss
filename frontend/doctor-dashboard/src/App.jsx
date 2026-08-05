@@ -18,6 +18,7 @@ import { DoseRulesPage } from "./pages/DoseRulesPage.jsx";
 import { DoseSafetyWarningsPage } from "./pages/DoseSafetyWarningsPage.jsx";
 import { GdmtPoliciesPage } from "./pages/GdmtPoliciesPage.jsx";
 import { InteractionRulesPage } from "./pages/InteractionRulesPage.jsx";
+import { ProfilePage } from "./pages/ProfilePage";
 import { RulesPage } from "./pages/RulesPage";
 import { SystemPage } from "./pages/SystemPage";
 import { UsersPage } from "./pages/UsersPage";
@@ -28,7 +29,12 @@ function App() {
       <LanguageProvider>
         <ConversationsProvider>
           <TooltipProvider delayDuration={200}>
-            <BrowserRouter>
+            <BrowserRouter
+              future={{
+                v7_startTransition: true,
+                v7_relativeSplatPath: true,
+              }}
+            >
               <Routes>
                 <Route element={<LoginPage />} path="/login" />
                 <Route element={<HomePage />} path="/" />
@@ -53,6 +59,7 @@ function App() {
                   <Route element={<UsersPage />} path="users" />
                   <Route element={<AuditPage />} path="audit" />
                   <Route element={<ApiExplorerPage />} path="api" />
+                  <Route element={<ProfilePage />} path="profile" />
                 </Route>
 
                 <Route element={<Navigate replace to="/login" />} path="*" />

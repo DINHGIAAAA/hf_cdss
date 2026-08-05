@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.modules.gdmt_policy.guidance_normalize import ensure_str_list, normalize_gdmt_status, normalize_policy_body
 from app.schemas.clinical import Constraint
 from app.schemas.clinical_pipeline import NormalizedPatientProfile
 from app.schemas.medication_safety import MedicationSafetyWarning
@@ -56,6 +57,10 @@ def _conditional_matches(profile: NormalizedPatientProfile, rule: dict[str, Any]
     return False
 
 
+def _policy_body(policy: dict[str, Any]) -> dict[str, Any]:
+    return normalize_policy_body(policy.get("policy_body") or {})
+
+
 def _build_guidance(
     profile: NormalizedPatientProfile,
     policy: dict[str, Any],
@@ -63,7 +68,7 @@ def _build_guidance(
     relevant_constraints: list[Constraint],
     relevant_warnings: list[MedicationSafetyWarning],
 ) -> tuple[str, list[str], list[str], list[str]]:
-    body = policy.get("policy_body") or {}
+    body = _policy_body(policy)
     guidance = body.get("guidance") or {}
     context = patient_context(profile)
     med_terms = list(body.get("med_detection_terms") or [])
@@ -71,7 +76,7 @@ def _build_guidance(
 
     reasoning = [
         item.replace("{context}", context)
-        for item in guidance.get("reasoning_base") or []
+        for item in ensure_str_list(guidance.get("reasoning_base"))
     ]
     if current:
         template = guidance.get("current_med_present") or "Current therapy detected: {current}."
@@ -89,8 +94,8 @@ def _build_guidance(
     if warnings:
         reasoning.append(f"Safety flags found: {'; '.join(warnings[:2])}")
 
-    actions = list(guidance.get("actions") or [])
-    monitoring = list(guidance.get("monitoring") or [])
+    actions = ensure_str_list(guidance.get("actions"))
+    monitoring = ensure_str_list(guidance.get("monitoring"))
     if status == "avoid" and guidance.get("avoid_prepend_action"):
         actions.insert(0, guidance["avoid_prepend_action"])
     elif status == "consider_with_caution" and guidance.get("caution_prepend_action"):
@@ -112,7 +117,7 @@ def _warnings_for_class(
     warnings: list[MedicationSafetyWarning],
     policy: dict[str, Any],
 ) -> list[MedicationSafetyWarning]:
-    body = policy.get("policy_body") or {}
+    body = _policy_body(policy)
     drug_class_key = policy.get("drug_class_key") or ""
     display_label = policy.get("display_label") or ""
     targets = {
@@ -140,7 +145,7 @@ def _status_for_policy(
     relevant_constraints: list[Constraint],
     relevant_warnings: list[MedicationSafetyWarning],
 ) -> tuple[str, str]:
-    body = policy.get("policy_body") or {}
+    body = _policy_body(policy)
     label = policy.get("display_label") or policy.get("drug_class_key") or "Medication class"
     avoid_constraints = [item for item in relevant_constraints if item.action == "avoid"]
     caution_constraints = [item for item in relevant_constraints if item.action == "caution"]
@@ -154,8 +159,8 @@ def _status_for_policy(
             f"{label} may be relevant for {profile.hf_type}, but patient-specific risks require review.",
         )
     if profile.hf_type == "HFrEF":
-        return str(body.get("hfref_default_status") or "consider"), ""
-    return str(body.get("non_hfref_status") or "review"), ""
+        return normalize_gdmt_status(body.get("hfref_default_status"), default="consider"), ""
+    return normalize_gdmt_status(body.get("non_hfref_status"), default="review"), ""
 
 
 def recommendation_for_policy(
@@ -203,5 +208,5 @@ def gdmt_classes_map(policies: list[dict[str, Any]]) -> dict[str, str]:
 
 
 def policy_aliases(policy: dict[str, Any]) -> list[str]:
-    body = policy.get("policy_body") or {}
+    body = _policy_body(policy)
     return list(body.get("aliases") or [])

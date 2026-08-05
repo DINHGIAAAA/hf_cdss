@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { CheckCircle2, History, RotateCcw, ShieldOff, XCircle } from "lucide-react";
+import { History, XCircle } from "lucide-react";
 
 import { adminApi } from "../api/index.js";
+import { CatalogStatusActions } from "@shared/governance/CatalogStatusActions.jsx";
 import { VersionDiffPanel } from "@shared/governance/VersionDiffPanel.jsx";
 import { StatusHistoryList } from "@shared/governance/StatusHistoryList.jsx";
 import {
@@ -12,6 +13,10 @@ import {
 } from "@shared/governance/DetailFieldList.jsx";
 import { AdminDetailModal } from "@shared/governance/AdminDetailModal.jsx";
 import { doseRuleTitle } from "@shared/governance/displayNames.js";
+import {
+  evidenceLinkDetailField,
+  pipelineSourceDetailField,
+} from "@shared/governance/catalogDetailReview.js";
 
 function statusClass(status) {
   if (status === "approved") return "success";
@@ -81,6 +86,20 @@ export function DoseRuleDetail({ rule, onClose, onAction, actionLoading, canAppr
 
   const body = rule.rule_body || {};
   const summary = summarizeRuleBody(body);
+  const sources = rule.clinical_sources || [];
+
+  const headerFields = [
+    {
+      label: "Calculation",
+      value: <code className="dose-code">{rule.calculation_type}</code>,
+    },
+    { label: "Drug class", value: rule.drug_class || "—" },
+    { label: "Drug keys", value: (rule.drug_keys || []).length ? rule.drug_keys : "—" },
+  ];
+  const evidenceField = evidenceLinkDetailField(rule.evidence_ref, sources);
+  if (evidenceField) headerFields.push(evidenceField);
+  const sourceField = pipelineSourceDetailField(rule.source);
+  if (sourceField) headerFields.push(sourceField);
 
   return (
     <AdminDetailModal ariaLabel="Dose rule details" className="dose-detail-panel" onClose={onClose}>
@@ -103,18 +122,7 @@ export function DoseRuleDetail({ rule, onClose, onAction, actionLoading, canAppr
       </header>
 
       <div className="admin-detail-body">
-        <DetailFieldList
-          fields={[
-            {
-              label: "Calculation",
-              value: <code className="dose-code">{rule.calculation_type}</code>,
-            },
-            { label: "Drug class", value: rule.drug_class || "—" },
-            { label: "Drug keys", value: (rule.drug_keys || []).length ? rule.drug_keys : "—" },
-            { label: "Evidence", value: rule.evidence_ref || "—", mono: true },
-            { label: "Source", value: rule.source },
-          ]}
-        />
+        <DetailFieldList fields={headerFields} />
 
         {summary.length > 0 && (
           <section>
@@ -130,9 +138,14 @@ export function DoseRuleDetail({ rule, onClose, onAction, actionLoading, canAppr
           </section>
         )}
 
-        <ClinicalSourcesList sources={rule.clinical_sources || []} />
+        <ClinicalSourcesList sources={sources} />
 
-        <CollapsiblePayload data={body} title="Full payload" />
+        <CollapsiblePayload
+          clinicalSources={sources}
+          data={body}
+          defaultOpen={false}
+          title="Dose calculation details"
+        />
 
         <VersionDiffPanel
           fetchDiff={adminApi.getDoseRuleDiff}
@@ -151,36 +164,15 @@ export function DoseRuleDetail({ rule, onClose, onAction, actionLoading, canAppr
       </div>
 
       <footer className="admin-detail-actions">
-        {rule.status === "draft" && canApprove && (
-          <button
-            className="primary-action dose-primary-action"
-            disabled={actionLoading}
-            onClick={() => onAction("approve", rule.id)}
-            type="button"
-          >
-            <CheckCircle2 size={16} /> Approve for dosing
-          </button>
-        )}
-        {rule.status === "approved" && canAdmin && (
-          <button
-            className="danger-action"
-            disabled={actionLoading}
-            onClick={() => onAction("retire", rule.id)}
-            type="button"
-          >
-            <ShieldOff size={16} /> Retire
-          </button>
-        )}
-        {rule.status === "retired" && canAdmin && (
-          <button
-            className="secondary-action"
-            disabled={actionLoading}
-            onClick={() => onAction("unretire", rule.id)}
-            type="button"
-          >
-            <RotateCcw size={16} /> Restore
-          </button>
-        )}
+        <CatalogStatusActions
+          actionLoading={actionLoading}
+          approveLabel="Approve for dosing"
+          canAdmin={canAdmin}
+          canApprove={canApprove}
+          onAction={onAction}
+          recordId={rule.id}
+          status={rule.status}
+        />
       </footer>
     </AdminDetailModal>
   );

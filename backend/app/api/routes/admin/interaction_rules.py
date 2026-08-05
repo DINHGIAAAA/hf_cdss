@@ -9,6 +9,7 @@ from app.api.routes.admin.deps import AdminUser, ensure_role, get_current_admin_
 from app.modules.datastores.interaction_rules_postgres import (
     approve_interaction_rule,
     count_interaction_rules_by_status,
+    count_interaction_rules_filtered,
     get_interaction_rule,
     get_interaction_rule_latest_by_status,
     get_interaction_rule_versions,
@@ -70,6 +71,10 @@ class BulkApproveRequest(BaseModel):
     q: str | None = None
     extraction_method: str | None = None
     limit: int = Field(default=100, ge=1, le=200)
+    match_all: bool = Field(
+        default=False,
+        description="Approve all draft rules matching filters (all pages), in batches",
+    )
     dry_run: bool = Field(default=False, description="Preview candidate ids without approving")
 
 
@@ -114,9 +119,16 @@ def _apply_status_change(rule_id: int, target_status: Literal["approved", "retir
         else:
             raise HTTPException(status_code=400, detail=f"Cannot approve interaction rule in status {current_status}")
     elif target_status == "retired":
-        ensure_role(current_user, "admin")
-        if current_status != "approved":
-            raise HTTPException(status_code=400, detail="Only approved interaction rules can be retired")
+        if current_status == "draft":
+            if "clinical_lead" not in current_user.roles and "admin" not in current_user.roles:
+                raise HTTPException(
+                    status_code=403,
+                    detail="clinical_lead or admin required to retire drafts",
+                )
+        elif current_status == "approved":
+            ensure_role(current_user, "admin")
+        else:
+            raise HTTPException(status_code=400, detail=f"Cannot retire interaction rule in status {current_status}")
         if not retire_interaction_rule(rule_id, current_user.id):
             raise HTTPException(status_code=400, detail="Failed to retire interaction rule")
 
@@ -137,25 +149,28 @@ def list_interaction_rules(
     safety_tier: str | None = Query(default=None),
     q: str | None = Query(default=None),
     extraction_method: str | None = Query(default=None),
-    limit: int = Query(default=100, ge=1, le=500),
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
     _: AdminUser = Depends(require_admin_reader),
 ) -> InteractionRuleListResponse:
-    has_filters = any([severity, target, safety_tier, q, extraction_method])
-    if has_filters or status:
-        items_raw = read_interaction_rules_filtered(
-            status=status,
-            severity=severity,
-            target=target,
-            safety_tier=safety_tier,
-            q=q,
-            extraction_method=extraction_method,
-            limit=limit,
-        )
-    else:
-        draft = read_interaction_rules_by_status("draft", limit=limit)
-        approved = read_interaction_rules_by_status("approved", limit=limit)
-        retired = read_interaction_rules_by_status("retired", limit=limit)
-        items_raw = draft + approved + retired
+    items_raw = read_interaction_rules_filtered(
+        status=status,
+        severity=severity,
+        target=target,
+        safety_tier=safety_tier,
+        q=q,
+        extraction_method=extraction_method,
+        limit=limit,
+        offset=offset,
+    )
+    total = count_interaction_rules_filtered(
+        status=status,
+        severity=severity,
+        target=target,
+        safety_tier=safety_tier,
+        q=q,
+        extraction_method=extraction_method,
+    )
     counts = count_interaction_rules_by_status(
         severity=severity,
         target=target,
@@ -164,8 +179,8 @@ def list_interaction_rules(
         extraction_method=extraction_method,
     )
     return InteractionRuleListResponse(
-        total=len(items_raw),
-        items=[InteractionRuleResponse(**item) for item in items_raw[:limit]],
+        total=total,
+        items=[InteractionRuleResponse(**item) for item in items_raw],
         draft_count=counts["draft"],
         approved_count=counts["approved"],
         retired_count=counts["retired"],
@@ -187,6 +202,7 @@ def bulk_approve_interaction_rules_endpoint(
         q=payload.q,
         extraction_method=payload.extraction_method,
         limit=payload.limit,
+        match_all=payload.match_all,
         dry_run=payload.dry_run,
     )
     if not payload.dry_run:

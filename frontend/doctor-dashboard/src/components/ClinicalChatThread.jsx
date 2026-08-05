@@ -1,9 +1,10 @@
 import { Eraser, MoreVertical, PanelLeft, Plus, Trash2 } from "lucide-react";
 
 import { Thread } from "@/components/thread";
+import { ClinicalStreamProgress } from "@/components/ClinicalStreamProgress";
+import { StreamProgressProvider } from "@/context/StreamProgressContext.jsx";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,6 +33,7 @@ export function ClinicalChatThread({
   onClear,
   onDelete,
   streamStatus,
+  streamProgress,
 }) {
   const { language, languages, setLanguage, t } = useLanguage();
   const summary = patientSummary(active?.draft?.patient || active?.patient);
@@ -119,18 +121,22 @@ export function ClinicalChatThread({
       </header>
 
       <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
-        <Thread
-          components={{
-            Welcome: ClinicalWelcome,
-          }}
-        />
+        <StreamProgressProvider value={streamProgress}>
+          <Thread
+            components={{
+              Welcome: ClinicalWelcome,
+            }}
+          />
+        </StreamProgressProvider>
       </div>
 
-      {streamStatus ? (
-        <div className="shrink-0 border-t border-border px-4 py-2">
-          <Badge className="w-full max-w-full justify-center truncate py-1.5" variant="secondary">
-            {streamStatus}
-          </Badge>
+      {streamProgress?.step ? (
+        <div className="shrink-0 border-t border-border px-3 py-2 sm:px-4">
+          <ClinicalStreamProgress
+            className="mx-auto max-w-(--thread-max-width) w-full"
+            label={streamProgress.label || streamStatus}
+            step={streamProgress.step}
+          />
         </div>
       ) : null}
     </section>

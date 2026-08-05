@@ -6,6 +6,12 @@ from typing import Any
 
 from scraper.semantic.stable_ids import stable_id
 
+try:
+    from app.modules.gdmt_policy.guidance_normalize import normalize_policy_body
+except ImportError:
+    def normalize_policy_body(body):  # type: ignore[misc]
+        return body or {}
+
 REQUIRED_FIELDS = ("drug_class_key", "display_label", "policy_body")
 
 
@@ -26,22 +32,24 @@ def build_gdmt_policy_from_claim(claim: dict[str, Any]) -> dict[str, Any] | None
         return None
     drug_class_key = claim.get("drug_class_key") or claim.get("drug_class")
     display_label = claim.get("display_label") or claim.get("label")
-    policy_body = claim.get("policy_body") or {}
+    policy_body = normalize_policy_body(claim.get("policy_body") or {})
     if not drug_class_key or not display_label:
         return None
     if not policy_body.get("guidance"):
-        policy_body = {
-            "med_detection_terms": list(claim.get("med_detection_terms") or []),
-            "warning_targets": list(claim.get("warning_targets") or []),
-            "aliases": list(claim.get("aliases") or []),
-            "hfref_default_status": claim.get("hfref_default_status") or "consider",
-            "non_hfref_status": claim.get("non_hfref_status") or "review",
-            "guidance": {
-                "reasoning_base": [str(claim.get("evidence") or claim.get("message") or "")[:500]],
-                "actions": list(claim.get("actions") or []),
-                "monitoring": list(claim.get("monitoring") or []),
-            },
-        }
+        policy_body = normalize_policy_body(
+            {
+                "med_detection_terms": list(claim.get("med_detection_terms") or []),
+                "warning_targets": list(claim.get("warning_targets") or []),
+                "aliases": list(claim.get("aliases") or []),
+                "hfref_default_status": claim.get("hfref_default_status") or "consider",
+                "non_hfref_status": claim.get("non_hfref_status") or "review",
+                "guidance": {
+                    "reasoning_base": [str(claim.get("evidence") or claim.get("message") or "")[:500]],
+                    "actions": list(claim.get("actions") or []),
+                    "monitoring": list(claim.get("monitoring") or []),
+                },
+            }
+        )
     policy_id = (
         claim.get("gdmt_policy_id")
         or STABLE_POLICY_IDS.get(str(drug_class_key))
@@ -102,7 +110,7 @@ def _merge_policy_body(existing: dict[str, Any], incoming: dict[str, Any]) -> di
             merged[key] = combined
         else:
             merged[key] = value
-    return merged
+    return normalize_policy_body(merged)
 
 
 def gdmt_policies_from_claims(claims: list[dict]) -> list[dict]:

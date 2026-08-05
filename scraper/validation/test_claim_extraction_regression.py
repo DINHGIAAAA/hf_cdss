@@ -139,3 +139,21 @@ def test_evidence_alignment_class_drug_on_guideline() -> None:
     }
     result = validate_claim_evidence_alignment(claim)
     assert result["aligned"] is True
+
+
+def test_validate_kg_claim_quality_passes_drug_label_without_name_in_evidence() -> None:
+    from scraper.validation.validate_kg_artifacts import validate_claim_quality
+
+    rows = [
+        {
+            "claim_id": "c1",
+            "document_id": "acebutolol_label",
+            "source_type": "drug_label",
+            "claim_type": "contraindication",
+            "evidence": "Do not use in patients with cardiogenic shock.",
+            "confidence": 0.9,
+            "drug": "acebutolol",
+        }
+    ]
+    errors = validate_claim_quality(Path("artifacts/claims/claims.jsonl"), rows)
+    assert not any("evidence-alignment" in err for err in errors)

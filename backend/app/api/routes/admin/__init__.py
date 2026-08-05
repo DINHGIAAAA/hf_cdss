@@ -6,6 +6,7 @@ from app.api.routes.admin.evidence import router as evidence_router
 from app.api.routes.admin.dose_safety_warnings import router as dose_safety_warnings_router
 from app.api.routes.admin.gdmt_policies import router as gdmt_policies_router
 from app.api.routes.admin.interaction_rules import router as interaction_rules_router
+from app.api.routes.admin.governance_filters import router as governance_filters_router
 from app.api.routes.admin.users import router as users_router
 
 __all__ = [
@@ -17,4 +18,5 @@ __all__ = [
     "gdmt_policies_router",
     "interaction_rules_router",
     "users_router",
+    "governance_filters_router",
 ]
