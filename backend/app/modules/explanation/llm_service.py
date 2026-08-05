@@ -9,6 +9,11 @@ from app.core.http_client import get_async_client
 from app.core.llm_runtime import chat_completions_url, llm_auth_headers, llm_chat_completions_enabled
 from app.core.metrics import increment, observe
 from app.prompts.explanation import CLINICAL_EXPLANATION_SYSTEM_PROMPT
+from app.modules.recommendation.drug_class_keys import (
+    display_label_for_class_id,
+    is_placeholder_drug_label,
+    stabilize_recommendation_items,
+)
 from app.schemas.llm import LLMAnswerRequest, LLMAnswerResponse
 from app.core.redis_client import redis_client
 
@@ -179,10 +184,46 @@ def _get_fallback_template(language: str) -> dict[str, str]:
     return FALLBACK_TEMPLATES.get(language, FALLBACK_TEMPLATES["en"])
 
 
+def _fallback_recommendation_items(payload: LLMAnswerRequest):
+    return stabilize_recommendation_items(list(payload.recommendation.recommendations))
+
+
+def _display_drug_labels(items, *, limit: int = 8) -> list[str]:
+    labels: list[str] = []
+    for item in items:
+        label = display_label_for_class_id(item.class_id, item.drug_class)
+        if is_placeholder_drug_label(label):
+            continue
+        if label in labels:
+            continue
+        labels.append(label)
+        if len(labels) >= limit:
+            break
+    return labels
+
+
+def _short_clinical_lines(items, field: str, *, limit: int = 4, max_len: int = 220) -> list[str]:
+    lines: list[str] = []
+    for item in items:
+        for raw in getattr(item, field, []) or []:
+            text = str(raw or "").strip()
+            if not text or is_placeholder_drug_label(text):
+                continue
+            if len(text) > max_len:
+                text = text[: max_len - 1].rstrip() + "…"
+            if text not in lines:
+                lines.append(text)
+            if len(lines) >= limit:
+                return lines
+    return lines
+
+
 def fallback_answer(payload: LLMAnswerRequest) -> str:
-    blocked = [item for item in payload.recommendation.recommendations if item.status == "avoid"]
-    caution = [item for item in payload.recommendation.recommendations if item.status == "consider_with_caution"]
-    consider = [item for item in payload.recommendation.recommendations if item.status == "consider"]
+    items = _fallback_recommendation_items(payload)
+    blocked = [item for item in items if item.status == "avoid"]
+    caution = [item for item in items if item.status == "consider_with_caution"]
+    consider = [item for item in items if item.status == "consider"]
+    continue_items = [item for item in items if item.status == "continue"]
     missing = [risk.name.replace("missing_", "") for risk in payload.recommendation.risk_flags if risk.name.startswith("missing_")]
 
     # Get language-specific template
@@ -197,29 +238,36 @@ def fallback_answer(payload: LLMAnswerRequest) -> str:
         f"HR {payload.patient.heart_rate} bpm" if payload.patient.heart_rate is not None else None,
     ]
     context = ", ".join(item for item in facts if item) or t["context_fallback"]
-    action_items = list(dict.fromkeys(item for rec in [*blocked, *caution, *consider] for item in rec.action_items))[:4]
-    monitoring = list(dict.fromkeys(item for rec in [*blocked, *caution, *consider] for item in rec.monitoring))[:4]
-
-    warnings = list(dict.fromkeys(item for rec in [*blocked, *caution, *consider] for item in rec.warnings))[:4]
+    action_items = _short_clinical_lines([*blocked, *caution, *consider, *continue_items], "action_items")
+    monitoring = _short_clinical_lines([*blocked, *caution, *consider, *continue_items], "monitoring")
+    warnings = _short_clinical_lines([*blocked, *caution, *consider, *continue_items], "warnings")
 
     lines = [t["conclusion"]]
     if blocked:
-        drugs_str = ", ".join(item.drug_class for item in blocked)
-        lines.append(t["avoid_msg"].format(drugs=drugs_str))
+        drugs_str = ", ".join(_display_drug_labels(blocked))
+        if drugs_str:
+            lines.append(t["avoid_msg"].format(drugs=drugs_str))
     if caution:
-        drugs_str = ", ".join(item.drug_class for item in caution)
-        lines.append(t["caution_msg"].format(drugs=drugs_str))
+        drugs_str = ", ".join(_display_drug_labels(caution))
+        if drugs_str:
+            lines.append(t["caution_msg"].format(drugs=drugs_str))
     if consider:
-        drugs_str = ", ".join(item.drug_class for item in consider)
-        lines.append(t["consider_msg"].format(drugs=drugs_str))
-    if not blocked and not caution and not consider:
+        drugs_str = ", ".join(_display_drug_labels(consider))
+        if drugs_str:
+            lines.append(t["consider_msg"].format(drugs=drugs_str))
+    if continue_items:
+        drugs_str = ", ".join(_display_drug_labels(continue_items))
+        if drugs_str:
+            lines.append(f"Continue {drugs_str} per current GDMT plan.")
+    if not blocked and not caution and not consider and not continue_items:
         lines.append(t["no_recommendations"])
 
     lines.append(f"\n{t['medications']}")
-    if blocked or caution or consider:
-        for item in [*blocked, *caution, *consider]:
+    if blocked or caution or consider or continue_items:
+        for item in [*blocked, *caution, *consider, *continue_items][:8]:
             summary = (item.plain_language_summary or "").strip()
-            lines.append(f"- {item.drug_class}: {summary or item.rationale or item.status}")
+            label = display_label_for_class_id(item.class_id, item.drug_class)
+            lines.append(f"- {label}: {summary or item.rationale or item.status}")
     else:
         lines.append(f"- {t['no_medications']}")
 

@@ -13,6 +13,7 @@ from app.core.http_client import get_async_client
 from app.core.llm_runtime import chat_completions_url, llm_auth_headers, llm_chat_completions_enabled
 from app.core.redis_client import redis_client
 from app.prompts.card_summary import CARD_SUMMARY_SYSTEM_PROMPT
+from app.modules.recommendation.drug_class_keys import is_placeholder_drug_label
 from app.schemas.recommendation import (
     MedicationRecommendation,
     PlainLanguageDetails,
@@ -133,6 +134,7 @@ def compact_recommendation_items(items: list[MedicationRecommendation]) -> list[
     for item in items:
         compact.append(
             {
+                "class_id": item.class_id,
                 "drug_class": item.drug_class,
                 "status": item.status,
                 "rationale": item.rationale,
@@ -349,7 +351,7 @@ def _as_str_list(value: Any, *, limit: int = 3) -> list[str]:
     out: list[str] = []
     for item in value:
         text = str(item or "").strip()
-        if text:
+        if text and not is_placeholder_drug_label(text):
             out.append(text)
         if len(out) >= limit:
             break

@@ -25,13 +25,17 @@ export const CLINICAL_STREAM_PHASES = [
 
 const STEP_ORDER = CLINICAL_STREAM_PHASES.flatMap((phase) => phase.steps);
 
+export { STEP_ORDER };
+
 export function resolveStreamPhaseState(activeStep) {
   if (!activeStep) {
     return CLINICAL_STREAM_PHASES.map((phase) => ({ ...phase, status: "pending" }));
   }
 
   const activeIndex = STEP_ORDER.indexOf(activeStep);
-  const safeIndex = activeIndex === -1 ? 0 : activeIndex;
+  if (activeIndex === -1) {
+    return CLINICAL_STREAM_PHASES.map((phase) => ({ ...phase, status: "pending" }));
+  }
 
   return CLINICAL_STREAM_PHASES.map((phase) => {
     const indices = phase.steps.map((step) => STEP_ORDER.indexOf(step)).filter((i) => i >= 0);
@@ -39,8 +43,8 @@ export function resolveStreamPhaseState(activeStep) {
     const phaseEnd = Math.max(...indices);
 
     let status = "pending";
-    if (safeIndex > phaseEnd) status = "done";
-    else if (safeIndex >= phaseStart && safeIndex <= phaseEnd) status = "active";
+    if (activeIndex >= phaseEnd) status = "done";
+    else if (activeIndex >= phaseStart) status = "active";
 
     return { ...phase, status };
   });

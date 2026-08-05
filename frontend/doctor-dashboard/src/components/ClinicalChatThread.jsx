@@ -1,7 +1,9 @@
 import { Eraser, MoreVertical, PanelLeft, Plus, Trash2 } from "lucide-react";
 
 import { Thread } from "@/components/thread";
+import { ClinicalAnswerText } from "@/components/ClinicalAnswerText";
 import { ClinicalStreamProgress } from "@/components/ClinicalStreamProgress";
+import { ClinicalConversationContext } from "@/context/ClinicalConversationContext.jsx";
 import { StreamProgressProvider } from "@/context/StreamProgressContext.jsx";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { Button } from "@/components/ui/button";
@@ -121,13 +123,22 @@ export function ClinicalChatThread({
       </header>
 
       <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
-        <StreamProgressProvider value={streamProgress}>
-          <Thread
-            components={{
-              Welcome: ClinicalWelcome,
-            }}
-          />
-        </StreamProgressProvider>
+        <ClinicalConversationContext.Provider
+          value={{
+            recommendation: active?.recommendation ?? null,
+            verification: active?.verification ?? null,
+          }}
+        >
+          <StreamProgressProvider value={streamProgress}>
+            <Thread
+              components={{
+                Welcome: ClinicalWelcome,
+                TextPart: ClinicalAnswerText,
+                hideBranchPicker: true,
+              }}
+            />
+          </StreamProgressProvider>
+        </ClinicalConversationContext.Provider>
       </div>
 
       {streamProgress?.step ? (

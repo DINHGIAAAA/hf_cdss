@@ -2,6 +2,7 @@ import { apiFetch } from "@shared/api/client.js";
 import { streamStatusLabel, translate } from "@/i18n/messages.js";
 import { parseSseBlock } from "../utils";
 import { compactPatientForRequest } from "../hooks/patientPayload.js";
+import { STEP_ORDER } from "@/lib/clinicalStreamPipeline.js";
 
 export async function streamClinicalChat({
   message,
@@ -68,7 +69,10 @@ export async function streamClinicalChat({
       const { eventName, data } = parseSseBlock(block);
 
       if (eventName === "status") {
-        const step = data?.step || "processing";
+        const rawStep = data?.step;
+        if (!rawStep) continue;
+        const step = STEP_ORDER.includes(rawStep) ? rawStep : rawStep === "processing" ? "received" : null;
+        if (!step) continue;
         onProgress?.({ step, label: streamStatusLabel(language, step) });
         onStatus?.(streamStatusLabel(language, step));
       }

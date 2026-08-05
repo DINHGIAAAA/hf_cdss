@@ -13,6 +13,8 @@ from app.modules.dose_calculation.rule_loader import (
     load_dose_tables,
 )
 from app.modules.medication_presence import patient_on_acei, patient_on_arni
+from app.modules.graphrag.query_decomposition import normalize_drug_class
+from app.modules.recommendation.drug_class_keys import CANONICAL_GDMT_CLASS_IDS
 
 
 DOSE_SOURCE_VERSION = "fda_xml_labels"
@@ -138,16 +140,50 @@ def _candidate_drug_keys(
                 focus_classes.append(str(getattr(item, "drug_class", "") or ""))
 
     if focus_classes:
-        for drug in list_available_drugs():
-            dk = drug.get("drug_key")
-            dclass = str(drug.get("drug_class") or "")
-            if not dk:
-                continue
-            if any(_class_matches(dclass, fc) for fc in focus_classes):
-                keys.append(str(dk))
+        for fc in focus_classes:
+            for drug in list_available_drugs():
+                dk = drug.get("drug_key")
+                dclass = str(drug.get("drug_class") or "")
+                if not dk:
+                    continue
+                if _class_matches(dclass, fc):
+                    keys.append(str(dk))
+                    break
 
-    # Deduplicate while preserving order
-    return list(dict.fromkeys(keys))
+    return _dedupe_keys_one_per_class(list(dict.fromkeys(keys)), patient)
+
+
+def _canonical_class_for_drug_key(drug_key: str) -> str:
+    drug = get_drug_by_key(drug_key)
+    if not drug:
+        return ""
+    raw = str(drug.get("drug_class") or "")
+    normalized = normalize_drug_class(raw.replace("ACE INHIBITOR", "ace inhibitor"))
+    if normalized in CANONICAL_GDMT_CLASS_IDS:
+        return normalized
+    if "ace inhibitor" in raw.lower() or raw.upper() == "ACE INHIBITOR":
+        return "acei_arb"
+    if raw.upper() == "ARB":
+        return "arb"
+    return normalized
+
+
+def _dedupe_keys_one_per_class(keys: list[str], patient: PatientProfile) -> list[str]:
+    patient_keys: list[str] = []
+    for name in patient.current_medications or []:
+        key = resolve_drug_key(name)
+        if key:
+            patient_keys.append(key)
+
+    chosen: dict[str, str] = {}
+    for key in keys:
+        class_id = _canonical_class_for_drug_key(key)
+        bucket = class_id or f"__other_{key}"
+        if bucket not in chosen:
+            chosen[bucket] = key
+        elif key in patient_keys:
+            chosen[bucket] = key
+    return list(chosen.values())
 
 
 def _skip_drug_for_patient(drug_key: str, patient: PatientProfile) -> bool:

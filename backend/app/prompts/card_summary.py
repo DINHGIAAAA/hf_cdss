@@ -12,7 +12,8 @@ CARD_SUMMARY_SYSTEM_PROMPT = (
     "Omit a list if the source list is empty.\n"
     "6. Expand acronyms once when helpful: ARNI (sacubitril/valsartan), ACEi, ARB, MRA, SGLT2i, HFrEF.\n"
     "7. Return ONLY JSON:\n"
-    '{"summaries":[{"drug_class":"<exact>","summary":"<1-2 sentences>",'
+    '{"summaries":[{"drug_class":"<exact drug_class from input>","class_id":"<exact class_id when present>",'
+    '"summary":"<1-2 sentences>",'
     '"details":{"reasoning":["..."],"next_steps":["..."],"monitoring":["..."],"warnings":["..."]}}]}\n'
     "8. Include every drug_class from the input exactly once. No markdown."
 )

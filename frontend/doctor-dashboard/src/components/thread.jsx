@@ -302,6 +302,8 @@ const AssistantMessage = () => {
     ToolFallback: ToolFallbackComponent = ToolFallback,
     ToolGroup,
     ReasoningGroup,
+    TextPart = MarkdownText,
+    hideBranchPicker = false,
   } = useContext(ThreadComponentsContext);
 
   // reserves space for action bar and compensates with `-mb` for consistent msg spacing
@@ -354,7 +356,7 @@ const AssistantMessage = () => {
                 );
               }
               case "text":
-                return <MarkdownText />;
+                return <TextPart />;
               case "reasoning":
                 return <Reasoning {...part} />;
               case "tool-call":
@@ -389,7 +391,7 @@ const AssistantMessage = () => {
       <div
         data-slot="aui_assistant-message-footer"
         className={cn("ms-2 flex items-center", ACTION_BAR_HEIGHT)}>
-        <BranchPicker />
+        {hideBranchPicker ? null : <BranchPicker />}
         <AssistantActionBar />
       </div>
     </MessagePrimitive.Root>
@@ -443,6 +445,7 @@ const AssistantActionBar = () => {
 };
 
 const UserMessage = () => {
+  const { hideBranchPicker } = useContext(ThreadComponentsContext);
   return (
     <MessagePrimitive.Root
       data-slot="aui_user-message-root"
@@ -455,9 +458,12 @@ const UserMessage = () => {
           <MessagePrimitive.Parts />
         </div>
       </div>
-      <BranchPicker
-        data-slot="aui_user-branch-picker"
-        className="col-span-full col-start-1 row-start-3 -me-1 justify-end" />
+      {hideBranchPicker ? null : (
+        <BranchPicker
+          data-slot="aui_user-branch-picker"
+          className="col-span-full col-start-1 row-start-3 -me-1 justify-end"
+        />
+      )}
     </MessagePrimitive.Root>
   );
 };

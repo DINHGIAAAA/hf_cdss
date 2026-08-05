@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ExternalLink, FileText, ShieldAlert } from "lucide-react";
 import { patientSummary, sourceLink, statusClass, titleCase } from "../utils";
 import {
@@ -10,10 +10,12 @@ import {
 } from "@/lib/evidenceDisplay";
 import {
   collectSharedVitalChips,
+  recommendationCardKey,
   recommendationDetailLines,
   recommendationLead,
 } from "@/lib/recommendationDisplay";
 import { DosePlanDisplay } from "@/components/DosePlanDisplay";
+import { MedicationPathway } from "@/components/MedicationPathway";
 import { useLanguage } from "@/i18n/LanguageProvider.jsx";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -138,8 +140,11 @@ function RecommendationBlock({ title, children, tone = "default" }) {
 function RecommendationBullets({ items }) {
   return (
     <ul className="space-y-1.5">
-      {items.map((line) => (
-        <li className="flex gap-2 text-sm leading-relaxed text-foreground/90" key={line}>
+      {items.map((line, index) => (
+        <li
+          className="flex gap-2 text-sm leading-relaxed text-foreground/90"
+          key={`${String(line).slice(0, 80)}-${index}`}
+        >
           <span aria-hidden className="mt-[0.55rem] h-1 w-1 shrink-0 rounded-full bg-primary" />
           <span className="min-w-0 break-words [overflow-wrap:anywhere]">{line}</span>
         </li>
@@ -356,6 +361,14 @@ function PatientSection({ summary, attachments }) {
 export function ClinicalPanel({ active, error, open }) {
   const { t } = useLanguage();
   const summary = patientSummary(active?.draft?.patient || active?.patient);
+  const evidenceChunks = active?.verification?.context?.evidence_chunks || [];
+  const [panelTab, setPanelTab] = useState("clinical");
+
+  useEffect(() => {
+    setPanelTab("clinical");
+  }, [active?.id]);
+
+  const showEvidenceTab = evidenceChunks.length > 0 || Boolean(active?.recommendation);
 
   return (
     <aside
@@ -364,7 +377,7 @@ export function ClinicalPanel({ active, error, open }) {
         open ? "w-full opacity-100" : "w-0 opacity-0",
       )}
     >
-      <header className="shrink-0 border-b border-border px-4 py-3">
+      <header className="shrink-0 space-y-2 border-b border-border px-4 py-3">
         <h2 className="truncate text-sm font-semibold">{t("clinicalPanel.title")}</h2>
         {summary && (
           <p className="truncate text-xs text-muted-foreground">
@@ -373,6 +386,47 @@ export function ClinicalPanel({ active, error, open }) {
             {summary.sex ? ` · ${summary.sex}` : ""}
           </p>
         )}
+        {showEvidenceTab && summary ? (
+          <div
+            className="flex gap-1 rounded-lg border border-border/70 bg-background/80 p-0.5"
+            role="tablist"
+            aria-label={t("clinicalPanel.title")}
+          >
+            <button
+              className={cn(
+                "flex-1 cursor-pointer rounded-md px-2 py-1.5 text-xs font-medium transition-colors",
+                panelTab === "clinical"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+              onClick={() => setPanelTab("clinical")}
+              role="tab"
+              aria-selected={panelTab === "clinical"}
+              type="button"
+            >
+              {t("clinicalPanel.tabClinical")}
+            </button>
+            <button
+              className={cn(
+                "flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition-colors",
+                panelTab === "evidence"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+              onClick={() => setPanelTab("evidence")}
+              role="tab"
+              aria-selected={panelTab === "evidence"}
+              type="button"
+            >
+              {t("clinicalPanel.tabEvidence")}
+              {evidenceChunks.length > 0 ? (
+                <Badge className="h-5 min-w-5 justify-center px-1 text-[10px]" variant="secondary">
+                  {evidenceChunks.length}
+                </Badge>
+              ) : null}
+            </button>
+          </div>
+        ) : null}
       </header>
 
       <div className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain">
@@ -385,63 +439,73 @@ export function ClinicalPanel({ active, error, open }) {
 
           {summary ? (
             <>
-              <PatientSection summary={summary} attachments={active?.attachments} />
+              {panelTab === "clinical" ? (
+                <>
+                  <PatientSection summary={summary} attachments={active?.attachments} />
 
-              {active?.recommendation && (
-                <section className="min-w-0 space-y-3">
-                  <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                    {t("clinicalPanel.recommendation")}
-                  </h2>
-                  <div
-                    className={cn(
-                      "flex min-w-0 items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium",
-                      statusTone(active.recommendation.overall_status),
-                    )}
-                  >
-                    <ShieldAlert className="shrink-0" size={17} />
-                    <strong className="truncate">{titleCase(active.recommendation.overall_status)}</strong>
-                  </div>
-                  {(() => {
-                    const sharedVitals = collectSharedVitalChips(
-                      active.recommendation.recommendations || [],
-                    );
-                    return (
-                      <div className="min-w-0 max-w-full space-y-3">
-                        {active.recommendation.recommendations.map((item) => (
-                          <RecommendationCard
-                            evidenceChunks={active.verification?.context?.evidence_chunks || []}
-                            item={item}
-                            key={item.drug_class}
-                            sharedVitals={sharedVitals}
-                          />
-                        ))}
+                  {active?.recommendation && (
+                    <section className="min-w-0 space-y-3">
+                      <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                        {t("clinicalPanel.recommendation")}
+                      </h2>
+                      <div
+                        className={cn(
+                          "flex min-w-0 items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium",
+                          statusTone(active.recommendation.overall_status),
+                        )}
+                      >
+                        <ShieldAlert className="shrink-0" size={17} />
+                        <strong className="truncate">{titleCase(active.recommendation.overall_status)}</strong>
                       </div>
-                    );
-                  })()}
+                      {(() => {
+                        const sharedVitals = collectSharedVitalChips(
+                          active.recommendation.recommendations || [],
+                        );
+                        return (
+                          <div className="min-w-0 max-w-full space-y-3">
+                            {active.recommendation.recommendations.map((item, index) => (
+                              <RecommendationCard
+                                evidenceChunks={evidenceChunks}
+                                item={item}
+                                key={recommendationCardKey(item, index)}
+                                sharedVitals={sharedVitals}
+                              />
+                            ))}
+                          </div>
+                        );
+                      })()}
 
-                  {active.recommendation.dose_plans && active.recommendation.dose_plans.length > 0 && (
-                    <>
-                      <Separator />
-                      <DosePlanDisplay
-                        dosePlans={active.recommendation.dose_plans}
-                        version={active.recommendation.dose_rules_version}
-                      />
-                    </>
+                      {active.recommendation.medication_pathway?.length > 0 ? (
+                        <>
+                          <Separator />
+                          <MedicationPathway pathway={active.recommendation.medication_pathway} />
+                        </>
+                      ) : active.recommendation.dose_plans?.length > 0 ? (
+                        <>
+                          <Separator />
+                          <DosePlanDisplay
+                            dosePlans={active.recommendation.dose_plans}
+                            version={active.recommendation.dose_rules_version}
+                          />
+                        </>
+                      ) : null}
+                    </section>
                   )}
-                </section>
-              )}
-
-              {active?.verification?.context?.evidence_chunks?.length > 0 && (
+                </>
+              ) : (
                 <section className="min-w-0 space-y-3">
-                  <Separator />
                   <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
                     {t("clinicalPanel.evidence")}
                   </h2>
-                  <div className="min-w-0 max-w-full space-y-3">
-                    {active.verification.context.evidence_chunks.slice(0, 4).map((chunk) => (
-                      <EvidenceCard chunk={chunk} key={chunk.chunk_id} />
-                    ))}
-                  </div>
+                  {evidenceChunks.length > 0 ? (
+                    <div className="min-w-0 max-w-full space-y-3">
+                      {evidenceChunks.slice(0, 12).map((chunk) => (
+                        <EvidenceCard chunk={chunk} key={chunk.chunk_id} />
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">{t("clinicalPanel.evidenceEmpty")}</p>
+                  )}
                 </section>
               )}
             </>

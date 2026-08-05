@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { chatApi } from "@shared/api/chat.js";
+import { useAuth } from "../auth/AuthContext.jsx";
 import { buildPatient } from "../utils";
 import { STORAGE_KEY } from "./constants.js";
+import { persistConversations } from "./conversationStorage.js";
 import { mapBackendMessages } from "./patientPayload.js";
 
 const DEMO_CONVERSATION_URL = "/demo/demo_chat_conversation.json";
 
 export function useConversations() {
+  const { isAuthenticated, bootstrapping } = useAuth();
   const [conversations, setConversations] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
@@ -24,7 +27,7 @@ export function useConversations() {
   });
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
+    persistConversations(conversations);
   }, [conversations]);
 
   const patchConversation = useCallback((conversationId, updater) => {
@@ -154,10 +157,11 @@ export function useConversations() {
   }, []);
 
   useEffect(() => {
-    if (activeId) {
-      syncConversationFromServer(activeId);
+    if (bootstrapping || !isAuthenticated || !activeId) {
+      return;
     }
-  }, [activeId, syncConversationFromServer]);
+    syncConversationFromServer(activeId);
+  }, [activeId, syncConversationFromServer, bootstrapping, isAuthenticated]);
 
   return {
     conversations,

@@ -24,6 +24,31 @@ function convertMessage(message) {
   };
 }
 
+function resolveReloadUserTurn(messages, parentId) {
+  if (!messages?.length) return null;
+
+  if (parentId) {
+    const byId = messages.findIndex((m) => m.id === parentId);
+    if (byId >= 0) {
+      if (messages[byId].role === "user") {
+        return { userIndex: byId, text: messages[byId].content || "" };
+      }
+      for (let i = byId - 1; i >= 0; i -= 1) {
+        if (messages[i].role === "user") {
+          return { userIndex: i, text: messages[i].content || "" };
+        }
+      }
+    }
+  }
+
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    if (messages[i].role === "user") {
+      return { userIndex: i, text: messages[i].content || "" };
+    }
+  }
+  return null;
+}
+
 function createClinicalAttachmentAdapter(getConversation, updateAttachments) {
   return {
     accept: ".txt,.csv,.json,.md,.xml,.html,image/*,.pdf",
@@ -63,6 +88,8 @@ export function ClinicalChatRuntimeProvider({
 }) {
   const [isRunning, setIsRunning] = useState(false);
   const abortRef = useRef(null);
+  const activeRef = useRef(active);
+  activeRef.current = active;
   const messages = active?.messages || [];
 
   const updateAttachments = useCallback(
@@ -76,11 +103,11 @@ export function ClinicalChatRuntimeProvider({
   const attachmentAdapter = useMemo(
     () =>
       new CompositeAttachmentAdapter([
-        createClinicalAttachmentAdapter(() => active, updateAttachments),
+        createClinicalAttachmentAdapter(() => activeRef.current, updateAttachments),
         new SimpleImageAttachmentAdapter(),
         new SimpleTextAttachmentAdapter(),
       ]),
-    [active, updateAttachments],
+    [updateAttachments],
   );
 
   const setMessages = useCallback(
@@ -97,25 +124,10 @@ export function ClinicalChatRuntimeProvider({
     [active, patchConversation],
   );
 
-  const onNew = useCallback(
-    async (message) => {
-      if (!active) return;
-      const text = extractText(message);
-      if (!text) return;
-
-      const conversationId = active.id;
-      const userId = `${conversationId}-user-${Date.now()}`;
-      const assistantId = `${conversationId}-assistant-${Date.now()}`;
+  const runClinicalStream = useCallback(
+    async ({ conversationId, userText, assistantId }) => {
       const controller = new AbortController();
       abortRef.current = controller;
-
-      patchConversation(conversationId, (current) => ({
-        messages: [
-          ...(current.messages || []),
-          { id: userId, role: "user", content: text },
-          { id: assistantId, role: "assistant", content: "" },
-        ],
-      }));
       setIsRunning(true);
       const preparing = { step: "preparing", label: translate(language, "chat.stream.preparing") };
       onStreamProgress?.(preparing);
@@ -124,8 +136,8 @@ export function ClinicalChatRuntimeProvider({
 
       try {
         await streamClinicalChat({
-          message: text,
-          active,
+          message: userText,
+          active: activeRef.current,
           language,
           signal: controller.signal,
           onStatus: onStreamStatus,
@@ -185,7 +197,63 @@ export function ClinicalChatRuntimeProvider({
         abortRef.current = null;
       }
     },
-    [active, language, onError, onStreamStatus, onStreamProgress, patchConversation],
+    [language, onError, onStreamStatus, onStreamProgress, patchConversation],
+  );
+
+  const onNew = useCallback(
+    async (message) => {
+      const current = activeRef.current;
+      if (!current) return;
+      const text = extractText(message);
+      if (!text) return;
+
+      const conversationId = current.id;
+      const userId = `${conversationId}-user-${Date.now()}`;
+      const assistantId = `${conversationId}-assistant-${Date.now()}`;
+
+      patchConversation(conversationId, (prev) => ({
+        messages: [
+          ...(prev.messages || []),
+          { id: userId, role: "user", content: text },
+          { id: assistantId, role: "assistant", content: "" },
+        ],
+      }));
+
+      await runClinicalStream({ conversationId, userText: text, assistantId });
+    },
+    [patchConversation, runClinicalStream],
+  );
+
+  const onReload = useCallback(
+    async (parentId) => {
+      const current = activeRef.current;
+      if (!current) return;
+
+      const turn = resolveReloadUserTurn(current.messages || [], parentId);
+      if (!turn?.text?.trim()) return;
+
+      const conversationId = current.id;
+      const msgs = current.messages || [];
+      const kept = msgs.slice(0, turn.userIndex + 1);
+      const priorAssistant = msgs[turn.userIndex + 1];
+      const assistantId =
+        priorAssistant?.role === "assistant"
+          ? priorAssistant.id
+          : `${conversationId}-assistant-${Date.now()}`;
+
+      patchConversation(conversationId, () => ({
+        messages: [...kept, { id: assistantId, role: "assistant", content: "" }],
+        recommendation: null,
+        verification: null,
+      }));
+
+      await runClinicalStream({
+        conversationId,
+        userText: turn.text.trim(),
+        assistantId,
+      });
+    },
+    [patchConversation, runClinicalStream],
   );
 
   const onCancel = useCallback(async () => {
@@ -194,9 +262,6 @@ export function ClinicalChatRuntimeProvider({
     onStreamStatus?.("");
     onStreamProgress?.(null);
   }, [onStreamStatus, onStreamProgress]);
-
-  // Do not abort on unmount: leaving chat for admin mid-stream must not cancel the run
-  // or starve the single API worker. ConversationsProvider keeps patch targets alive.
 
   const suggestions = useMemo(() => {
     const prompts = translate(language, "chat.suggestions");
@@ -212,6 +277,7 @@ export function ClinicalChatRuntimeProvider({
     setMessages,
     suggestions,
     onNew,
+    onReload,
     onCancel,
     adapters: {
       attachments: attachmentAdapter,

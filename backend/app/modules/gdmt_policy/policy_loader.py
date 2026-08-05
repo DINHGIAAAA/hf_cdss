@@ -7,6 +7,7 @@ from typing import Any
 from app.core.rule_cache import RuleCache
 from app.modules.datastores.gdmt_policies_postgres import read_approved_gdmt_policies
 from app.modules.gdmt_policy.guidance_normalize import normalize_policy_body
+from app.modules.recommendation.drug_class_keys import canonical_gdmt_class_id
 
 
 def _normalize_policy_row(row: dict[str, Any]) -> dict[str, Any]:
@@ -53,7 +54,13 @@ def load_gdmt_policy_bundle() -> dict[str, Any]:
 
 
 def load_executable_gdmt_policies() -> list[dict[str, Any]]:
-    return _CACHE.load_items()
+    policies = _CACHE.load_items()
+    canonical = [
+        policy
+        for policy in policies
+        if canonical_gdmt_class_id(str(policy.get("drug_class_key") or ""))
+    ]
+    return canonical
 
 
 def gdmt_policy_version() -> str:

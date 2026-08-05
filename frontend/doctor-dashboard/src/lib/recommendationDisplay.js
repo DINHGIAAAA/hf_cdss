@@ -95,3 +95,8 @@ export function recommendationDetailLines(item, sharedVitals = []) {
       return true;
     });
 }
+
+export function recommendationCardKey(item, index = 0) {
+  const stable = item?.class_id || item?.drug_class || "recommendation";
+  return `${stable}-${index}`;
+}

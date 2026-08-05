@@ -122,6 +122,51 @@ def test_chat_uses_clinical_attachment_text_for_patient_draft(client) -> None:
     assert patient["clinical_documents"][0]["file_name"] == "clinic_note.txt"
 
 
+def test_chat_stream_skips_llm_intake_when_message_supplies_care_context(client, monkeypatch) -> None:
+    llm_calls: list[str] = []
+
+    async def _track_llm(_message: str) -> None:
+        llm_calls.append("called")
+        return None
+
+    monkeypatch.setattr(
+        "app.modules.clinical_intake_extraction.service._call_llm_extractor",
+        _track_llm,
+    )
+
+    patient_payload = {
+        "patient_identity": {"case_id": "STREAM_MSG_CARE"},
+        "heart_failure_profile": {"lvef": {"value": 28}, "nyha_class": "III"},
+        "labs": {"egfr": {"value": 42}, "potassium": {"value": 4.8}},
+        "vitals": {
+            "systolic_bp": {"value": 108},
+            "heart_rate": {"value": 72},
+            "weight_kg": {"value": 74},
+        },
+        "conditions": [{"name": "HFrEF", "status": "active"}],
+        "medications": [
+            {"name": "bisoprolol", "status": "active"},
+            {"name": "spironolactone", "status": "active"},
+        ],
+        "allergy_statements": [{"substance": "no known drug allergies", "status": "active"}],
+        "red_flags": [{"name": "stable", "status": "absent"}],
+    }
+
+    with client.stream(
+        "POST",
+        api_path("/chat/stream"),
+        json={
+            "message": "Co nen tang MRA hoac bat dau dapagliflozin?",
+            "patient": patient_payload,
+        },
+    ) as response:
+        body = "".join(response.iter_text())
+
+    assert response.status_code == 200
+    assert '"step": "using_supplied_profile"' in body
+    assert llm_calls == []
+
+
 def test_chat_stream_skips_llm_intake_when_nested_patient_complete(client, monkeypatch) -> None:
     llm_calls: list[str] = []
 

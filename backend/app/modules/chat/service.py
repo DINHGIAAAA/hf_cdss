@@ -281,11 +281,25 @@ def _merge_named(existing: list[Any], incoming: list[Any], attr: str) -> list[An
     return list(by_name.values())
 
 
+def _with_turn_message_context(patient: PatientProfile, message: str) -> PatientProfile:
+    """Treat the clinician's chat message as care context when the form has no question yet."""
+    text = (message or "").strip()
+    if not text:
+        return patient
+    if patient.care_context.clinician_question or patient.care_context.decision_context:
+        return patient
+    updated = patient.model_copy(deep=True)
+    updated.care_context.clinician_question = text
+    return updated
+
+
 def _prefilled_patient_complete(
     base_patient: PatientProfile,
     supplied_patient: PatientProfile | None,
+    message: str = "",
 ) -> bool:
     prefill = _merge_patient(base_patient, supplied_patient) if supplied_patient else base_patient
+    prefill = _with_turn_message_context(prefill, message)
     return check_missing_fields(prefill).status == "complete"
 
 
@@ -296,6 +310,7 @@ async def _resolve_patient_for_chat_turn(
     conversation_history: list[str],
     base_patient: PatientProfile,
     supplied_patient: PatientProfile | None,
+    turn_message: str = "",
 ) -> PatientProfile:
     """Use regex-only intake when form/draft profile already satisfies required chat fields."""
     from app.modules.clinical_intake_extraction.service import (
@@ -304,10 +319,12 @@ async def _resolve_patient_for_chat_turn(
     )
 
     prefill = _merge_patient(base_patient, supplied_patient) if supplied_patient else base_patient
+    prefill = _with_turn_message_context(prefill, turn_message)
     if check_missing_fields(prefill).status == "complete":
         logger.info("Skipping LLM clinical intake for conversation %s (profile complete)", conversation_id)
         regex_patient = _regex_extract_patient_from_message(extraction_message, conversation_id)
-        return _merge_patient(prefill, regex_patient)
+        merged = _merge_patient(prefill, regex_patient)
+        return _with_turn_message_context(merged, turn_message)
 
     extracted = await extract_patient_from_message(
         extraction_message,
@@ -317,7 +334,7 @@ async def _resolve_patient_for_chat_turn(
     merged = _merge_patient(base_patient, extracted)
     if supplied_patient:
         merged = _merge_patient(merged, supplied_patient)
-    return merged
+    return _with_turn_message_context(merged, turn_message)
 
 
 def _prior_user_messages(conversation_id: str) -> list[str]:
@@ -347,7 +364,7 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
     attachment_context = _attachment_context(request)
     extraction_message = "\n".join(value for value in [request.message, attachment_context] if value)
 
-    if _prefilled_patient_complete(base_patient, request.patient):
+    if _prefilled_patient_complete(base_patient, request.patient, request.message):
         yield _sse("status", {"step": "using_supplied_profile"})
     else:
         yield _sse("status", {"step": "extracting_patient"})
@@ -357,6 +374,7 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
         conversation_history=_prior_user_messages(conversation_id),
         base_patient=base_patient,
         supplied_patient=request.patient,
+        turn_message=request.message,
     )
     merged = extracted_patient
     merged = _merge_clinical_documents(merged, request)
@@ -539,6 +557,7 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
         conversation_history=_prior_user_messages(conversation_id),
         base_patient=base_patient,
         supplied_patient=request.patient,
+        turn_message=request.message,
     )
     merged = _merge_clinical_documents(merged, request)
 

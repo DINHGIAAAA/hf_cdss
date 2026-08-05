@@ -5,6 +5,8 @@ from app.modules.dose_checking.service import check_dose_safety
 from app.modules.gdmt_policy.policy_engine import gdmt_classes_map, recommendation_for_policy
 from app.modules.gdmt_policy.policy_loader import gdmt_policy_version, load_executable_gdmt_policies
 from app.modules.interaction_checking.service import check_interactions
+from app.modules.recommendation.drug_class_keys import stabilize_recommendation_items
+from app.modules.recommendation.medication_pathway import build_medication_pathway
 from app.modules.risk_extraction.service import extract_risks
 from app.schemas.clinical import Constraint
 from app.schemas.medication_safety import MedicationSafetyWarning
@@ -64,9 +66,12 @@ def build_recommendation(payload: RecommendationRequest) -> RecommendationRespon
     interaction_warnings = check_interactions(payload.patient)
     safety_warnings = dose_warnings + interaction_warnings
     policies = load_executable_gdmt_policies()
-    recommendations = [
-        recommendation_for_policy(profile, constraints, safety_warnings, policy) for policy in policies
-    ]
+    recommendations = stabilize_recommendation_items(
+        [
+            recommendation_for_policy(profile, constraints, safety_warnings, policy)
+            for policy in policies
+        ]
+    )
     response = RecommendationResponse(
         case_id=profile.case_id,
         patient_summary=_patient_summary(profile),
@@ -83,6 +88,7 @@ def build_recommendation(payload: RecommendationRequest) -> RecommendationRespon
         clinical_state=payload.clinical_state,
         recommendation=response,
     )
+    response.medication_pathway = build_medication_pathway(payload.patient, response)
     response.dose_rules_version = dose_source_version()
     response.gdmt_policy_version = gdmt_policy_version()
     return response

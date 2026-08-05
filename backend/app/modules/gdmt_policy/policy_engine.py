@@ -185,6 +185,7 @@ def recommendation_for_policy(
         rationale = default_rationale
 
     return MedicationRecommendation(
+        class_id=drug_class_key,
         drug_class=label,
         status=status,
         rationale=rationale,
