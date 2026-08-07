@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 import { Sidebar } from "../components/Sidebar";
 import { PatientModal } from "../components/PatientModal";
@@ -13,10 +13,11 @@ export function ChatPage() {
   const health = useApiHealth();
   const [showModal, setShowModal] = useState(false);
   const [streamStatus, setStreamStatus] = useState("");
+  const [streamProgress, setStreamProgress] = useState(null);
   const [error, setError] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(() => localStorage.getItem("hf_sidebar") !== "0");
   const { language, t } = useLanguage();
-  const { width: panelWidth, isOpen: panelOpen, containerRef, onPointerDown } = useHorizontalResize({
+  const { width: panelWidth, isOpen: panelOpen, setWidth, containerRef, onPointerDown } = useHorizontalResize({
     collapseThreshold: 56,
     edge: "right",
     initial: 380,
@@ -25,6 +26,8 @@ export function ChatPage() {
     storageKey: "hf_panel_width",
   });
 
+  const [clinicalPanelTab, setClinicalPanelTab] = useState("clinical");
+
   const {
     conversations,
     activeId,
@@ -32,10 +35,34 @@ export function ChatPage() {
     patchConversation,
     updateActive,
     createConversation,
+    loadDemoConversation,
+    deleteConversation,
+    renameConversation,
+    copyConversation,
+    clearConversation,
   } = useConversations();
 
   const active = conversations.find((c) => c.id === activeId) || null;
+  const evidenceCount = active?.verification?.context?.evidence_chunks?.length || 0;
   const shouldShowModal = showModal || conversations.length === 0;
+
+  useEffect(() => {
+    setClinicalPanelTab("clinical");
+  }, [active?.id]);
+
+  const openClinicalPanel = useCallback(
+    (tab = "clinical") => {
+      setClinicalPanelTab(tab);
+      if (panelWidth <= 56) {
+        setWidth(380);
+      }
+    },
+    [panelWidth, setWidth],
+  );
+
+  async function handleCopyConversation(conversationId) {
+    await copyConversation(conversationId);
+  }
 
   function handleCreate(form, patientId, conversationName) {
     createConversation(form, patientId, conversationName);
@@ -43,9 +70,15 @@ export function ChatPage() {
     setError("");
   }
 
+  async function handleLoadDemo() {
+    await loadDemoConversation();
+    setShowModal(false);
+    setError("");
+  }
+
   return (
     <main
-      className="chat-shell grid h-full min-h-0 overflow-hidden bg-background"
+      className="chat-shell chat-workbench grid h-full min-h-0 overflow-hidden bg-[var(--color-paper)]"
       ref={containerRef}
       style={{
         gridTemplateColumns: `${sidebarOpen ? 260 : 56}px minmax(0, 1fr) 4px ${panelOpen ? panelWidth : 0}px`,
@@ -54,6 +87,7 @@ export function ChatPage() {
       {shouldShowModal && (
         <PatientModal
           onCreate={handleCreate}
+          onLoadDemo={handleLoadDemo}
           onClose={conversations.length > 0 ? () => setShowModal(false) : undefined}
         />
       )}
@@ -63,7 +97,10 @@ export function ChatPage() {
         activeId={activeId}
         health={health}
         open={sidebarOpen}
+        onCopy={handleCopyConversation}
+        onDelete={deleteConversation}
         onNew={() => setShowModal(true)}
+        onRename={renameConversation}
         onSelect={(id) => {
           selectConversation(id);
           setError("");
@@ -75,12 +112,22 @@ export function ChatPage() {
         language={language}
         onError={setError}
         onStreamStatus={setStreamStatus}
+        onStreamProgress={setStreamProgress}
         patchConversation={patchConversation}
         updateActive={updateActive}
       >
         <ClinicalChatThread
           active={active}
+          clinicalPanelTab={clinicalPanelTab}
+          evidenceCount={evidenceCount}
+          panelOpen={panelOpen}
           sidebarOpen={sidebarOpen}
+          onClear={clearConversation}
+          onCopy={() => (active ? handleCopyConversation(active.id) : undefined)}
+          onDelete={deleteConversation}
+          onNew={() => setShowModal(true)}
+          onOpenPanel={openClinicalPanel}
+          onRename={renameConversation}
           onToggleSidebar={() =>
             setSidebarOpen((value) => {
               localStorage.setItem("hf_sidebar", value ? "0" : "1");
@@ -88,6 +135,7 @@ export function ChatPage() {
             })
           }
           streamStatus={streamStatus}
+          streamProgress={streamProgress}
         />
       </ClinicalChatRuntimeProvider>
 
@@ -106,7 +154,13 @@ export function ChatPage() {
         tabIndex={0}
       />
 
-      <ClinicalPanel active={active} error={error} open={panelOpen} />
+      <ClinicalPanel
+        active={active}
+        error={error}
+        onPanelTabChange={setClinicalPanelTab}
+        open={panelOpen}
+        panelTab={clinicalPanelTab}
+      />
     </main>
   );
 }

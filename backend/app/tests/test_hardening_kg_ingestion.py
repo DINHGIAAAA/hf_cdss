@@ -84,8 +84,7 @@ def test_constraint_rules_use_circuit_guard_on_timeout(monkeypatch) -> None:
     monkeypatch.setattr(constraint_service, "read_approved_constraint_rules", slow_read)
 
     rules = constraint_service.load_constraint_rules()
-    assert rules
-    assert rules[0]["metadata"]["fallback_source"] == "constraints_v1.json"
+    assert rules == []
 
 
 def test_resolve_evidence_scope_from_chunk_ids_expands_document_scope(monkeypatch, tmp_path) -> None:

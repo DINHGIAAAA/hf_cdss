@@ -33,6 +33,8 @@ export function mapAuthUser(me) {
     username: me.username,
     display_name: me.display_name ?? null,
     roles: me.roles || [],
+    avatar_url: me.avatar_url ?? null,
+    avatar_version: me.avatar_version ?? null,
   };
 }
 

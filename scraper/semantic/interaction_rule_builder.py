@@ -2,24 +2,25 @@
 
 from __future__ import annotations
 
-import hashlib
 import re
 from typing import Any
+
+from scraper.semantic.stable_ids import slug, stable_id
+
+try:
+    from app.modules.interaction_checking.drug_set_tokens import filter_plausible_drug_set
+except ImportError:
+    def filter_plausible_drug_set(values):  # type: ignore[misc]
+        return list(values or [])
 
 KNOWN_CLASS_PREFIX = "class:"
 
 REQUIRED_FIELDS = ("drug_set_a", "drug_set_b", "message", "severity")
 
 
-def slug(value: str) -> str:
-    value = re.sub(r"[^a-zA-Z0-9]+", "_", value or "").strip("_").lower()
-    return value or "unknown"
-
-
 def interaction_rule_id(parts: list[str]) -> str:
-    base = "_".join(slug(part) for part in parts if part)
-    digest = hashlib.sha1(base.encode("utf-8")).hexdigest()[:8]
-    return f"ix_{base[:68]}_{digest}"
+    """Backward-compatible wrapper; prefer structured labeling in builders."""
+    return stable_id(*parts[:2], uniqueness=list(parts[2:]), prefix="ix")
 
 
 def _normalize_token(value: str) -> str:
@@ -35,7 +36,7 @@ def _normalize_set(values: list[Any] | None) -> list[str]:
         token = _normalize_token(str(item))
         if token and token not in output:
             output.append(token)
-    return output
+    return filter_plausible_drug_set(output)
 
 
 def _partner_drugs_from_text(text: str) -> list[str]:
@@ -81,22 +82,41 @@ def build_interaction_rule_from_structured_claim(claim: dict[str, Any]) -> dict[
     if severity not in {"high", "moderate", "critical", "low"}:
         severity = "moderate"
 
-    rule_id = interaction_rule_id([",".join(sorted(set_a)), ",".join(sorted(set_b)), message[:60]])
+    left = "+".join(sorted(set_a)[:2])
+    right = "+".join(sorted(set_b)[:2])
+    rule_id = stable_id(
+        left,
+        right,
+        uniqueness=[message, severity, claim.get("claim_id"), claim.get("document_id")],
+        prefix="ix",
+        max_label_len=40,
+    )
+    monitoring = [m for m in list(claim.get("monitoring") or []) if str(m).strip().lower() not in {"", "string"}]
     rule_body = {
         "message": message,
         "action": claim.get("action") or "review",
         "target": claim.get("target") or _infer_target(set_a, set_b),
         "escalation": list(claim.get("escalation") or []),
-        "monitoring": list(claim.get("monitoring") or []),
+        "monitoring": monitoring,
     }
+
+    evidence_ref = claim.get("evidence_ref")
+    if not evidence_ref:
+        doc = claim.get("document_id")
+        if claim.get("source_type") == "drug_label" and doc:
+            evidence_ref = f"fda_label:{doc}:drug_interactions"
+        else:
+            evidence_ref = claim.get("claim_id")
 
     return {
         "rule_id": rule_id,
+        "interaction_rule_id": rule_id,
         "drug_set_a": set_a,
         "drug_set_b": set_b,
         "severity": severity,
         "message": message,  # Top-level for classify_interaction_rules compatibility
         "rule_body": rule_body,
+        "evidence_ref": evidence_ref,
         "source_refs": [
             {
                 "claim_id": claim.get("claim_id"),
@@ -110,6 +130,7 @@ def build_interaction_rule_from_structured_claim(claim: dict[str, Any]) -> dict[
         ],
         "extraction_method": (claim.get("metadata") or {}).get("extraction_method", "llm_structured_interaction"),
         "source_confidence": claim.get("confidence"),
+        "partner_matched": bool(((claim.get("metadata") or {}).get("partner_resolve") or {}).get("matched", False)),
     }
 
 

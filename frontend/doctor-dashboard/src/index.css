@@ -1,6 +1,8 @@
 @import "tailwindcss";
+@import "../tokens.css";
 @import "./styles/base.css";
-@import "./styles/admin-legacy.css";
+@import "./styles/admin.css";
+@import "./styles/login.css";
 @import "tw-shimmer";
 @custom-variant dark (&:is(.dark *));
 
@@ -51,6 +53,11 @@
   }
 
   html,
+  body {
+    overflow-x: clip;
+  }
+
+  html,
   body,
   #root {
     @apply h-full min-h-0;
@@ -73,6 +80,14 @@
 
   .chat-shell {
     width: 100%;
+  }
+
+  .chat-workbench {
+    font-family: var(--font-body);
+  }
+
+  .chat-workbench .aui-thread-root {
+    --thread-max-width: var(--chat-column-max);
   }
 
   @media (max-width: 1180px) {

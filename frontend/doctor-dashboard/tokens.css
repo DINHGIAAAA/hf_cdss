@@ -1,0 +1,43 @@
+/* Hallmark · macrostructure: Workbench · tone: utilitarian · anchor hue: clinical-green
+ * audience: cardiologists & HF clinicians · use: case chat + GDMT evidence · genre: modern-minimal
+ * nav: N3 side-rail (conversation list) · footer: n/a (app shell)
+ */
+
+:root {
+  --color-paper: oklch(100% 0 0);
+  --color-paper-2: oklch(97.5% 0.004 145);
+  --color-paper-3: oklch(95% 0.006 145);
+  --color-ink: oklch(16% 0.01 145);
+  --color-ink-2: oklch(42% 0.02 145);
+  --color-rule: oklch(90% 0.006 145);
+  --color-accent: oklch(62% 0.12 166);
+  --color-accent-ink: oklch(100% 0 0);
+  --color-focus: oklch(62% 0.14 166);
+
+  --font-display: "Fira Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Fira Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Fira Code", ui-monospace, monospace;
+
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+  --space-2xl: 32px;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 0.9375rem;
+  --text-lg: 1.125rem;
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --dur-fast: 120ms;
+  --dur-normal: 200ms;
+
+  --radius-chat: 12px;
+  --radius-composer: 20px;
+
+  --chat-column-max: 44rem;
+  --chat-header-h: 3.25rem;
+}

@@ -5,9 +5,11 @@ from typing import Any, Literal
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from app.api.routes.admin.deps import AdminUser, get_current_admin_user, require_admin_reader, require_catalog_reader, require_role
+from app.api.routes.admin.deps import AdminUser, ensure_role, get_current_admin_user, require_admin_reader, require_catalog_reader, require_role
 from app.modules.datastores.dose_safety_warnings_postgres import (
     approve_dose_safety_warning,
+    count_dose_safety_warnings_by_status,
+    count_dose_safety_warnings_filtered,
     dose_safety_warning_with_id_exists,
     get_dose_safety_warning,
     get_dose_safety_warning_latest_by_status,
@@ -67,6 +69,10 @@ class BulkApproveRequest(BaseModel):
     safety_tier: str | None = None
     q: str | None = None
     limit: int = Field(default=100, ge=1, le=200)
+    match_all: bool = Field(
+        default=False,
+        description="Approve all draft rules matching filters (all pages), in batches",
+    )
     dry_run: bool = Field(default=False, description="Preview candidate ids without approving")
 
 
@@ -101,19 +107,26 @@ def _apply_status_change(rule_id: int, target_status: Literal["approved", "retir
     current_status = warning["status"]
     if target_status == "approved":
         if current_status == "draft":
-            require_role(current_user, "clinical_lead")
+            ensure_role(current_user, "clinical_lead")
             if not approve_dose_safety_warning(rule_id, current_user.id):
                 raise HTTPException(status_code=400, detail="Failed to approve dose safety warning")
         elif current_status == "retired":
-            require_role(current_user, "admin")
+            ensure_role(current_user, "admin")
             if not unretire_dose_safety_warning(rule_id, current_user.id):
                 raise HTTPException(status_code=400, detail="Failed to un-retire dose safety warning")
         else:
             raise HTTPException(status_code=400, detail=f"Cannot approve dose safety warning in status {current_status}")
     elif target_status == "retired":
-        require_role(current_user, "admin")
-        if current_status != "approved":
-            raise HTTPException(status_code=400, detail="Only approved dose safety warnings can be retired")
+        if current_status == "draft":
+            if "clinical_lead" not in current_user.roles and "admin" not in current_user.roles:
+                raise HTTPException(
+                    status_code=403,
+                    detail="clinical_lead or admin required to retire drafts",
+                )
+        elif current_status == "approved":
+            ensure_role(current_user, "admin")
+        else:
+            raise HTTPException(status_code=400, detail=f"Cannot retire dose safety warning in status {current_status}")
         if not retire_dose_safety_warning(rule_id, current_user.id):
             raise HTTPException(status_code=400, detail="Failed to retire dose safety warning")
 
@@ -133,30 +146,38 @@ def list_dose_safety_warnings(
     default_severity: str | None = Query(default=None),
     safety_tier: str | None = Query(default=None),
     q: str | None = Query(default=None),
-    limit: int = Query(default=100, ge=1, le=500),
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
     _: AdminUser = Depends(require_admin_reader),
 ) -> DoseSafetyWarningListResponse:
-    has_filters = any([target, default_severity, safety_tier, q])
-    if has_filters or status:
-        items_raw = read_dose_safety_warnings_filtered(
-            status=status,
-            target=target,
-            default_severity=default_severity,
-            safety_tier=safety_tier,
-            q=q,
-            limit=limit,
-        )
-    else:
-        draft = read_dose_safety_warnings_by_status("draft", limit=limit)
-        approved = read_dose_safety_warnings_by_status("approved", limit=limit)
-        retired = read_dose_safety_warnings_by_status("retired", limit=limit)
-        items_raw = draft + approved + retired
+    items_raw = read_dose_safety_warnings_filtered(
+        status=status,
+        target=target,
+        default_severity=default_severity,
+        safety_tier=safety_tier,
+        q=q,
+        limit=limit,
+        offset=offset,
+    )
+    total = count_dose_safety_warnings_filtered(
+        status=status,
+        target=target,
+        default_severity=default_severity,
+        safety_tier=safety_tier,
+        q=q,
+    )
+    counts = count_dose_safety_warnings_by_status(
+        target=target,
+        default_severity=default_severity,
+        safety_tier=safety_tier,
+        q=q,
+    )
     return DoseSafetyWarningListResponse(
-        total=len(items_raw),
-        items=[DoseSafetyWarningResponse(**item) for item in items_raw[:limit]],
-        draft_count=len([item for item in items_raw if item["status"] == "draft"]),
-        approved_count=len([item for item in items_raw if item["status"] == "approved"]),
-        retired_count=len([item for item in items_raw if item["status"] == "retired"]),
+        total=total,
+        items=[DoseSafetyWarningResponse(**item) for item in items_raw],
+        draft_count=counts["draft"],
+        approved_count=counts["approved"],
+        retired_count=counts["retired"],
     )
 
 
@@ -164,9 +185,8 @@ def list_dose_safety_warnings(
 def bulk_approve_dose_safety_warnings_endpoint(
     payload: BulkApproveRequest,
     background_tasks: BackgroundTasks,
-    current_user: AdminUser = Depends(get_current_admin_user),
+    current_user: AdminUser = Depends(require_role("clinical_lead")),
 ) -> BulkApproveResponse:
-    require_role(current_user, "clinical_lead")
     result = bulk_approve_dose_safety_warnings(
         current_user.id,
         rule_ids=payload.rule_ids,
@@ -175,6 +195,7 @@ def bulk_approve_dose_safety_warnings_endpoint(
         safety_tier=payload.safety_tier,
         q=payload.q,
         limit=payload.limit,
+        match_all=payload.match_all,
         dry_run=payload.dry_run,
     )
     if not payload.dry_run:

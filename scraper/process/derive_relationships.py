@@ -1,12 +1,15 @@
 import argparse
 import hashlib
-import json
+import os
 import re
 from pathlib import Path
+from typing import Any
 
-from scraper.io.jsonl import read_jsonl, write_jsonl
+from scraper.io.jsonl import iter_jsonl, read_jsonl
 from scraper.kg.identifiers import chunk_node_id, document_node_id, section_id_for_record, section_node_id, slug
+from scraper.process.chunk_index import EmptyChunkIndex, MemoryChunkIndex, open_chunk_index
 from scraper.process.evidence_linking import find_chunk_for_claim
+from scraper.process.relationship_writer import RelationshipWriter
 
 
 def relationship_id(source_id: str, rel_type: str, target_id: str) -> str:
@@ -168,29 +171,51 @@ def relationships_from_rules(rules: list[dict]) -> list[dict]:
 
 
 def relationships_from_chunk_grounding(claims: list[dict], chunks: list[dict]) -> list[dict]:
+    index = MemoryChunkIndex.from_records(chunks)
+    try:
+        return relationships_from_chunk_grounding_indexed(claims, index)
+    finally:
+        index.close()
+
+
+def grounding_relationship_for_claim(claim: dict, chunk: dict) -> dict:
+    metadata = chunk.get("metadata") or {}
+    return relationship(
+        claim_id(claim),
+        "Claim",
+        "GROUNDED_IN",
+        chunk_node_id(str(chunk.get("chunk_id") or "")),
+        "Chunk",
+        {
+            "claim_id": claim.get("claim_id"),
+            "chunk_id": chunk.get("chunk_id"),
+            "section_id": chunk.get("section_id") or metadata.get("section_id"),
+            "document_id": chunk.get("document_id"),
+            "source_section": chunk.get("section"),
+        },
+    )
+
+
+def relationships_from_chunk_grounding_indexed(
+    claims: list[dict],
+    chunk_index: MemoryChunkIndex | Any,
+) -> list[dict]:
     rels: list[dict] = []
     for claim in claims:
-        chunk = find_chunk_for_claim(claim, chunks)
-        if not chunk:
-            continue
-        metadata = chunk.get("metadata") or {}
-        rels.append(
-            relationship(
-                claim_id(claim),
-                "Claim",
-                "GROUNDED_IN",
-                chunk_node_id(str(chunk.get("chunk_id") or "")),
-                "Chunk",
-                {
-                    "claim_id": claim.get("claim_id"),
-                    "chunk_id": chunk.get("chunk_id"),
-                    "section_id": chunk.get("section_id") or metadata.get("section_id"),
-                    "document_id": chunk.get("document_id"),
-                    "source_section": chunk.get("section"),
-                },
-            )
-        )
+        rel = grounding_relationship_from_index(claim, chunk_index)
+        if rel:
+            rels.append(rel)
     return rels
+
+
+def grounding_relationship_from_index(claim: dict, chunk_index: Any) -> dict | None:
+    candidates = chunk_index.chunks_for_claim(claim)
+    if not candidates:
+        return None
+    chunk = find_chunk_for_claim(claim, candidates)
+    if not chunk:
+        return None
+    return grounding_relationship_for_claim(claim, chunk)
 
 
 def relationships_from_entities(entities: list[dict]) -> list[dict]:
@@ -220,9 +245,13 @@ def relationships_from_entities(entities: list[dict]) -> list[dict]:
     return rels
 
 
-def relationships_from_chunks(chunks: list[dict]) -> list[dict]:
+def relationships_from_chunks(
+    chunks: list[dict],
+    *,
+    seen_sections: set[tuple[str, str]] | None = None,
+) -> list[dict]:
     rels: list[dict] = []
-    seen_sections: set[tuple[str, str]] = set()
+    section_keys = seen_sections if seen_sections is not None else set()
     for chunk in chunks:
         chunk_id = str(chunk.get("chunk_id") or "")
         if not chunk_id:
@@ -248,8 +277,8 @@ def relationships_from_chunks(chunks: list[dict]) -> list[dict]:
         document_id = str(chunk.get("document_id") or "")
         if document_id:
             key = (document_id, section_target)
-            if key not in seen_sections:
-                seen_sections.add(key)
+            if key not in section_keys:
+                section_keys.add(key)
                 rels.append(
                     relationship(
                         section_target,
@@ -289,11 +318,78 @@ def derive_all_relationships(
     relationships = relationships_from_claims(claims)
     relationships.extend(relationships_from_rules(rules))
     if chunks:
-        relationships.extend(relationships_from_chunk_grounding(claims, chunks))
-        relationships.extend(relationships_from_chunks(chunks))
+        index = MemoryChunkIndex.from_records(chunks)
+        try:
+            relationships.extend(relationships_from_chunk_grounding_indexed(claims, index))
+            relationships.extend(relationships_from_chunks(chunks))
+        finally:
+            index.close()
     if entities:
         relationships.extend(relationships_from_entities(entities))
     return dedupe_relationships(relationships)
+
+
+def _progress_every() -> int:
+    raw = os.environ.get("HF_CDSS_DERIVE_PROGRESS_EVERY", "10000")
+    try:
+        return max(1, int(raw))
+    except ValueError:
+        return 10000
+
+
+def derive_relationships_streaming(
+    *,
+    claims_path: Path,
+    rules_path: Path,
+    chunks_path: Path,
+    entities_path: Path,
+    output_path: Path,
+) -> int:
+    writer = RelationshipWriter(output_path)
+    chunk_index = open_chunk_index(chunks_path) if chunks_path.exists() else EmptyChunkIndex()
+    progress_every = _progress_every()
+    claim_count = 0
+
+    try:
+        writer.add_many(relationships_from_rules(read_jsonl(rules_path)))
+
+        for claim in iter_jsonl(claims_path):
+            claim_count += 1
+            writer.add_many(relationships_from_claims([claim]))
+            grounded = grounding_relationship_from_index(claim, chunk_index)
+            if grounded:
+                writer.add(grounded)
+            if claim_count % progress_every == 0:
+                print(
+                    f"[derive_relationships] {claim_count} claims processed, "
+                    f"{writer.count} relationships written",
+                    flush=True,
+                )
+
+        seen_sections: set[tuple[str, str]] = set()
+        chunk_structural = 0
+        for chunk in chunk_index.iter_chunks():
+            chunk_structural += 1
+            writer.add_many(relationships_from_chunks([chunk], seen_sections=seen_sections))
+            if chunk_structural % progress_every == 0:
+                print(
+                    f"[derive_relationships] {chunk_structural} chunks for structure, "
+                    f"{writer.count} relationships written",
+                    flush=True,
+                )
+
+        for entity in iter_jsonl(entities_path):
+            writer.add_many(relationships_from_entities([entity]))
+    finally:
+        chunk_index.close()
+        writer.close()
+
+    print(
+        f"[derive_relationships] finished {claim_count} claims, "
+        f"{writer.count} unique relationships -> {output_path}",
+        flush=True,
+    )
+    return writer.count
 
 
 def main() -> None:
@@ -312,14 +408,14 @@ def main() -> None:
     args = parser.parse_args()
 
     rules_path = args.rules_input if args.rules_input.exists() else args.rules_fallback
-    relationships = derive_all_relationships(
-        read_jsonl(args.claims_input),
-        read_jsonl(rules_path),
-        chunks=read_jsonl(args.chunks_input) if args.chunks_input.exists() else [],
-        entities=read_jsonl(args.entities_input) if args.entities_input.exists() else [],
+    count = derive_relationships_streaming(
+        claims_path=args.claims_input,
+        rules_path=rules_path,
+        chunks_path=args.chunks_input,
+        entities_path=args.entities_input,
+        output_path=args.output,
     )
-    write_jsonl(relationships, args.output)
-    print(f"Wrote {len(relationships)} relationships to {args.output}")
+    print(f"Wrote {count} relationships to {args.output}")
 
 
 if __name__ == "__main__":

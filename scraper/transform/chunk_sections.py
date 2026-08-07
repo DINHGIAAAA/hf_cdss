@@ -216,30 +216,47 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    print(
+    def log(message: str) -> None:
+        # Airflow captures pipes; always flush so progress is visible during long embeds.
+        print(message, flush=True)
+
+    log(
         "Chunking with conditional semantic strategy "
         f"(size={args.chunk_size}, overlap={args.overlap}, "
         f"semantic_min_tokens={config.SEMANTIC_CHUNK_MIN_SECTION_TOKENS})."
     )
 
+    log(f"Loading sections from {args.input}...")
+    records = list(read_jsonl(args.input))
+    total = len(records)
+    log(f"Chunking {total} important sections (progress every 50)...")
+
     chunks: list[dict] = []
     semantic_sections = 0
-    for record in read_jsonl(args.input):
-        if should_use_semantic_chunking(record, record.get("text", "")):
+    for index, record in enumerate(records, start=1):
+        use_semantic = should_use_semantic_chunking(record, record.get("text", ""))
+        if use_semantic:
             semantic_sections += 1
         chunks.extend(make_chunks(record, args.chunk_size, args.overlap))
+        if index == 1 or index % 50 == 0 or index == total:
+            log(
+                f"Chunk progress: {index}/{total} sections, "
+                f"{len(chunks)} chunks so far, "
+                f"{semantic_sections} semantic-eligible"
+            )
     chunks = dedupe_chunks(chunks)
 
     from scraper.semantic.dedup import dedupe_chunks as dedupe_chunks_by_embedding
 
     before = len(chunks)
+    log(f"Embedding-dedup starting for {before} chunks (can take a while on Ollama)...")
     chunks = dedupe_chunks_by_embedding(chunks)
-    print(
+    log(
         f"Deduped chunks: {before} -> {len(chunks)} "
         f"(embedding_dedup={'on' if config.EMBEDDING_DEDUP_ENABLED else 'minhash-only'})."
     )
     write_jsonl(chunks, args.output)
-    print(f"Wrote {len(chunks)} chunks to {args.output} ({semantic_sections} sections used semantic breakpoints).")
+    log(f"Wrote {len(chunks)} chunks to {args.output} ({semantic_sections} sections used semantic breakpoints).")
 
 
 if __name__ == "__main__":

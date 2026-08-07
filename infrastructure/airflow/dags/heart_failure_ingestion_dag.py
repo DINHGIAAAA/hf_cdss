@@ -10,41 +10,63 @@ try:
 except ImportError:
     from airflow.operators.bash import BashOperator
 
+try:
+    from airflow.sdk import TaskGroup
+except ImportError:
+    try:
+        from airflow.utils.task_group import TaskGroup
+    except ImportError:
+        from airflow.models.taskgroup import TaskGroup  # type: ignore
+
 
 PROJECT_ROOT = os.environ.get("HF_CDSS_PROJECT_ROOT", "/opt/airflow/project")
 BACKEND_ROOT = f"{PROJECT_ROOT}/backend"
 DATA_ROOT = f"{PROJECT_ROOT}/data/heart_failure"
+# Ephemeral raw staging — not under data/heart_failure/raw
+RAW_ROOT = os.environ.get("HF_CDSS_RAW_ROOT", "/tmp/hf_cdss_raw")
+S3_ENDPOINT_URL = os.environ.get("HF_CDSS_S3_ENDPOINT_URL", "http://localstack:4566")
 PYTHON = "python"
-PIPELINE_TIMEOUT_HOURS = int(os.environ.get("HF_CDSS_AIRFLOW_PIPELINE_TIMEOUT_HOURS", "48"))
-
-# Defaults — check S3 for existing raw data before deciding to skip
-SOURCES_REGISTRY = os.environ.get("HF_CDSS_SOURCES_REGISTRY", f"{DATA_ROOT}/sources/sources.example.json")
-_AIRFLOW_HOME = os.environ.get("AIRFLOW_HOME", "/home/airflow")
-
-
-def _check_raw_data_exists():
-    """Check if raw data already exists in S3, if so skip download."""
-    try:
-        import subprocess
-        result = subprocess.run(
-            ["aws", "s3", "ls", "s3://hf-cdss-raw/heart_failure/"],
-            capture_output=True,
-            text=True,
-            timeout=30,
-            env={**os.environ, "AWS_ENDPOINT_URL": "http://localstack:4566"}
-        )
-        # If any files exist in the S3 prefix, skip download
-        return result.returncode == 0 and len(result.stdout.strip()) > 0
-    except Exception:
-        # If check fails, don't skip (run download)
-        return False
-
-
-SKIP_DOWNLOAD = _check_raw_data_exists()
+PIPELINE_TIMEOUT_HOURS = int(os.environ.get("HF_CDSS_AIRFLOW_PIPELINE_TIMEOUT_HOURS", "72"))
+KG_BASE_TIMEOUT_HOURS = int(os.environ.get("HF_CDSS_AIRFLOW_KG_BASE_TIMEOUT_HOURS", "72"))
+CATALOG_TIMEOUT_HOURS = int(os.environ.get("HF_CDSS_AIRFLOW_CATALOG_TIMEOUT_HOURS", "72"))
+FINALIZE_TIMEOUT_HOURS = int(os.environ.get("HF_CDSS_AIRFLOW_FINALIZE_TIMEOUT_HOURS", "6"))
+LOAD_TIMEOUT_HOURS = int(os.environ.get("HF_CDSS_AIRFLOW_LOAD_TIMEOUT_HOURS", "4"))
+STORE_TIMEOUT_HOURS = int(os.environ.get("HF_CDSS_AIRFLOW_STORE_TIMEOUT_HOURS", "4"))
+SOURCES_REGISTRY = os.environ.get(
+    "HF_CDSS_SOURCES_REGISTRY",
+    f"{DATA_ROOT}/sources/sources.example.json",
+)
 
 
 def data_command(command: str) -> str:
-    return f"mkdir -p {DATA_ROOT} && cd {DATA_ROOT} && PYTHONPATH={PROJECT_ROOT}:{BACKEND_ROOT} {command}"
+    return (
+        f"mkdir -p {DATA_ROOT} {RAW_ROOT} && cd {DATA_ROOT} && "
+        f"PYTHONUNBUFFERED=1 "
+        f"HF_CDSS_DATA_ROOT={DATA_ROOT} HF_CDSS_RAW_ROOT={RAW_ROOT} "
+        f"HF_CDSS_S3_ENDPOINT_URL={S3_ENDPOINT_URL} "
+        f"PYTHONPATH={PROJECT_ROOT}:{BACKEND_ROOT} {command}"
+    )
+
+
+def pipeline_stage(stage: str, extra: str = "") -> str:
+    return data_command(
+        f"{PYTHON} -m scraper.orchestration.run_ingestion_pipeline "
+        f"--stage {stage} --registry {SOURCES_REGISTRY} "
+        f"--s3-endpoint-url {S3_ENDPOINT_URL} {extra}"
+        ' --run-id "{{ run_id }}"'
+    )
+
+
+def extract_phase(phase: str, extra: str = "") -> str:
+    """Run one extract phase; catalog/kg phases force re-execution (no checkpoint skip)."""
+    flags = "--skip-download"
+    if phase == "finalize":
+        flags += " --auto-resume"
+    elif phase != "all":
+        flags += " --force-extract-phase"
+    if extra:
+        flags += f" {extra}"
+    return pipeline_stage("extract", f"--extract-phase {phase} {flags}")
 
 
 default_args = {
@@ -52,56 +74,99 @@ default_args = {
     "depends_on_past": False,
     "retries": 1,
     "retry_delay": timedelta(minutes=5),
+    # Soft default; individual tasks override with longer extract timeouts.
+    "execution_timeout": timedelta(hours=PIPELINE_TIMEOUT_HOURS),
 }
 
 
 with DAG(
     dag_id="heart_failure_kg_ingestion",
-    description="Ingest clinical sources and run the full KG pipeline (zero trigger config).",
+    description=(
+        "S3-first clinical ingestion: acquire → load → extract group "
+        "(kg_base, constraints, dose/interaction/gdmt catalogs) → store."
+    ),
     default_args=default_args,
     start_date=datetime(2026, 1, 1),
     schedule=None,
     catchup=False,
     max_active_runs=1,
-    tags=["hf-cdss", "graphrag", "ingestion"],
+    tags=["hf-cdss", "graphrag", "ingestion", "s3"],
 ) as dag:
-    if SKIP_DOWNLOAD:
-        download_sources = BashOperator(
-            task_id="download_sources",
-            bash_command="echo 'Skipping download (HF_CDSS_INGESTION_SKIP_DOWNLOAD=true). Raw sources expected in S3.'",
+    # Acquire: HTTP/DailyMed → hf-cdss-raw only. Skip re-fetch when objects already exist.
+    acquire = BashOperator(
+        task_id="acquire",
+        execution_timeout=timedelta(hours=3),
+        bash_command=(
+            "set -euo pipefail; "
+            f"if {data_command(f'{PYTHON} -m scraper.orchestration.acquire_preflight --endpoint-url {S3_ENDPOINT_URL}')}; then "
+            "  echo 'Raw S3 populated; acquire will use --skip-download --use-existing'; "
+            f"  {pipeline_stage('acquire', '--skip-download --use-existing --allow-failures')}; "
+            "else "
+            "  echo 'Raw S3 under threshold; downloading sources into S3'; "
+            f"  {pipeline_stage('acquire', '--use-existing --allow-failures')}; "
+            "fi"
+        ),
+    )
+
+    load = BashOperator(
+        task_id="load",
+        execution_timeout=timedelta(hours=LOAD_TIMEOUT_HOURS),
+        bash_command=pipeline_stage("load", "--skip-download --auto-resume"),
+    )
+
+    with TaskGroup(group_id="extract", tooltip="Parse KG base then catalog extract phases") as extract:
+        kg_base = BashOperator(
+            task_id="kg_base",
+            execution_timeout=timedelta(hours=KG_BASE_TIMEOUT_HOURS),
+            bash_command=extract_phase("kg_base"),
         )
-    else:
-        download_sources = BashOperator(
-            task_id="download_sources",
-            execution_timeout=timedelta(hours=3),
-            bash_command=(
-                f"{data_command(PYTHON + f' -m scraper.acquisition.download_sources --registry {SOURCES_REGISTRY} ')}"
-                "--storage s3 "
-                "--s3-bucket ${HF_CDSS_RAW_BUCKET:-hf-cdss-raw} "
-                "--s3-prefix ${HF_CDSS_S3_PREFIX:-heart_failure} "
-                "--s3-endpoint-url ${HF_CDSS_S3_ENDPOINT_URL:-http://localstack:4566} "
-                "--timeout 180 --use-existing --allow-failures"
+
+        with TaskGroup(group_id="catalogs", tooltip="Constraint + governance catalog extracts") as catalogs:
+            constraints = BashOperator(
+                task_id="constraints",
+                execution_timeout=timedelta(hours=CATALOG_TIMEOUT_HOURS),
+                bash_command=extract_phase("constraints"),
+            )
+            dose_rules = BashOperator(
+                task_id="dose_rules",
+                execution_timeout=timedelta(hours=CATALOG_TIMEOUT_HOURS),
+                bash_command=extract_phase("dose_rules"),
+            )
+            dose_safety_warnings = BashOperator(
+                task_id="dose_safety_warnings",
+                execution_timeout=timedelta(hours=max(6, CATALOG_TIMEOUT_HOURS // 2)),
+                bash_command=extract_phase("dose_safety_warnings"),
+            )
+            interaction_rules = BashOperator(
+                task_id="interaction_rules",
+                execution_timeout=timedelta(hours=CATALOG_TIMEOUT_HOURS),
+                bash_command=extract_phase("interaction_rules"),
+            )
+            gdmt_policies = BashOperator(
+                task_id="gdmt_policies",
+                execution_timeout=timedelta(hours=CATALOG_TIMEOUT_HOURS),
+                bash_command=extract_phase("gdmt_policies"),
+            )
+
+            # dose_safety filters structured dose claims → must follow dose_rules
+            dose_rules >> dose_safety_warnings
+
+        finalize = BashOperator(
+            task_id="finalize",
+            execution_timeout=timedelta(hours=FINALIZE_TIMEOUT_HOURS),
+            bash_command=extract_phase("finalize"),
+        )
+
+        kg_base >> catalogs >> finalize
+
+    with TaskGroup(group_id="store", tooltip="Promote artifacts, sync S3, sync Postgres drafts") as store:
+        promote_and_sync = BashOperator(
+            task_id="promote_sync_governance",
+            execution_timeout=timedelta(hours=STORE_TIMEOUT_HOURS),
+            bash_command=pipeline_stage(
+                "store",
+                "--skip-download --no-cleanup-workspace-outputs --cleanup-raw-staging",
             ),
         )
 
-    run_kg_pipeline = BashOperator(
-        task_id="run_kg_pipeline",
-        execution_timeout=timedelta(hours=PIPELINE_TIMEOUT_HOURS),
-        bash_command=(
-            f"{data_command(PYTHON + f' -m scraper.orchestration.run_ingestion_pipeline --registry {SOURCES_REGISTRY} --skip-download --auto-resume ')}"
-            '--run-id "{{ run_id }}"'
-        ),
-    )
-
-    upload_governance_catalogs = BashOperator(
-        task_id="upload_governance_catalogs",
-        execution_timeout=timedelta(minutes=10),
-        bash_command=(
-            f"{data_command(PYTHON + ' -m scraper.store.upload_governance_catalogs_to_s3 ')}"
-            "--bucket ${HF_CDSS_PROCESSED_BUCKET:-hf-cdss-processed} "
-            "--prefix ${HF_CDSS_S3_PREFIX:-heart_failure} "
-            "--endpoint-url ${HF_CDSS_S3_ENDPOINT_URL:-http://localstack:4566}"
-        ),
-    )
-
-    download_sources >> run_kg_pipeline >> upload_governance_catalogs
+    acquire >> load >> extract >> store

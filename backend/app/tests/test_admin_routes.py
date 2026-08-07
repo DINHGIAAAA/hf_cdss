@@ -92,6 +92,47 @@ def test_auth_me_with_session_cookie(monkeypatch, client) -> None:
     assert response.json()["username"] == "lead"
 
 
+def test_auth_me_patch_display_name(monkeypatch, client) -> None:
+    _enable_db_auth(monkeypatch)
+    token = _login(client, "lead")
+    captured: dict = {}
+
+    def fake_update(user_id: str, **kwargs):
+        captured.update(kwargs)
+        return {
+            "id": user_id,
+            "username": "lead",
+            "display_name": kwargs.get("display_name"),
+            "roles": ["clinical_lead"],
+            "is_active": True,
+        }
+
+    monkeypatch.setattr("app.api.routes.auth.update_user", fake_update)
+
+    def fake_get_user_by_id(user_id: str):
+        return {
+            "id": user_id,
+            "username": "lead",
+            "display_name": captured.get("display_name"),
+            "roles": ["clinical_lead"],
+            "is_active": True,
+            "avatar_storage_key": None,
+            "updated_at": "2026-01-01T00:00:00+00:00",
+        }
+
+    monkeypatch.setattr("app.api.routes.auth.get_user_by_id", fake_get_user_by_id)
+
+    response = client.patch(
+        api_path("/auth/me"),
+        json={"display_name": "Dr Lead"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["display_name"] == "Dr Lead"
+    assert captured["display_name"] == "Dr Lead"
+
+
 def test_admin_evidence_requires_admin_role(monkeypatch, client) -> None:
     _enable_db_auth(monkeypatch)
     token = _login(client, "viewer")

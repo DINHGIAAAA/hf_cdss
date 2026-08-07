@@ -17,6 +17,7 @@ class ArticleHTMLParser(HTMLParser):
         self.capture_tag: str | None = None
         self.current: list[str] = []
         self.blocks: list[tuple[str, str]] = []
+        self.short_blocks: list[tuple[str, str]] = []  # capture <20-char blocks separately
         self.skip_depth = 0
 
     def handle_starttag(self, tag: str, attrs) -> None:
@@ -38,6 +39,8 @@ class ArticleHTMLParser(HTMLParser):
             text = re.sub(r"\s+", " ", text).strip()
             if len(text) >= 20:
                 self.blocks.append((tag, text))
+            else:
+                self.short_blocks.append((tag, text))
             self.capture_tag = None
             self.current = []
 
@@ -52,27 +55,45 @@ def load_registry(path: Path | None) -> dict[str, dict]:
     rows = {}
     for source in registry.get("sources", []):
         target_path = str(source.get("target_path", "")).replace("\\", "/")
+        if not target_path:
+            continue
         rows[target_path] = source
-        rows[Path(target_path).name] = source
+        name = Path(target_path).name
+        stem = Path(target_path).stem
+        rows[name] = source
+        rows[stem] = source
+        # HTML siblings of PDF targets (same stem) must resolve during HTML parse.
+        rows[f"{stem}.html"] = source
+        rows[f"{stem}.htm"] = source
     return rows
 
 def source_metadata(path: Path, registry: dict[str, dict]) -> dict:
-    source = registry.get(path.name) or registry.get(path.as_posix()) or {}
+    source = (
+        registry.get(path.name)
+        or registry.get(path.stem)
+        or registry.get(path.as_posix())
+        or {}
+    )
     if not source:
         normalized_path = path.as_posix()
         for target_path, row in registry.items():
             if "/" in target_path and normalized_path.endswith(target_path):
                 source = row
                 break
+            if Path(target_path).stem == path.stem:
+                source = row
+                break
     citation = source.get("title") or path.stem
     publisher = source.get("publisher")
     if publisher:
         citation = f"{citation}. {publisher}."
+    # Prefer html_url when parsing HTML artifacts; fall back to canonical url.
+    source_url = source.get("html_url") or source.get("url")
     return {
         "source_id": source.get("source_id") or path.stem,
         "source": "guideline_html",
         "source_type": "guideline",
-        "source_url": source.get("url"),
+        "source_url": source_url,
         "publisher": publisher,
         "title": source.get("title") or path.stem,
         "citation": citation,
@@ -99,6 +120,11 @@ def parse_sections(path: Path, registry: dict[str, dict]) -> list[dict]:
             current_heading = text[:180].upper()
         else:
             current_text.append(text)
+
+    # Short blocks (<20 chars) are appended to the current section — they are
+    # often safety flags, dosage markers, or callouts that belong with context.
+    for tag, text in parser.short_blocks:
+        current_text.append(text)
 
     if current_text:
         sections.append(_section_record(path, metadata, current_heading, current_text))
@@ -131,17 +157,25 @@ def _section_record(path: Path, metadata: dict, section: str, lines: list[str]) 
     }
 
 def main() -> None:
+    from scraper.paths import guidelines_dir
+
     parser = argparse.ArgumentParser(description="Parse guideline HTML pages to JSONL.")
-    parser.add_argument("--input-dir", default="raw/guidelines", type=Path)
+    parser.add_argument(
+        "--input-dir",
+        default=None,
+        type=Path,
+        help="Guideline HTML root (default: HF_CDSS_RAW_ROOT/guidelines).",
+    )
     parser.add_argument("--registry", default="sources/sources.example.json", type=Path)
     parser.add_argument("--sections-output", default="processed/sections/guideline_html_sections.jsonl", type=Path)
     args = parser.parse_args()
+    input_dir = args.input_dir or guidelines_dir()
 
     registry = load_registry(args.registry)
-    html_paths = sorted(args.input_dir.glob("**/*.html"))
+    html_paths = sorted(input_dir.glob("**/*.html"))
     sections: list[dict] = []
 
-    print(f"Parsing {len(html_paths)} HTML files...")
+    print(f"Parsing {len(html_paths)} HTML files from {input_dir}...")
     for path in tqdm(html_paths, desc="Parsing HTML files"):
         try:
             sections.extend(parse_sections(path, registry))

@@ -1,33 +1,22 @@
-"""Build GDMT recommendation policies from structured claims and bundled baseline."""
+"""Build GDMT recommendation policies from structured claims extracted during ingestion."""
 
 from __future__ import annotations
 
-import hashlib
-import json
-import re
-from pathlib import Path
 from typing import Any
+
+from scraper.semantic.stable_ids import stable_id
+
+try:
+    from app.modules.gdmt_policy.guidance_normalize import normalize_policy_body
+except ImportError:
+    def normalize_policy_body(body):  # type: ignore[misc]
+        return body or {}
 
 REQUIRED_FIELDS = ("drug_class_key", "display_label", "policy_body")
 
 
-def slug(value: str) -> str:
-    value = re.sub(r"[^a-zA-Z0-9]+", "_", value or "").strip("_").lower()
-    return value or "unknown"
-
-
 def gdmt_policy_id(parts: list[str]) -> str:
-    base = "_".join(slug(part) for part in parts if part)
-    digest = hashlib.sha1(base.encode("utf-8")).hexdigest()[:8]
-    return f"gdmt_{base[:60]}_{digest}"
-
-
-def _bundled_baseline() -> list[dict[str, Any]]:
-    path = Path(__file__).resolve().parents[2] / "backend/app/modules/gdmt_policy/rules/hf_gdmt_policy_v1.json"
-    if not path.is_file():
-        return []
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    return list(payload.get("policies") or [])
+    return stable_id(*parts[:1], uniqueness=list(parts[1:]), prefix="gdmt", max_label_len=32)
 
 
 STABLE_POLICY_IDS = {
@@ -43,26 +32,33 @@ def build_gdmt_policy_from_claim(claim: dict[str, Any]) -> dict[str, Any] | None
         return None
     drug_class_key = claim.get("drug_class_key") or claim.get("drug_class")
     display_label = claim.get("display_label") or claim.get("label")
-    policy_body = claim.get("policy_body") or {}
+    policy_body = normalize_policy_body(claim.get("policy_body") or {})
     if not drug_class_key or not display_label:
         return None
     if not policy_body.get("guidance"):
-        policy_body = {
-            "med_detection_terms": list(claim.get("med_detection_terms") or []),
-            "warning_targets": list(claim.get("warning_targets") or []),
-            "aliases": list(claim.get("aliases") or []),
-            "hfref_default_status": claim.get("hfref_default_status") or "consider",
-            "non_hfref_status": claim.get("non_hfref_status") or "review",
-            "guidance": {
-                "reasoning_base": [str(claim.get("evidence") or claim.get("message") or "")[:500]],
-                "actions": list(claim.get("actions") or []),
-                "monitoring": list(claim.get("monitoring") or []),
-            },
-        }
+        policy_body = normalize_policy_body(
+            {
+                "med_detection_terms": list(claim.get("med_detection_terms") or []),
+                "warning_targets": list(claim.get("warning_targets") or []),
+                "aliases": list(claim.get("aliases") or []),
+                "hfref_default_status": claim.get("hfref_default_status") or "consider",
+                "non_hfref_status": claim.get("non_hfref_status") or "review",
+                "guidance": {
+                    "reasoning_base": [str(claim.get("evidence") or claim.get("message") or "")[:500]],
+                    "actions": list(claim.get("actions") or []),
+                    "monitoring": list(claim.get("monitoring") or []),
+                },
+            }
+        )
     policy_id = (
         claim.get("gdmt_policy_id")
         or STABLE_POLICY_IDS.get(str(drug_class_key))
-        or gdmt_policy_id([drug_class_key, display_label])
+        or stable_id(
+            drug_class_key,
+            uniqueness=[display_label, claim.get("claim_id")],
+            prefix="gdmt",
+            max_label_len=32,
+        )
     )
     return {
         "rule_id": policy_id,
@@ -114,25 +110,11 @@ def _merge_policy_body(existing: dict[str, Any], incoming: dict[str, Any]) -> di
             merged[key] = combined
         else:
             merged[key] = value
-    return merged
+    return normalize_policy_body(merged)
 
 
 def gdmt_policies_from_claims(claims: list[dict]) -> list[dict]:
     by_id: dict[str, dict[str, Any]] = {}
-    for baseline in _bundled_baseline():
-        policy_id = baseline["gdmt_policy_id"]
-        by_id[policy_id] = {
-            "rule_id": policy_id,
-            "gdmt_policy_id": policy_id,
-            "drug_class_key": baseline["drug_class_key"],
-            "display_label": baseline["display_label"],
-            "sort_order": baseline.get("sort_order", 0),
-            "policy_body": baseline.get("policy_body") or {},
-            "evidence_ref": baseline.get("evidence_ref"),
-            "source_refs": [],
-            "extraction_method": "bundled_baseline",
-            "source_confidence": 1.0,
-        }
     for claim in claims:
         built = build_gdmt_policy_from_claim(claim)
         if not built:

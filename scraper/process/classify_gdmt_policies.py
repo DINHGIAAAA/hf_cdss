@@ -7,79 +7,12 @@ import json
 from pathlib import Path
 from typing import Any
 
+from app.modules.gdmt_policy.guidance_normalize import normalize_guidance, normalize_policy_body
 from scraper.semantic.gdmt_policy_builder import REQUIRED_FIELDS
 
 
-def normalize_guidance(guidance: Any) -> dict[str, Any]:
-    """
-    Normalize guidance into a consistent dictionary format.
-
-    Supported input formats:
-      1. dict
-      2. list[dict]
-      3. list[str]
-      4. None / invalid
-
-    Returns:
-        {
-            "reasoning_base": list,
-            "actions": list,
-            "monitoring": list
-        }
-    """
-
-    default = {
-        "reasoning_base": [],
-        "actions": [],
-        "monitoring": [],
-    }
-
-    if guidance is None:
-        return default
-
-    # Already correct
-    if isinstance(guidance, dict):
-        return {
-            "reasoning_base": guidance.get("reasoning_base") or [],
-            "actions": guidance.get("actions") or [],
-            "monitoring": guidance.get("monitoring") or [],
-        }
-
-    # guidance is list
-    if isinstance(guidance, list):
-        if not guidance:
-            return default
-
-        # list of objects
-        if all(isinstance(item, dict) for item in guidance):
-            reasoning = []
-            actions = []
-            monitoring = []
-
-            for item in guidance:
-                reasoning.extend(item.get("reasoning_base") or [])
-                actions.extend(item.get("actions") or [])
-                monitoring.extend(item.get("monitoring") or [])
-
-            return {
-                "reasoning_base": reasoning,
-                "actions": actions,
-                "monitoring": monitoring,
-            }
-
-        # list of strings
-        if all(isinstance(item, str) for item in guidance):
-            return {
-                "reasoning_base": guidance,
-                "actions": [],
-                "monitoring": [],
-            }
-
-    return default
-
-
 def gdmt_policy_tier(policy: dict[str, Any]) -> str:
-    body = policy.get("policy_body") or {}
+    body = normalize_policy_body(policy.get("policy_body") or {})
     guidance = normalize_guidance(body.get("guidance"))
 
     if not all(policy.get(field) for field in REQUIRED_FIELDS):
@@ -99,6 +32,7 @@ def gdmt_policy_tier(policy: dict[str, Any]) -> str:
 
 def annotate(policy: dict[str, Any], tier: str) -> dict[str, Any]:
     output = dict(policy)
+    output["policy_body"] = normalize_policy_body(output.get("policy_body") or {})
     output["safety_tier"] = tier
     output["recommendation_use"] = (
         "executable_gdmt_policy"

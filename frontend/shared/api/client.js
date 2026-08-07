@@ -1,8 +1,33 @@
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 const API_PREFIX = "/api/v1";
+export const API_FETCH_TIMEOUT_MS = 15_000;
+export const CHAT_STREAM_TIMEOUT_MS = 600_000;
 
 function withCredentials(options = {}) {
   return { credentials: "include", ...options };
+}
+
+function fetchWithTimeout(url, options = {}) {
+  const { timeoutMs = API_FETCH_TIMEOUT_MS, signal: userSignal, ...rest } = options;
+  const controller = new AbortController();
+  let timeoutId;
+  if (typeof timeoutMs === "number" && timeoutMs > 0) {
+    timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  }
+
+  if (userSignal) {
+    if (userSignal.aborted) {
+      controller.abort();
+    } else {
+      userSignal.addEventListener("abort", () => controller.abort(), { once: true });
+    }
+  }
+
+  return fetch(url, { ...rest, signal: controller.signal }).finally(() => {
+    if (timeoutId !== undefined) {
+      clearTimeout(timeoutId);
+    }
+  });
 }
 
 export function apiUrl(path) {
@@ -25,10 +50,12 @@ export function apiHeaders(extra = {}) {
 }
 
 export function apiFetch(path, options = {}) {
-  const { headers, ...rest } = options;
-  return fetch(apiUrl(path), {
+  const { headers, timeoutMs, signal, ...rest } = options;
+  return fetchWithTimeout(apiUrl(path), {
     credentials: "include",
     ...rest,
+    signal,
+    timeoutMs,
     headers: apiHeaders(headers),
   });
 }
@@ -55,11 +82,12 @@ async function parseResponse(response) {
 }
 
 export async function apiGet(path, options = {}) {
-  const { signal, ...rest } = options;
-  const response = await fetch(apiUrl(path), {
+  const { signal, timeoutMs, ...rest } = options;
+  const response = await fetchWithTimeout(apiUrl(path), {
     method: "GET",
     headers: apiHeaders(),
     signal,
+    timeoutMs,
     ...withCredentials(rest),
   });
   return parseResponse(response);
@@ -101,6 +129,17 @@ export async function apiPostForm(path, formData, options = {}) {
   return parseResponse(response);
 }
 
+export async function apiDelete(path, options = {}) {
+  const { signal, ...rest } = options;
+  const response = await fetch(apiUrl(path), {
+    method: "DELETE",
+    headers: apiHeaders(),
+    signal,
+    ...withCredentials(rest),
+  });
+  return parseResponse(response);
+}
+
 export async function login(username, password) {
   const form = new URLSearchParams();
   form.set("username", username);
@@ -109,7 +148,26 @@ export async function login(username, password) {
 }
 
 export async function fetchCurrentUser() {
-  return apiGet("/auth/me");
+  return apiGet("/auth/me", { timeoutMs: API_FETCH_TIMEOUT_MS });
+}
+
+export async function updateMyProfile(body) {
+  return apiPatch("/auth/me", body);
+}
+
+export async function uploadMyAvatar(file) {
+  const form = new FormData();
+  form.append("file", file);
+  const response = await fetchWithTimeout(apiUrl("/auth/me/avatar"), {
+    method: "POST",
+    credentials: "include",
+    body: form,
+  });
+  return parseResponse(response);
+}
+
+export async function deleteMyAvatar() {
+  return apiDelete("/auth/me/avatar");
 }
 
 export async function logout() {

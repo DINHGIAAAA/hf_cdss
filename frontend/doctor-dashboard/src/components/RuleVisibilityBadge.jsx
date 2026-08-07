@@ -8,8 +8,14 @@ export function RuleVisibilityBadge({ status, title, compact = false }) {
       className={`visibility-badge visibility-badge--${visibility.tone}`}
       title={title || visibility.hint}
     >
-      {compact ? visibility.shortLabel : visibility.label}
-      {!compact && <small>{visibility.shortLabel}</small>}
+      {compact ? (
+        visibility.shortLabel
+      ) : (
+        <>
+          <span className="visibility-badge__primary">{visibility.label}</span>
+          <small className="visibility-badge__secondary">{visibility.shortLabel}</small>
+        </>
+      )}
     </span>
   );
 }

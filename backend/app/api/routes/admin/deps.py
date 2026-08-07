@@ -26,13 +26,18 @@ async def get_current_admin_user(token: str = Depends(get_access_token)) -> Admi
     return AdminUser(id=user["id"], username=user.get("username"), roles=user["roles"])
 
 
+def ensure_role(user: AdminUser, required_role: str) -> None:
+    """Raise 403 if *user* lacks *required_role* (for use outside Depends)."""
+    if required_role not in user.roles:
+        raise HTTPException(
+            status_code=403,
+            detail=f"User does not have the required '{required_role}' role",
+        )
+
+
 def require_role(required_role: str):
     async def role_checker(user: AdminUser = Depends(get_current_admin_user)) -> AdminUser:
-        if required_role not in user.roles:
-            raise HTTPException(
-                status_code=403,
-                detail=f"User does not have the required '{required_role}' role",
-            )
+        ensure_role(user, required_role)
         return user
 
     return role_checker

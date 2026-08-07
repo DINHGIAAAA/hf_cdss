@@ -19,7 +19,9 @@ import {
   ToolGroupRoot,
   ToolGroupTrigger,
 } from "@/components/tool-group";
+import { ClinicalStreamProgress } from "@/components/ClinicalStreamProgress";
 import { TooltipIconButton } from "@/components/tooltip-icon-button";
+import { useStreamProgress } from "@/context/StreamProgressContext.jsx";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/i18n/LanguageProvider.jsx";
@@ -46,7 +48,6 @@ import {
   DownloadIcon,
   MicIcon,
   MoreHorizontalIcon,
-  PencilIcon,
   RefreshCwIcon,
   SquareIcon,
 } from "lucide-react";
@@ -166,8 +167,7 @@ const ThreadWelcome = () => {
 
 const ThreadSuggestions = () => {
   return (
-    <div
-      className="aui-thread-welcome-suggestions flex w-full flex-wrap items-center justify-center gap-2 px-4">
+    <div className="aui-thread-welcome-suggestions grid w-full max-w-2xl grid-cols-1 gap-2 px-1 sm:grid-cols-2">
       <ThreadPrimitive.Suggestions>
         {() => <ThreadSuggestionItem />}
       </ThreadPrimitive.Suggestions>
@@ -177,14 +177,13 @@ const ThreadSuggestions = () => {
 
 const ThreadSuggestionItem = () => {
   return (
-    <div
-      className="aui-thread-welcome-suggestion-display fade-in slide-in-from-bottom-2 animate-in fill-mode-both duration-200">
+    <div className="aui-thread-welcome-suggestion-display fade-in slide-in-from-bottom-2 animate-in col-span-1 fill-mode-both duration-200">
       <SuggestionPrimitive.Trigger send asChild>
         <Button
-          variant="ghost"
-          className="aui-thread-welcome-suggestion text-foreground hover:bg-muted border-border/60 h-auto gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-normal whitespace-nowrap transition-colors">
-          <SuggestionPrimitive.Title className="aui-thread-welcome-suggestion-text-1" />
-          <SuggestionPrimitive.Description className="aui-thread-welcome-suggestion-text-2 empty:hidden" />
+          variant="outline"
+          className="aui-thread-welcome-suggestion text-foreground hover:border-primary/30 hover:bg-muted/80 border-border/60 h-auto min-h-10 w-full cursor-pointer justify-start gap-1.5 rounded-xl border px-3.5 py-2.5 text-left text-sm font-normal whitespace-normal transition-colors duration-200">
+          <SuggestionPrimitive.Title className="aui-thread-welcome-suggestion-text-1 leading-snug" />
+          <SuggestionPrimitive.Description className="aui-thread-welcome-suggestion-text-2 empty:hidden text-xs text-muted-foreground" />
         </Button>
       </SuggestionPrimitive.Trigger>
     </div>
@@ -296,10 +295,13 @@ const MessageError = () => {
 
 const AssistantMessage = () => {
   const { t } = useLanguage();
+  const streamProgress = useStreamProgress();
   const {
     ToolFallback: ToolFallbackComponent = ToolFallback,
     ToolGroup,
     ReasoningGroup,
+    TextPart = MarkdownText,
+    hideBranchPicker = false,
   } = useContext(ThreadComponentsContext);
 
   // reserves space for action bar and compensates with `-mb` for consistent msg spacing
@@ -352,7 +354,7 @@ const AssistantMessage = () => {
                 );
               }
               case "text":
-                return <MarkdownText />;
+                return <TextPart />;
               case "reasoning":
                 return <Reasoning {...part} />;
               case "tool-call":
@@ -360,6 +362,15 @@ const AssistantMessage = () => {
               case "data":
                 return part.dataRendererUI;
               case "indicator":
+                if (streamProgress?.step) {
+                  return (
+                    <ClinicalStreamProgress
+                      compact
+                      label={streamProgress.label}
+                      step={streamProgress.step}
+                    />
+                  );
+                }
                 return (
                   <span
                     data-slot="aui_assistant-message-indicator"
@@ -378,7 +389,7 @@ const AssistantMessage = () => {
       <div
         data-slot="aui_assistant-message-footer"
         className={cn("ms-2 flex items-center", ACTION_BAR_HEIGHT)}>
-        <BranchPicker />
+        {hideBranchPicker ? null : <BranchPicker />}
         <AssistantActionBar />
       </div>
     </MessagePrimitive.Root>
@@ -432,6 +443,7 @@ const AssistantActionBar = () => {
 };
 
 const UserMessage = () => {
+  const { hideBranchPicker } = useContext(ThreadComponentsContext);
   return (
     <MessagePrimitive.Root
       data-slot="aui_user-message-root"
@@ -443,31 +455,14 @@ const UserMessage = () => {
           className="aui-user-message-content peer bg-muted text-foreground rounded-xl px-4 py-2 wrap-break-word empty:hidden">
           <MessagePrimitive.Parts />
         </div>
-        <div
-          className="aui-user-action-bar-wrapper absolute start-0 top-1/2 -translate-x-full -translate-y-1/2 pe-2 peer-empty:hidden rtl:translate-x-full">
-          <UserActionBar />
-        </div>
       </div>
-      <BranchPicker
-        data-slot="aui_user-branch-picker"
-        className="col-span-full col-start-1 row-start-3 -me-1 justify-end" />
+      {hideBranchPicker ? null : (
+        <BranchPicker
+          data-slot="aui_user-branch-picker"
+          className="col-span-full col-start-1 row-start-3 -me-1 justify-end"
+        />
+      )}
     </MessagePrimitive.Root>
-  );
-};
-
-const UserActionBar = () => {
-  const { t } = useLanguage();
-  return (
-    <ActionBarPrimitive.Root
-      hideWhenRunning
-      autohide="not-last"
-      className="aui-user-action-bar-root flex flex-col items-end">
-      <ActionBarPrimitive.Edit asChild>
-        <TooltipIconButton tooltip={t("thread.edit")} className="aui-user-action-edit">
-          <PencilIcon />
-        </TooltipIconButton>
-      </ActionBarPrimitive.Edit>
-    </ActionBarPrimitive.Root>
   );
 };
 

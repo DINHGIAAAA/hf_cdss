@@ -38,6 +38,10 @@ class GraphRAGContextRequest(BaseModel):
     conversation_history: list[str] | None = None
     clinical_state: dict[str, Any] | None = None
     constraint_chunk_ids: list[str] = Field(default_factory=list)
+    retrieval_profile: str | None = Field(
+        default=None,
+        description="fast | balanced | quality; default from HF_CDSS_GRAPHRAG_DEFAULT_RETRIEVAL_PROFILE",
+    )
 
 
 class GraphRAGContextResponse(BaseModel):

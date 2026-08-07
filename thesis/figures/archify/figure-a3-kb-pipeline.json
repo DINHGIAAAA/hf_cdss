@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "Knowledge-Base Construction",
+    "subtitle": "Offline ingestion from SPL and guidelines to governed catalogs",
+    "quality_profile": "showcase",
+    "viewBox": [1100, 680]
+  },
+  "stages": [
+    { "label": "Sources" },
+    { "label": "Acquire" },
+    { "label": "Extract" },
+    { "label": "Store" },
+    { "label": "Bootstrap" }
+  ],
+  "nodes": [
+    { "id": "sources", "type": "external", "label": "Sources", "sublabel": "SPL + HF guidelines", "stage": 0, "row": 1 },
+    { "id": "acquire", "type": "cloud", "label": "Acquire", "sublabel": "S3 raw bucket", "stage": 1, "row": 1 },
+    { "id": "extract-kg", "type": "backend", "label": "KG base", "sublabel": "chunks, entities, claims", "stage": 2, "row": 0 },
+    { "id": "extract-catalogs", "type": "backend", "label": "Governance catalogs", "sublabel": "dose, CI, GDMT rules", "stage": 2, "row": 2 },
+    { "id": "s3-processed", "type": "cloud", "label": "S3 processed", "sublabel": "versioned artifacts", "stage": 3, "row": 0 },
+    { "id": "postgres", "type": "database", "label": "PostgreSQL", "sublabel": "direct catalog sync", "stage": 3, "row": 2 },
+    { "id": "bootstrap", "type": "backend", "label": "Backend bootstrap", "sublabel": "startup index load", "stage": 4, "row": 1 },
+    { "id": "chroma", "type": "database", "label": "ChromaDB", "sublabel": "chunk embeddings", "stage": 4, "row": 0 },
+    { "id": "neo4j", "type": "database", "label": "Neo4j", "sublabel": "entity import", "stage": 4, "row": 2 }
+  ],
+  "flows": [
+    { "id": "f1", "from": "sources", "to": "acquire", "label": "download", "variant": "emphasis" },
+    { "id": "f2", "from": "acquire", "to": "extract-kg", "label": "parse sections" },
+    { "id": "f3", "from": "acquire", "to": "extract-catalogs", "label": "classify rules" },
+    { "id": "f4", "from": "extract-kg", "to": "s3-processed", "label": "promote artifacts" },
+    { "id": "f5", "from": "extract-catalogs", "to": "postgres", "label": "sync catalogs", "variant": "security" },
+    { "id": "f6", "from": "s3-processed", "to": "bootstrap", "label": "pull on startup", "variant": "dashed" },
+    { "id": "f7", "from": "bootstrap", "to": "chroma", "label": "index vectors" },
+    { "id": "f8", "from": "bootstrap", "to": "neo4j", "label": "import graph" }
+  ],
+  "cards": [
+    { "dot": "emerald", "title": "Governance", "items": ["PostgreSQL catalogs are authoritative at runtime", "S3 retains artifacts for multi-instance bootstrap"] }
+  ]
+}

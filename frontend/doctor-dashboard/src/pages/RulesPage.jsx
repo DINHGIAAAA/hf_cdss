@@ -6,8 +6,16 @@ import { useAuth } from "../auth/AuthContext";
 import { RuleDetail } from "../components/RuleDetail.jsx";
 import { RuleVisibilityBadge } from "../components/RuleVisibilityBadge.jsx";
 import { ruleVisibilityMeta, tabVisibilityBanner } from "../utils/ruleVisibility.js";
-import { ApprovalToolbar } from "@shared/governance/ApprovalToolbar.jsx";
+import { CatalogApprovalToolbar } from "@shared/governance/CatalogApprovalToolbar.jsx";
 import { CONSTRAINT_CATALOG } from "@shared/governance/catalogConfig.js";
+import { CatalogRecordLabel } from "@shared/governance/CatalogRecordLabel.jsx";
+import { constraintRuleTitle, shortCatalogId } from "@shared/governance/displayNames.js";
+import { CatalogPagination } from "@shared/governance/CatalogPagination.jsx";
+import { CATALOG_PAGE_SIZE } from "@shared/governance/catalogPagination.js";
+import { fetchCatalogListWithCounts } from "@shared/governance/fetchCatalogListWithCounts.js";
+import { useCatalogBulkApprove } from "@shared/governance/useCatalogBulkApprove.js";
+import { useCatalogListPage } from "@shared/governance/useCatalogListPage.js";
+import { StatusCountCards, statusTabLabel } from "@shared/governance/StatusCountCards.jsx";
 import { useRuleSelection } from "@shared/governance/useRuleSelection.js";
 
 const STATUS_TABS = [
@@ -20,6 +28,8 @@ const STATUS_TABS = [
 const EMPTY_FILTERS = {
   target_drug_class: "",
   action: "",
+  safety_tier: "",
+  needs_condition: "",
   q: "",
 };
 
@@ -27,6 +37,17 @@ function statusClass(status) {
   if (status === "approved") return "success";
   if (status === "draft") return "warning";
   return "danger";
+}
+
+function needsConditionBadge(rule) {
+  const meta = rule?.metadata || {};
+  if (meta.needs_condition === true || meta.safety_tier === "needs_condition_refinement") {
+    return <span className="badge warning">Needs condition</span>;
+  }
+  if (meta.safety_tier === "usable_rules") {
+    return <span className="badge success">Usable</span>;
+  }
+  return null;
 }
 
 export function RulesPage() {
@@ -42,6 +63,7 @@ export function RulesPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [bulkLoading, setBulkLoading] = useState(false);
   const [toast, setToast] = useState("");
+  const { page, setPage, pageSize } = useCatalogListPage(tab, appliedFilters);
 
   const canApprove = isAuthenticated && hasRole("clinical_lead");
   const canAdmin = isAuthenticated && hasRole("admin");
@@ -49,12 +71,18 @@ export function RulesPage() {
   const tabBanner = tabVisibilityBanner(tab);
 
   const loadRules = useCallback(async () => {
+    if (!canRead) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError("");
     try {
-      const result = await adminApi.listRules({
-        status: tab === "all" ? undefined : tab,
-        ...appliedFilters,
+      const result = await fetchCatalogListWithCounts(adminApi.listRules, {
+        tab,
+        filters: appliedFilters,
+        page,
+        pageSize,
       });
       setData(result);
     } catch (err) {
@@ -62,7 +90,7 @@ export function RulesPage() {
     } finally {
       setLoading(false);
     }
-  }, [tab, appliedFilters]);
+  }, [tab, appliedFilters, page, pageSize, canRead]);
 
   useEffect(() => {
     loadRules();
@@ -77,6 +105,19 @@ export function RulesPage() {
     clearSelection,
     selectedCount,
   } = useRuleSelection(items);
+
+  const { handleBulkApprove, handleBulkApproveAll } = useCatalogBulkApprove({
+    catalog: CONSTRAINT_CATALOG,
+    adminApi,
+    appliedFilters,
+    selectedIds,
+    clearSelection,
+    loadRules,
+    setToast,
+    setBulkLoading,
+  });
+
+  const draftMatchCount = tab === "draft" ? (data?.total ?? 0) : 0;
 
   const activeFilterCount = useMemo(
     () => Object.values(appliedFilters).filter(Boolean).length,
@@ -116,25 +157,6 @@ export function RulesPage() {
     }
   }
 
-  async function handleBulkApprove() {
-    setBulkLoading(true);
-    setToast("");
-    try {
-      const payload = {
-        rule_ids: [...selectedIds],
-        ...Object.fromEntries(Object.entries(appliedFilters).filter(([, value]) => Boolean(value))),
-      };
-      const result = await adminApi.bulkApproveConstraints(payload);
-      setToast(result.message);
-      clearSelection();
-      await loadRules();
-    } catch (err) {
-      setToast(err.message);
-    } finally {
-      setBulkLoading(false);
-    }
-  }
-
   return (
     <div className="admin-page">
       <header className="admin-page-header">
@@ -147,29 +169,24 @@ export function RulesPage() {
         </button>
       </header>
 
-      {!isAuthenticated && (
+      {!canRead && (
         <div className="admin-banner warning" role="status">
-          Sign in with a <strong>clinical_lead</strong> or <strong>admin</strong> account to approve or retire rules.
+          Sign in with a <strong>clinical_lead</strong> or <strong>admin</strong> account to review counts and approve or retire rules.
         </div>
       )}
 
-      <div className="admin-stats">
-        <div className="stat-card">
-          <span>Draft</span>
-          <strong>{data?.draft_count ?? "—"}</strong>
-          <small className="stat-hint">Admin only</small>
-        </div>
-        <div className="stat-card">
-          <span>Approved</span>
-          <strong>{data?.approved_count ?? "—"}</strong>
-          <small className="stat-hint">Live in chat</small>
-        </div>
-        <div className="stat-card">
-          <span>Retired</span>
-          <strong>{data?.retired_count ?? "—"}</strong>
-          <small className="stat-hint">Not in chat</small>
-        </div>
-      </div>
+      <StatusCountCards
+        activeTab={tab}
+        approvedCount={loading && !data ? undefined : (data?.approved_count ?? 0)}
+        draftCount={loading && !data ? undefined : (data?.draft_count ?? 0)}
+        hints={{
+          draft: "Admin only",
+          approved: "Live in chat",
+          retired: "Not in chat",
+        }}
+        onSelect={setTab}
+        retiredCount={loading && !data ? undefined : (data?.retired_count ?? 0)}
+      />
 
       <div className="tab-row" role="tablist">
         {STATUS_TABS.map((item) => (
@@ -181,34 +198,34 @@ export function RulesPage() {
             role="tab"
             type="button"
           >
-            {item.label}
+            {statusTabLabel(item.id, item.label, data)}
           </button>
         ))}
       </div>
 
-      <ApprovalToolbar
+      <CatalogApprovalToolbar
         allVisibleSelected={allVisibleSelected}
         bulkLoading={bulkLoading}
         canBulkApprove={canApprove}
         catalog={CONSTRAINT_CATALOG}
+        draftMatchCount={draftMatchCount}
+        fetchFilterOptions={adminApi.getCatalogFilterOptions}
         filters={filters}
         onApplyFilters={() => setAppliedFilters({ ...filters })}
         onBulkApprove={handleBulkApprove}
+        onBulkApproveAll={handleBulkApproveAll}
         onClearFilters={() => {
           setFilters(EMPTY_FILTERS);
           setAppliedFilters(EMPTY_FILTERS);
         }}
-        onFilterChange={(key, value) => setFilters((prev) => ({ ...prev, [key]: value }))}
         onToggleAll={toggleAllVisible}
+        activeFilterCount={activeFilterCount}
+        resultsCount={data?.total ?? items.length}
         selectedCount={selectedCount}
+        setFilters={setFilters}
+        tab={tab}
         showBulk={tab === "draft"}
       />
-
-      {activeFilterCount > 0 && (
-        <p className="gov-filter-summary" role="status">
-          {activeFilterCount} filter(s) active · {items.length} result(s)
-        </p>
-      )}
 
       <div className={`admin-banner rule-visibility-banner ${tabBanner.tone}`} role="status">
         <strong>{tabBanner.title}</strong>
@@ -226,8 +243,7 @@ export function RulesPage() {
         </p>
       )}
 
-      <div className={`admin-split${selectedRule ? " admin-split--open" : ""}`}>
-        <section className="admin-table-panel">
+      <section className="admin-table-panel">
           {loading ? (
             <div className="admin-empty" aria-busy="true">
               <LoaderCircle className="spin" size={24} />
@@ -239,16 +255,8 @@ export function RulesPage() {
               <p>Run the ingestion pipeline to generate draft constraint rules.</p>
             </div>
           ) : (
+            <>
             <table className="admin-table admin-table--rules">
-              <colgroup>
-                {tab === "draft" && <col className="col-select" />}
-                <col className="col-constraint" />
-                <col className="col-action" />
-                <col className="col-status" />
-                <col className="col-visibility" />
-                <col className="col-target" />
-                <col className="col-actions" />
-              </colgroup>
               <thead>
                 <tr>
                   {tab === "draft" && <th>Select</th>}
@@ -256,8 +264,9 @@ export function RulesPage() {
                   <th>Action</th>
                   <th>Status</th>
                   <th>Visibility</th>
+                  <th>Tier</th>
                   <th>Drug class</th>
-                  <th />
+                  <th className="admin-col-actions">Review</th>
                 </tr>
               </thead>
               <tbody>
@@ -277,11 +286,15 @@ export function RulesPage() {
                           ) : null}
                         </td>
                       )}
-                      <td className="cell-ellipsis" title={rule.constraint_id}>
-                        <strong>{rule.constraint_id}</strong>
-                        <small>v{rule.version}</small>
+                      <td>
+                        <CatalogRecordLabel
+                          id={shortCatalogId(rule.constraint_id)}
+                          meta={`v${rule.version}`}
+                          title={constraintRuleTitle(rule)}
+                          titleAttr={rule.constraint_id}
+                        />
                       </td>
-                      <td className="cell-ellipsis" title={rule.action}>
+                      <td className="cell-clamp" title={rule.action}>
                         {rule.action}
                       </td>
                       <td>
@@ -290,10 +303,11 @@ export function RulesPage() {
                       <td>
                         <RuleVisibilityBadge status={rule.status} title={visibility.hint} />
                       </td>
-                      <td className="cell-ellipsis" title={rule.target_drug_class || undefined}>
+                      <td>{needsConditionBadge(rule) || "—"}</td>
+                      <td className="cell-clamp" title={rule.target_drug_class || undefined}>
                         {rule.target_drug_class || "—"}
                       </td>
-                      <td>
+                      <td className="admin-col-actions">
                         <button className="link-btn" onClick={() => openRule(rule.id)} type="button">
                           Review <ChevronRight size={14} />
                         </button>
@@ -303,6 +317,15 @@ export function RulesPage() {
                 })}
               </tbody>
             </table>
+            <CatalogPagination
+              loading={loading}
+              onPageChange={setPage}
+              page={page}
+              pageSize={CATALOG_PAGE_SIZE}
+              total={data?.total ?? 0}
+            />
+            </>
+
           )}
         </section>
 
@@ -320,7 +343,6 @@ export function RulesPage() {
             rule={selectedRule}
           />
         )}
-      </div>
     </div>
   );
 }

@@ -58,6 +58,104 @@ def test_classify_claim_prefers_contraindication_over_recommendation() -> None:
     assert classify_claim(sentence, "drug_label") == "contraindication"
 
 
+def test_weak_span_see_contraindications_dropped() -> None:
+    from scraper.process.create_claims import is_weak_span
+
+    sentence = (
+        "Patients with severe renal impairment (creatinine clearance <20 mL/min) "
+        "were not included in clinical studies (see CONTRAINDICATIONS)."
+    )
+    assert is_weak_span(sentence) is True
+    assert classify_claim(sentence, "drug_label") is None
+
+
+def test_fetal_harm_is_population_not_dose() -> None:
+    sentence = "ENTRESTO can cause fetal harm when administered to a pregnant woman."
+    assert classify_claim(sentence, "drug_label") == "population_constraint"
+
+
+def test_protein_bound_hemodialysis_not_renal_constraint() -> None:
+    sentence = "As amlodipine is highly protein bound, hemodialysis is not likely to be of benefit."
+    assert classify_claim(sentence, "drug_label") is None
+
+
+def test_adverse_reaction_header_only_dropped() -> None:
+    sentence = "The following additional adverse reactions have been reported in postmarketing experience with finerenone."
+    assert classify_claim(sentence, "drug_label") is None
+
+
+def test_interaction_requires_concomitant_language() -> None:
+    # Broad guideline text mentioning inhibitors without interaction cues should not match.
+    sentence = (
+        "In patients with type 2 diabetes, HF, or CKD, sodium-glucose cotransporter 2 "
+        "inhibitors appear to prevent heart failure hospitalizations."
+    )
+    assert classify_claim(sentence, "guideline") != "drug_interaction"
+
+
+def test_interaction_keeps_actionable_risk() -> None:
+    sentence = (
+        "The risk of myopathy and rhabdomyolysis is increased with concomitant use of "
+        "fibrates with pravastatin."
+    )
+    assert classify_claim(sentence, "drug_label") == "drug_interaction"
+
+
+def test_interaction_drops_negative_finding() -> None:
+    sentence = (
+        "Drug Interaction Studies No clinically significant pharmacokinetic interactions "
+        "were observed when valsartan was coadministered with amlodipine."
+    )
+    assert classify_claim(sentence, "drug_label") is None
+
+
+def test_interaction_drops_table_header() -> None:
+    sentence = "Table 4 lists drug interactions with NEXLIZET that have been identified in studies."
+    assert classify_claim(sentence, "drug_label") is None
+
+
+def test_dose_recommendation_keeps_real_dosing() -> None:
+    sentence = "The recommended starting dose of carvedilol is 3.125 mg twice daily."
+    assert classify_claim(sentence, "drug_label") == "dose_recommendation"
+
+
+def test_dose_recommendation_drops_missed_dose() -> None:
+    sentence = (
+        "If a dose is missed, advise patients to take it as soon as it is remembered "
+        "unless it is almost time for the next dose."
+    )
+    assert classify_claim(sentence, "drug_label") is None
+
+
+def test_dose_recommendation_drops_ndc_packaging() -> None:
+    sentence = (
+        "Diltiazem Extended-Release Capsules Strength Quantity / NDC Number "
+        "120 mg Cartons of 100 extended-release capsules."
+    )
+    assert classify_claim(sentence, "drug_label") is None
+
+
+def test_renal_constraint_keeps_egfr_threshold() -> None:
+    sentence = (
+        "JARDIANCE is not recommended for use when eGFR is less than 20 mL/min/1.73 m2 "
+        "for the heart failure indication."
+    )
+    assert classify_claim(sentence, "drug_label") == "renal_constraint"
+
+
+def test_renal_constraint_drops_pk_only() -> None:
+    sentence = (
+        "The pharmacokinetics of telmisartan do not differ between the elderly and "
+        "younger patients with normal renal function."
+    )
+    assert classify_claim(sentence, "drug_label") is None
+
+
+def test_renal_constraint_keeps_action_without_number() -> None:
+    sentence = "Spironolactone is contraindicated in patients with anuria."
+    assert classify_claim(sentence, "drug_label") == "contraindication"
+
+
 def test_sentence_split_keeps_short_contraindication() -> None:
     sentences = sentence_split("Contraindicated in pregnancy.")
     assert sentences == ["Contraindicated in pregnancy."]
@@ -190,7 +288,7 @@ def test_call_llm_json_uses_disk_cache(tmp_path, monkeypatch) -> None:
 
     calls = {"count": 0}
 
-    def fake_raw(system_prompt: str, user_prompt: str, *, max_tokens: int):
+    def fake_raw(system_prompt: str, user_prompt: str, *, max_tokens: int, **_kwargs):
         calls["count"] += 1
         return {"claims": []}
 
@@ -305,6 +403,8 @@ def test_section_filter_embeds_haystack_once_per_record(monkeypatch) -> None:
             haystack_embed_calls.append(text)
         return [[1.0, 0.0] for _ in texts]
 
+    monkeypatch.setattr("scraper.semantic.section_filter.warmup_prototype_vectors", lambda *a, **k: None)
+    monkeypatch.setattr("scraper.semantic.section_filter.embed_texts", fake_embed_texts)
     monkeypatch.setattr("scraper.semantic.embeddings.embed_texts", fake_embed_texts)
 
     records = [

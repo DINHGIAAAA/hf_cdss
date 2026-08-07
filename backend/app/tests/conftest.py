@@ -41,9 +41,7 @@ def hfref_patient(**overrides) -> PatientProfile:
 
 API_PREFIX = "/api/v1"
 TEST_API_KEY = "test-api-key"
-_CONSTRAINTS_FIXTURE = (
-    Path(__file__).resolve().parents[1] / "modules" / "constraint_builder" / "rules" / "constraints_v1.json"
-)
+from app.tests.fixtures.governance_test_data import approved_constraint_rules_rows
 _SAMPLE_CHUNK = {
     "chunk_id": "chunk_dapagliflozin_hf",
     "document_id": "dapagliflozin",
@@ -99,25 +97,7 @@ def api_path(path: str) -> str:
 
 
 def approved_constraint_rules_fixture() -> list[dict]:
-    payload = json.loads(_CONSTRAINTS_FIXTURE.read_text(encoding="utf-8"))
-    rules: list[dict] = []
-    for index, rule in enumerate(payload, start=1):
-        rules.append(
-            {
-                "id": index,
-                "constraint_id": rule["constraint_id"],
-                "version": 1,
-                "target_drug_class": rule.get("target_drug_class"),
-                "action": rule.get("action"),
-                "reason": rule.get("reason", ""),
-                "risk_names": list(rule.get("risk_names") or []),
-                "severity_any": list(rule.get("severity_any") or []),
-                "evidence_ref": rule.get("evidence_ref"),
-                "clinical_sources": list(rule.get("clinical_sources") or []),
-                "metadata": {"constraint_type": rule.get("constraint_type", "soft")},
-            }
-        )
-    return rules
+    return approved_constraint_rules_rows()
 
 
 def _mark_bootstrap_complete() -> None:

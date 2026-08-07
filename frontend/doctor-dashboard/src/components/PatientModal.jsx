@@ -48,9 +48,11 @@ function TextField({ label, name, value, onChange, placeholder = "" }) {
   );
 }
 
-export function PatientModal({ onCreate, onClose }) {
+export function PatientModal({ onCreate, onClose, onLoadDemo }) {
   const { t } = useLanguage();
   const [form, setForm] = useState(EMPTY_PATIENT);
+  const [demoLoading, setDemoLoading] = useState(false);
+  const [demoError, setDemoError] = useState("");
   const patientId = useMemo(() => makePatientId(form.fullName), [form.fullName]);
   const conversationName = `${slugify(form.fullName)}_${patientId.split("_").at(-1)}`;
 
@@ -63,6 +65,19 @@ export function PatientModal({ onCreate, onClose }) {
     e.preventDefault();
     if (!form.fullName.trim()) return;
     onCreate(form, patientId, conversationName);
+  }
+
+  async function loadDemo() {
+    if (!onLoadDemo || demoLoading) return;
+    setDemoError("");
+    setDemoLoading(true);
+    try {
+      await onLoadDemo();
+    } catch (err) {
+      setDemoError(err?.message || t("patientModal.loadDemoFailed"));
+    } finally {
+      setDemoLoading(false);
+    }
   }
 
   return (
@@ -110,9 +125,31 @@ export function PatientModal({ onCreate, onClose }) {
             <TextField label={t("patientModal.redFlags")} name="redFlags" onChange={update} placeholder={t("patientModal.redFlagsPlaceholder")} value={form.redFlags} />
           </div>
 
-          <Button className="w-full sm:w-auto" disabled={!form.fullName.trim()} size="lg" type="submit">
-            {t("patientModal.start")}
-          </Button>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <Button className="w-full sm:w-auto" disabled={!form.fullName.trim()} size="lg" type="submit">
+              {t("patientModal.start")}
+            </Button>
+            {onLoadDemo ? (
+              <div className="flex flex-col gap-1 sm:items-end">
+                <Button
+                  className="w-full sm:w-auto"
+                  disabled={demoLoading}
+                  onClick={loadDemo}
+                  size="lg"
+                  type="button"
+                  variant="outline"
+                >
+                  {demoLoading ? "…" : t("patientModal.loadDemo")}
+                </Button>
+                <span className="text-xs text-muted-foreground">{t("patientModal.loadDemoHint")}</span>
+                {demoError ? (
+                  <span className="text-xs text-destructive" role="alert">
+                    {demoError}
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
         </form>
       </DialogContent>
     </Dialog>

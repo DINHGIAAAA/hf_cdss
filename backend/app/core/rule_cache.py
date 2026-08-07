@@ -81,11 +81,17 @@ class RuleCache:
         return bundle
 
     def _load_fallback_bundle(self) -> dict[str, Any]:
+        if self.fallback_path is None and self.fallback_path_resolver is None:
+            return {
+                "version": self.default_version,
+                "source": "empty_fallback",
+                self.list_key: [],
+            }
         path = self._resolved_fallback_path()
         if not path.is_file():
             return {
                 "version": self.default_version,
-                "source": "bundled_fallback",
+                "source": "empty_fallback",
                 self.list_key: [],
             }
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -132,9 +138,8 @@ class RuleCache:
 
         fallback = self._load_fallback_bundle()
         logger.warning(
-            "Serving bundled fallback %s (%s items)",
+            "Serving empty fallback for %s (Postgres unavailable and no bundled rules configured)",
             self.catalog_name,
-            len(fallback.get(self.list_key) or []),
         )
         self._cached_bundle = fallback
         self._cache_timestamp = datetime.now()

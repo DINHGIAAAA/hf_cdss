@@ -1,0 +1,18 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install deps into the image; compose keeps them in a named volume.
+COPY doctor-dashboard/package*.json ./
+RUN npm install
+
+# Seed sources (overlaid by bind mounts in compose for HMR).
+COPY shared /shared
+COPY doctor-dashboard/ .
+
+ENV CHOKIDAR_USEPOLLING=true
+ENV WATCHPACK_POLLING=true
+
+EXPOSE 5173
+
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"]

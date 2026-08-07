@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "Claim Quality Filter Progression",
+    "subtitle": "Passes 0–8 on claims.jsonl (Section 5.2.4, Table 5.0a)",
+    "quality_profile": "showcase",
+    "viewBox": [1200, 480]
+  },
+  "stages": [
+    { "label": "Raw" },
+    { "label": "Scope" },
+    { "label": "Noise" },
+    { "label": "Actionability" },
+    { "label": "Typed gates" }
+  ],
+  "nodes": [
+    { "id": "raw", "type": "external", "label": "Pass 0", "sublabel": "16,973 claims", "stage": 0, "row": 1 },
+    { "id": "p1", "type": "backend", "label": "Pass 1–2", "sublabel": "type + drug gates", "stage": 1, "row": 1 },
+    { "id": "p3", "type": "security", "label": "Pass 3", "sublabel": "HF formulary scope", "stage": 1, "row": 0 },
+    { "id": "p4", "type": "backend", "label": "Pass 4–5", "sublabel": "weak spans + trials", "stage": 2, "row": 1 },
+    { "id": "p7", "type": "backend", "label": "Pass 6–7", "sublabel": "ADR actionability", "stage": 3, "row": 1 },
+    { "id": "p8", "type": "security", "label": "Pass 8", "sublabel": "shared type gates", "stage": 4, "row": 1, "tag": "6,296" },
+    { "id": "eval", "type": "cloud", "label": "auto_eval", "sublabel": "7B judge reports", "stage": 4, "row": 0 }
+  ],
+  "flows": [
+    { "id": "s1", "from": "raw", "to": "p1", "label": "drop mismatch", "variant": "emphasis" },
+    { "id": "s2", "from": "p1", "to": "p3", "label": "scope" },
+    { "id": "s3", "from": "p3", "to": "p4", "label": "clean" },
+    { "id": "s4", "from": "p4", "to": "p7", "label": "ADR rules" },
+    { "id": "s5", "from": "p7", "to": "p8", "label": "dose/renal/CI", "variant": "security" },
+    { "id": "s6", "from": "p8", "to": "eval", "label": "sample", "variant": "dashed" }
+  ],
+  "cards": [
+    { "dot": "emerald", "title": "Artifacts", "items": ["claims_filtered.jsonl after pass 8", "claim_filter_progression.json logs each pass", "Safety-only subset excludes guideline_recommendation"] }
+  ]
+}

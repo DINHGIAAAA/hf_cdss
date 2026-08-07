@@ -47,7 +47,7 @@ def find_chunk_for_claim(claim: dict[str, Any], chunks: list[dict[str, Any]]) ->
             continue
         if best is None or score > best[0]:
             best = (score, chunk)
-    if best and best[0] >= 0.35:
+    if best and best[0] >= 0.55:
         return best[1]
     return None
 

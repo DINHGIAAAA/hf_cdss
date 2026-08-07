@@ -2,6 +2,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import time
 import urllib.parse
 from datetime import date, datetime
@@ -23,6 +24,8 @@ BROWSER_USER_AGENT = (
     "Chrome/125.0.0.0 Safari/537.36"
 )
 
+_PMC_ID_RE = re.compile(r"PMC(\d+)", re.IGNORECASE)
+
 
 def load_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8-sig"))
@@ -36,9 +39,34 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def download_bytes(url: str, timeout: int) -> bytes:
+def _download_via_browser_page(page, url: str, timeout_ms: int) -> bytes:
+    from playwright.sync_api import Error as PlaywrightError
+
+    if "pdf=render" in url.lower() or url.rstrip("/").endswith("/pdf"):
+        try:
+            with page.expect_download(timeout=timeout_ms) as download_info:
+                page.goto(url, wait_until="commit", timeout=timeout_ms)
+            download = download_info.value
+            path = download.path()
+            payload = Path(path).read_bytes()
+            download.delete()
+            if payload.startswith(b"%PDF"):
+                return payload
+        except PlaywrightError:
+            pass
+
+    response = page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
+    if response is None:
+        raise RuntimeError(f"No browser response for {url}")
+    if response.status >= 400:
+        raise RuntimeError(f"Browser download returned HTTP {response.status} for {url}")
+    return response.body()
+
+
+def _download_bytes_one_url(url: str, timeout: int) -> bytes:
     from playwright.sync_api import sync_playwright
 
+    timeout_ms = timeout * 1000
     with sync_playwright() as playwright:
         request_context = playwright.request.new_context(
             user_agent=BROWSER_USER_AGENT,
@@ -47,33 +75,86 @@ def download_bytes(url: str, timeout: int) -> bytes:
                 "Accept-Language": "en-US,en;q=0.9",
             },
         )
-        response = request_context.get(url, timeout=timeout * 1000)
+        response = request_context.get(url, timeout=timeout_ms)
         if response.ok:
             payload = response.body()
             request_context.dispose()
-            return payload
-        request_context.dispose()
+            if payload.startswith(b"%PDF") or payload.lstrip()[:1] in {b"{", b"<"}:
+                return payload
+        else:
+            request_context.dispose()
 
         browser = playwright.chromium.launch(headless=True)
         context = browser.new_context(
             user_agent=BROWSER_USER_AGENT,
+            accept_downloads=True,
             extra_http_headers={
                 "Accept": "application/pdf,application/xml,application/json,text/html,*/*",
                 "Accept-Language": "en-US,en;q=0.9",
             },
         )
         page = context.new_page()
-        response = page.goto(url, wait_until="domcontentloaded", timeout=timeout * 1000)
-        if response is None:
+        try:
+            return _download_via_browser_page(page, url, timeout_ms)
+        finally:
             browser.close()
-            raise RuntimeError(f"No browser response for {url}")
-        if response.status >= 400:
-            status = response.status
-            browser.close()
-            raise RuntimeError(f"Browser download returned HTTP {status} for {url}")
-        payload = response.body()
-        browser.close()
-        return payload
+
+
+_TRANSIENT_DOWNLOAD_MARKERS = (
+    "TLS connection",
+    "socket disconnected",
+    "Timeout",
+    "timed out",
+    "ECONNRESET",
+    "ETIMEDOUT",
+    "net::ERR",
+)
+
+
+def _is_transient_download_error(exc: BaseException) -> bool:
+    message = str(exc)
+    return any(marker in message for marker in _TRANSIENT_DOWNLOAD_MARKERS)
+
+
+def download_bytes(url: str, timeout: int, *, attempts: int = 3) -> bytes:
+    use_chain = bool(_PMC_ID_RE.search(url)) or "pdf=render" in url.lower()
+    candidates = pdf_download_candidates(url) if use_chain else [url]
+    errors: list[str] = []
+    for candidate in candidates:
+        for attempt in range(attempts):
+            try:
+                return _download_bytes_one_url(candidate, timeout)
+            except Exception as exc:
+                errors.append(f"{candidate} (try {attempt + 1}/{attempts}): {exc}")
+                if attempt + 1 < attempts and _is_transient_download_error(exc):
+                    time.sleep(min(8, 2**attempt))
+                    continue
+                break
+    raise RuntimeError("; ".join(errors[-6:]))
+
+
+def html_fallback_urls(source: dict[str, Any]) -> list[str]:
+    """Extra URLs to try when primary PDF and html_url fail (publisher-gated guidelines)."""
+    urls: list[str] = []
+    primary = str(source.get("html_url") or "").strip()
+    if primary:
+        urls.append(primary)
+    notes = str(source.get("notes") or "")
+    for match in re.finditer(r"PMID[:\s]*(\d+)", notes, re.I):
+        pmid = match.group(1)
+        urls.append(f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/")
+    # Europe PMC MED pages often 500 from batch bots; PubMed HTML is a weaker but reachable fallback.
+    med_match = re.search(r"/article/MED/(\d+)", primary)
+    if med_match:
+        pmid = med_match.group(1)
+        pubmed = f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/"
+        if pubmed not in urls:
+            urls.append(pubmed)
+    deduped: list[str] = []
+    for item in urls:
+        if item and item not in deduped:
+            deduped.append(item)
+    return deduped
 
 
 def fetch_json(url: str, timeout: int) -> dict[str, Any]:
@@ -103,7 +184,12 @@ def coerce_download_item(item: dict[str, str], payload: bytes, url: str) -> dict
     if looks_like_html(payload):
         if kind in {"pdf", "source"} or suffix == ".pdf":
             html_path = html_target_path(target_path)
-            print(f"Received HTML instead of PDF from {url}; saving as {html_path}")
+            # Logical registry path (raw/…); durable write is S3 put_object with raw/ stripped.
+            print(
+                f"Received HTML instead of PDF from {url}; "
+                f"S3 object key will use logical path {html_path} "
+                f"(→ s3://…/{html_path.removeprefix('raw/')} after strip)"
+            )
             return {**item, "kind": "html", "target_path": html_path}
         if kind == "html" or suffix == ".html":
             return {**item, "kind": "html"}
@@ -123,6 +209,50 @@ def artifact_kind_for_source(source: dict[str, Any]) -> str:
     if source_type == "drug_label_xml":
         return "xml"
     return "source"
+
+
+def europepmc_pdf_render_url(pmc_id: str) -> str:
+    return f"https://europepmc.org/articles/PMC{pmc_id}?pdf=render"
+
+
+def europepmc_rest_pdf_url(pmc_id: str) -> str:
+    return f"https://www.ebi.ac.uk/europepmc/webservices/rest/PMC{pmc_id}/fullTextPDF"
+
+
+def ncbi_pmc_pdf_url(pmc_id: str) -> str:
+    return f"https://pmc.ncbi.nlm.nih.gov/articles/PMC{pmc_id}/pdf/"
+
+
+def pdf_download_candidates(url: str) -> list[str]:
+    """Ordered URLs to try for open-access PMC PDFs (mirrors differ in reliability)."""
+    ordered: list[str] = [url.strip()]
+    match = _PMC_ID_RE.search(url)
+    if match:
+        pmc = match.group(1)
+        for alt in (
+            europepmc_rest_pdf_url(pmc),
+            ncbi_pmc_pdf_url(pmc),
+            europepmc_pdf_render_url(pmc),
+        ):
+            if alt not in ordered:
+                ordered.append(alt)
+    deduped: list[str] = []
+    for item in ordered:
+        if item and item not in deduped:
+            deduped.append(item)
+    return deduped
+
+
+def resolve_guideline_pdf_url(source: dict[str, Any]) -> str:
+    """Prefer explicit pdf_url; otherwise map PMC article pages to EuropePMC PDF render."""
+    explicit = str(source.get("pdf_url") or "").strip()
+    if explicit:
+        return explicit
+    url = str(source.get("url") or "").strip()
+    match = _PMC_ID_RE.search(url)
+    if match and "pdf=render" not in url.lower():
+        return europepmc_pdf_render_url(match.group(1))
+    return url
 
 
 def validate_payload(kind: str, target_path: str, payload: bytes, url: str) -> None:
@@ -190,11 +320,29 @@ def select_dailymed_candidate(source: dict[str, Any], timeout: int) -> dict[str,
     required = [term.upper() for term in source.get("required_terms", [])]
     excluded = [term.upper() for term in source.get("excluded_terms", [])]
 
+    # Normalize slash-joined required terms ("A/B") into separate tokens so combo
+    # labels like "SACUBITRIL AND VALSARTAN" still match.
+    normalized_required: list[str] = []
+    for term in required:
+        parts = [part.strip() for part in term.replace("/", " ").split() if part.strip()]
+        normalized_required.extend(parts)
+    if not normalized_required:
+        normalized_required = required
+
     matches = []
     for candidate in candidates:
         title = str(candidate.get("title", "")).upper()
-        if all(term in title for term in required) and not any(term in title for term in excluded):
+        if all(term in title for term in normalized_required) and not any(term in title for term in excluded):
             matches.append(candidate)
+    if not matches and "/" in str(source.get("query") or ""):
+        # Retry with spaces/and instead of slash (registry legacy queries).
+        alt_query = (
+            str(source["query"]).replace("/", " and ").replace("  ", " ").strip()
+        )
+        for candidate in dailymed_candidates(alt_query, timeout):
+            title = str(candidate.get("title", "")).upper()
+            if all(term in title for term in normalized_required) and not any(term in title for term in excluded):
+                matches.append(candidate)
     if not matches:
         raise ValueError(f"No DailyMed SPL candidate matched {source['query']}")
     return sorted(
@@ -231,10 +379,14 @@ def resolved_downloads(source: dict[str, Any], timeout: int) -> tuple[dict[str, 
                 }
             )
     elif strategy == "direct_url":
+        kind = artifact_kind_for_source(source)
+        url = resolve_guideline_pdf_url(source) if kind == "pdf" else source["url"]
+        if kind == "pdf" and url != source.get("url"):
+            print(f"Resolved PDF download URL for {source.get('source_id')}: {url}")
         downloads.append(
             {
-                "kind": artifact_kind_for_source(source),
-                "url": source["url"],
+                "kind": kind,
+                "url": url,
                 "target_path": source["target_path"],
             }
         )
@@ -302,7 +454,7 @@ def main() -> None:
     parser.add_argument("--s3-prefix", default=DEFAULT_PREFIX)
     parser.add_argument("--s3-endpoint-url", default=DEFAULT_ENDPOINT_URL)
     parser.add_argument("--allow-failures", action="store_true", help="Exit successfully even when some sources fail to download.")
-    parser.add_argument("--timeout", default=60, type=int)
+    parser.add_argument("--timeout", default=int(os.environ.get("HF_CDSS_DOWNLOAD_TIMEOUT", "120")), type=int)
     args = parser.parse_args()
 
     registry = load_json(args.registry)
@@ -363,6 +515,7 @@ def main() -> None:
                         "sha256": item_sha,
                     },
                 )
+                print(f"Uploaded s3://{args.s3_bucket}/{item_key} ({len(payload)} bytes)")
                 artifacts.append(
                     {
                         "kind": item["kind"],
@@ -386,8 +539,9 @@ def main() -> None:
             )
         except Exception as exc:
             detail = str(exc)
-            fallback_url = resolved_source.get("html_url")
-            if fallback_url:
+            fallback_errors: list[str] = []
+            saved = False
+            for fallback_url in html_fallback_urls(resolved_source):
                 try:
                     payload = download_bytes(fallback_url, args.timeout)
                     item = coerce_download_item(
@@ -414,6 +568,7 @@ def main() -> None:
                             "sha256": item_sha,
                         },
                     )
+                    print(f"Uploaded s3://{args.s3_bucket}/{item_key} ({len(payload)} bytes, html fallback)")
                     artifacts = [
                         {
                             "kind": item["kind"],
@@ -429,16 +584,21 @@ def main() -> None:
                             resolved_source,
                             target,
                             "downloaded",
-                            detail=f"Primary download failed ({detail}); saved HTML fallback.",
+                            detail=f"Primary download failed ({detail}); saved HTML fallback from {fallback_url}.",
                             storage_uri=f"s3://{args.s3_bucket}/{s3_key(args.s3_prefix, item['target_path'])}",
                             byte_count=len(payload),
                             sha256=item_sha,
                             artifacts=artifacts,
                         )
                     )
-                    continue
+                    saved = True
+                    break
                 except Exception as fallback_exc:
-                    detail = f"{detail}; html fallback failed: {fallback_exc}"
+                    fallback_errors.append(f"{fallback_url}: {fallback_exc}")
+            if saved:
+                continue
+            if fallback_errors:
+                detail = f"{detail}; html fallback failed: {'; '.join(fallback_errors[-3:])}"
             rows.append(manifest_row(resolved_source, target, "failed", detail, storage_uri=storage_uri))
 
     args.manifest.parent.mkdir(parents=True, exist_ok=True)

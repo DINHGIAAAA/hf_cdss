@@ -40,35 +40,101 @@ def _format_threshold(op: str | None, value: Any, *, unit: str = "") -> str | No
     return f"{numeric:g}{unit}"
 
 
+def _normalize_numeric_condition(raw: dict[str, Any], key: str, aliases: tuple[str, ...] = ()) -> str | None:
+    value = raw.get(key)
+    for alias in aliases:
+        if value is None:
+            value = raw.get(alias)
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    if isinstance(value, dict):
+        return _format_threshold(value.get("op"), value.get("value") or value)
+    if value is not None:
+        return _format_threshold(None, value)
+    return None
+
+
+def _coerce_bool(value: Any) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str) and value.strip():
+        lowered = value.strip().lower()
+        if lowered in {"true", "yes", "1"}:
+            return True
+        if lowered in {"false", "no", "0"}:
+            return False
+    return None
+
+
 def normalize_conditions(raw: dict[str, Any] | None) -> dict[str, Any]:
     if not raw:
         return {}
 
     condition: dict[str, Any] = {}
 
-    egfr = raw.get("egfr")
-    if isinstance(egfr, str) and egfr.strip():
-        condition["egfr"] = egfr.strip()
-    elif isinstance(egfr, dict):
-        formatted = _format_threshold(egfr.get("op"), egfr.get("value") or egfr)
+    # Original numeric conditions
+    for key, aliases in (
+        ("egfr", ()),
+        ("potassium", ()),
+        ("creatinine", ()),
+        ("systolic_bp", ("sbp", "systolic_blood_pressure")),
+        ("heart_rate", ("hr", "pulse")),
+        ("lvef", ("ejection_fraction",)),
+        ("age", ()),
+        ("weight_kg", ("weight",)),
+        ("ckd_stage", ()),
+    ):
+        formatted = _normalize_numeric_condition(raw, key, aliases)
         if formatted:
-            condition["egfr"] = formatted
-    elif egfr is not None:
-        formatted = _format_threshold(None, egfr)
-        if formatted:
-            condition["egfr"] = formatted
+            condition[key] = formatted
 
-    potassium = raw.get("potassium")
-    if isinstance(potassium, str) and potassium.strip():
-        condition["potassium"] = potassium.strip()
-    elif isinstance(potassium, dict):
-        formatted = _format_threshold(potassium.get("op"), potassium.get("value") or potassium)
+    # NEW: Liver function tests
+    for key, aliases in (
+        ("alt", ("alanine_aminotransferase", "sgpt")),
+        ("ast", ("aspartate_aminotransferase", "sgot")),
+        ("bilirubin", ("total_bilirubin",)),
+        ("albumin", ("serum_albumin",)),
+    ):
+        formatted = _normalize_numeric_condition(raw, key, aliases)
         if formatted:
-            condition["potassium"] = formatted
-    elif potassium is not None:
-        formatted = _format_threshold(None, potassium)
+            condition[key] = formatted
+
+    # NEW: Natriuretic peptides
+    for key, aliases in (
+        ("bnp", ("brain_natriuretic_peptide",)),
+        ("nt_probnp", ("ntprobnp", "n-terminal_probnp", "nt_pro_bnp")),
+    ):
+        formatted = _normalize_numeric_condition(raw, key, aliases)
         if formatted:
-            condition["potassium"] = formatted
+            condition[key] = formatted
+
+    # NEW: Electrolytes
+    for key, aliases in (
+        ("sodium", ("na", "serum_sodium")),
+        ("magnesium", ("mg", "serum_magnesium")),
+    ):
+        formatted = _normalize_numeric_condition(raw, key, aliases)
+        if formatted:
+            condition[key] = formatted
+
+    # NEW: Cardiac biomarkers
+    for key, aliases in (
+        ("troponin", ("cardiac_troponin", "hs_troponin", "troponin_i", "troponin_t")),
+        ("ferritin", ("iron", "serum_ferritin")),
+    ):
+        formatted = _normalize_numeric_condition(raw, key, aliases)
+        if formatted:
+            condition[key] = formatted
+
+    # NEW: BMI
+    formatted = _normalize_numeric_condition(raw, "bmi", ("body_mass_index",))
+    if formatted:
+        condition["bmi"] = formatted
+
+    # NEW: Diastolic BP
+    formatted = _normalize_numeric_condition(raw, "diastolic_bp", ("dbp", "diastolic_blood_pressure"))
+    if formatted:
+        condition["diastolic_bp"] = formatted
 
     indication = raw.get("indication")
     if isinstance(indication, str) and indication.strip():
@@ -78,11 +144,66 @@ def normalize_conditions(raw: dict[str, Any] | None) -> dict[str, Any]:
     if isinstance(diabetes_type, str) and diabetes_type.strip():
         condition["diabetes_type"] = diabetes_type.strip().lower().replace(" ", "_")
 
-    creatinine = raw.get("creatinine")
-    if isinstance(creatinine, dict):
-        formatted = _format_threshold(creatinine.get("op"), creatinine.get("value") or creatinine)
-        if formatted:
-            condition["creatinine"] = formatted
+    nyha = raw.get("nyha_class") or raw.get("nyha")
+    if isinstance(nyha, str) and nyha.strip():
+        condition["nyha_class"] = nyha.strip().upper().replace(" ", "")
+    elif isinstance(nyha, (int, float)):
+        condition["nyha_class"] = f"NYHA_{int(nyha)}"
+
+    pregnancy = _coerce_bool(raw.get("pregnancy"))
+    if pregnancy is True:
+        condition["pregnancy"] = True
+
+    lactation = _coerce_bool(raw.get("lactation"))
+    if lactation is True:
+        condition["lactation"] = True
+
+    allergy = raw.get("allergy") or raw.get("hypersensitivity")
+    if isinstance(allergy, str) and allergy.strip():
+        condition["allergy"] = allergy.strip().lower()
+    elif isinstance(allergy, bool) and allergy:
+        condition["allergy"] = "true"
+
+    bleeding = raw.get("bleeding_risk")
+    if isinstance(bleeding, str) and bleeding.strip():
+        condition["bleeding_risk"] = bleeding.strip().lower().replace(" ", "_")
+
+    hepatic = raw.get("hepatic_impairment")
+    if isinstance(hepatic, str) and hepatic.strip():
+        condition["hepatic_impairment"] = hepatic.strip().lower()
+
+    for bool_key in (
+        "hfref",
+        "decompensated_hf",
+        "atrial_fibrillation",
+        "inotropic_support",
+        "anuria",
+        "bilateral_renal_artery_stenosis",
+    ):
+        value = _coerce_bool(raw.get(bool_key))
+        if value is True:
+            condition[bool_key] = True
+
+    # NEW: Additional boolean conditions
+    for bool_key in (
+        "iron_deficiency",
+        "anemia",
+        "hypoxemia",
+        "thyroid_disorder",
+        "sleep_apnea",
+        "pulmonary_hypertension",
+        "valvular_disease",
+        "frailty",
+        "cachexia",
+    ):
+        value = _coerce_bool(raw.get(bool_key))
+        if value is True:
+            condition[bool_key] = True
+
+    # Canonicalize af → atrial_fibrillation (do not keep dual keys).
+    af = _coerce_bool(raw.get("af"))
+    if af is True:
+        condition["atrial_fibrillation"] = True
 
     return condition
 
@@ -91,6 +212,12 @@ def _normalize_indication(value: str) -> str:
     haystack = value.lower().replace("-", "_").replace(" ", "_")
     mapping = {
         "heart_failure": ("heart_failure", "hf", "hfr", "hfp"),
+        "decompensated_heart_failure": (
+            "decompensated_heart_failure",
+            "decompensated_hf",
+            "acute_decompensated",
+            "adhf",
+        ),
         "glycemic_control": ("glycemic_control", "glycaemic_control", "diabetes", "t2dm"),
         "hypertension": ("hypertension", "blood_pressure"),
         "atrial_fibrillation": ("atrial_fibrillation", "afib", "af"),

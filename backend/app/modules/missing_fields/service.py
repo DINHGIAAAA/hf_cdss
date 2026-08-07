@@ -1,7 +1,7 @@
 from collections.abc import Callable
 from typing import Any
 
-from app.modules.dose_calculator.raasi_helpers import patient_on_acei, patient_on_warfarin
+from app.modules.medication_presence import patient_on_acei, patient_on_warfarin
 from app.schemas.chat import MissingField, MissingFieldCheck
 from app.schemas.patient import PatientProfile
 
@@ -58,6 +58,11 @@ def _weight_present(patient: PatientProfile) -> bool:
     return patient.weight_kg is not None
 
 
+def _renal_lab_for_dosing(patient: PatientProfile) -> bool:
+    """Creatinine or measured eGFR is enough for renal dose checks in GDMT flows."""
+    return patient.creatinine is not None or patient.egfr is not None
+
+
 DOSE_PERSONALIZATION_FIELDS: list[tuple[str, str, str, Callable[[PatientProfile], bool]]] = [
     ("weight_kg", "Body weight", "Needed for weight-based dosing and Cockcroft-Gault calculations.", _weight_present),
     ("sex", "Sex", "Needed for renal clearance and sex-specific dose-reduction rules.", lambda patient: bool(patient.sex)),
@@ -65,8 +70,8 @@ DOSE_PERSONALIZATION_FIELDS: list[tuple[str, str, str, Callable[[PatientProfile]
     (
         "creatinine",
         "Serum creatinine",
-        "Needed for Cockcroft-Gault clearance and DOAC dose-reduction criteria.",
-        lambda patient: patient.creatinine is not None,
+        "Needed when eGFR is unavailable, or for creatinine-based dose-reduction criteria.",
+        _renal_lab_for_dosing,
     ),
 ]
 

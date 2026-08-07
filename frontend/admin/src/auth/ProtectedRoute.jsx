@@ -1,17 +1,14 @@
 import { Navigate, useLocation } from "react-router-dom";
 
+import { SessionLoading } from "@shared/auth/sessionLoading.jsx";
 import { useAuth } from "../auth/AuthContext";
 
 export function ProtectedRoute({ children, roles = [] }) {
-  const { isAuthenticated, bootstrapping, hasRole } = useAuth();
+  const { isAuthenticated, bootstrapping, bootstrapError, hasRole } = useAuth();
   const location = useLocation();
 
   if (bootstrapping) {
-    return (
-      <div aria-busy="true" className="admin-empty" role="status">
-        Checking session…
-      </div>
-    );
+    return <SessionLoading error={bootstrapError} />;
   }
 
   if (!isAuthenticated) {

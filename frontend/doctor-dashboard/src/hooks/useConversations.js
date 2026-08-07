@@ -1,11 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { chatApi } from "@shared/api/chat.js";
+import { useAuth } from "../auth/AuthContext.jsx";
 import { buildPatient } from "../utils";
 import { STORAGE_KEY } from "./constants.js";
+import { persistConversations } from "./conversationStorage.js";
 import { mapBackendMessages } from "./patientPayload.js";
 
+const DEMO_CONVERSATION_URL = "/demo/demo_chat_conversation.json";
+
 export function useConversations() {
+  const { isAuthenticated, bootstrapping } = useAuth();
   const [conversations, setConversations] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
@@ -22,7 +27,7 @@ export function useConversations() {
   });
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
+    persistConversations(conversations);
   }, [conversations]);
 
   const patchConversation = useCallback((conversationId, updater) => {
@@ -61,6 +66,9 @@ export function useConversations() {
             draft: history.patient_draft
               ? { patient: history.patient_draft.patient, ...history.patient_draft }
               : item.draft,
+            lastMissingCheck: history.patient_draft ? (history.patient_draft.last_missing_check || null) : null,
+            isInitialDraft: history.patient_draft ? (history.patient_draft.is_initial_draft || false) : false,
+            conflicts: history.patient_draft ? (history.patient_draft.conflicts || null) : null,
             updatedAt: new Date().toISOString(),
           };
         }),
@@ -89,6 +97,10 @@ export function useConversations() {
         },
       ],
       draft: null,
+      lastMissingCheck: null,
+      isInitialDraft: true,
+      pendingConfirmation: null,
+      conflicts: null,
       recommendation: null,
       verification: null,
       createdAt: new Date().toISOString(),
@@ -98,11 +110,98 @@ export function useConversations() {
     setActiveId(patientId);
   }, []);
 
-  useEffect(() => {
-    if (activeId) {
-      syncConversationFromServer(activeId);
+  const loadDemoConversation = useCallback(async () => {
+    const response = await fetch(DEMO_CONVERSATION_URL);
+    if (!response.ok) {
+      throw new Error("Demo conversation file not found");
     }
-  }, [activeId, syncConversationFromServer]);
+    const seeded = await response.json();
+    const demo = Array.isArray(seeded) ? seeded[0] : seeded;
+    if (!demo?.id) {
+      throw new Error("Invalid demo conversation");
+    }
+    setConversations((items) => [demo, ...items.filter((item) => item.id !== demo.id)]);
+    setActiveId(demo.id);
+    return demo;
+  }, []);
+
+  const renameConversation = useCallback((conversationId, newName) => {
+    if (!newName?.trim()) return;
+    setConversations((items) =>
+      items.map((item) =>
+        item.id === conversationId
+          ? { ...item, name: newName.trim(), updatedAt: new Date().toISOString() }
+          : item,
+      ),
+    );
+  }, []);
+
+  const copyConversation = useCallback(async (conversationId) => {
+    const conv = conversations.find((c) => c.id === conversationId);
+    if (!conv) return;
+
+    const lines = [
+      `# ${conv.name || "Conversation"}`,
+      "",
+      ...(conv.messages || []).map((msg) => {
+        const role = msg.role === "assistant" ? "Assistant" : "User";
+        return `**${role}:**\n${msg.content || ""}`;
+      }),
+    ];
+
+    await navigator.clipboard.writeText(lines.join("\n\n"));
+    return conv.name || "Conversation";
+  }, [conversations]);
+
+  const deleteConversation = useCallback((conversationId) => {
+    setConversations((items) => {
+      const next = items.filter((item) => item.id !== conversationId);
+      setActiveId((current) => {
+        if (current !== conversationId) return current;
+        return next[0]?.id || null;
+      });
+      return next;
+    });
+  }, []);
+
+  const clearConversation = useCallback((conversationId) => {
+    setConversations((items) =>
+      items.map((item) => {
+        if (item.id !== conversationId) return item;
+        const name =
+          item.draft?.patient?.patient_identity?.full_name ||
+          item.patient?.patient_identity?.full_name ||
+          item.name ||
+          "patient";
+        return {
+          ...item,
+          attachments: [],
+          messages: [
+            {
+              id: `${conversationId}-welcome-${Date.now()}`,
+              role: "assistant",
+              content: `Patient ${name} is ready. Ask the clinical question and attach notes if needed.`,
+            },
+          ],
+          draft: null,
+          lastMissingCheck: null,
+          isInitialDraft: true,
+          pendingConfirmation: null,
+          conflicts: null,
+          recommendation: null,
+          verification: null,
+          updatedAt: new Date().toISOString(),
+        };
+      }),
+    );
+  }, []);
+
+  useEffect(() => {
+    if (bootstrapping || !isAuthenticated || !activeId) {
+      return;
+    }
+    syncConversationFromServer(activeId);
+  }, [activeId, syncConversationFromServer, bootstrapping, isAuthenticated]);
 
   return {
     conversations,
@@ -111,5 +210,10 @@ export function useConversations() {
     patchConversation,
     updateActive,
     createConversation,
+    loadDemoConversation,
+    deleteConversation,
+    renameConversation,
+    copyConversation,
+    clearConversation,
   };
 }

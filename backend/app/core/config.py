@@ -7,11 +7,19 @@ class Settings(BaseSettings):
     version: str = "0.1.0"
     environment: str = "development"
     api_prefix: str = "/api/v1"
-    cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
+    cors_origins: list[str] = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
+        "http://localhost:5175",
+        "http://127.0.0.1:5175",
+    ]
     log_level: str = "INFO"
     api_keys: str = ""
     api_key_header: str = "x-api-key"
     max_request_body_bytes: int = 1_000_000
+    user_avatar_upload_dir: str = ""
     openai_api_key: str | None = None
     llm_base_url: str = "http://localhost:11434/v1"
     llm_model: str = "qwen2.5:7b"
@@ -81,7 +89,7 @@ class Settings(BaseSettings):
     audit_schema_version: str = "2026-06-12"
     rate_limit_requests: int = 60
     rate_limit_window_seconds: int = 60
-    admin_rate_limit_requests: int = 10
+    admin_rate_limit_requests: int = 120
     admin_rate_limit_window_seconds: int = 60
     auth_login_rate_limit_requests: int = 10
     auth_login_rate_limit_window_seconds: int = 60
@@ -99,15 +107,10 @@ class Settings(BaseSettings):
     verification_cache_enabled: bool = True
     verification_cache_ttl_seconds: int = 300
     verification_cache_max_entries: int = 128
-    dose_calculator_enabled: bool = True
-    dose_rules_active_bundle_version: str = "v1"
-    dose_rules_bundle_path: str | None = None
-    dose_rules_bundle_dir: str | None = None
-    dose_rules_validation_strict: bool = True
-    dose_rules_cache_ttl_seconds: int = 300
     interaction_rules_cache_ttl_seconds: int = 300
     gdmt_policy_cache_ttl_seconds: int = 300
     dose_safety_warnings_cache_ttl_seconds: int = 300
+    dose_rules_cache_ttl_seconds: int = 300
     kg_dose_overlays_cache_ttl_seconds: int = 300
     governance_circuit_breaker_enabled: bool = True
     governance_db_timeout_seconds: float = 2.5
@@ -127,12 +130,18 @@ class Settings(BaseSettings):
     hyde_retrieval_enabled: bool = True
     hyde_retrieval_model: str = "qwen2.5:1.5b"
     hyde_retrieval_timeout_seconds: float = 20.0
+    recommendation_card_summary_model: str | None = None
+    recommendation_card_summary_timeout_seconds: float = 30.0
+    recommendation_card_summary_max_tokens: int = 400
+    recommendation_card_summary_cache_ttl_seconds: int = 600
     hyde_retrieval_max_tokens: int = 220
     hyde_retrieval_cache_ttl_seconds: int = 600
     hyde_retrieval_cache_max_entries: int = 256
     hyde_retrieval_min_query_chars: int = 8
     hyde_retrieval_combine_baseline: bool = True
     graphrag_lost_in_middle_reorder_enabled: bool = True
+    graphrag_default_retrieval_profile: str = "balanced"
+    graphrag_chat_retrieval_profile: str = "fast"
     evidence_negative_filter_enabled: bool = True
     evidence_negative_filter_min_quality_score: float = 0.38
     evidence_negative_filter_require_patient_entity: bool = True

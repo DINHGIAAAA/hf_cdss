@@ -1,3 +1,4 @@
+import asyncio
 import json
 import re
 import unicodedata
@@ -292,7 +293,9 @@ def _regex_extract_patient_from_message(message: str, conversation_id: str) -> P
     )
     potassium, potassium_text = measured(
         (
-            r"\b(?:potassium|serum k|kali|k\+?|k)\s*(?:mau|is|was|=|:|la|khoang)?\s*(\d+(?:[.,]\d+)?)",
+            r"\b(?:potassium|serum k|kali)\s*(?:mau|is|was|=|:|la|khoang|now|vua|moi)?\s*(\d+(?:[.,]\d+)?)",
+            r"\bK\s*[+:]\s*(\d+(?:[.,]\d+)?)",
+            r"\bK\s+(\d+(?:[.,]\d+)?)\b",
         ),
     )
     systolic_bp, sbp_text = measured(
@@ -619,9 +622,16 @@ async def extract_patient_from_message(
     from app.modules.clinical_intake_extraction.semantic import aggregate_conversation_context, semantic_extract_patient
     from app.modules.clinical_intake_extraction.selective_llm import should_call_llm_extractor
 
-    aggregated_message = aggregate_conversation_context(message, conversation_history or [])
-    regex_patient = _regex_extract_patient_from_message(aggregated_message, conversation_id)
-    semantic_patient = semantic_extract_patient(aggregated_message, conversation_id)
+    aggregated_message = await asyncio.to_thread(
+        aggregate_conversation_context,
+        message,
+        conversation_history or [],
+    )
+    # Run regex + semantic layers concurrently; both are CPU-bound but block the event loop.
+    regex_patient, semantic_patient = await asyncio.gather(
+        asyncio.to_thread(_regex_extract_patient_from_message, aggregated_message, conversation_id),
+        asyncio.to_thread(semantic_extract_patient, aggregated_message, conversation_id),
+    )
     merged = _merge_extractions(regex_patient, semantic_patient)
     decision = should_call_llm_extractor(
         aggregated_message=aggregated_message,

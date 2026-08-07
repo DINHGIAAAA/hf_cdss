@@ -16,6 +16,8 @@ export const adminApi = {
   retire: (ruleId) => apiPatch(`/admin/constraints/rules/${ruleId}`, { status: "retired" }),
   unretire: (ruleId) => apiPatch(`/admin/constraints/rules/${ruleId}`, { status: "approved" }),
   bulkApproveConstraints: (payload) => apiPost("/admin/constraints/bulk-approve", payload),
+  getCatalogFilterOptions: (params = {}) =>
+    apiGet(`/admin/governance/filter-options${buildGovernanceQuery(params)}`),
   activeRules: () => apiGet("/admin/constraints/active"),
   listDoseRules: (params = {}) =>
     apiGet(`/admin/dose-rules${buildGovernanceQuery(params)}`),

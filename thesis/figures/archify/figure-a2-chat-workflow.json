@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Chat Message Processing",
+    "subtitle": "Backend stages for one SSE chat turn",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    { "id": "dashboard", "type": "frontend", "label": "ChatPage", "sublabel": "Doctor dashboard", "pos": [360, 40], "size": [180, 52] },
+    { "id": "stream", "type": "backend", "label": "Stream API", "sublabel": "POST /chat/stream", "pos": [340, 120], "size": [220, 52] },
+    { "id": "intake", "type": "backend", "label": "Clinical intake", "sublabel": "profile + missing fields", "pos": [340, 200], "size": [220, 52] },
+    { "id": "reason", "type": "backend", "label": "Recommendation", "sublabel": "GDMT + dose safety", "pos": [340, 280], "size": [220, 52] },
+    { "id": "rag", "type": "cloud", "label": "GraphRAG", "sublabel": "hybrid retrieval", "pos": [340, 360], "size": [220, 52] },
+    { "id": "verify", "type": "security", "label": "Verification", "sublabel": "safety agents", "pos": [340, 440], "size": [220, 52] },
+    { "id": "explain", "type": "backend", "label": "Explanation", "sublabel": "SSE token stream", "pos": [340, 520], "size": [220, 52] },
+    { "id": "panel", "type": "frontend", "label": "Clinical panel", "sublabel": "cards + streamed answer", "pos": [360, 600], "size": [180, 52] }
+  ],
+  "connections": [
+    { "id": "c1", "from": "dashboard", "to": "stream", "variant": "emphasis", "fromSide": "bottom", "toSide": "top" },
+    { "id": "c2", "from": "stream", "to": "intake", "fromSide": "bottom", "toSide": "top" },
+    { "id": "c3", "from": "intake", "to": "reason", "fromSide": "bottom", "toSide": "top" },
+    { "id": "c4", "from": "reason", "to": "rag", "fromSide": "bottom", "toSide": "top" },
+    { "id": "c5", "from": "rag", "to": "verify", "fromSide": "bottom", "toSide": "top" },
+    { "id": "c6", "from": "verify", "to": "explain", "fromSide": "bottom", "toSide": "top" },
+    { "id": "c7", "from": "explain", "to": "panel", "variant": "emphasis", "fromSide": "bottom", "toSide": "top" }
+  ],
+  "cards": [
+    { "dot": "rose", "title": "SSE ordering", "items": ["recommendation_ready before answer_delta", "Missing-field gate runs before MRA logic"] }
+  ]
+}

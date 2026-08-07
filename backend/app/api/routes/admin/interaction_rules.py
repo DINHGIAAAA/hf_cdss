@@ -5,9 +5,11 @@ from typing import Any, Literal
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from app.api.routes.admin.deps import AdminUser, get_current_admin_user, require_admin_reader, require_catalog_reader, require_role
+from app.api.routes.admin.deps import AdminUser, ensure_role, get_current_admin_user, require_admin_reader, require_catalog_reader, require_role
 from app.modules.datastores.interaction_rules_postgres import (
     approve_interaction_rule,
+    count_interaction_rules_by_status,
+    count_interaction_rules_filtered,
     get_interaction_rule,
     get_interaction_rule_latest_by_status,
     get_interaction_rule_versions,
@@ -67,7 +69,12 @@ class BulkApproveRequest(BaseModel):
     target: str | None = None
     safety_tier: str | None = None
     q: str | None = None
+    extraction_method: str | None = None
     limit: int = Field(default=100, ge=1, le=200)
+    match_all: bool = Field(
+        default=False,
+        description="Approve all draft rules matching filters (all pages), in batches",
+    )
     dry_run: bool = Field(default=False, description="Preview candidate ids without approving")
 
 
@@ -102,19 +109,26 @@ def _apply_status_change(rule_id: int, target_status: Literal["approved", "retir
     current_status = rule["status"]
     if target_status == "approved":
         if current_status == "draft":
-            require_role(current_user, "clinical_lead")
+            ensure_role(current_user, "clinical_lead")
             if not approve_interaction_rule(rule_id, current_user.id):
                 raise HTTPException(status_code=400, detail="Failed to approve interaction rule")
         elif current_status == "retired":
-            require_role(current_user, "admin")
+            ensure_role(current_user, "admin")
             if not unretire_interaction_rule(rule_id, current_user.id):
                 raise HTTPException(status_code=400, detail="Failed to un-retire interaction rule")
         else:
             raise HTTPException(status_code=400, detail=f"Cannot approve interaction rule in status {current_status}")
     elif target_status == "retired":
-        require_role(current_user, "admin")
-        if current_status != "approved":
-            raise HTTPException(status_code=400, detail="Only approved interaction rules can be retired")
+        if current_status == "draft":
+            if "clinical_lead" not in current_user.roles and "admin" not in current_user.roles:
+                raise HTTPException(
+                    status_code=403,
+                    detail="clinical_lead or admin required to retire drafts",
+                )
+        elif current_status == "approved":
+            ensure_role(current_user, "admin")
+        else:
+            raise HTTPException(status_code=400, detail=f"Cannot retire interaction rule in status {current_status}")
         if not retire_interaction_rule(rule_id, current_user.id):
             raise HTTPException(status_code=400, detail="Failed to retire interaction rule")
 
@@ -134,30 +148,42 @@ def list_interaction_rules(
     target: str | None = Query(default=None),
     safety_tier: str | None = Query(default=None),
     q: str | None = Query(default=None),
-    limit: int = Query(default=100, ge=1, le=500),
+    extraction_method: str | None = Query(default=None),
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
     _: AdminUser = Depends(require_admin_reader),
 ) -> InteractionRuleListResponse:
-    has_filters = any([severity, target, safety_tier, q])
-    if has_filters or status:
-        items_raw = read_interaction_rules_filtered(
-            status=status,
-            severity=severity,
-            target=target,
-            safety_tier=safety_tier,
-            q=q,
-            limit=limit,
-        )
-    else:
-        draft = read_interaction_rules_by_status("draft", limit=limit)
-        approved = read_interaction_rules_by_status("approved", limit=limit)
-        retired = read_interaction_rules_by_status("retired", limit=limit)
-        items_raw = draft + approved + retired
+    items_raw = read_interaction_rules_filtered(
+        status=status,
+        severity=severity,
+        target=target,
+        safety_tier=safety_tier,
+        q=q,
+        extraction_method=extraction_method,
+        limit=limit,
+        offset=offset,
+    )
+    total = count_interaction_rules_filtered(
+        status=status,
+        severity=severity,
+        target=target,
+        safety_tier=safety_tier,
+        q=q,
+        extraction_method=extraction_method,
+    )
+    counts = count_interaction_rules_by_status(
+        severity=severity,
+        target=target,
+        safety_tier=safety_tier,
+        q=q,
+        extraction_method=extraction_method,
+    )
     return InteractionRuleListResponse(
-        total=len(items_raw),
-        items=[InteractionRuleResponse(**item) for item in items_raw[:limit]],
-        draft_count=len([item for item in items_raw if item["status"] == "draft"]),
-        approved_count=len([item for item in items_raw if item["status"] == "approved"]),
-        retired_count=len([item for item in items_raw if item["status"] == "retired"]),
+        total=total,
+        items=[InteractionRuleResponse(**item) for item in items_raw],
+        draft_count=counts["draft"],
+        approved_count=counts["approved"],
+        retired_count=counts["retired"],
     )
 
 
@@ -165,9 +191,8 @@ def list_interaction_rules(
 def bulk_approve_interaction_rules_endpoint(
     payload: BulkApproveRequest,
     background_tasks: BackgroundTasks,
-    current_user: AdminUser = Depends(get_current_admin_user),
+    current_user: AdminUser = Depends(require_role("clinical_lead")),
 ) -> BulkApproveResponse:
-    require_role(current_user, "clinical_lead")
     result = bulk_approve_interaction_rules(
         current_user.id,
         rule_ids=payload.rule_ids,
@@ -175,7 +200,9 @@ def bulk_approve_interaction_rules_endpoint(
         target=payload.target,
         safety_tier=payload.safety_tier,
         q=payload.q,
+        extraction_method=payload.extraction_method,
         limit=payload.limit,
+        match_all=payload.match_all,
         dry_run=payload.dry_run,
     )
     if not payload.dry_run:

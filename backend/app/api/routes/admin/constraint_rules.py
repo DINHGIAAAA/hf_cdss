@@ -24,7 +24,9 @@ from app.api.routes.admin.deps import (
 )
 from app.modules.datastores.postgres import (
     approve_constraint_rule,
+    count_constraint_rules_filtered,
     get_constraint_rule,
+    get_constraint_rule_counts,
     get_constraint_rule_latest_by_status,
     get_constraint_rule_versions,
     read_constraint_rule_history,
@@ -114,7 +116,7 @@ class ConstraintRuleStatusUpdate(BaseModel):
     """Request body for PATCH /rules/{rule_id}."""
     status: Literal["approved", "retired"] = Field(
         ...,
-        description="Target status. draft→approved (clinical_lead), approved→retired (admin), retired→approved (admin).",
+        description="Target status. draft→approved (clinical_lead), draft→retired (clinical_lead/admin), approved→retired (admin), retired→approved (admin).",
     )
 
 
@@ -123,7 +125,13 @@ class BulkApproveRequest(BaseModel):
     target_drug_class: str | None = None
     action: str | None = None
     q: str | None = Field(default=None, description="Search constraint_id")
+    safety_tier: str | None = None
+    needs_condition: bool | None = None
     limit: int = Field(default=100, ge=1, le=200)
+    match_all: bool = Field(
+        default=False,
+        description="Approve all draft rules matching filters (all pages), in batches",
+    )
     dry_run: bool = Field(default=False, description="Preview candidate ids without approving")
 
 
@@ -176,15 +184,26 @@ def _apply_rule_status_change(
                 detail=f"Cannot transition from {current_status} to approved",
             )
     else:
-        if current_status != "approved":
+        if current_status == "draft":
+            if "clinical_lead" not in current_user.roles and "admin" not in current_user.roles:
+                raise HTTPException(
+                    status_code=403,
+                    detail="clinical_lead or admin required to retire drafts",
+                )
+        elif current_status == "approved":
+            if "admin" not in current_user.roles:
+                raise HTTPException(status_code=403, detail="User does not have the required 'admin' role")
+        else:
             raise HTTPException(
                 status_code=400,
-                detail=f"Can only retire approved rules, this one is {current_status}",
+                detail=f"Cannot retire constraint rule in status {current_status}",
             )
-        if "admin" not in current_user.roles:
-            raise HTTPException(status_code=403, detail="User does not have the required 'admin' role")
         success = retire_constraint_rule(rule_id, current_user.id)
-        message = "Constraint rule retired and no longer used in recommendations."
+        message = (
+            "Draft discarded and marked retired."
+            if current_status == "draft"
+            else "Constraint rule retired and no longer used in recommendations."
+        )
         details_keys = ("retired_at", "retired_by")
 
     if not success:
@@ -207,37 +226,48 @@ def list_constraint_rules(
     target_drug_class: str | None = Query(None),
     action: str | None = Query(None),
     q: str | None = Query(None, description="Search constraint_id"),
-    limit: int = Query(100, ge=1, le=500),
+    safety_tier: str | None = Query(None, description="Filter by metadata.safety_tier"),
+    needs_condition: bool | None = Query(
+        None,
+        description="Filter drafts that still need structured conditions",
+    ),
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
     current_user: AdminUser = Depends(require_admin_reader),
 ) -> ConstraintRuleListResponse:
     """List constraint rules, optionally filtered by status and metadata."""
-    has_filters = any([target_drug_class, action, q])
-    if has_filters or status:
-        rules = read_constraint_rules_filtered(
-            status=status,
-            target_drug_class=target_drug_class,
-            action=action,
-            q=q,
-            limit=limit,
-        )
-        items = [ConstraintRuleResponse(**r) for r in rules]
-    else:
-        draft = read_constraint_rules_by_status("draft", limit=limit)
-        approved = read_constraint_rules_by_status("approved", limit=limit)
-        retired = read_constraint_rules_by_status("retired", limit=limit)
-        rules = draft + approved + retired
-        items = [ConstraintRuleResponse(**r) for r in rules]
+    rules = read_constraint_rules_filtered(
+        status=status,
+        target_drug_class=target_drug_class,
+        action=action,
+        q=q,
+        safety_tier=safety_tier,
+        needs_condition=needs_condition,
+        limit=limit,
+        offset=offset,
+    )
+    items = [ConstraintRuleResponse(**r) for r in rules]
+    total = count_constraint_rules_filtered(
+        status=status,
+        target_drug_class=target_drug_class,
+        action=action,
+        q=q,
+        safety_tier=safety_tier,
+        needs_condition=needs_condition,
+    )
 
-    draft_count = len([r for r in rules if r.get("status") == "draft"])
-    approved_count = len([r for r in rules if r.get("status") == "approved"])
-    retired_count = len([r for r in rules if r.get("status") == "retired"])
+    counts = get_constraint_rule_counts(
+        target_drug_class=target_drug_class,
+        action=action,
+        q=q,
+    )
 
     return ConstraintRuleListResponse(
-        total=len(rules),
+        total=total,
         items=items,
-        draft_count=draft_count,
-        approved_count=approved_count,
-        retired_count=retired_count,
+        draft_count=counts["draft"],
+        approved_count=counts["approved"],
+        retired_count=counts["retired"],
     )
 
 
@@ -245,16 +275,18 @@ def list_constraint_rules(
 def bulk_approve_constraints(
     payload: BulkApproveRequest,
     background_tasks: BackgroundTasks,
-    current_user: AdminUser = Depends(get_current_admin_user),
+    current_user: AdminUser = Depends(require_role("clinical_lead")),
 ) -> BulkApproveResponse:
-    require_role(current_user, "clinical_lead")
     result = bulk_approve_constraint_rules(
         current_user.id,
         rule_ids=payload.rule_ids,
         target_drug_class=payload.target_drug_class,
         action=payload.action,
         q=payload.q,
+        safety_tier=payload.safety_tier,
+        needs_condition=payload.needs_condition,
         limit=payload.limit,
+        match_all=payload.match_all,
         dry_run=payload.dry_run,
     )
     if not payload.dry_run:

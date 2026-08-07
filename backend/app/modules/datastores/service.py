@@ -59,7 +59,7 @@ def _preload_runtime_caches() -> dict[str, Any]:
         ("gdmt_policies", "app.modules.gdmt_policy.policy_loader", "load_executable_gdmt_policies"),
         ("interaction_rules", "app.modules.interaction_checking.rule_loader", "load_executable_interaction_rules"),
         ("dose_safety_warnings", "app.modules.dose_safety.rule_loader", "load_executable_dose_safety_warnings"),
-        ("dose_rules", "app.modules.dose_calculator.registry", "load_dose_rules"),
+        ("dose_labels", "app.modules.dose_calculation", "get_available_drugs"),
     )
     warmed: dict[str, Any] = {}
     for name, module_path, function_name in loaders:
@@ -89,6 +89,17 @@ def _preload_runtime_caches() -> dict[str, Any]:
     except Exception as exc:
         logger.warning("clinical intake catalog preload unavailable: %s", exc)
         warmed["clinical_intake_catalog"] = {"status": "unavailable", "detail": str(exc)}
+
+    try:
+        from app.modules.graphrag.service import load_published_chunks, _get_bm25_index
+
+        chunks = load_published_chunks()
+        _get_bm25_index(True)
+        warmed["bm25_index"] = {"status": "ok", "chunks": len(chunks)}
+        print(f"[datastore-bootstrap] warmed BM25 index: {len(chunks)} chunk(s)", flush=True)
+    except Exception as exc:
+        logger.warning("BM25 preload unavailable: %s", exc)
+        warmed["bm25_index"] = {"status": "unavailable", "detail": str(exc)}
 
     return warmed
 
@@ -141,16 +152,16 @@ def _s3_status() -> dict[str, Any]:
 
 
 def _dose_rules_status() -> dict[str, Any]:
-    from app.core.config import settings
-
-    if not settings.dose_calculator_enabled:
-        return {"status": "disabled"}
+    """Health check for FDA-label dose tables (replaces curated dose_calculator bundle)."""
     try:
-        from app.modules.dose_calculator.rule_validation import DoseRulesValidationError, check_runtime_dose_rules
+        from app.modules.dose_calculation import dose_source_version, get_available_drugs
 
-        return check_runtime_dose_rules()
-    except DoseRulesValidationError as exc:
-        return {"status": "error", "detail": str(exc), "errors": exc.errors}
+        drugs = get_available_drugs()
+        return {
+            "status": "ok",
+            "source": dose_source_version(),
+            "drug_count": len(drugs),
+        }
     except Exception as exc:
         return {"status": "error", "detail": str(exc)}
 

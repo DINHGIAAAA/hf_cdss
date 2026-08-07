@@ -2,17 +2,16 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
 from app.core.rule_cache import RuleCache
 from app.modules.datastores.gdmt_policies_postgres import read_approved_gdmt_policies
-
-_MODULE_DIR = Path(__file__).resolve().parent
+from app.modules.gdmt_policy.guidance_normalize import normalize_policy_body
+from app.modules.recommendation.drug_class_keys import canonical_gdmt_class_id
 
 
 def _normalize_policy_row(row: dict[str, Any]) -> dict[str, Any]:
-    body = dict(row.get("policy_body") or {})
+    body = normalize_policy_body(dict(row.get("policy_body") or {}))
     if row.get("med_detection_terms"):
         body.setdefault("med_detection_terms", row.get("med_detection_terms"))
     if row.get("warning_targets"):
@@ -37,7 +36,7 @@ def _normalize_policy_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 _CACHE = RuleCache(
     catalog_name="gdmt_policies",
     ttl_seconds_setting="gdmt_policy_cache_ttl_seconds",
-    fallback_path=_MODULE_DIR / "rules" / "hf_gdmt_policy_v1.json",
+    fallback_path=None,
     list_key="policies",
     db_loader=read_approved_gdmt_policies,
     default_version="hf_gdmt_policy_v1",
@@ -55,7 +54,13 @@ def load_gdmt_policy_bundle() -> dict[str, Any]:
 
 
 def load_executable_gdmt_policies() -> list[dict[str, Any]]:
-    return _CACHE.load_items()
+    policies = _CACHE.load_items()
+    canonical = [
+        policy
+        for policy in policies
+        if canonical_gdmt_class_id(str(policy.get("drug_class_key") or ""))
+    ]
+    return canonical
 
 
 def gdmt_policy_version() -> str:

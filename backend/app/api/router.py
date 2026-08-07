@@ -5,6 +5,7 @@ from app.api.routes import (
     auth,
     chat,
     clinical_pipeline,
+    dosing,
     evidence,
     graphrag,
     health,
@@ -24,6 +25,7 @@ from app.api.routes.admin import (
     gdmt_policies_router,
     interaction_rules_router,
     users_router,
+    governance_filters_router,
 )
 
 
@@ -32,6 +34,7 @@ api_router.include_router(health.router, tags=["system"])
 api_router.include_router(clinical_pipeline.router, tags=["clinical-pipeline"])
 api_router.include_router(clinical_pipeline.legacy_router, tags=["clinical-pipeline"])
 api_router.include_router(recommendation.router, tags=["recommendation"])
+api_router.include_router(dosing.router, tags=["dosing"])
 api_router.include_router(medication_safety.router, tags=["medication-safety"])
 api_router.include_router(evidence.router, tags=["evidence"])
 api_router.include_router(knowledge_graph.router, tags=["knowledge-graph"])
@@ -49,4 +52,5 @@ api_router.include_router(interaction_rules_router, prefix="/admin", tags=["admi
 api_router.include_router(gdmt_policies_router, prefix="/admin", tags=["admin"])
 api_router.include_router(evidence_router, prefix="/admin", tags=["admin"])
 api_router.include_router(users_router, prefix="/admin", tags=["admin"])
+api_router.include_router(governance_filters_router, prefix="/admin", tags=["admin"])
 api_router.include_router(audit_router, prefix="/admin", tags=["admin"])

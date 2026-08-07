@@ -303,6 +303,7 @@ class PatientProfile(BaseModel):
         potassium = output.pop("potassium", None)
         systolic_bp = output.pop("systolic_bp", None)
         heart_rate = output.pop("heart_rate", None)
+        weight_kg = output.pop("weight_kg", None)
         nyha_class = output.pop("nyha_class", None)
         comorbidities = output.pop("comorbidities", [])
         current_medications = output.pop("current_medications", [])
@@ -321,6 +322,7 @@ class PatientProfile(BaseModel):
             **output.get("vitals", {}),
             "systolic_bp": _clinical_value(systolic_bp, "mmHg"),
             "heart_rate": _clinical_value(heart_rate, "bpm"),
+            "weight_kg": _clinical_value(weight_kg, "kg"),
         }
         output["heart_failure_profile"] = {
             **output.get("heart_failure_profile", {}),
@@ -346,6 +348,30 @@ class PatientProfile(BaseModel):
             for item in allergies
         ]
         return output
+
+    @model_validator(mode="after")
+    def validate_physiological_ranges(self) -> "PatientProfile":
+        violations = []
+        for label, cv, lo, hi in [
+            ("lvef", self.heart_failure_profile.lvef, 0, 100),
+            ("heart_rate", self.vitals.heart_rate, 20, 300),
+            ("systolic_bp", self.vitals.systolic_bp, 40, 300),
+            ("diastolic_bp", self.vitals.diastolic_bp, 20, 200),
+            ("potassium", self.labs.potassium, 1.0, 10.0),
+            ("creatinine", self.labs.creatinine, 0.1, 30.0),
+            ("egfr", self.labs.egfr, 0, 200),
+        ]:
+            if cv is None or cv.value is None:
+                continue
+            try:
+                v = float(cv.value)
+                if not (lo <= v <= hi):
+                    violations.append(f"{label}={v} outside [{lo},{hi}]")
+            except (TypeError, ValueError):
+                pass
+        if violations:
+            raise ValueError(f"Physiological range violations: {', '.join(violations)}")
+        return self
 
     @property
     def case_id(self) -> str:

@@ -10,6 +10,7 @@ from typing import Any
 
 from scraper.semantic import config
 from scraper.prompts.dose_extraction import STRUCTURED_DOSE_EXTRACTION_SYSTEM_PROMPT
+from scraper.semantic.dose_safety_constants import has_safety_cue
 from scraper.semantic.llm_client import call_llm_json
 
 logger = logging.getLogger(__name__)
@@ -26,6 +27,8 @@ CALCULATION_TYPES = {
     "crcl_bracket",
     "weight_adjusted_target",
     "congestion_range",
+    "loading_then_fixed",
+    "weight_adjusted_fixed",
 }
 
 DOSE_SECTION_KEYWORDS = (
@@ -41,6 +44,21 @@ DOSE_SECTION_KEYWORDS = (
 )
 
 # Extended keywords for heart failure dose detection
+DOSE_SAFETY_SECTION_KEYWORDS = (
+    "warnings",
+    "precautions",
+    "boxed warning",
+    "contraindications",
+    "adverse reactions",
+    "use in specific populations",
+    "renal impairment",
+    "hepatic impairment",
+    "drug interactions",
+    "hyperkalemia",
+    "laboratory tests",
+    "monitoring",
+)
+
 DOSE_HF_KEYWORDS = (
     "mg daily",
     "mg twice",
@@ -109,24 +127,46 @@ def _normalize_amount(raw: Any) -> dict[str, Any] | None:
         return None
 
 
+_ALLOWED_CRITERION_OPERATORS = frozenset(
+    {"gte", "lte", "gt", "lt", "eq", "equals", "between"}
+)
+
+
 def _normalize_criterion(raw: Any) -> dict[str, Any] | None:
     if not isinstance(raw, dict):
         return None
     field = str(raw.get("field") or "").strip()
-    operator = str(raw.get("operator") or "").strip()
+    operator = str(raw.get("operator") or "").strip().lower()
     if not field or not operator:
         return None
+    # Reject LLM copies of prompt enum menus like "age|weight_kg|creatinine|crcl".
+    if "|" in field or "|" in operator:
+        return None
+    if operator not in _ALLOWED_CRITERION_OPERATORS:
+        return None
+    if any(ch.isspace() for ch in field) or "/" in field:
+        # Prefer snake_case clinical keys; reject free-form enum dumps.
+        field = field.replace(" ", "_").replace("/", "_")
     item: dict[str, Any] = {
         "field": field,
         "operator": operator,
         "label": str(raw.get("label") or f"{field} {operator}"),
     }
+    # Drop labels that still look like enum menus.
+    if "|" in str(item["label"]):
+        item["label"] = f"{field} {operator}"
     if raw.get("value") is not None:
         item["value"] = raw["value"]
     if raw.get("value_low") is not None:
         item["value_low"] = raw["value_low"]
     if raw.get("value_high") is not None:
         item["value_high"] = raw["value_high"]
+    if operator == "between":
+        if item.get("value_low") is None or item.get("value_high") is None:
+            return None
+    elif operator in {"gte", "lte", "gt", "lt", "eq", "equals"}:
+        if item.get("value") is None:
+            return None
     return item
 
 
@@ -144,9 +184,9 @@ def _build_structured_claim(record: dict, payload: dict[str, Any], index: int) -
         return None
 
     try:
-        confidence = max(0.5, min(float(payload.get("confidence") or 0.82), 1.0))
+        confidence = max(0.5, min(float(payload.get("confidence") or 0.5), 1.0))
     except (TypeError, ValueError):
-        confidence = 0.82
+        confidence = 0.5
 
     metadata = dict(record.get("metadata") or {})
     drug_keys = [str(item).strip().lower() for item in (payload.get("drug_keys") or []) if str(item).strip()]
@@ -174,6 +214,8 @@ def _build_structured_claim(record: dict, payload: dict[str, Any], index: int) -
         "step_interval_weeks": payload.get("step_interval_weeks"),
         "step_multiplier": payload.get("step_multiplier"),
         "hold_if": payload.get("hold_if") if isinstance(payload.get("hold_if"), dict) else None,
+        "renal_adjustment": bool(payload.get("renal_adjustment")),
+        "lab_monitoring": bool(payload.get("lab_monitoring")),
         "monitoring": [str(item) for item in (payload.get("monitoring") or []) if str(item).strip()],
         "metadata": {
             "extraction_method": "llm_structured_dose",
@@ -210,7 +252,32 @@ def _build_structured_claim(record: dict, payload: dict[str, Any], index: int) -
     return structured
 
 
+def is_dose_safety_relevant_section(record: dict) -> bool:
+    """Sections likely to contain dose hold/reduction/monitoring language."""
+    section = str(record.get("section") or record.get("source_section") or "").lower()
+    text = str(record.get("text") or "").lower()
+    haystack = f"{section} {text[:800]}"
+    if any(keyword in haystack for keyword in DOSE_SAFETY_SECTION_KEYWORDS):
+        return True
+    if has_safety_cue(haystack):
+        return True
+    return False
+
+
+def is_dosage_and_administration_section(record: dict) -> bool:
+    section = str(record.get("section") or record.get("source_section") or "").lower()
+    if "dosage and administration" in section or "dosage & administration" in section:
+        return True
+    # Nested SPL titles like "DOSAGE AND ADMINISTRATION / HEART FAILURE"
+    leaf = section.split(" / ")[-1].strip()
+    return leaf in {"dosage", "dosing", "dose and administration", "dosing and administration"}
+
+
 def is_dose_relevant_section(record: dict) -> bool:
+    # Always keep true FDA dosing sections so every labeled drug is extractable.
+    if record.get("source_type") == "drug_label" and is_dosage_and_administration_section(record):
+        return True
+
     section = str(record.get("section") or record.get("source_section") or "").lower()
     text = str(record.get("text") or "").lower()
     haystack = f"{section} {text[:600]}"  # Increased from 400 to 600 chars
@@ -254,6 +321,68 @@ def is_dose_relevant_section(record: dict) -> bool:
     return False
 
 
+def select_dose_extraction_records(
+    records: list[dict],
+    *,
+    drug_labels_only: bool = False,
+    dosage_sections_only: bool = False,
+    safety_sections_only: bool = False,
+) -> list[dict]:
+    """Filter/prioritize sections for structured dose extraction.
+
+    When dosage_sections_only is set, keep drug-label DOSAGE AND ADMINISTRATION
+    (longest text per document) plus guideline dosage sections unless
+    drug_labels_only is also set.
+
+    When safety_sections_only is set, keep WARNINGS/PRECAUTIONS/renal sections.
+    """
+    selected: list[dict] = []
+    best_label_dosage: dict[str, dict] = {}
+
+    for record in records:
+        text = str(record.get("text") or "").strip()
+        if len(text) < 40:
+            continue
+
+        source_type = record.get("source_type")
+        if drug_labels_only and source_type != "drug_label":
+            continue
+
+        if safety_sections_only:
+            if not is_dose_safety_relevant_section(record):
+                continue
+            selected.append(record)
+            continue
+
+        if dosage_sections_only:
+            if source_type == "drug_label":
+                if not is_dosage_and_administration_section(record):
+                    continue
+                doc_id = str(record.get("document_id") or "")
+                if not doc_id:
+                    selected.append(record)
+                    continue
+                prior = best_label_dosage.get(doc_id)
+                if prior is None or len(text) > len(str(prior.get("text") or "")):
+                    best_label_dosage[doc_id] = record
+                continue
+            if not is_dose_relevant_section(record):
+                continue
+            if not is_dosage_and_administration_section(record) and "dosage" not in str(
+                record.get("section") or ""
+            ).lower():
+                # Guidelines: keep clearly dosage-titled sections only in this mode.
+                continue
+        elif not is_dose_relevant_section(record):
+            continue
+
+        selected.append(record)
+
+    # Stable order by document_id for label dosage picks.
+    selected.extend(best_label_dosage[key] for key in sorted(best_label_dosage))
+    return selected
+
+
 def extract_structured_dose_claims_from_section(record: dict) -> list[dict]:
     text = (record.get("text") or "").strip()
     if not text:
@@ -288,13 +417,45 @@ def extract_structured_dose_claims_from_section(record: dict) -> list[dict]:
     return claims
 
 
-def extract_structured_dose_claims_batch(records: list[dict]) -> list[dict]:
+def extract_structured_dose_claims_batch(
+    records: list[dict],
+    *,
+    drug_labels_only: bool = False,
+    dosage_sections_only: bool = False,
+    safety_sections_only: bool = False,
+    limit: int | None = None,
+) -> list[dict]:
     claims: list[dict] = []
-    for record in records:
-        if not is_dose_relevant_section(record):
-            continue
+    selected = select_dose_extraction_records(
+        records,
+        drug_labels_only=drug_labels_only,
+        dosage_sections_only=dosage_sections_only,
+        safety_sections_only=safety_sections_only,
+    )
+    if limit is not None and limit >= 0:
+        selected = selected[:limit]
+    logger.info(
+        "Structured dose extraction: %s/%s sections selected "
+        "(labels_only=%s, dosage_only=%s, safety_only=%s)",
+        len(selected),
+        len(records),
+        drug_labels_only,
+        dosage_sections_only,
+        safety_sections_only,
+    )
+    for index, record in enumerate(selected, start=1):
         try:
-            claims.extend(extract_structured_dose_claims_from_section(record))
+            section_claims = extract_structured_dose_claims_from_section(record)
+            claims.extend(section_claims)
+            if index == 1 or index % 10 == 0 or index == len(selected):
+                logger.info(
+                    "Dose extract progress: %s/%s sections, %s claims so far (%s / %s)",
+                    index,
+                    len(selected),
+                    len(claims),
+                    record.get("document_id"),
+                    record.get("section"),
+                )
         except Exception as exc:
             logger.warning(
                 "Structured dose extraction failed for %s/%s: %s",

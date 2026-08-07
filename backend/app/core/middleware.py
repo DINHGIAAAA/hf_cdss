@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import logging
 import time
@@ -262,3 +263,31 @@ async def production_guard_middleware(
         increment("hf_cdss_http_requests_total", metric_labels)
         observe("hf_cdss_http_request_duration", elapsed, metric_labels)
         request_id_var.reset(token)
+        # Audit logging for authenticated requests
+        if _requires_auth(request.url.path) and status_code < 500:
+            try:
+                from app.modules.datastores.postgres import write_audit_event
+
+                actor = None
+                auth = request.headers.get("authorization", "")
+                if auth.startswith("Bearer "):
+                    from app.core.jwt import decode_token
+
+                    try:
+                        actor = decode_token(auth[7:]).get("sub")
+                    except Exception:
+                        pass
+                if actor:
+                    await asyncio.to_thread(
+                        write_audit_event,
+                        case_id=None,
+                        event_type="api_access",
+                        payload={
+                            "action": f"{request.method} {request.url.path}",
+                            "outcome": "success" if status_code < 400 else "failure",
+                            "status_code": status_code,
+                            "duration_ms": round(elapsed * 1000, 2),
+                        },
+                    )
+            except Exception:
+                pass

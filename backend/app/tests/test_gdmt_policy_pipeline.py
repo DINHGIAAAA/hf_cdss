@@ -8,11 +8,8 @@ if str(PROJECT_ROOT) not in sys.path:
 from scraper.semantic.gdmt_policy_builder import gdmt_policies_from_claims
 
 
-def test_gdmt_policies_from_claims_includes_bundled_baseline() -> None:
-    policies = gdmt_policies_from_claims([])
-    assert len(policies) == 4
-    keys = {item["drug_class_key"] for item in policies}
-    assert keys == {"ARNI/ACEi/ARB", "beta_blocker", "MRA", "SGLT2i"}
+def test_gdmt_policies_from_claims_empty_without_baseline() -> None:
+    assert gdmt_policies_from_claims([]) == []
 
 
 def test_gdmt_policies_from_claims_merges_pipeline_claim() -> None:

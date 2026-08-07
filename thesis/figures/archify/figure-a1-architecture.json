@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "HF-CDSS System Architecture",
+    "subtitle": "Three-tier mono-app: React dashboard, FastAPI modules, multi-store data plane",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    { "id": "clinician", "type": "external", "label": "Clinician", "sublabel": "Doctor user", "pos": [400, 36], "size": [120, 52] },
+    { "id": "dashboard", "type": "frontend", "label": "Doctor Dashboard", "sublabel": "React + Vite :5173", "pos": [355, 118], "size": [210, 58] },
+    { "id": "api", "type": "backend", "label": "FastAPI Backend", "sublabel": "Chat, reasoning, GraphRAG :8000", "pos": [300, 200], "size": [240, 64] },
+    { "id": "postgres", "type": "database", "label": "PostgreSQL", "sublabel": "Rules, audit, chat", "pos": [40, 360], "size": [130, 56] },
+    { "id": "neo4j", "type": "database", "label": "Neo4j", "sublabel": "Knowledge graph", "pos": [210, 360], "size": [130, 56] },
+    { "id": "chroma", "type": "database", "label": "ChromaDB", "sublabel": "Evidence vectors", "pos": [380, 360], "size": [130, 56] },
+    { "id": "redis", "type": "database", "label": "Redis", "sublabel": "Draft + LLM cache", "pos": [550, 360], "size": [130, 56] },
+    { "id": "ollama", "type": "external", "label": "Ollama", "sublabel": "qwen2.5 + bge-m3 :11434", "pos": [660, 200], "size": [180, 56] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "Runtime data plane", "wraps": ["postgres", "neo4j", "chroma", "redis"] }
+  ],
+  "connections": [
+    { "id": "c1", "from": "clinician", "to": "dashboard" },
+    { "id": "c2", "from": "dashboard", "to": "api", "variant": "emphasis", "fromSide": "bottom", "toSide": "top" },
+    { "id": "c3", "from": "api", "to": "postgres", "fromSide": "bottom", "toSide": "top" },
+    { "id": "c4", "from": "api", "to": "neo4j", "fromSide": "bottom", "toSide": "top" },
+    { "id": "c5", "from": "api", "to": "chroma", "fromSide": "bottom", "toSide": "top" },
+    { "id": "c6", "from": "api", "to": "redis", "fromSide": "bottom", "toSide": "top" },
+    { "id": "c7", "from": "api", "to": "ollama", "fromSide": "right", "toSide": "left", "variant": "dashed" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Presentation tier", "items": ["Single Vite app: /chat and /admin/*", "SSE streams recommendation before prose"] },
+    { "dot": "emerald", "title": "Authority split", "items": ["PostgreSQL catalogs own GDMT and hard blocks", "GraphRAG supplies citable evidence chunks"] }
+  ]
+}

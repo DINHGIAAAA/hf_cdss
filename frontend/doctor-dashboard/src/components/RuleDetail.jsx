@@ -1,15 +1,40 @@
 import { useEffect, useState } from "react";
-import { CheckCircle2, History, RotateCcw, ShieldOff, XCircle } from "lucide-react";
+import { History, XCircle } from "lucide-react";
 
 import { adminApi } from "../api/index.js";
+import { CatalogStatusActions } from "@shared/governance/CatalogStatusActions.jsx";
 import { RuleVisibilityBadge } from "./RuleVisibilityBadge.jsx";
 import { ruleVisibilityMeta } from "../utils/ruleVisibility.js";
 import { VersionDiffPanel } from "@shared/governance/VersionDiffPanel.jsx";
+import { StatusHistoryList } from "@shared/governance/StatusHistoryList.jsx";
+import {
+  ClinicalSourcesList,
+  DetailFieldList,
+  DetailMetaRow,
+} from "@shared/governance/DetailFieldList.jsx";
+import { AdminDetailModal } from "@shared/governance/AdminDetailModal.jsx";
+import {
+  constraintRuleTitle,
+  formatConstraintConditionFields,
+} from "@shared/governance/displayNames.js";
+import {
+  evidenceLinkDetailField,
+  pipelineSourceDetailField,
+  textMatchesClinicalSources,
+} from "@shared/governance/catalogDetailReview.js";
+import { ConstraintConditionPanel } from "@shared/governance/ConstraintConditionPanel.jsx";
 
 function statusClass(status) {
   if (status === "approved") return "success";
   if (status === "draft") return "warning";
   return "danger";
+}
+
+function ruleNeedsCondition(rule) {
+  const meta = rule?.metadata || {};
+  if (meta.needs_condition === true || meta.needs_condition === "true") return true;
+  if (meta.needs_condition === false || meta.needs_condition === "false") return false;
+  return meta.safety_tier === "needs_condition_refinement";
 }
 
 export function RuleDetail({ rule, onClose, onAction, actionLoading, canApprove, canAdmin, canRead }) {
@@ -38,15 +63,47 @@ export function RuleDetail({ rule, onClose, onAction, actionLoading, canApprove,
   const showApprove = rule.status === "draft";
   const approveDisabled = showApprove && !canApprove;
   const visibility = ruleVisibilityMeta(rule.status);
+  const conditionFields = formatConstraintConditionFields(rule);
+  const needsCondition = ruleNeedsCondition(rule);
+  const safetyTier = rule.metadata?.safety_tier || null;
+  const sources = rule.clinical_sources || [];
+
+  const detailFields = [
+    { label: "Action", value: rule.action },
+    { label: "Target class", value: rule.target_drug_class || "—" },
+    {
+      label: "Severity",
+      value: (rule.severity_any || []).length ? rule.severity_any : "—",
+    },
+  ];
+  if (rule.reason && !textMatchesClinicalSources(rule.reason, sources)) {
+    detailFields.push({ label: "Reason", value: rule.reason, wide: true });
+  }
+  detailFields.push({
+    label: "Risks",
+    value: (rule.risk_names || []).length ? rule.risk_names : "—",
+  });
+  const evidenceField = evidenceLinkDetailField(rule.evidence_ref, sources);
+  if (evidenceField) detailFields.push(evidenceField);
+  const sourceField = pipelineSourceDetailField(rule.source);
+  if (sourceField) detailFields.push(sourceField);
 
   return (
-    <aside aria-label="Rule details" className="admin-detail-panel">
+    <AdminDetailModal ariaLabel="Rule details" onClose={onClose}>
       <header className="admin-detail-header">
         <div className="admin-clip">
-          <h2 title={rule.constraint_id}>{rule.constraint_id}</h2>
-          <p>
-            v{rule.version} · <span className={`badge ${statusClass(rule.status)}`}>{rule.status}</span>
-          </p>
+          <h2>{constraintRuleTitle(rule)}</h2>
+          <DetailMetaRow
+            badges={
+              safetyTier
+                ? [{ label: String(safetyTier).replace(/_/g, " "), className: "muted" }]
+                : []
+            }
+            id={rule.constraint_id}
+            status={rule.status}
+            statusClassName={statusClass(rule.status)}
+            version={rule.version}
+          />
         </div>
         <button className="icon-btn" onClick={onClose} type="button">
           <XCircle size={18} />
@@ -59,33 +116,15 @@ export function RuleDetail({ rule, onClose, onAction, actionLoading, canApprove,
       </div>
 
       <div className="admin-detail-body">
-        <dl className="detail-grid">
-          <dt>Action</dt>
-          <dd>{rule.action}</dd>
-          <dt>Target class</dt>
-          <dd>{rule.target_drug_class || "—"}</dd>
-          <dt>Reason</dt>
-          <dd>{rule.reason}</dd>
-          <dt>Risks</dt>
-          <dd>{(rule.risk_names || []).join(", ") || "—"}</dd>
-          <dt>Evidence</dt>
-          <dd>{rule.evidence_ref || "—"}</dd>
-          <dt>Source</dt>
-          <dd>{rule.source}</dd>
-        </dl>
+        <ConstraintConditionPanel
+          fields={conditionFields}
+          needsCondition={needsCondition}
+          rule={rule}
+        />
 
-        {(rule.clinical_sources || []).length > 0 && (
-          <section>
-            <h3>Clinical sources</h3>
-            <ul className="source-list">
-              {rule.clinical_sources.map((src, i) => (
-                <li key={`${src.source_url || i}`}>
-                  {src.title || src.source_url || JSON.stringify(src)}
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
+        <DetailFieldList fields={detailFields} />
+
+        <ClinicalSourcesList sources={sources} />
 
         <VersionDiffPanel
           fetchDiff={adminApi.getConstraintRuleDiff}
@@ -98,67 +137,24 @@ export function RuleDetail({ rule, onClose, onAction, actionLoading, canApprove,
             <h3>
               <History size={16} /> History
             </h3>
-            {historyError && <p className="inline-error">{historyError}</p>}
-            <ul className="history-list">
-              {history.map((item) => (
-                <li key={item.history_id}>
-                  <strong>
-                    {item.status_from || "—"} → {item.status_to}
-                  </strong>
-                  <span>
-                    {item.changed_by} · {new Date(item.changed_at).toLocaleString()}
-                  </span>
-                  {item.reason && <small>{item.reason}</small>}
-                </li>
-              ))}
-              {history.length === 0 && !historyError && <li>No history recorded.</li>}
-            </ul>
+            <StatusHistoryList error={historyError} items={history} />
           </section>
         )}
       </div>
 
       <footer className="admin-detail-actions">
-        {showApprove && canApprove && (
-          <button
-            className="primary-action"
-            disabled={actionLoading}
-            onClick={() => onAction("approve", rule.id)}
-            type="button"
-          >
-            <CheckCircle2 size={16} /> Approve
-          </button>
-        )}
-        {approveDisabled && (
-          <button
-            className="primary-action"
-            disabled
-            title="Only clinical_lead can approve draft rules"
-            type="button"
-          >
-            <CheckCircle2 size={16} /> Approve (clinical_lead required)
-          </button>
-        )}
-        {rule.status === "approved" && canAdmin && (
-          <button
-            className="danger-action"
-            disabled={actionLoading}
-            onClick={() => onAction("retire", rule.id)}
-            type="button"
-          >
-            <ShieldOff size={16} /> Retire
-          </button>
-        )}
-        {rule.status === "retired" && canAdmin && (
-          <button
-            className="secondary-action"
-            disabled={actionLoading}
-            onClick={() => onAction("unretire", rule.id)}
-            type="button"
-          >
-            <RotateCcw size={16} /> Restore
-          </button>
-        )}
+        <CatalogStatusActions
+          actionLoading={actionLoading}
+          approveButtonClassName="primary-action"
+          approveDisabledHint={approveDisabled}
+          approveLabel="Approve"
+          canAdmin={canAdmin}
+          canApprove={canApprove}
+          onAction={onAction}
+          recordId={rule.id}
+          status={rule.status}
+        />
       </footer>
-    </aside>
+    </AdminDetailModal>
   );
 }

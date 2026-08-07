@@ -5,6 +5,11 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from app.core.governance_audit_labels import (
+    supersede_history_actor,
+    supersede_history_reason,
+    supersede_retired_by,
+)
 from app.modules.datastores.postgres import _psycopg, postgres_pool
 
 
@@ -87,6 +92,7 @@ def read_dose_safety_warnings_filtered(
     safety_tier: str | None = None,
     q: str | None = None,
     limit: int = 500,
+    offset: int = 0,
 ) -> list[dict[str, Any]]:
     conditions: list[str] = []
     params: list[Any] = []
@@ -94,8 +100,8 @@ def read_dose_safety_warnings_filtered(
         conditions.append("status = %s")
         params.append(status)
     if target:
-        conditions.append("target ILIKE %s")
-        params.append(f"%{target}%")
+        conditions.append("target = %s")
+        params.append(target)
     if default_severity:
         conditions.append("default_severity = %s")
         params.append(default_severity)
@@ -106,7 +112,7 @@ def read_dose_safety_warnings_filtered(
         conditions.append("(dose_safety_warning_id ILIKE %s OR target ILIKE %s)")
         params.extend([f"%{q}%", f"%{q}%"])
     where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
-    params.append(limit)
+    params.extend([limit, offset])
     with postgres_pool().connection() as connection:
         with connection.cursor() as cursor:
             cursor.execute(
@@ -115,11 +121,81 @@ def read_dose_safety_warnings_filtered(
                 FROM dose_safety_warnings
                 {where}
                 ORDER BY created_at DESC
-                LIMIT %s
+                LIMIT %s OFFSET %s
                 """,
                 tuple(params),
             )
             return [_row_to_dict(row) for row in cursor.fetchall()]
+
+
+def count_dose_safety_warnings_filtered(
+    *,
+    status: str | None = None,
+    target: str | None = None,
+    default_severity: str | None = None,
+    safety_tier: str | None = None,
+    q: str | None = None,
+) -> int:
+    conditions: list[str] = []
+    params: list[Any] = []
+    if status:
+        conditions.append("status = %s")
+        params.append(status)
+    if target:
+        conditions.append("target = %s")
+        params.append(target)
+    if default_severity:
+        conditions.append("default_severity = %s")
+        params.append(default_severity)
+    if safety_tier:
+        conditions.append("safety_tier = %s")
+        params.append(safety_tier)
+    if q:
+        conditions.append("(dose_safety_warning_id ILIKE %s OR target ILIKE %s)")
+        params.extend([f"%{q}%", f"%{q}%"])
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    with postgres_pool().connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(f"SELECT COUNT(*) FROM dose_safety_warnings {where}", tuple(params))
+            return int(cursor.fetchone()[0])
+
+
+def count_dose_safety_warnings_by_status(
+    *,
+    target: str | None = None,
+    default_severity: str | None = None,
+    safety_tier: str | None = None,
+    q: str | None = None,
+) -> dict[str, int]:
+    """Status badge counts independent of the selected status tab."""
+    conditions: list[str] = []
+    params: list[Any] = []
+    if target:
+        conditions.append("target = %s")
+        params.append(target)
+    if default_severity:
+        conditions.append("default_severity = %s")
+        params.append(default_severity)
+    if safety_tier:
+        conditions.append("safety_tier = %s")
+        params.append(safety_tier)
+    if q:
+        conditions.append("(dose_safety_warning_id ILIKE %s OR target ILIKE %s)")
+        params.extend([f"%{q}%", f"%{q}%"])
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    with postgres_pool().connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"SELECT status, COUNT(*) FROM dose_safety_warnings {where} GROUP BY status",
+                tuple(params),
+            )
+            counts = {row[0]: row[1] for row in cursor.fetchall()}
+            return {
+                "draft": counts.get("draft", 0),
+                "approved": counts.get("approved", 0),
+                "retired": counts.get("retired", 0),
+                "total": sum(counts.values()),
+            }
 
 
 def get_dose_safety_warning(rule_id: int) -> dict[str, Any] | None:
@@ -224,7 +300,7 @@ def approve_dose_safety_warning(rule_id: int, admin_user_id: str) -> bool:
                     WHERE dose_safety_warning_id = %s AND status = 'approved' AND id != %s
                     RETURNING id
                     """,
-                    (f"system_auto_retire_by_{admin_user_id}", warning_id, rule_id),
+                    (supersede_retired_by(admin_user_id), warning_id, rule_id),
                 )
                 for _ in cursor.fetchall():
                     _log_dose_safety_warning_history(
@@ -232,8 +308,8 @@ def approve_dose_safety_warning(rule_id: int, admin_user_id: str) -> bool:
                         warning_id,
                         "approved",
                         "retired",
-                        f"system_auto_retire_by_{admin_user_id}",
-                        f"Auto-retired due to new version approval (rule_id: {rule_id})",
+                        supersede_history_actor(admin_user_id),
+                        supersede_history_reason(rule_id, admin_user_id),
                     )
                 cursor.execute(
                     """
@@ -258,24 +334,31 @@ def retire_dose_safety_warning(rule_id: int, admin_user_id: str) -> bool:
     try:
         with postgres_pool().connection() as connection:
             with connection.cursor() as cursor:
-                cursor.execute("SELECT dose_safety_warning_id FROM dose_safety_warnings WHERE id = %s", (rule_id,))
+                cursor.execute(
+                    "SELECT dose_safety_warning_id, status FROM dose_safety_warnings WHERE id = %s",
+                    (rule_id,),
+                )
                 row = cursor.fetchone()
                 if not row:
                     return False
-                warning_id = row[0]
+                warning_id, from_status = row[0], row[1]
+                if from_status not in ("approved", "draft"):
+                    return False
                 cursor.execute(
                     """
                     UPDATE dose_safety_warnings
                     SET status = 'retired', retired_by = %s, retired_at = NOW(), updated_at = NOW()
-                    WHERE id = %s AND status = 'approved'
+                    WHERE id = %s AND status = %s
                     """,
-                    (admin_user_id, rule_id),
+                    (admin_user_id, rule_id, from_status),
                 )
                 if cursor.rowcount > 0:
+                    reason = "Draft discarded" if from_status == "draft" else "Dose safety warning retired"
                     _log_dose_safety_warning_history(
-                        cursor, warning_id, "approved", "retired", admin_user_id, "Dose safety warning retired"
+                        cursor, warning_id, from_status, "retired", admin_user_id, reason
                     )
-        return True
+                    return True
+        return False
     except Exception as exc:
         logger.warning("Failed to retire dose safety warning %s: %s", rule_id, exc)
         return False
@@ -299,7 +382,7 @@ def unretire_dose_safety_warning(rule_id: int, admin_user_id: str) -> bool:
                     SET status = 'retired', retired_by = %s, retired_at = NOW(), updated_at = NOW()
                     WHERE dose_safety_warning_id = %s AND status = 'approved' AND id != %s
                     """,
-                    (f"system_auto_retire_by_{admin_user_id}", warning_id, rule_id),
+                    (supersede_retired_by(admin_user_id), warning_id, rule_id),
                 )
                 cursor.execute(
                     """
@@ -397,8 +480,8 @@ def list_draft_dose_safety_warning_ids(
         conditions.append("id = ANY(%s)")
         params.append(rule_ids)
     if target:
-        conditions.append("target ILIKE %s")
-        params.append(f"%{target}%")
+        conditions.append("target = %s")
+        params.append(target)
     if default_severity:
         conditions.append("default_severity = %s")
         params.append(default_severity)

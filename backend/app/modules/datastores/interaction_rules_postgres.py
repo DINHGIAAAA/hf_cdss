@@ -5,6 +5,11 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from app.core.governance_audit_labels import (
+    supersede_history_actor,
+    supersede_history_reason,
+    supersede_retired_by,
+)
 from app.modules.datastores.postgres import _psycopg, postgres_pool
 
 
@@ -70,7 +75,9 @@ def read_interaction_rules_filtered(
     target: str | None = None,
     safety_tier: str | None = None,
     q: str | None = None,
+    extraction_method: str | None = None,
     limit: int = 500,
+    offset: int = 0,
 ) -> list[dict[str, Any]]:
     conditions: list[str] = []
     params: list[Any] = []
@@ -81,16 +88,19 @@ def read_interaction_rules_filtered(
         conditions.append("severity = %s")
         params.append(severity)
     if target:
-        conditions.append("target ILIKE %s")
-        params.append(f"%{target}%")
+        conditions.append("target = %s")
+        params.append(target)
     if safety_tier:
         conditions.append("safety_tier = %s")
         params.append(safety_tier)
     if q:
         conditions.append("interaction_rule_id ILIKE %s")
         params.append(f"%{q}%")
+    if extraction_method:
+        conditions.append("metadata->>'extraction_method' = %s")
+        params.append(extraction_method)
     where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
-    params.append(limit)
+    params.extend([limit, offset])
     with postgres_pool().connection() as connection:
         with connection.cursor() as cursor:
             cursor.execute(
@@ -102,7 +112,7 @@ def read_interaction_rules_filtered(
                 FROM interaction_rules
                 {where}
                 ORDER BY created_at DESC
-                LIMIT %s
+                LIMIT %s OFFSET %s
                 """,
                 tuple(params),
             )
@@ -131,6 +141,84 @@ def read_interaction_rules_filtered(
                 }
                 for row in cursor.fetchall()
             ]
+
+
+def count_interaction_rules_filtered(
+    *,
+    status: str | None = None,
+    severity: str | None = None,
+    target: str | None = None,
+    safety_tier: str | None = None,
+    q: str | None = None,
+    extraction_method: str | None = None,
+) -> int:
+    conditions: list[str] = []
+    params: list[Any] = []
+    if status:
+        conditions.append("status = %s")
+        params.append(status)
+    if severity:
+        conditions.append("severity = %s")
+        params.append(severity)
+    if target:
+        conditions.append("target = %s")
+        params.append(target)
+    if safety_tier:
+        conditions.append("safety_tier = %s")
+        params.append(safety_tier)
+    if q:
+        conditions.append("interaction_rule_id ILIKE %s")
+        params.append(f"%{q}%")
+    if extraction_method:
+        conditions.append("metadata->>'extraction_method' = %s")
+        params.append(extraction_method)
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    with postgres_pool().connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(f"SELECT COUNT(*) FROM interaction_rules {where}", tuple(params))
+            return int(cursor.fetchone()[0])
+
+
+def count_interaction_rules_by_status(
+    *,
+    severity: str | None = None,
+    target: str | None = None,
+    safety_tier: str | None = None,
+    q: str | None = None,
+    extraction_method: str | None = None,
+) -> dict[str, int]:
+    """Status badge counts independent of the selected status tab."""
+    conditions: list[str] = []
+    params: list[Any] = []
+    if severity:
+        conditions.append("severity = %s")
+        params.append(severity)
+    if target:
+        conditions.append("target = %s")
+        params.append(target)
+    if safety_tier:
+        conditions.append("safety_tier = %s")
+        params.append(safety_tier)
+    if q:
+        conditions.append("interaction_rule_id ILIKE %s")
+        params.append(f"%{q}%")
+    if extraction_method:
+        conditions.append("metadata->>'extraction_method' = %s")
+        params.append(extraction_method)
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    with postgres_pool().connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"SELECT status, COUNT(*) FROM interaction_rules {where} GROUP BY status",
+                tuple(params),
+            )
+            counts = {row[0]: row[1] for row in cursor.fetchall()}
+            return {
+                "draft": counts.get("draft", 0),
+                "approved": counts.get("approved", 0),
+                "retired": counts.get("retired", 0),
+                "total": sum(counts.values()),
+            }
 
 
 def get_interaction_rule(rule_id: int) -> dict[str, Any] | None:
@@ -263,7 +351,7 @@ def approve_interaction_rule(rule_id: int, admin_user_id: str) -> bool:
                     WHERE interaction_rule_id = %s AND status = 'approved' AND id != %s
                     RETURNING id
                     """,
-                    (f"system_auto_retire_by_{admin_user_id}", interaction_rule_id, rule_id),
+                    (supersede_retired_by(admin_user_id), interaction_rule_id, rule_id),
                 )
                 for _ in cursor.fetchall():
                     _log_interaction_rule_history(
@@ -271,8 +359,8 @@ def approve_interaction_rule(rule_id: int, admin_user_id: str) -> bool:
                         interaction_rule_id,
                         "approved",
                         "retired",
-                        f"system_auto_retire_by_{admin_user_id}",
-                        f"Auto-retired due to new version approval (rule_id: {rule_id})",
+                        supersede_history_actor(admin_user_id),
+                        supersede_history_reason(rule_id, admin_user_id),
                     )
                 cursor.execute(
                     """
@@ -297,24 +385,31 @@ def retire_interaction_rule(rule_id: int, admin_user_id: str) -> bool:
     try:
         with postgres_pool().connection() as connection:
             with connection.cursor() as cursor:
-                cursor.execute("SELECT interaction_rule_id FROM interaction_rules WHERE id = %s", (rule_id,))
+                cursor.execute(
+                    "SELECT interaction_rule_id, status FROM interaction_rules WHERE id = %s",
+                    (rule_id,),
+                )
                 row = cursor.fetchone()
                 if not row:
                     return False
-                interaction_rule_id = row[0]
+                interaction_rule_id, from_status = row[0], row[1]
+                if from_status not in ("approved", "draft"):
+                    return False
                 cursor.execute(
                     """
                     UPDATE interaction_rules
                     SET status = 'retired', retired_by = %s, retired_at = NOW(), updated_at = NOW()
-                    WHERE id = %s AND status = 'approved'
+                    WHERE id = %s AND status = %s
                     """,
-                    (admin_user_id, rule_id),
+                    (admin_user_id, rule_id, from_status),
                 )
                 if cursor.rowcount > 0:
+                    reason = "Draft discarded" if from_status == "draft" else "Interaction rule retired"
                     _log_interaction_rule_history(
-                        cursor, interaction_rule_id, "approved", "retired", admin_user_id, "Interaction rule retired"
+                        cursor, interaction_rule_id, from_status, "retired", admin_user_id, reason
                     )
-        return True
+                    return True
+        return False
     except Exception as exc:
         logger.warning("Failed to retire interaction rule %s: %s", rule_id, exc)
         return False
@@ -338,7 +433,7 @@ def unretire_interaction_rule(rule_id: int, admin_user_id: str) -> bool:
                     SET status = 'retired', retired_by = %s, retired_at = NOW(), updated_at = NOW()
                     WHERE interaction_rule_id = %s AND status = 'approved' AND id != %s
                     """,
-                    (f"system_auto_retire_by_{admin_user_id}", interaction_rule_id, rule_id),
+                    (supersede_retired_by(admin_user_id), interaction_rule_id, rule_id),
                 )
                 cursor.execute(
                     """
@@ -427,6 +522,7 @@ def list_draft_interaction_rule_ids(
     target: str | None = None,
     safety_tier: str | None = None,
     q: str | None = None,
+    extraction_method: str | None = None,
     limit: int = 100,
 ) -> list[int]:
     conditions = ["status = 'draft'"]
@@ -438,14 +534,17 @@ def list_draft_interaction_rule_ids(
         conditions.append("severity = %s")
         params.append(severity)
     if target:
-        conditions.append("target ILIKE %s")
-        params.append(f"%{target}%")
+        conditions.append("target = %s")
+        params.append(target)
     if safety_tier:
         conditions.append("safety_tier = %s")
         params.append(safety_tier)
     if q:
         conditions.append("interaction_rule_id ILIKE %s")
         params.append(f"%{q}%")
+    if extraction_method:
+        conditions.append("metadata->>'extraction_method' = %s")
+        params.append(extraction_method)
     params.append(limit)
     with postgres_pool().connection() as connection:
         with connection.cursor() as cursor:

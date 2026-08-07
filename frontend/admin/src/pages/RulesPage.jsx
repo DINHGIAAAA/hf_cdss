@@ -4,8 +4,14 @@ import { ChevronRight, LoaderCircle, RefreshCw } from "lucide-react";
 import { adminApi } from "../api/index.js";
 import { useAuth } from "../auth/AuthContext";
 import { RuleDetail } from "../components/RuleDetail.jsx";
-import { ApprovalToolbar } from "@shared/governance/ApprovalToolbar.jsx";
+import { CatalogApprovalToolbar } from "@shared/governance/CatalogApprovalToolbar.jsx";
 import { CONSTRAINT_CATALOG } from "@shared/governance/catalogConfig.js";
+import { CatalogRecordLabel } from "@shared/governance/CatalogRecordLabel.jsx";
+import { constraintRuleTitle, shortCatalogId } from "@shared/governance/displayNames.js";
+import { CatalogPagination } from "@shared/governance/CatalogPagination.jsx";
+import { CATALOG_PAGE_SIZE } from "@shared/governance/catalogPagination.js";
+import { useCatalogBulkApprove } from "@shared/governance/useCatalogBulkApprove.js";
+import { useCatalogListPage } from "@shared/governance/useCatalogListPage.js";
 import { useRuleSelection } from "@shared/governance/useRuleSelection.js";
 
 const STATUS_TABS = [
@@ -18,6 +24,8 @@ const STATUS_TABS = [
 const EMPTY_FILTERS = {
   target_drug_class: "",
   action: "",
+  safety_tier: "",
+  needs_condition: "",
   q: "",
 };
 
@@ -25,6 +33,17 @@ function statusClass(status) {
   if (status === "approved") return "success";
   if (status === "draft") return "warning";
   return "danger";
+}
+
+function needsConditionBadge(rule) {
+  const meta = rule?.metadata || {};
+  if (meta.needs_condition === true || meta.safety_tier === "needs_condition_refinement") {
+    return <span className="badge warning">Needs condition</span>;
+  }
+  if (meta.safety_tier === "usable_rules") {
+    return <span className="badge success">Usable</span>;
+  }
+  return null;
 }
 
 export function RulesPage() {
@@ -40,6 +59,7 @@ export function RulesPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [bulkLoading, setBulkLoading] = useState(false);
   const [toast, setToast] = useState("");
+  const { page, setPage, pageSize } = useCatalogListPage(tab, appliedFilters);
 
   const canApprove = isAuthenticated && hasRole("clinical_lead");
   const canAdmin = isAuthenticated && hasRole("admin");
@@ -51,6 +71,8 @@ export function RulesPage() {
       const result = await adminApi.listRules({
         status: tab === "all" ? undefined : tab,
         ...appliedFilters,
+        limit: pageSize,
+        offset: (page - 1) * pageSize,
       });
       setData(result);
     } catch (err) {
@@ -58,7 +80,7 @@ export function RulesPage() {
     } finally {
       setLoading(false);
     }
-  }, [tab, appliedFilters]);
+  }, [tab, appliedFilters, page, pageSize]);
 
   useEffect(() => {
     loadRules();
@@ -73,6 +95,19 @@ export function RulesPage() {
     clearSelection,
     selectedCount,
   } = useRuleSelection(items);
+
+  const { handleBulkApprove, handleBulkApproveAll } = useCatalogBulkApprove({
+    catalog: CONSTRAINT_CATALOG,
+    adminApi,
+    appliedFilters,
+    selectedIds,
+    clearSelection,
+    loadRules,
+    setToast,
+    setBulkLoading,
+  });
+
+  const draftMatchCount = tab === "draft" ? (data?.total ?? 0) : 0;
 
   const activeFilterCount = useMemo(
     () => Object.values(appliedFilters).filter(Boolean).length,
@@ -109,25 +144,6 @@ export function RulesPage() {
       setToast(err.message);
     } finally {
       setActionLoading(false);
-    }
-  }
-
-  async function handleBulkApprove() {
-    setBulkLoading(true);
-    setToast("");
-    try {
-      const payload = {
-        rule_ids: [...selectedIds],
-        ...Object.fromEntries(Object.entries(appliedFilters).filter(([, value]) => Boolean(value))),
-      };
-      const result = await adminApi.bulkApproveConstraints(payload);
-      setToast(result.message);
-      clearSelection();
-      await loadRules();
-    } catch (err) {
-      setToast(err.message);
-    } finally {
-      setBulkLoading(false);
     }
   }
 
@@ -179,35 +195,34 @@ export function RulesPage() {
         ))}
       </div>
 
-      <ApprovalToolbar
+      <CatalogApprovalToolbar
         allVisibleSelected={allVisibleSelected}
         bulkLoading={bulkLoading}
         canBulkApprove={canApprove}
         catalog={CONSTRAINT_CATALOG}
+        fetchFilterOptions={adminApi.getCatalogFilterOptions}
         filters={filters}
         onApplyFilters={() => setAppliedFilters({ ...filters })}
         onBulkApprove={handleBulkApprove}
+        onBulkApproveAll={handleBulkApproveAll}
+        draftMatchCount={draftMatchCount}
         onClearFilters={() => {
           setFilters(EMPTY_FILTERS);
           setAppliedFilters(EMPTY_FILTERS);
         }}
-        onFilterChange={(key, value) => setFilters((prev) => ({ ...prev, [key]: value }))}
         onToggleAll={toggleAllVisible}
+        activeFilterCount={activeFilterCount}
+        resultsCount={data?.total ?? items.length}
         selectedCount={selectedCount}
+        setFilters={setFilters}
+        tab={tab}
         showBulk={tab === "draft"}
       />
-
-      {activeFilterCount > 0 && (
-        <p className="gov-filter-summary" role="status">
-          {activeFilterCount} filter(s) active · {items.length} result(s)
-        </p>
-      )}
 
       {toast && <p className="admin-toast" role="status">{toast}</p>}
       {error && <p className="inline-error" role="alert">{error}</p>}
 
-      <div className={`admin-split${selectedRule ? " admin-split--open" : ""}`}>
-        <section className="admin-table-panel">
+      <section className="admin-table-panel">
           {loading ? (
             <div className="admin-empty" aria-busy="true">
               <LoaderCircle className="spin" size={24} />
@@ -219,6 +234,7 @@ export function RulesPage() {
               <p>Run the ingestion pipeline to generate draft constraint rules.</p>
             </div>
           ) : (
+            <>
             <table className="admin-table">
               <thead>
                 <tr>
@@ -226,8 +242,9 @@ export function RulesPage() {
                   <th>Constraint</th>
                   <th>Action</th>
                   <th>Status</th>
+                  <th>Tier</th>
                   <th>Drug class</th>
-                  <th />
+                  <th className="admin-col-actions">Review</th>
                 </tr>
               </thead>
               <tbody>
@@ -246,15 +263,24 @@ export function RulesPage() {
                       </td>
                     )}
                     <td>
-                      <strong>{rule.constraint_id}</strong>
-                      <small>v{rule.version}</small>
+                      <CatalogRecordLabel
+                        id={shortCatalogId(rule.constraint_id)}
+                        meta={`v${rule.version}`}
+                        title={constraintRuleTitle(rule)}
+                        titleAttr={rule.constraint_id}
+                      />
                     </td>
-                    <td>{rule.action}</td>
+                    <td className="cell-clamp" title={rule.action}>
+                      {rule.action}
+                    </td>
                     <td>
                       <span className={`badge ${statusClass(rule.status)}`}>{rule.status}</span>
                     </td>
-                    <td>{rule.target_drug_class || "—"}</td>
-                    <td>
+                    <td>{needsConditionBadge(rule) || "—"}</td>
+                    <td className="cell-clamp" title={rule.target_drug_class || undefined}>
+                      {rule.target_drug_class || "—"}
+                    </td>
+                    <td className="admin-col-actions">
                       <button className="link-btn" onClick={() => openRule(rule.id)} type="button">
                         Review <ChevronRight size={14} />
                       </button>
@@ -263,6 +289,15 @@ export function RulesPage() {
                 ))}
               </tbody>
             </table>
+            <CatalogPagination
+              loading={loading}
+              onPageChange={setPage}
+              page={page}
+              pageSize={CATALOG_PAGE_SIZE}
+              total={data?.total ?? 0}
+            />
+            </>
+
           )}
         </section>
 
@@ -279,7 +314,6 @@ export function RulesPage() {
             rule={selectedRule}
           />
         )}
-      </div>
     </div>
   );
 }

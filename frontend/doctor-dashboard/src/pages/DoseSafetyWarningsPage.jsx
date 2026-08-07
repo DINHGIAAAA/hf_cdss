@@ -4,8 +4,20 @@ import { AlertTriangle, ChevronRight, LoaderCircle, RefreshCw } from "lucide-rea
 import { adminApi } from "../api/index.js";
 import { useAuth } from "../auth/AuthContext";
 import { DoseSafetyWarningDetail } from "../components/DoseSafetyWarningDetail.jsx";
-import { ApprovalToolbar } from "@shared/governance/ApprovalToolbar.jsx";
+import { CatalogApprovalToolbar } from "@shared/governance/CatalogApprovalToolbar.jsx";
 import { DOSE_SAFETY_CATALOG } from "@shared/governance/catalogConfig.js";
+import { CatalogRecordLabel } from "@shared/governance/CatalogRecordLabel.jsx";
+import {
+  doseSafetyWarningTitle,
+  formatDrugSetLabel,
+  shortCatalogId,
+} from "@shared/governance/displayNames.js";
+import { CatalogPagination } from "@shared/governance/CatalogPagination.jsx";
+import { CATALOG_PAGE_SIZE } from "@shared/governance/catalogPagination.js";
+import { fetchCatalogListWithCounts } from "@shared/governance/fetchCatalogListWithCounts.js";
+import { useCatalogBulkApprove } from "@shared/governance/useCatalogBulkApprove.js";
+import { useCatalogListPage } from "@shared/governance/useCatalogListPage.js";
+import { StatusCountCards, statusTabLabel } from "@shared/governance/StatusCountCards.jsx";
 import { useRuleSelection } from "@shared/governance/useRuleSelection.js";
 
 const STATUS_TABS = [
@@ -28,12 +40,6 @@ function statusClass(status) {
   return "danger";
 }
 
-function formatDrugSet(tokens = []) {
-  if (!tokens.length) return "—";
-  const preview = tokens.slice(0, 2).join(", ");
-  return tokens.length > 2 ? `${preview} +${tokens.length - 2}` : preview;
-}
-
 export function DoseSafetyWarningsPage() {
   const { isAuthenticated, hasRole } = useAuth();
   const [tab, setTab] = useState("draft");
@@ -47,17 +53,25 @@ export function DoseSafetyWarningsPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [bulkLoading, setBulkLoading] = useState(false);
   const [toast, setToast] = useState("");
+  const { page, setPage, pageSize } = useCatalogListPage(tab, appliedFilters);
 
   const canApprove = isAuthenticated && hasRole("clinical_lead");
   const canAdmin = isAuthenticated && hasRole("admin");
+  const canRead = isAuthenticated && (canApprove || canAdmin);
 
   const loadRules = useCallback(async () => {
+    if (!canRead) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError("");
     try {
-      const result = await adminApi.listDoseSafetyWarnings({
-        status: tab === "all" ? undefined : tab,
-        ...appliedFilters,
+      const result = await fetchCatalogListWithCounts(adminApi.listDoseSafetyWarnings, {
+        tab,
+        filters: appliedFilters,
+        page,
+        pageSize,
       });
       setData(result);
     } catch (err) {
@@ -65,7 +79,7 @@ export function DoseSafetyWarningsPage() {
     } finally {
       setLoading(false);
     }
-  }, [tab, appliedFilters]);
+  }, [tab, appliedFilters, page, pageSize, canRead]);
 
   useEffect(() => {
     loadRules();
@@ -80,6 +94,19 @@ export function DoseSafetyWarningsPage() {
     clearSelection,
     selectedCount,
   } = useRuleSelection(items);
+
+  const { handleBulkApprove, handleBulkApproveAll } = useCatalogBulkApprove({
+    catalog: DOSE_SAFETY_CATALOG,
+    adminApi,
+    appliedFilters,
+    selectedIds,
+    clearSelection,
+    loadRules,
+    setToast,
+    setBulkLoading,
+  });
+
+  const draftMatchCount = tab === "draft" ? (data?.total ?? 0) : 0;
 
   const activeFilterCount = useMemo(
     () => Object.values(appliedFilters).filter(Boolean).length,
@@ -119,25 +146,6 @@ export function DoseSafetyWarningsPage() {
     }
   }
 
-  async function handleBulkApprove() {
-    setBulkLoading(true);
-    setToast("");
-    try {
-      const payload = {
-        rule_ids: [...selectedIds],
-        ...Object.fromEntries(Object.entries(appliedFilters).filter(([, value]) => Boolean(value))),
-      };
-      const result = await adminApi.bulkApproveDoseSafetyWarnings(payload);
-      setToast(result.message);
-      clearSelection();
-      await loadRules();
-    } catch (err) {
-      setToast(err.message);
-    } finally {
-      setBulkLoading(false);
-    }
-  }
-
   return (
     <div className="admin-page dose-rules-page">
       <header className="admin-page-header">
@@ -156,30 +164,27 @@ export function DoseSafetyWarningsPage() {
         </button>
       </header>
 
-      {!isAuthenticated && (
+      {!canRead && (
         <div className="admin-banner warning" role="status">
-          Sign in with a <strong>clinical_lead</strong> or <strong>admin</strong> account to approve
+          Sign in with a <strong>clinical_lead</strong> or <strong>admin</strong> account to review counts and approve
           dose safety warnings.
         </div>
       )}
 
-      <div className="admin-stats dose-stats">
-        <div className="stat-card dose-stat-card">
-          <span>Draft</span>
-          <strong>{data?.draft_count ?? "—"}</strong>
-          <small>Awaiting clinical review</small>
-        </div>
-        <div className="stat-card dose-stat-card">
-          <span>Approved</span>
-          <strong>{data?.approved_count ?? "—"}</strong>
-          <small>Active in dose checker</small>
-        </div>
-        <div className="stat-card dose-stat-card">
-          <span>Retired</span>
-          <strong>{data?.retired_count ?? "—"}</strong>
-          <small>Archived versions</small>
-        </div>
-      </div>
+      <StatusCountCards
+        activeTab={tab}
+        approvedCount={loading && !data ? undefined : (data?.approved_count ?? 0)}
+        cardClassName="stat-card dose-stat-card"
+        className="admin-stats dose-stats"
+        draftCount={loading && !data ? undefined : (data?.draft_count ?? 0)}
+        hints={{
+          draft: "Awaiting clinical review",
+          approved: "Active in dose checker",
+          retired: "Archived versions",
+        }}
+        onSelect={setTab}
+        retiredCount={loading && !data ? undefined : (data?.retired_count ?? 0)}
+      />
 
       <div className="tab-row dose-tab-row" role="tablist">
         {STATUS_TABS.map((item) => (
@@ -191,34 +196,34 @@ export function DoseSafetyWarningsPage() {
             role="tab"
             type="button"
           >
-            {item.label}
+            {statusTabLabel(item.id, item.label, data)}
           </button>
         ))}
       </div>
 
-      <ApprovalToolbar
+      <CatalogApprovalToolbar
         allVisibleSelected={allVisibleSelected}
         bulkLoading={bulkLoading}
         canBulkApprove={canApprove}
         catalog={DOSE_SAFETY_CATALOG}
+        draftMatchCount={draftMatchCount}
+        fetchFilterOptions={adminApi.getCatalogFilterOptions}
         filters={filters}
         onApplyFilters={() => setAppliedFilters({ ...filters })}
         onBulkApprove={handleBulkApprove}
+        onBulkApproveAll={handleBulkApproveAll}
         onClearFilters={() => {
           setFilters(EMPTY_FILTERS);
           setAppliedFilters(EMPTY_FILTERS);
         }}
-        onFilterChange={(key, value) => setFilters((prev) => ({ ...prev, [key]: value }))}
         onToggleAll={toggleAllVisible}
+        activeFilterCount={activeFilterCount}
+        resultsCount={data?.total ?? items.length}
         selectedCount={selectedCount}
+        setFilters={setFilters}
+        tab={tab}
         showBulk={tab === "draft"}
       />
-
-      {activeFilterCount > 0 && (
-        <p className="gov-filter-summary" role="status">
-          {activeFilterCount} filter(s) active · {items.length} result(s)
-        </p>
-      )}
 
       {toast && (
         <p className="admin-toast" role="status">
@@ -231,8 +236,7 @@ export function DoseSafetyWarningsPage() {
         </p>
       )}
 
-      <div className={`admin-split${selectedRule ? " admin-split--open" : ""}`}>
-        <section className="admin-table-panel">
+      <section className="admin-table-panel">
           {loading ? (
             <div className="admin-empty" aria-busy="true">
               <LoaderCircle className="spin" size={24} />
@@ -244,6 +248,7 @@ export function DoseSafetyWarningsPage() {
               <p>Run structured dose safety extraction in the ingestion pipeline, then sync to Postgres.</p>
             </div>
           ) : (
+            <>
             <table className="admin-table admin-table--dose">
               <thead>
                 <tr>
@@ -251,8 +256,8 @@ export function DoseSafetyWarningsPage() {
                   <th>Warning</th>
                   <th>Severity</th>
                   <th>Status</th>
-                  <th>Drug keys</th>
-                  <th />
+                  <th>Drugs</th>
+                  <th className="admin-col-actions">Review</th>
                 </tr>
               </thead>
               <tbody>
@@ -271,10 +276,12 @@ export function DoseSafetyWarningsPage() {
                       </td>
                     )}
                     <td>
-                      <strong>{rule.dose_safety_warning_id}</strong>
-                      <small>
-                        v{rule.version} · {rule.target || "—"}
-                      </small>
+                      <CatalogRecordLabel
+                        id={shortCatalogId(rule.dose_safety_warning_id)}
+                        meta={`v${rule.version}`}
+                        title={doseSafetyWarningTitle(rule)}
+                        titleAttr={rule.dose_safety_warning_id}
+                      />
                     </td>
                     <td>
                       <code className="dose-code">{rule.default_severity}</code>
@@ -282,8 +289,10 @@ export function DoseSafetyWarningsPage() {
                     <td>
                       <span className={`badge ${statusClass(rule.status)}`}>{rule.status}</span>
                     </td>
-                    <td>{formatDrugSet(rule.drug_keys)}</td>
-                    <td>
+                    <td className="cell-clamp" title={(rule.drug_keys || []).join(", ")}>
+                      {formatDrugSetLabel(rule.drug_keys)}
+                    </td>
+                    <td className="admin-col-actions">
                       <button className="link-btn" onClick={() => openRule(rule.id)} type="button">
                         Review <ChevronRight size={14} />
                       </button>
@@ -292,6 +301,15 @@ export function DoseSafetyWarningsPage() {
                 ))}
               </tbody>
             </table>
+            <CatalogPagination
+              loading={loading}
+              onPageChange={setPage}
+              page={page}
+              pageSize={CATALOG_PAGE_SIZE}
+              total={data?.total ?? 0}
+            />
+            </>
+
           )}
         </section>
 
@@ -308,7 +326,6 @@ export function DoseSafetyWarningsPage() {
             rule={selectedRule}
           />
         )}
-      </div>
     </div>
   );
 }

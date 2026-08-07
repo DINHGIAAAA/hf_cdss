@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "Vignette Recommendation Evaluation",
+    "subtitle": "50 golden cases through live chat path (Section 5.3.1)",
+    "quality_profile": "showcase",
+    "viewBox": [1100, 480]
+  },
+  "stages": [
+    { "label": "Corpus" },
+    { "label": "Runtime CDSS" },
+    { "label": "Output" },
+    { "label": "Expert score" }
+  ],
+  "nodes": [
+    { "id": "golden", "type": "external", "label": "Golden vignettes", "sublabel": "50 HF cases", "stage": 0, "row": 1 },
+    { "id": "pipeline", "type": "backend", "label": "Full chat pipeline", "sublabel": "intake · GDMT · verify", "stage": 1, "row": 1 },
+    { "id": "cards", "type": "backend", "label": "Structured cards", "sublabel": "class + action + flags", "stage": 2, "row": 1 },
+    { "id": "experts", "type": "external", "label": "Cardiologists", "sublabel": "2 independent reviewers", "stage": 3, "row": 0 },
+    { "id": "accuracy", "type": "cloud", "label": "Accuracy", "sublabel": "structured fields", "stage": 3, "row": 1, "tag": "94.0%" }
+  ],
+  "flows": [
+    { "id": "f1", "from": "golden", "to": "pipeline", "label": "free text", "variant": "emphasis" },
+    { "id": "f2", "from": "pipeline", "to": "cards", "label": "SSE stream" },
+    { "id": "f3", "from": "cards", "to": "experts", "label": "rubric", "variant": "emphasis" },
+    { "id": "f4", "from": "experts", "to": "accuracy", "label": "consensus" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Scoring unit", "items": ["Not LLM narrative prose", "Sensitivity 92.5%, specificity 95.2%", "Target ≥ 90% met"] }
+  ]
+}

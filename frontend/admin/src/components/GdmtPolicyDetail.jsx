@@ -1,8 +1,22 @@
 import { useEffect, useState } from "react";
-import { CheckCircle2, History, RotateCcw, ShieldOff, XCircle } from "lucide-react";
+import { History, XCircle } from "lucide-react";
 
+import { CatalogStatusActions } from "@shared/governance/CatalogStatusActions.jsx";
 import { adminApi } from "../api/index.js";
 import { VersionDiffPanel } from "@shared/governance/VersionDiffPanel.jsx";
+import { StatusHistoryList } from "@shared/governance/StatusHistoryList.jsx";
+import {
+  ClinicalSourcesList,
+  CollapsiblePayload,
+  DetailFieldList,
+  DetailMetaRow,
+} from "@shared/governance/DetailFieldList.jsx";
+import { AdminDetailModal } from "@shared/governance/AdminDetailModal.jsx";
+import {
+  evidenceLinkDetailField,
+  pipelineSourceDetailField,
+} from "@shared/governance/catalogDetailReview.js";
+import { gdmtPolicyReviewFields } from "@shared/governance/gdmtPolicyReview.js";
 
 function statusClass(status) {
   if (status === "approved") return "success";
@@ -40,23 +54,33 @@ export function GdmtPolicyDetail({ policy, onClose, onAction, actionLoading, can
   if (!policy) return null;
 
   const body = policy.policy_body || {};
-  const guidance = body.guidance || {};
+  const sources = policy.clinical_sources || [];
+
+  const headerFields = [
+    { label: "Class key", value: policy.drug_class_key },
+    { label: "Sort order", value: policy.sort_order },
+  ];
+  const evidenceField = evidenceLinkDetailField(policy.evidence_ref, sources);
+  if (evidenceField) headerFields.push(evidenceField);
+  const sourceField = pipelineSourceDetailField(policy.source);
+  if (sourceField) headerFields.push(sourceField);
 
   return (
-    <aside aria-label="GDMT policy details" className="admin-detail-panel dose-detail-panel">
+    <AdminDetailModal ariaLabel="GDMT policy details" className="dose-detail-panel" onClose={onClose}>
       <header className="admin-detail-header">
         <div>
           <h2>{policy.display_label}</h2>
-          <p className="dose-detail-meta">
-            {policy.gdmt_policy_id} · v{policy.version} ·{" "}
-            <span className={`badge ${statusClass(policy.status)}`}>{policy.status}</span>
-            {policy.safety_tier && (
-              <>
-                {" "}
-                · <span className={`badge ${tierClass(policy.safety_tier)}`}>{policy.safety_tier}</span>
-              </>
-            )}
-          </p>
+          <DetailMetaRow
+            badges={
+              policy.safety_tier
+                ? [{ label: policy.safety_tier, className: tierClass(policy.safety_tier) }]
+                : []
+            }
+            id={policy.gdmt_policy_id}
+            status={policy.status}
+            statusClassName={statusClass(policy.status)}
+            version={policy.version}
+          />
         </div>
         <button aria-label="Close detail panel" className="icon-btn" onClick={onClose} type="button">
           <XCircle size={18} />
@@ -64,43 +88,18 @@ export function GdmtPolicyDetail({ policy, onClose, onAction, actionLoading, can
       </header>
 
       <div className="admin-detail-body">
-        <dl className="detail-grid">
-          <dt>Class key</dt>
-          <dd>{policy.drug_class_key}</dd>
-          <dt>Sort order</dt>
-          <dd>{policy.sort_order}</dd>
-          <dt>Evidence</dt>
-          <dd>{policy.evidence_ref || "—"}</dd>
-          <dt>Source</dt>
-          <dd>{policy.source}</dd>
-        </dl>
+        <DetailFieldList fields={headerFields} />
 
-        {(guidance.actions || []).length > 0 && (
-          <section>
-            <h3>Actions</h3>
-            <ul className="source-list">
-              {guidance.actions.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
-          </section>
-        )}
+        <ClinicalSourcesList sources={sources} />
 
-        {(guidance.monitoring || body.monitoring || []).length > 0 && (
-          <section>
-            <h3>Monitoring</h3>
-            <ul className="source-list">
-              {(guidance.monitoring || body.monitoring || []).map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
-          </section>
-        )}
+        <DetailFieldList fields={gdmtPolicyReviewFields(policy)} />
 
-        <section>
-          <h3>Policy payload</h3>
-          <pre className="dose-json-block">{JSON.stringify(body, null, 2)}</pre>
-        </section>
+        <CollapsiblePayload
+          clinicalSources={sources}
+          data={body}
+          defaultOpen={false}
+          title="Policy logic"
+        />
 
         <VersionDiffPanel fetchDiff={adminApi.getGdmtPolicyDiff} ruleId={policy.id} versions={versions} />
 
@@ -109,57 +108,22 @@ export function GdmtPolicyDetail({ policy, onClose, onAction, actionLoading, can
             <h3>
               <History size={16} /> History
             </h3>
-            {historyError && <p className="inline-error">{historyError}</p>}
-            <ul className="history-list">
-              {history.map((item) => (
-                <li key={item.history_id}>
-                  <strong>
-                    {item.status_from || "—"} → {item.status_to}
-                  </strong>
-                  <span>
-                    {item.changed_by} · {new Date(item.changed_at).toLocaleString()}
-                  </span>
-                  {item.reason && <small>{item.reason}</small>}
-                </li>
-              ))}
-              {history.length === 0 && !historyError && <li>No history recorded.</li>}
-            </ul>
+            <StatusHistoryList error={historyError} items={history} />
           </section>
         )}
       </div>
 
       <footer className="admin-detail-actions">
-        {policy.status === "draft" && canApprove && (
-          <button
-            className="primary-action dose-primary-action"
-            disabled={actionLoading}
-            onClick={() => onAction("approve", policy.id)}
-            type="button"
-          >
-            <CheckCircle2 size={16} /> Approve for recommendations
-          </button>
-        )}
-        {policy.status === "approved" && canAdmin && (
-          <button
-            className="danger-action"
-            disabled={actionLoading}
-            onClick={() => onAction("retire", policy.id)}
-            type="button"
-          >
-            <ShieldOff size={16} /> Retire
-          </button>
-        )}
-        {policy.status === "retired" && canAdmin && (
-          <button
-            className="secondary-action"
-            disabled={actionLoading}
-            onClick={() => onAction("unretire", policy.id)}
-            type="button"
-          >
-            <RotateCcw size={16} /> Restore
-          </button>
-        )}
+        <CatalogStatusActions
+          actionLoading={actionLoading}
+          approveLabel="Approve for recommendations"
+          canAdmin={canAdmin}
+          canApprove={canApprove}
+          onAction={onAction}
+          recordId={policy.id}
+          status={policy.status}
+        />
       </footer>
-    </aside>
+    </AdminDetailModal>
   );
 }

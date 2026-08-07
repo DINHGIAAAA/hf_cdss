@@ -72,6 +72,7 @@ def upload_paths(
 
 
 STEP_UPLOAD_PATHS: dict[str, list[str]] = {
+    "download": ["artifacts/manifests/download_manifest.json"],
     "parse_guideline_pdf": [
         "processed/documents/guideline_documents.jsonl",
         "processed/sections/guideline_sections.jsonl",
@@ -83,13 +84,73 @@ STEP_UPLOAD_PATHS: dict[str, list[str]] = {
     "extract_entities": ["artifacts/entities/entities.jsonl"],
     "create_claims": ["artifacts/claims/claims.jsonl"],
     "generate_rules": ["artifacts/rules/rules.jsonl"],
+    "refine_constraint_conditions": ["artifacts/rules/rules.jsonl"],
     "classify_rules": [
         "artifacts/rules/rules_classified.jsonl",
         "artifacts/rules/usable_rules.jsonl",
+        "artifacts/rules/needs_condition_refinement.jsonl",
+        "artifacts/rules/monitoring_rules.jsonl",
         "artifacts/rules/rejected_rules.jsonl",
+    ],
+    "extract_dose_rules": ["artifacts/dose_rules/structured_dose_claims.jsonl"],
+    "generate_dose_rules": ["artifacts/dose_rules/dose_rules.jsonl"],
+    "classify_dose_rules": [
+        "artifacts/dose_rules/dose_rules_classified.jsonl",
+        "artifacts/dose_rules/usable_rules.jsonl",
+    ],
+    "extract_dose_safety_warnings": [
+        "artifacts/dose_safety_warnings/structured_dose_safety_claims.jsonl",
+    ],
+    "generate_dose_safety_warnings": ["artifacts/dose_safety_warnings/dose_safety_warnings.jsonl"],
+    "refine_dose_safety_triggers": ["artifacts/dose_safety_warnings/dose_safety_warnings.jsonl"],
+    "classify_dose_safety_warnings": [
+        "artifacts/dose_safety_warnings/dose_safety_warnings_classified.jsonl",
+        "artifacts/dose_safety_warnings/usable_rules.jsonl",
+    ],
+    "extract_fda_xml_interaction_claims": [
+        "artifacts/interaction_rules/structured_interaction_claims_fda.jsonl",
+    ],
+    "extract_interaction_rules": [
+        "artifacts/interaction_rules/structured_interaction_claims.jsonl",
+    ],
+    "generate_interaction_rules": ["artifacts/interaction_rules/interaction_rules.jsonl"],
+    "classify_interaction_rules": [
+        "artifacts/interaction_rules/interaction_rules_classified.jsonl",
+        "artifacts/interaction_rules/usable_rules.jsonl",
+    ],
+    "extract_gdmt_policies": ["artifacts/gdmt_policies/structured_gdmt_policy_claims.jsonl"],
+    "generate_gdmt_policies": ["artifacts/gdmt_policies/gdmt_policies.jsonl"],
+    "classify_gdmt_policies": [
+        "artifacts/gdmt_policies/gdmt_policies_classified.jsonl",
+        "artifacts/gdmt_policies/usable_rules.jsonl",
+    ],
+    "governance_catalog_steps": [
+        "artifacts/dose_rules/dose_rules.jsonl",
+        "artifacts/dose_rules/dose_rules_classified.jsonl",
+        "artifacts/dose_rules/usable_rules.jsonl",
+        "artifacts/dose_safety_warnings/dose_safety_warnings.jsonl",
+        "artifacts/dose_safety_warnings/dose_safety_warnings_classified.jsonl",
+        "artifacts/dose_safety_warnings/usable_rules.jsonl",
+        "artifacts/interaction_rules/interaction_rules.jsonl",
+        "artifacts/interaction_rules/interaction_rules_classified.jsonl",
+        "artifacts/interaction_rules/usable_rules.jsonl",
+        "artifacts/gdmt_policies/gdmt_policies.jsonl",
+        "artifacts/gdmt_policies/gdmt_policies_classified.jsonl",
+        "artifacts/gdmt_policies/usable_rules.jsonl",
     ],
     "derive_relationships": ["artifacts/relationships/relationships.jsonl"],
 }
+
+
+def cleanup_workspace_outputs(workspace: Path) -> None:
+    """Remove local processed/artifacts after they have been published to S3."""
+    import shutil
+
+    for name in ("processed", "artifacts"):
+        path = workspace / name
+        if path.exists():
+            print(f"Removing local workspace outputs: {path}")
+            shutil.rmtree(path, ignore_errors=True)
 
 
 def upload_step_artifacts(
@@ -163,6 +224,31 @@ def main() -> None:
         uploaded += 1
 
     print(f"Uploaded {uploaded} processed file(s) to s3://{args.bucket}/{args.prefix}")
+
+
+def upload_full_workspace(
+    *,
+    workspace: Path,
+    bucket: str,
+    prefix: str,
+    endpoint_url: str,
+    run_id: str | None = None,
+    dry_run: bool = False,
+) -> int:
+    relative_paths = [
+        path.relative_to(workspace).as_posix() for path in iter_outputs(workspace, safe_run_id(run_id))
+    ]
+    checkpoint = workspace / ".pipeline_checkpoint.json"
+    if checkpoint.is_file():
+        relative_paths.append(".pipeline_checkpoint.json")
+    return upload_paths(
+        workspace=workspace,
+        bucket=bucket,
+        prefix=prefix,
+        endpoint_url=endpoint_url,
+        relative_paths=relative_paths,
+        dry_run=dry_run,
+    )
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-export { useConversations } from "./useConversations.js";
+export { useConversations } from "../conversations/ConversationsContext.jsx";
 export { useChat } from "./useChat.js";
 export { useApiHealth } from "./useApiHealth.js";
 export { useLanguage } from "./useLanguage.js";

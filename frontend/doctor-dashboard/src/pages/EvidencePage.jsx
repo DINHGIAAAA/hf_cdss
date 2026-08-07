@@ -4,9 +4,24 @@ import { ExternalLink, FileSearch, LoaderCircle, Search } from "lucide-react";
 import { adminApi } from "../api/index.js";
 import { ResizableSplit } from "../components/ResizableSplit.jsx";
 import { useDebouncedValue } from "../hooks/useDebouncedValue.js";
+import {
+  evidenceDocumentTitle,
+  evidenceMatchPercent,
+  evidenceReadableFacts,
+  evidenceSectionLabel,
+  evidenceSourceTypeLabel,
+  repairEvidenceText,
+} from "@/lib/evidenceDisplay";
 
 const MIN_QUERY_LENGTH = 2;
 const SEARCH_DEBOUNCE_MS = 350;
+
+const FACT_LABELS = {
+  type: "Type",
+  page: "Page",
+  publisher: "Publisher",
+  year: "Year",
+};
 
 export function EvidencePage() {
   const [query, setQuery] = useState("heart failure SGLT2 inhibitor");
@@ -59,13 +74,15 @@ export function EvidencePage() {
   const activeChunk = chunks.find((c) => c.chunk_id === activeChunkId) || chunks[0];
   const sourceLabel = result?.source_set === "staging" ? "draft workspace" : "published index";
   const showEmptyPrompt = debouncedQuery.length < MIN_QUERY_LENGTH && !loading && !error;
+  const activeFacts = activeChunk ? evidenceReadableFacts(activeChunk) : [];
+  const activeMatch = activeChunk ? evidenceMatchPercent(activeChunk) : null;
 
   return (
     <div className="admin-page admin-page--evidence">
       <header className="admin-page-header">
         <div>
-          <h1>Evidence chunks</h1>
-          <p>Search and review indexed guideline and drug-label chunks before they inform recommendations.</p>
+          <h1>Evidence</h1>
+          <p>Search guideline and drug-label passages that support clinical recommendations.</p>
         </div>
       </header>
 
@@ -97,7 +114,7 @@ export function EvidencePage() {
         {loading
           ? "Searching evidence index."
           : result
-            ? `${chunks.length} chunks found in ${sourceLabel}.`
+            ? `${chunks.length} passages found in ${sourceLabel}.`
             : "Enter at least two characters to search."}
       </p>
 
@@ -110,7 +127,7 @@ export function EvidencePage() {
       {showEmptyPrompt && (
         <div className="admin-empty" role="status">
           <h2>Search clinical evidence</h2>
-          <p>Query the GraphRAG index to inspect chunk text, scores, and source links. Results update as you type.</p>
+          <p>Results update as you type. Passages show source, page, and publisher — not technical IDs.</p>
         </div>
       )}
 
@@ -118,41 +135,25 @@ export function EvidencePage() {
         <div aria-busy={loading} aria-live="polite" className="evidence-layout" id={resultsLiveId}>
           <section aria-label="Search summary" className="evidence-meta admin-clip">
             <p className="text-break">
-              <strong>{chunks.length}</strong> chunks · source: {sourceLabel} ·{" "}
-              {(result.retrieval_sources || []).join(", ") || "—"}
+              <strong>{chunks.length}</strong> passages · {sourceLabel}
             </p>
-            {(result.graph_facts || []).length > 0 && (
-              <details className="evidence-facts">
-                <summary>{result.graph_facts.length} graph facts</summary>
-                <ul>
-                  {result.graph_facts.map((fact) => (
-                    <li
-                      className="text-clamp-2 text-break"
-                      key={fact.fact_id}
-                      title={`${fact.source_id} — ${fact.relationship_type} — ${fact.target_id}`}
-                    >
-                      {fact.source_id} — {fact.relationship_type} — {fact.target_id}
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            )}
           </section>
 
           {chunks.length === 0 ? (
             <div className="admin-empty" role="status">
-              No chunks returned for &ldquo;{result.query}&rdquo; in {sourceLabel}.
+              No passages returned for &ldquo;{result.query}&rdquo; in {sourceLabel}.
             </div>
           ) : (
             <ResizableSplit
-              ariaLabel="Resize chunk list and detail"
+              ariaLabel="Resize passage list and detail"
               className="evidence-split"
               initial={320}
               list={
-                <div aria-label="Evidence chunks" role="tablist">
+                <div aria-label="Evidence passages" role="tablist">
                   <ul className="chunk-list" role="presentation">
                     {chunks.map((chunk) => {
                       const selected = activeChunk?.chunk_id === chunk.chunk_id;
+                      const match = evidenceMatchPercent(chunk);
                       return (
                         <li key={chunk.chunk_id} role="presentation">
                           <button
@@ -160,14 +161,19 @@ export function EvidencePage() {
                             className={selected ? "active" : ""}
                             onClick={() => setActiveChunkId(chunk.chunk_id)}
                             role="tab"
-                            title={chunk.section || chunk.document_id}
+                            title={evidenceDocumentTitle(chunk)}
                             type="button"
                           >
-                            <strong>{chunk.section || chunk.document_id}</strong>
+                            <strong>{evidenceDocumentTitle(chunk)}</strong>
                             <span>
-                              {chunk.source_type} · score {chunk.score?.toFixed(2)}
+                              {[
+                                evidenceSourceTypeLabel(chunk),
+                                match != null ? `${match}% match` : null,
+                              ]
+                                .filter(Boolean)
+                                .join(" · ")}
                             </span>
-                            <small>{chunk.text}</small>
+                            <small>{repairEvidenceText(chunk.text)}</small>
                           </button>
                         </li>
                       );
@@ -180,26 +186,29 @@ export function EvidencePage() {
               storageKey="hf_admin_evidence_split"
               detail={
                 activeChunk ? (
-                  <article aria-label="Chunk detail" className="chunk-detail" role="tabpanel">
+                  <article aria-label="Passage detail" className="chunk-detail" role="tabpanel">
                     <header className="admin-clip">
-                      <h2 title={activeChunk.section || activeChunk.document_id}>
-                        {activeChunk.section || activeChunk.document_id}
+                      <h2 title={evidenceDocumentTitle(activeChunk)}>
+                        {evidenceDocumentTitle(activeChunk)}
                       </h2>
                       <p className="text-break">
-                        {activeChunk.chunk_id} · {activeChunk.source_type}
-                        {activeChunk.evidence_level && ` · ${activeChunk.evidence_level}`}
+                        {[evidenceSectionLabel(activeChunk), evidenceSourceTypeLabel(activeChunk)]
+                          .filter(Boolean)
+                          .join(" · ") || "Clinical source"}
+                        {activeMatch != null ? ` · ${activeMatch}% match` : ""}
                       </p>
                     </header>
                     <div className="chunk-detail-body">
-                      <p className="chunk-text">{activeChunk.text}</p>
-                      <dl className="detail-grid">
-                        <dt>Score</dt>
-                        <dd>{activeChunk.score}</dd>
-                        <dt>Page</dt>
-                        <dd>{activeChunk.page ?? "—"}</dd>
-                        <dt>Quality</dt>
-                        <dd>{activeChunk.quality_score ?? "—"}</dd>
-                      </dl>
+                      <p className="chunk-text">{repairEvidenceText(activeChunk.text)}</p>
+                      {activeFacts.length ? (
+                        <ul className="evidence-fact-chips">
+                          {activeFacts.map((fact) => (
+                            <li key={fact.key}>
+                              <span>{FACT_LABELS[fact.key] || fact.key}</span> {fact.value}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null}
                       {activeChunk.source_link && (
                         <a
                           className="source-link text-break"
@@ -213,7 +222,7 @@ export function EvidencePage() {
                     </div>
                   </article>
                 ) : (
-                  <div className="admin-empty">Select a chunk to inspect full text.</div>
+                  <div className="admin-empty">Select a passage to read the full text.</div>
                 )
               }
             />

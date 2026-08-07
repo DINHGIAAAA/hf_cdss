@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 class DoseAmount(BaseModel):
     value: float
     unit: str
-    frequency: str
+    frequency: str | None = None
     route: str = "oral"
     label: str | None = None
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
   AssistantRuntimeProvider,
   CompositeAttachmentAdapter,
@@ -22,6 +22,31 @@ function convertMessage(message) {
     role: message.role,
     content: [{ type: "text", text: message.content || "" }],
   };
+}
+
+function resolveReloadUserTurn(messages, parentId) {
+  if (!messages?.length) return null;
+
+  if (parentId) {
+    const byId = messages.findIndex((m) => m.id === parentId);
+    if (byId >= 0) {
+      if (messages[byId].role === "user") {
+        return { userIndex: byId, text: messages[byId].content || "" };
+      }
+      for (let i = byId - 1; i >= 0; i -= 1) {
+        if (messages[i].role === "user") {
+          return { userIndex: i, text: messages[i].content || "" };
+        }
+      }
+    }
+  }
+
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    if (messages[i].role === "user") {
+      return { userIndex: i, text: messages[i].content || "" };
+    }
+  }
+  return null;
 }
 
 function createClinicalAttachmentAdapter(getConversation, updateAttachments) {
@@ -57,11 +82,28 @@ export function ClinicalChatRuntimeProvider({
   patchConversation,
   updateActive,
   onStreamStatus,
+  onStreamProgress,
   onError,
   children,
 }) {
+  // Called when a needs_confirmation response arrives from the backend.
+  const handleConfirmationNeeded = useCallback(
+    ({ isInitialDraft, conflicts, missingCheck, pendingPatient }) => {
+      if (!active) return;
+      patchConversation(active.id, () => ({
+        isInitialDraft,
+        conflicts,
+        lastMissingCheck: missingCheck || null,
+        pendingConfirmation: pendingPatient || null,
+        confirmationAction: null, // clear any stale action
+      }));
+    },
+    [active, patchConversation],
+  );
   const [isRunning, setIsRunning] = useState(false);
   const abortRef = useRef(null);
+  const activeRef = useRef(active);
+  activeRef.current = active;
   const messages = active?.messages || [];
 
   const updateAttachments = useCallback(
@@ -75,11 +117,11 @@ export function ClinicalChatRuntimeProvider({
   const attachmentAdapter = useMemo(
     () =>
       new CompositeAttachmentAdapter([
-        createClinicalAttachmentAdapter(() => active, updateAttachments),
+        createClinicalAttachmentAdapter(() => activeRef.current, updateAttachments),
         new SimpleImageAttachmentAdapter(),
         new SimpleTextAttachmentAdapter(),
       ]),
-    [active, updateAttachments],
+    [updateAttachments],
   );
 
   const setMessages = useCallback(
@@ -96,39 +138,28 @@ export function ClinicalChatRuntimeProvider({
     [active, patchConversation],
   );
 
-  const onNew = useCallback(
-    async (message) => {
-      if (!active) return;
-      const text = extractText(message);
-      if (!text) return;
-
-      const conversationId = active.id;
-      const userId = `${conversationId}-user-${Date.now()}`;
-      const assistantId = `${conversationId}-assistant-${Date.now()}`;
+  const runClinicalStream = useCallback(
+    async ({ conversationId, userText, assistantId }) => {
       const controller = new AbortController();
       abortRef.current = controller;
-
-      patchConversation(conversationId, (current) => ({
-        messages: [
-          ...(current.messages || []),
-          { id: userId, role: "user", content: text },
-          { id: assistantId, role: "assistant", content: "" },
-        ],
-      }));
       setIsRunning(true);
-      onStreamStatus?.(translate(language, "chat.stream.preparing"));
+      const preparing = { step: "preparing", label: translate(language, "chat.stream.preparing") };
+      onStreamProgress?.(preparing);
+      onStreamStatus?.(preparing.label);
       onError?.("");
 
       try {
         await streamClinicalChat({
-          message: text,
-          active,
+          message: userText,
+          active: activeRef.current,
           language,
           signal: controller.signal,
           onStatus: onStreamStatus,
+          onProgress: onStreamProgress,
           onDraft: (data) => patchConversation(conversationId, () => ({ draft: data })),
           onRecommendation: (data) => patchConversation(conversationId, () => ({ recommendation: data })),
           onVerification: (data) => patchConversation(conversationId, () => ({ verification: data })),
+          onConfirmationNeeded: handleConfirmationNeeded,
           onAnswerDelta: (delta) => {
             patchConversation(conversationId, (current) => {
               const updated = [...(current.messages || [])];
@@ -157,6 +188,10 @@ export function ClinicalChatRuntimeProvider({
                 recommendation: donePayload.recommendation,
                 verification: donePayload.verification,
                 messages: updated,
+                // Clear pending confirmation on success (confirmed or skipped).
+                pendingConfirmation: null,
+                confirmationAction: null,
+                conflicts: donePayload.conflicts || null,
               };
             });
           },
@@ -176,20 +211,76 @@ export function ClinicalChatRuntimeProvider({
         });
       } finally {
         setIsRunning(false);
+        onStreamProgress?.(null);
         onStreamStatus?.("");
         abortRef.current = null;
       }
     },
-    [active, language, onError, onStreamStatus, patchConversation],
+    [language, onError, onStreamStatus, onStreamProgress, patchConversation, handleConfirmationNeeded],
+  );
+
+  const onNew = useCallback(
+    async (message) => {
+      const current = activeRef.current;
+      if (!current) return;
+      const text = extractText(message);
+      if (!text) return;
+
+      const conversationId = current.id;
+      const userId = `${conversationId}-user-${Date.now()}`;
+      const assistantId = `${conversationId}-assistant-${Date.now()}`;
+
+      patchConversation(conversationId, (prev) => ({
+        messages: [
+          ...(prev.messages || []),
+          { id: userId, role: "user", content: text },
+          { id: assistantId, role: "assistant", content: "" },
+        ],
+      }));
+
+      await runClinicalStream({ conversationId, userText: text, assistantId });
+    },
+    [patchConversation, runClinicalStream],
+  );
+
+  const onReload = useCallback(
+    async (parentId) => {
+      const current = activeRef.current;
+      if (!current) return;
+
+      const turn = resolveReloadUserTurn(current.messages || [], parentId);
+      if (!turn?.text?.trim()) return;
+
+      const conversationId = current.id;
+      const msgs = current.messages || [];
+      const kept = msgs.slice(0, turn.userIndex + 1);
+      const priorAssistant = msgs[turn.userIndex + 1];
+      const assistantId =
+        priorAssistant?.role === "assistant"
+          ? priorAssistant.id
+          : `${conversationId}-assistant-${Date.now()}`;
+
+      patchConversation(conversationId, () => ({
+        messages: [...kept, { id: assistantId, role: "assistant", content: "" }],
+        recommendation: null,
+        verification: null,
+      }));
+
+      await runClinicalStream({
+        conversationId,
+        userText: turn.text.trim(),
+        assistantId,
+      });
+    },
+    [patchConversation, runClinicalStream],
   );
 
   const onCancel = useCallback(async () => {
     abortRef.current?.abort();
     setIsRunning(false);
     onStreamStatus?.("");
-  }, [onStreamStatus]);
-
-  useEffect(() => () => abortRef.current?.abort(), []);
+    onStreamProgress?.(null);
+  }, [onStreamStatus, onStreamProgress]);
 
   const suggestions = useMemo(() => {
     const prompts = translate(language, "chat.suggestions");
@@ -205,6 +296,7 @@ export function ClinicalChatRuntimeProvider({
     setMessages,
     suggestions,
     onNew,
+    onReload,
     onCancel,
     adapters: {
       attachments: attachmentAdapter,

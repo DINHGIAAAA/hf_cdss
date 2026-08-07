@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
-import { LoaderCircle, LogIn, MessageSquareText, Shield } from "lucide-react";
+import { LoaderCircle } from "lucide-react";
 
 import { useAuth } from "../auth/AuthContext";
 
@@ -37,59 +37,57 @@ export function LoginPage() {
 
   return (
     <div className="login-page">
-      <div className="login-card">
-        <div className="login-brand">
-          <Shield size={28} />
-          <div>
-            <h1>HF CDSS Admin</h1>
-            <p>Sign in to review rules, evidence chunks, and system health.</p>
+      <div className="login-shell">
+        <header className="login-hero">
+          <div className="login-mark" aria-hidden>
+            <span />
           </div>
-        </div>
+          <h1>HF CDSS</h1>
+          <p>Admin console</p>
+        </header>
 
         <form className="login-form" onSubmit={handleSubmit}>
-          <label htmlFor="username">Username</label>
-          <input
-            autoComplete="username"
-            className="input"
-            id="username"
-            onChange={(e) => setUsername(e.target.value)}
-            placeholder="ngovinh"
-            required
-            type="text"
-            value={username}
-          />
+          <div className="login-field">
+            <label htmlFor="username">Username</label>
+            <input
+              autoComplete="username"
+              autoFocus
+              className="input"
+              id="username"
+              onChange={(e) => setUsername(e.target.value)}
+              required
+              type="text"
+              value={username}
+            />
+          </div>
 
-          <label htmlFor="password">Password</label>
-          <input
-            autoComplete="current-password"
-            className="input"
-            id="password"
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="••••••••"
-            required
-            type="password"
-            value={password}
-          />
+          <div className="login-field">
+            <label htmlFor="password">Password</label>
+            <input
+              autoComplete="current-password"
+              className="input"
+              id="password"
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              type="password"
+              value={password}
+            />
+          </div>
 
-          {error && (
+          {error ? (
             <p className="login-error" role="alert">
               {error}
             </p>
-          )}
+          ) : null}
 
-          <button className="primary-action" disabled={loading} type="submit">
-            {loading ? <LoaderCircle className="spin" size={18} /> : <LogIn size={18} />}
-            Sign in
+          <button className="login-submit" disabled={loading} type="submit">
+            {loading ? <LoaderCircle className="spin" size={18} aria-hidden /> : null}
+            {loading ? "Signing in…" : "Continue"}
           </button>
         </form>
 
-        <p className="login-hint">
-          Dev accounts are configured via <code>HF_CDSS_AUTH_DEV_USERS_JSON</code>.
-        </p>
-
-        <a className="login-back" href={DOCTOR_DASHBOARD_URL}>
-          <MessageSquareText size={16} />
-          Back to clinical chat
+        <a className="login-footer-link" href={DOCTOR_DASHBOARD_URL}>
+          Clinical chat
         </a>
       </div>
     </div>

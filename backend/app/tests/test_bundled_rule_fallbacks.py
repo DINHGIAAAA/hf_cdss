@@ -1,63 +1,35 @@
-"""Validate bundled JSON fallbacks exist and contain executable baseline rules."""
+"""Verify production bundled rule JSON files were removed."""
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
-from app.modules.dose_calculator.rule_validation import validate_bundle_file
-
-BUNDLED_CATALOGS = [
-    {
-        "path": Path("app/modules/constraint_builder/rules/constraints_v1.json"),
-        "list_key": None,
-        "id_key": "constraint_id",
-        "min_count": 1,
-    },
-    {
-        "path": Path("app/modules/dose_calculator/rules/hf_dose_rules_v1.json"),
-        "list_key": "rules",
-        "id_key": "rule_id",
-        "min_count": 1,
-    },
-    {
-        "path": Path("app/modules/interaction_checking/rules/hf_interaction_rules_v1.json"),
-        "list_key": "rules",
-        "id_key": "interaction_rule_id",
-        "min_count": 1,
-    },
-    {
-        "path": Path("app/modules/gdmt_policy/rules/hf_gdmt_policy_v1.json"),
-        "list_key": "policies",
-        "id_key": "gdmt_policy_id",
-        "min_count": 4,
-    },
-    {
-        "path": Path("app/modules/dose_safety/rules/hf_dose_safety_warnings_v1.json"),
-        "list_key": "warnings",
-        "id_key": "dose_safety_warning_id",
-        "min_count": 4,
-    },
-]
+import pytest
 
 
 def _backend_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
-def test_bundled_fallback_catalogs_are_present_and_valid() -> None:
+def test_bundled_production_rule_files_are_removed() -> None:
     root = _backend_root()
-    for catalog in BUNDLED_CATALOGS:
-        path = root / catalog["path"]
-        assert path.is_file(), f"Missing bundled fallback: {path}"
-        payload = json.loads(path.read_text(encoding="utf-8"))
-        items = payload if catalog["list_key"] is None else (payload.get(catalog["list_key"]) or [])
-        assert len(items) >= catalog["min_count"], (
-            f"{path.name} has {len(items)} items; expected >= {catalog['min_count']}"
-        )
-        for item in items:
-            assert catalog["id_key"] in item and item[catalog["id_key"]], (
-                f"{path.name} item missing {catalog['id_key']}"
-            )
-        if catalog["path"].parts[-2:] == ("rules", "hf_dose_rules_v1.json"):
-            validate_bundle_file(path, strict=True)
+    removed = [
+        root / "app/modules/constraint_builder/rules/constraints_v1.json",
+        root / "app/modules/interaction_checking/rules/hf_interaction_rules_v1.json",
+        root / "app/modules/gdmt_policy/rules/hf_gdmt_policy_v1.json",
+        root / "app/modules/dose_safety/rules/hf_dose_safety_warnings_v1.json",
+    ]
+    for path in removed:
+        assert not path.is_file(), f"Bundled production rule file still present: {path}"
+
+
+def test_fda_label_dose_source_is_available() -> None:
+    from app.modules.dose_calculation import dose_source_version, get_available_drugs
+    from app.modules.dose_calculation.rule_loader import DRUG_LABELS_DIR
+
+    assert dose_source_version() == "fda_xml_labels"
+    if not DRUG_LABELS_DIR.is_dir():
+        pytest.skip(f"Drug labels not present locally: {DRUG_LABELS_DIR}")
+    drugs = get_available_drugs()
+    assert len(drugs) >= 1
+    assert any(d.get("drug_key") == "eplerenone" for d in drugs)

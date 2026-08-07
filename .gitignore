@@ -16,6 +16,15 @@ data/heart_failure/raw/
 data/heart_failure/processed/
 data/heart_failure/artifacts/
 
+# Local gold review queues (committed gold lives in evaluation/gold/).
+evaluation/candidates/
+
+# Auto-eval reports (regenerable).
+evaluation/reports/
+
+# Ephemeral raw staging (S3 is durable source of truth).
+.work/
+
 .cursor/
 design-system/
 
@@ -23,6 +32,10 @@ infrastructure/airflow/logs/
 
 # Local auth seed file (use seed_users.example.json or HF_CDSS_AUTH_SEED_USERS_JSON).
 backend/app/data/seed_users.json
+
+# Uploaded profile photos (local disk).
+backend/app/data/avatars/*
+!backend/app/data/avatars/.gitkeep
 
 training/data/
 training/output/

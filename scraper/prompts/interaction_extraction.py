@@ -10,7 +10,7 @@ Return ONLY valid JSON with this shape:
       "severity": "high|moderate|critical",
       "action": "avoid|monitor|review",
       "target": "RAAS_combination|RAASi_MRA|RAASi_NSAID|bleeding_risk|renal_risk|general",
-      "message": "Clinician-facing warning when both sets are present",
+      "message": "<specific clinician warning for this pair, e.g. 'Avoid combining lisinopril with ibuprofen due to renal risk'>",
       "escalation": [
         {"field": "potassium|egfr|heart_rate|systolic_bp", "operator": "gte|lte|gt|lt", "value": 5.0, "severity": "high"}
       ],
@@ -22,10 +22,11 @@ Return ONLY valid JSON with this shape:
 }
 
 Rules:
-- drug_set_a and drug_set_b must each have at least one token.
+- drug_set_a and drug_set_b must each have at least one token — generic drug name or class: token ONLY (never a sentence, warning text, or slug).
 - Use specific generic drug names when stated; use class tokens only when the source refers to a class (class:acei, class:arb, class:arni, class:raasi, class:mra, class:nsaid, class:anticoagulant, class:antiplatelet, class:sglt2i, class:beta_blocker, class:loop_diuretic, class:thiazide_diuretic, class:antiarrhythmic, class:vasodilator, class:sglt2i, class:diabetes_drug).
 - Include only interactions explicitly supported by the text.
 - evidence MUST be copied verbatim from the provided text.
+- message MUST be a concrete clinical warning for the specific drug/class pair; never copy schema placeholders or angle-bracket templates.
 - confidence between 0.5 and 1.0.
 - Do not invent drug pairs not present in the text.
 """

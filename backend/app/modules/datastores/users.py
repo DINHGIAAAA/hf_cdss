@@ -20,7 +20,8 @@ def get_user_by_username(username: str) -> dict[str, Any] | None:
         with connection.cursor() as cursor:
             cursor.execute(
                 """
-                SELECT id, username, display_name, password_hash, roles, is_active
+                SELECT id, username, display_name, password_hash, roles, is_active,
+                       avatar_storage_key, updated_at
                 FROM users
                 WHERE username = %s
                 LIMIT 1
@@ -30,14 +31,7 @@ def get_user_by_username(username: str) -> dict[str, Any] | None:
             row = cursor.fetchone()
     if not row:
         return None
-    return {
-        "id": row[0],
-        "username": row[1],
-        "display_name": row[2],
-        "password_hash": row[3],
-        "roles": list(row[4] or []),
-        "is_active": bool(row[5]),
-    }
+    return _user_record_from_row(row, include_secrets=True)
 
 
 def get_user_by_id(user_id: str) -> dict[str, Any] | None:
@@ -45,7 +39,8 @@ def get_user_by_id(user_id: str) -> dict[str, Any] | None:
         with connection.cursor() as cursor:
             cursor.execute(
                 """
-                SELECT id, username, display_name, password_hash, roles, is_active
+                SELECT id, username, display_name, password_hash, roles, is_active,
+                       avatar_storage_key, updated_at
                 FROM users
                 WHERE id = %s
                 LIMIT 1
@@ -55,14 +50,23 @@ def get_user_by_id(user_id: str) -> dict[str, Any] | None:
             row = cursor.fetchone()
     if not row:
         return None
-    return {
+    return _user_record_from_row(row, include_secrets=True)
+
+
+def _user_record_from_row(row: tuple, *, include_secrets: bool) -> dict[str, Any]:
+    updated_at = row[7]
+    record: dict[str, Any] = {
         "id": row[0],
         "username": row[1],
         "display_name": row[2],
-        "password_hash": row[3],
         "roles": list(row[4] or []),
         "is_active": bool(row[5]),
+        "avatar_storage_key": row[6],
+        "updated_at": updated_at.isoformat() if updated_at else None,
     }
+    if include_secrets:
+        record["password_hash"] = row[3]
+    return record
 
 
 def count_users() -> int:
@@ -209,6 +213,12 @@ def _public_user(row: tuple) -> dict[str, Any]:
     }
 
 
+def _public_user_with_avatar(row: tuple) -> dict[str, Any]:
+    base = _public_user(row[:7])
+    base["avatar_storage_key"] = row[7] if len(row) > 7 else None
+    return base
+
+
 def list_users(*, limit: int = 100, offset: int = 0) -> list[dict[str, Any]]:
     with postgres_pool().connection() as connection:
         with connection.cursor() as cursor:
@@ -266,3 +276,27 @@ def update_user(
     if not row:
         return None
     return _public_user(row)
+
+
+def set_user_avatar_storage_key(user_id: str, storage_key: str | None) -> dict[str, Any] | None:
+    existing = get_user_by_id(user_id)
+    if not existing:
+        return None
+
+    with postgres_pool().connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                UPDATE users
+                SET avatar_storage_key = %s,
+                    updated_at = NOW()
+                WHERE id = %s
+                RETURNING id, username, display_name, roles, is_active, created_at, updated_at,
+                          avatar_storage_key
+                """,
+                (storage_key, user_id),
+            )
+            row = cursor.fetchone()
+    if not row:
+        return None
+    return _public_user_with_avatar(row)

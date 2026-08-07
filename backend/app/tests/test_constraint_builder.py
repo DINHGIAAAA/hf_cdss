@@ -1,6 +1,3 @@
-import json
-from pathlib import Path
-
 import pytest
 
 from app.modules.clinical_normalization.service import normalize_patient
@@ -8,30 +5,11 @@ from app.modules.constraint_builder import service as constraint_service
 from app.modules.constraint_builder.service import build_constraints, expire_constraint_cache, load_constraint_rules
 from app.modules.risk_extraction.service import extract_risks
 from app.schemas.patient import PatientProfile
-
-_CONSTRAINTS_FIXTURE = Path(__file__).resolve().parents[1] / "modules" / "constraint_builder" / "rules" / "constraints_v1.json"
+from app.tests.fixtures.governance_test_data import approved_constraint_rules_rows
 
 
 def _rules_fixture() -> list[dict]:
-    payload = json.loads(_CONSTRAINTS_FIXTURE.read_text(encoding="utf-8"))
-    rules: list[dict] = []
-    for index, rule in enumerate(payload, start=1):
-        rules.append(
-            {
-                "id": index,
-                "constraint_id": rule["constraint_id"],
-                "version": 1,
-                "target_drug_class": rule.get("target_drug_class"),
-                "action": rule.get("action"),
-                "reason": rule.get("reason", ""),
-                "risk_names": list(rule.get("risk_names") or []),
-                "severity_any": list(rule.get("severity_any") or []),
-                "evidence_ref": rule.get("evidence_ref"),
-                "clinical_sources": list(rule.get("clinical_sources") or []),
-                "metadata": {"constraint_type": rule.get("constraint_type", "soft")},
-            }
-        )
-    return rules
+    return approved_constraint_rules_rows()
 
 
 def _constraints(patient: PatientProfile, monkeypatch: pytest.MonkeyPatch | None = None) -> set[tuple[str, str]]:
@@ -98,7 +76,7 @@ def test_load_constraint_rules_serves_stale_cache_on_db_error(monkeypatch) -> No
     assert rules[0]["constraint_id"] == "FRESH"
 
 
-def test_load_constraint_rules_falls_back_to_minimum_hard_rules(monkeypatch) -> None:
+def test_load_constraint_rules_returns_empty_without_cache_on_db_error(monkeypatch) -> None:
     constraint_service.invalidate_constraint_cache()
 
     def boom():
@@ -108,8 +86,7 @@ def test_load_constraint_rules_falls_back_to_minimum_hard_rules(monkeypatch) -> 
 
     rules = load_constraint_rules()
 
-    assert rules
-    assert all(rule.get("action") == "avoid" or rule.get("metadata", {}).get("constraint_type") == "hard" for rule in rules)
+    assert rules == []
 
 
 def test_mra_hard_constraint_for_high_renal_or_potassium_risk(monkeypatch) -> None:
