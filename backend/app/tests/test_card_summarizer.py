@@ -169,10 +169,11 @@ def test_fallback_answer_prefers_plain_language_summary() -> None:
 
 
 def test_explanation_prompt_keeps_contract() -> None:
-    assert "Kết luận" in CLINICAL_EXPLANATION_SYSTEM_PROMPT
+    assert "user_input" in CLINICAL_EXPLANATION_SYSTEM_PROMPT
     assert "plain_language_summary" in CLINICAL_EXPLANATION_SYSTEM_PROMPT
     assert "soft-pedal" in CLINICAL_EXPLANATION_SYSTEM_PROMPT
     assert "Quyết định điều trị cuối cùng" in CLINICAL_EXPLANATION_SYSTEM_PROMPT
+    assert "No fixed section templates" in CLINICAL_EXPLANATION_SYSTEM_PROMPT
 
 
 def json_dumps(value: dict) -> str:

@@ -86,6 +86,20 @@ export function ClinicalChatRuntimeProvider({
   onError,
   children,
 }) {
+  // Called when a needs_confirmation response arrives from the backend.
+  const handleConfirmationNeeded = useCallback(
+    ({ isInitialDraft, conflicts, missingCheck, pendingPatient }) => {
+      if (!active) return;
+      patchConversation(active.id, () => ({
+        isInitialDraft,
+        conflicts,
+        lastMissingCheck: missingCheck || null,
+        pendingConfirmation: pendingPatient || null,
+        confirmationAction: null, // clear any stale action
+      }));
+    },
+    [active, patchConversation],
+  );
   const [isRunning, setIsRunning] = useState(false);
   const abortRef = useRef(null);
   const activeRef = useRef(active);
@@ -145,6 +159,7 @@ export function ClinicalChatRuntimeProvider({
           onDraft: (data) => patchConversation(conversationId, () => ({ draft: data })),
           onRecommendation: (data) => patchConversation(conversationId, () => ({ recommendation: data })),
           onVerification: (data) => patchConversation(conversationId, () => ({ verification: data })),
+          onConfirmationNeeded: handleConfirmationNeeded,
           onAnswerDelta: (delta) => {
             patchConversation(conversationId, (current) => {
               const updated = [...(current.messages || [])];
@@ -173,6 +188,10 @@ export function ClinicalChatRuntimeProvider({
                 recommendation: donePayload.recommendation,
                 verification: donePayload.verification,
                 messages: updated,
+                // Clear pending confirmation on success (confirmed or skipped).
+                pendingConfirmation: null,
+                confirmationAction: null,
+                conflicts: donePayload.conflicts || null,
               };
             });
           },
@@ -197,7 +216,7 @@ export function ClinicalChatRuntimeProvider({
         abortRef.current = null;
       }
     },
-    [language, onError, onStreamStatus, onStreamProgress, patchConversation],
+    [language, onError, onStreamStatus, onStreamProgress, patchConversation, handleConfirmationNeeded],
   );
 
   const onNew = useCallback(

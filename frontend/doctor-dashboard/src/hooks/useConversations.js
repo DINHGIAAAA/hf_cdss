@@ -66,6 +66,9 @@ export function useConversations() {
             draft: history.patient_draft
               ? { patient: history.patient_draft.patient, ...history.patient_draft }
               : item.draft,
+            lastMissingCheck: history.patient_draft ? (history.patient_draft.last_missing_check || null) : null,
+            isInitialDraft: history.patient_draft ? (history.patient_draft.is_initial_draft || false) : false,
+            conflicts: history.patient_draft ? (history.patient_draft.conflicts || null) : null,
             updatedAt: new Date().toISOString(),
           };
         }),
@@ -94,6 +97,10 @@ export function useConversations() {
         },
       ],
       draft: null,
+      lastMissingCheck: null,
+      isInitialDraft: true,
+      pendingConfirmation: null,
+      conflicts: null,
       recommendation: null,
       verification: null,
       createdAt: new Date().toISOString(),
@@ -117,6 +124,34 @@ export function useConversations() {
     setActiveId(demo.id);
     return demo;
   }, []);
+
+  const renameConversation = useCallback((conversationId, newName) => {
+    if (!newName?.trim()) return;
+    setConversations((items) =>
+      items.map((item) =>
+        item.id === conversationId
+          ? { ...item, name: newName.trim(), updatedAt: new Date().toISOString() }
+          : item,
+      ),
+    );
+  }, []);
+
+  const copyConversation = useCallback(async (conversationId) => {
+    const conv = conversations.find((c) => c.id === conversationId);
+    if (!conv) return;
+
+    const lines = [
+      `# ${conv.name || "Conversation"}`,
+      "",
+      ...(conv.messages || []).map((msg) => {
+        const role = msg.role === "assistant" ? "Assistant" : "User";
+        return `**${role}:**\n${msg.content || ""}`;
+      }),
+    ];
+
+    await navigator.clipboard.writeText(lines.join("\n\n"));
+    return conv.name || "Conversation";
+  }, [conversations]);
 
   const deleteConversation = useCallback((conversationId) => {
     setConversations((items) => {
@@ -148,6 +183,11 @@ export function useConversations() {
               content: `Patient ${name} is ready. Ask the clinical question and attach notes if needed.`,
             },
           ],
+          draft: null,
+          lastMissingCheck: null,
+          isInitialDraft: true,
+          pendingConfirmation: null,
+          conflicts: null,
           recommendation: null,
           verification: null,
           updatedAt: new Date().toISOString(),
@@ -172,6 +212,8 @@ export function useConversations() {
     createConversation,
     loadDemoConversation,
     deleteConversation,
+    renameConversation,
+    copyConversation,
     clearConversation,
   };
 }

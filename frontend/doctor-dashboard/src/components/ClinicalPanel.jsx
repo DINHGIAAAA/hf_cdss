@@ -358,15 +358,17 @@ function PatientSection({ summary, attachments }) {
   );
 }
 
-export function ClinicalPanel({ active, error, open }) {
+export function ClinicalPanel({ active, error, open, panelTab: panelTabProp, onPanelTabChange }) {
   const { t } = useLanguage();
   const summary = patientSummary(active?.draft?.patient || active?.patient);
   const evidenceChunks = active?.verification?.context?.evidence_chunks || [];
-  const [panelTab, setPanelTab] = useState("clinical");
+  const [internalTab, setInternalTab] = useState("clinical");
+  const panelTab = panelTabProp ?? internalTab;
+  const setPanelTab = onPanelTabChange ?? setInternalTab;
 
   useEffect(() => {
     setPanelTab("clinical");
-  }, [active?.id]);
+  }, [active?.id, setPanelTab]);
 
   const showEvidenceTab = evidenceChunks.length > 0 || Boolean(active?.recommendation);
 
@@ -388,15 +390,15 @@ export function ClinicalPanel({ active, error, open }) {
         )}
         {showEvidenceTab && summary ? (
           <div
-            className="flex gap-1 rounded-lg border border-border/70 bg-background/80 p-0.5"
+            className="flex gap-1 rounded-lg border border-[var(--color-rule)] bg-[var(--color-paper)] p-0.5"
             role="tablist"
             aria-label={t("clinicalPanel.title")}
           >
             <button
               className={cn(
-                "flex-1 cursor-pointer rounded-md px-2 py-1.5 text-xs font-medium transition-colors",
+                "flex-1 cursor-pointer rounded-md px-2 py-1.5 text-xs font-medium transition-colors duration-[var(--dur-fast)]",
                 panelTab === "clinical"
-                  ? "bg-primary text-primary-foreground"
+                  ? "bg-[var(--color-accent)] text-[var(--color-accent-ink)]"
                   : "text-muted-foreground hover:text-foreground",
               )}
               onClick={() => setPanelTab("clinical")}
@@ -408,9 +410,9 @@ export function ClinicalPanel({ active, error, open }) {
             </button>
             <button
               className={cn(
-                "flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition-colors",
+                "flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition-colors duration-[var(--dur-fast)]",
                 panelTab === "evidence"
-                  ? "bg-primary text-primary-foreground"
+                  ? "bg-[var(--color-accent)] text-[var(--color-accent-ink)]"
                   : "text-muted-foreground hover:text-foreground",
               )}
               onClick={() => setPanelTab("evidence")}

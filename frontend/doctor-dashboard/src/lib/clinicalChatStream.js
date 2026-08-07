@@ -1,4 +1,4 @@
-import { apiFetch } from "@shared/api/client.js";
+import { apiFetch, CHAT_STREAM_TIMEOUT_MS } from "@shared/api/client.js";
 import { streamStatusLabel, translate } from "@/i18n/messages.js";
 import { parseSseBlock } from "../utils";
 import { compactPatientForRequest } from "../hooks/patientPayload.js";
@@ -16,18 +16,29 @@ export async function streamClinicalChat({
   onVerification,
   onAnswerDelta,
   onDone,
+  onConfirmationNeeded,
 }) {
+  // Build the request body, including confirmation parameters when present.
+  const requestBody = {
+    message,
+    conversation_id: active.id,
+    patient: compactPatientForRequest(active),
+    clinical_attachments: active.attachments || [],
+    language,
+  };
+  if (active.confirmation_action) {
+    requestBody.confirmation_action = active.confirmation_action;
+  }
+  if (active.pending_confirmation) {
+    requestBody.pending_confirmation = active.pending_confirmation;
+  }
+
   const response = await apiFetch("/chat/stream", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      message,
-      conversation_id: active.id,
-      patient: compactPatientForRequest(active),
-      clinical_attachments: active.attachments || [],
-      language,
-    }),
+    body: JSON.stringify(requestBody),
     signal,
+    timeoutMs: CHAT_STREAM_TIMEOUT_MS,
   });
 
   if (!response.ok) {
@@ -79,6 +90,13 @@ export async function streamClinicalChat({
       if (eventName === "draft_ready") {
         onProgress?.({ step: "draft_ready", label: streamStatusLabel(language, "draft_ready") });
         onStatus?.(streamStatusLabel(language, "draft_ready"));
+        // Also emit confirmation data so the caller can store it on the conversation.
+        onConfirmationNeeded?.({
+          isInitialDraft: data.is_initial_draft ?? false,
+          conflicts: data.conflicts || [],
+          missingCheck: data,
+          pendingPatient: data.patient || null,
+        });
         onDraft?.(data);
       }
       if (eventName === "missing_check") {

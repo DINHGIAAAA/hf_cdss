@@ -24,7 +24,7 @@ from app.modules.missing_fields.service import build_missing_fields_prompt, chec
 from app.modules.reasoning.service import build_recommendation
 from app.modules.graphrag.service import build_graphrag_context_async
 from app.modules.verification_agents.service import verify_recommendation
-from app.schemas.chat import ChatMessage, ChatRequest, ChatResponse, PatientDraft
+from app.schemas.chat import ChatMessage, ChatRequest, ChatResponse, PatientConflict, PatientDraft
 from app.schemas.graphrag import GraphRAGContextRequest, VerificationRequest
 from app.schemas.llm import LLMAnswerRequest
 from app.schemas.patient import ClinicalDocument, PatientIdentity, PatientProfile
@@ -293,6 +293,151 @@ def _with_turn_message_context(patient: PatientProfile, message: str) -> Patient
     return updated
 
 
+# Medically significant fields where a value change should require explicit confirmation
+# before overwriting the existing draft. Other field changes merge silently.
+_SIGNIFICANT_CONFLICT_FIELDS = frozenset(
+    {
+        "lvef",
+        "egfr",
+        "potassium",
+        "systolic_bp",
+        "heart_rate",
+    }
+)
+
+
+def _cv_value(cv: Any) -> Any:
+    """Extract the underlying scalar value from a ClinicalValue (or pass through primitives)."""
+    if cv is None:
+        return None
+    if hasattr(cv, "value"):
+        return cv.value
+    return cv
+
+
+def _detect_value_conflicts(existing: PatientProfile, incoming: PatientProfile) -> list[PatientConflict]:
+    """Return field-level conflicts where `incoming` has a real (non-null) value that differs from `existing`.
+
+    Empty/non-null values in `incoming` are treated as "no change" (matches merge semantics).
+    """
+    conflicts: list[PatientConflict] = []
+
+    def _check(field_id: str, label: str, old: Any, new: Any) -> None:
+        old_v = _cv_value(old)
+        new_v = _cv_value(new)
+        if new_v is None or new_v == "":
+            return  # incoming missing -> no conflict, merge prefers existing
+        if old_v is None:
+            return  # existing missing -> this is a fill-in, not a conflict
+        if old_v == new_v:
+            return
+        conflicts.append(
+            PatientConflict(
+                field=field_id,
+                label=label,
+                old_value=old_v,
+                new_value=new_v,
+                reason=f"Value changed from {old_v} to {new_v}",
+                requires_confirmation=field_id in _SIGNIFICANT_CONFLICT_FIELDS,
+            )
+        )
+
+    _check(
+        "lvef",
+        "LVEF",
+        existing.heart_failure_profile.lvef,
+        incoming.heart_failure_profile.lvef,
+    )
+    _check(
+        "egfr",
+        "eGFR",
+        existing.labs.egfr,
+        incoming.labs.egfr,
+    )
+    _check(
+        "potassium",
+        "Serum potassium",
+        existing.labs.potassium,
+        incoming.labs.potassium,
+    )
+    _check(
+        "systolic_bp",
+        "Systolic BP",
+        existing.vitals.systolic_bp,
+        incoming.vitals.systolic_bp,
+    )
+    _check(
+        "heart_rate",
+        "Heart rate",
+        existing.vitals.heart_rate,
+        incoming.vitals.heart_rate,
+    )
+
+    # Demographics: only flag significant demographic changes (age/sex reversals are rare)
+    if (
+        existing.demographics.age is not None
+        and incoming.demographics.age is not None
+        and existing.demographics.age != incoming.demographics.age
+        and abs(existing.demographics.age - incoming.demographics.age) >= 5
+    ):
+        conflicts.append(
+            PatientConflict(
+                field="age",
+                label="Age",
+                old_value=existing.demographics.age,
+                new_value=incoming.demographics.age,
+                reason=f"Age changed from {existing.demographics.age} to {incoming.demographics.age}",
+                requires_confirmation=False,  # demographic updates can merge silently
+            )
+        )
+
+    return conflicts
+
+
+def _apply_extracted_updates(prefill: PatientProfile, extracted: PatientProfile) -> PatientProfile:
+    """Apply clinically significant values from `extracted` into `prefill`.
+
+    Unlike `_merge_patient` (which prefers existing over incoming), this function
+    ensures that values extracted from the current message update the prefill
+    for the fields tracked in `_SIGNIFICANT_CONFLICT_FIELDS`. This matches the
+    real clinical behavior: a follow-up message like "K+ is now 5.5" updates K+.
+    The caller is responsible for calling `_detect_value_conflicts` to surface
+    any resulting conflicts to the user.
+    """
+    result = prefill.model_copy(deep=True)
+    if extracted.heart_failure_profile.lvef is not None:
+        result.heart_failure_profile.lvef = extracted.heart_failure_profile.lvef
+    if extracted.labs.egfr is not None:
+        result.labs.egfr = extracted.labs.egfr
+    if extracted.labs.potassium is not None:
+        result.labs.potassium = extracted.labs.potassium
+    if extracted.vitals.systolic_bp is not None:
+        result.vitals.systolic_bp = extracted.vitals.systolic_bp
+    if extracted.vitals.heart_rate is not None:
+        result.vitals.heart_rate = extracted.vitals.heart_rate
+    return result
+
+
+def _has_significant_conflict(conflicts: list[PatientConflict]) -> bool:
+    return any(c.requires_confirmation for c in conflicts)
+
+
+def _build_confirmation_message(conflicts: list[PatientConflict], language: str) -> str:
+    """Build a short assistant message listing the conflicts that need user confirmation."""
+    items = [c for c in conflicts if c.requires_confirmation]
+    if not items:
+        return ""
+    if language == "vi":
+        head = "Phát hiện thay đổi giá trị quan trọng. Bạn có muốn cập nhật không?"
+        lines = [f"- {item.label}: {item.old_value} → {item.new_value}" for item in items[:5]]
+        tail = "Trả lời 'có' để cập nhật, 'không' để giữ giá trị cũ."
+    else:
+        head = "Detected changes to important values. Confirm to update?"
+        lines = [f"- {item.label}: {item.old_value} → {item.new_value}" for item in items[:5]]
+        tail = "Reply 'yes' to apply, 'no' to keep the previous value."
+    return "\n".join([head, *lines, tail])
+
+
 def _prefilled_patient_complete(
     base_patient: PatientProfile,
     supplied_patient: PatientProfile | None,
@@ -311,20 +456,43 @@ async def _resolve_patient_for_chat_turn(
     base_patient: PatientProfile,
     supplied_patient: PatientProfile | None,
     turn_message: str = "",
-) -> PatientProfile:
-    """Use regex-only intake when form/draft profile already satisfies required chat fields."""
+    confirmation_action: str | None = None,
+    pending_patient: PatientProfile | None = None,
+) -> tuple[PatientProfile, list[PatientConflict]]:
+    """Resolve the patient profile for the current turn.
+
+    Returns (merged_patient, conflicts). When ``conflicts`` contains entries with
+    ``requires_confirmation=True``, the caller should pause for user confirmation
+    unless ``confirmation_action`` is "confirm" (apply) or "cancel" (discard).
+
+    ``pending_patient`` carries the patient profile with unconfirmed field values
+    from a prior needs_confirmation response. When confirmation_action is set,
+    this patient is merged into (confirm) or discarded (cancel).
+    """
     from app.modules.clinical_intake_extraction.service import (
         _regex_extract_patient_from_message,
         extract_patient_from_message,
     )
 
+    # Handle confirmation responses first — bypass normal extraction.
+    if confirmation_action == "confirm":
+        # Apply the pending (unconfirmed) values on top of the base patient.
+        merged = _merge_patient(base_patient, pending_patient) if pending_patient else base_patient
+        merged = _with_turn_message_context(merged, turn_message)
+        return merged, []
+
+    if confirmation_action == "cancel":
+        return _with_turn_message_context(base_patient, turn_message), []
+
     prefill = _merge_patient(base_patient, supplied_patient) if supplied_patient else base_patient
     prefill = _with_turn_message_context(prefill, turn_message)
+
     if check_missing_fields(prefill).status == "complete":
         logger.info("Skipping LLM clinical intake for conversation %s (profile complete)", conversation_id)
         regex_patient = _regex_extract_patient_from_message(extraction_message, conversation_id)
-        merged = _merge_patient(prefill, regex_patient)
-        return _with_turn_message_context(merged, turn_message)
+        merged = _apply_extracted_updates(prefill, regex_patient)
+        conflicts = _detect_value_conflicts(base_patient, merged)
+        return _with_turn_message_context(merged, turn_message), conflicts
 
     extracted = await extract_patient_from_message(
         extraction_message,
@@ -334,7 +502,14 @@ async def _resolve_patient_for_chat_turn(
     merged = _merge_patient(base_patient, extracted)
     if supplied_patient:
         merged = _merge_patient(merged, supplied_patient)
-    return _with_turn_message_context(merged, turn_message)
+    merged = _with_turn_message_context(merged, turn_message)
+
+    conflicts = _detect_value_conflicts(base_patient, merged)
+    if conflicts and confirmation_action == "cancel":
+        return _with_turn_message_context(base_patient, turn_message), []
+    if conflicts and confirmation_action == "confirm":
+        return merged, []
+    return merged, conflicts
 
 
 def _prior_user_messages(conversation_id: str) -> list[str]:
@@ -361,6 +536,7 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
 
     current = _load_draft(conversation_id)
     base_patient = current.patient if current else _new_patient(conversation_id)
+    is_initial_draft = current is None
     attachment_context = _attachment_context(request)
     extraction_message = "\n".join(value for value in [request.message, attachment_context] if value)
 
@@ -368,15 +544,16 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
         yield _sse("status", {"step": "using_supplied_profile"})
     else:
         yield _sse("status", {"step": "extracting_patient"})
-    extracted_patient = await _resolve_patient_for_chat_turn(
+    merged, conflicts = await _resolve_patient_for_chat_turn(
         extraction_message=extraction_message,
         conversation_id=conversation_id,
         conversation_history=_prior_user_messages(conversation_id),
         base_patient=base_patient,
         supplied_patient=request.patient,
         turn_message=request.message,
+        confirmation_action=request.confirmation_action,
+        pending_patient=request.pending_confirmation,
     )
-    merged = extracted_patient
     merged = _merge_clinical_documents(merged, request)
 
     clinical_state = build_clinical_state(merged, extraction_message)
@@ -385,14 +562,24 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
             value for value in [merged.care_context.decision_context, state_text] if value
         ).strip()
 
+    # Only save draft after conflicts are resolved (or if there are none).
+    # When a conflict requires confirmation, the base_patient stays in the draft
+    # until the user confirms — this prevents unconfirmed values from persisting.
+    has_unconfirmed = _has_significant_conflict(conflicts) and request.confirmation_action is None
+    saved_patient = merged if not has_unconfirmed else base_patient
     draft = PatientDraft(
         conversation_id=conversation_id,
-        patient=merged,
+        patient=saved_patient,
         updated_at=_now(),
         clinical_state=clinical_state,
+        is_initial_draft=is_initial_draft,
+        conflicts=conflicts,
     )
     await asyncio.to_thread(_save_draft, draft)
-    yield _sse("draft_ready", draft.model_dump(mode="json"))
+    yield _sse(
+        "draft_ready",
+        {**draft.model_dump(mode="json"), "is_initial_draft": is_initial_draft, "conflicts": [c.model_dump(mode="json") for c in conflicts]},
+    )
 
     missing_check = check_missing_fields(
         merged,
@@ -403,8 +590,45 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
         {"tool": "patient_draft_merge", "patient": merged.legacy_summary()},
         {"tool": "clinical_state_memory", "result": clinical_state},
         {"tool": "missing_field_checker", "result": missing_check.model_dump(mode="json")},
+        {"tool": "value_conflicts", "result": [c.model_dump(mode="json") for c in conflicts]},
     ]
     yield _sse("missing_check", missing_check.model_dump(mode="json"))
+
+    # Conflict confirmation path — pause before running recommendation.
+    if _has_significant_conflict(conflicts) and request.confirmation_action is None:
+        content = _build_confirmation_message(conflicts, request.language or "vi")
+        assistant_message = _message(
+            conversation_id,
+            "assistant",
+            content,
+            {"status": "needs_confirmation"},
+        )
+        await asyncio.to_thread(_append_message, assistant_message)
+        await asyncio.to_thread(
+            write_audit_event,
+            merged.case_id,
+            "chat_value_conflict",
+            {
+                "message": request.message,
+                "conflicts": [c.model_dump(mode="json") for c in conflicts],
+            },
+        )
+        response = ChatResponse(
+            conversation_id=conversation_id,
+            status="needs_confirmation",
+            assistant_message=assistant_message,
+            patient_draft=draft,
+            missing_check=missing_check,
+            needs_confirmation=True,
+            conflicts=conflicts,
+            tool_outputs=tool_outputs,
+        )
+        # Include merged (unconfirmed) patient in the draft so the client can pass it
+        # back as pending_confirmation on the next request.
+        draft.patient = merged
+        yield _sse("answer_delta", {"content": content})
+        yield _sse("done", response.model_dump(mode="json"))
+        return
 
     if missing_check.missing_fields:
         content = build_missing_fields_prompt(missing_check)
@@ -549,15 +773,18 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
 
     current = _load_draft(conversation_id)
     base_patient = current.patient if current else _new_patient(conversation_id)
+    is_initial_draft = current is None
     attachment_context = _attachment_context(request)
     extraction_message = "\n".join(value for value in [request.message, attachment_context] if value)
-    merged = await _resolve_patient_for_chat_turn(
+    merged, conflicts = await _resolve_patient_for_chat_turn(
         extraction_message=extraction_message,
         conversation_id=conversation_id,
         conversation_history=_prior_user_messages(conversation_id),
         base_patient=base_patient,
         supplied_patient=request.patient,
         turn_message=request.message,
+        confirmation_action=request.confirmation_action,
+        pending_patient=request.pending_confirmation,
     )
     merged = _merge_clinical_documents(merged, request)
 
@@ -567,11 +794,15 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
             value for value in [merged.care_context.decision_context, state_text] if value
         ).strip()
 
+    has_unconfirmed = _has_significant_conflict(conflicts) and request.confirmation_action is None
+    saved_patient = merged if not has_unconfirmed else base_patient
     draft = PatientDraft(
         conversation_id=conversation_id,
-        patient=merged,
+        patient=saved_patient,
         updated_at=_now(),
         clinical_state=clinical_state,
+        is_initial_draft=is_initial_draft,
+        conflicts=conflicts,
     )
     _save_draft(draft)
 
@@ -584,7 +815,38 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
         {"tool": "patient_draft_merge", "patient": merged.legacy_summary()},
         {"tool": "clinical_state_memory", "result": clinical_state},
         {"tool": "missing_field_checker", "result": missing_check.model_dump(mode="json")},
+        {"tool": "value_conflicts", "result": [c.model_dump(mode="json") for c in conflicts]},
     ]
+
+    # Conflict confirmation path — pause before running recommendation.
+    if _has_significant_conflict(conflicts) and request.confirmation_action is None:
+        content = _build_confirmation_message(conflicts, request.language or "vi")
+        assistant_message = _message(conversation_id, "assistant", content, {"status": "needs_confirmation"})
+        _append_message(assistant_message)
+        write_audit_event(
+            merged.case_id,
+            "chat_value_conflict",
+            {
+                "message": request.message,
+                "conflicts": [c.model_dump(mode="json") for c in conflicts],
+            },
+        )
+        # Include merged (unconfirmed) patient in the draft so the client can pass it
+        # back as pending_confirmation on the next request.
+        draft.patient = merged
+        response = ChatResponse(
+            conversation_id=conversation_id,
+            status="needs_confirmation",
+            assistant_message=assistant_message,
+            patient_draft=draft,
+            missing_check=missing_check,
+            needs_confirmation=True,
+            conflicts=conflicts,
+            tool_outputs=tool_outputs,
+        )
+        if request.idempotency_key:
+            _cache_idempotent_response(request.idempotency_key, response)
+        return response
 
     if missing_check.missing_fields:
         content = build_missing_fields_prompt(missing_check)

@@ -1,14 +1,9 @@
 import { useAuiState } from "@assistant-ui/react";
 
-import {
-  ClinicalDoseTable,
-  ClinicalStructuredAnswer,
-} from "@/components/ClinicalAnswerTables";
 import { MarkdownText } from "@/components/markdown-text";
+import { Button } from "@/components/ui/button";
 import { useClinicalConversation } from "@/context/ClinicalConversationContext.jsx";
 import { useLanguage } from "@/i18n/LanguageProvider.jsx";
-
-const FALLBACK_MARKERS = /safety fallback|dự phòng an toàn|安全备用|フォールバック/i;
 
 function messagePlainText(state) {
   const parts = state.message.parts;
@@ -31,7 +26,7 @@ function messagePlainText(state) {
 
 export function ClinicalAnswerText() {
   const { t } = useLanguage();
-  const { recommendation, verification } = useClinicalConversation();
+  const { recommendation, verification, onOpenEvidencePanel } = useClinicalConversation();
   const isRunning = useAuiState((s) => s.thread.isRunning);
   const answerText = useAuiState(messagePlainText);
   const isLastAssistant = useAuiState((s) => {
@@ -39,36 +34,9 @@ export function ClinicalAnswerText() {
     return s.message.role === "assistant" && index === s.thread.messages.length - 1;
   });
 
-  const hasRecommendation = Boolean(recommendation?.recommendations?.length);
   const trimmed = (answerText || "").trim();
-  const useStructuredView =
-    !isRunning &&
-    isLastAssistant &&
-    hasRecommendation &&
-    (!trimmed || FALLBACK_MARKERS.test(answerText));
-
-  const showDoseWithMarkdown =
-    !isRunning &&
-    isLastAssistant &&
-    hasRecommendation &&
-    !useStructuredView &&
-    trimmed &&
-    (recommendation.medication_pathway?.length ?? 0) > 0;
-
-  if (useStructuredView) {
-    return (
-      <ClinicalStructuredAnswer recommendation={recommendation} verification={verification} />
-    );
-  }
-
-  if (showDoseWithMarkdown) {
-    return (
-      <div className="space-y-4">
-        <MarkdownText />
-        <ClinicalDoseTable recommendation={recommendation} />
-      </div>
-    );
-  }
+  const hasRecommendation = Boolean(recommendation?.recommendations?.length);
+  const evidenceCount = verification?.context?.evidence_chunks?.length || 0;
 
   if (!isRunning && isLastAssistant && !trimmed && !hasRecommendation) {
     return (
@@ -76,5 +44,22 @@ export function ClinicalAnswerText() {
     );
   }
 
-  return <MarkdownText />;
+  return (
+    <div className="space-y-3">
+      {trimmed ? <MarkdownText /> : null}
+      {!isRunning && isLastAssistant && hasRecommendation && !trimmed ? (
+        <p className="text-sm text-muted-foreground">{t("clinicalAnswer.seeClinicalPanel")}</p>
+      ) : null}
+      {!isRunning && isLastAssistant && evidenceCount > 0 && onOpenEvidencePanel ? (
+        <Button
+          className="h-8 rounded-full px-3 text-xs"
+          onClick={() => onOpenEvidencePanel()}
+          type="button"
+          variant="outline"
+        >
+          {t("clinicalAnswer.evidenceCount", { count: evidenceCount })}
+        </Button>
+      ) : null}
+    </div>
+  );
 }

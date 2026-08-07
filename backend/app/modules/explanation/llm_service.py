@@ -60,6 +60,7 @@ def _compact_recommendation(payload: LLMAnswerRequest) -> dict[str, Any]:
         ],
         "candidate_medication_classes": [
             {
+                "class_id": item.class_id,
                 "drug_class": item.drug_class,
                 "status": item.status,
                 "rationale": item.rationale,
@@ -74,7 +75,7 @@ def _compact_recommendation(payload: LLMAnswerRequest) -> dict[str, Any]:
                 "monitoring": item.monitoring[:2],
                 "warnings": item.warnings[:3],
             }
-            for item in payload.recommendation.recommendations
+            for item in _items_for_clinician_question(payload)
         ],
         "dose_plans": [
             {
@@ -185,7 +186,52 @@ def _get_fallback_template(language: str) -> dict[str, str]:
 
 
 def _fallback_recommendation_items(payload: LLMAnswerRequest):
-    return stabilize_recommendation_items(list(payload.recommendation.recommendations))
+    stabilized = stabilize_recommendation_items(list(payload.recommendation.recommendations))
+    return stabilized if stabilized else list(payload.recommendation.recommendations)
+
+
+def _question_focus_class_ids(payload: LLMAnswerRequest) -> set[str]:
+    state = payload.clinical_state or {}
+    focus = {str(c).lower() for c in (state.get("focus_medication_classes") or []) if c}
+    question = (payload.user_input or "").lower()
+    keyword_map = {
+        "mra": "mra",
+        "mineralocorticoid": "mra",
+        "spironolactone": "mra",
+        "eplerenone": "mra",
+        "sglt2": "sglt2i",
+        "dapagliflozin": "sglt2i",
+        "empagliflozin": "sglt2i",
+        "arni": "arni",
+        "entresto": "arni",
+        "sacubitril": "arni",
+        "ramipril": "acei_arb",
+        "lisinopril": "acei_arb",
+        "enalapril": "acei_arb",
+        "ace inhibitor": "acei_arb",
+        "arb": "acei_arb",
+        "beta blocker": "beta_blocker",
+        "bisoprolol": "beta_blocker",
+        "metoprolol": "beta_blocker",
+        "carvedilol": "beta_blocker",
+        "loop diuretic": "loop_diuretic",
+        "furosemide": "loop_diuretic",
+    }
+    for keyword, class_id in keyword_map.items():
+        if keyword in question:
+            focus.add(class_id)
+    return focus
+
+
+def _items_for_clinician_question(payload: LLMAnswerRequest):
+    items = _fallback_recommendation_items(payload)
+    focus = _question_focus_class_ids(payload)
+    if not focus:
+        return items[:8]
+    narrowed = [item for item in items if (item.class_id or "").lower() in focus]
+    if narrowed:
+        return narrowed
+    return items[:6]
 
 
 def _display_drug_labels(items, *, limit: int = 8) -> list[str]:
@@ -219,16 +265,16 @@ def _short_clinical_lines(items, field: str, *, limit: int = 4, max_len: int = 2
 
 
 def fallback_answer(payload: LLMAnswerRequest) -> str:
-    items = _fallback_recommendation_items(payload)
+    items = _items_for_clinician_question(payload)
     blocked = [item for item in items if item.status == "avoid"]
     caution = [item for item in items if item.status == "consider_with_caution"]
     consider = [item for item in items if item.status == "consider"]
     continue_items = [item for item in items if item.status == "continue"]
     missing = [risk.name.replace("missing_", "") for risk in payload.recommendation.risk_flags if risk.name.startswith("missing_")]
 
-    # Get language-specific template
     lang = payload.language or "vi"
     t = _get_fallback_template(lang)
+    question = (payload.user_input or "").strip()
 
     facts = [
         f"LVEF {payload.patient.lvef}%" if payload.patient.lvef is not None else None,
@@ -238,78 +284,82 @@ def fallback_answer(payload: LLMAnswerRequest) -> str:
         f"HR {payload.patient.heart_rate} bpm" if payload.patient.heart_rate is not None else None,
     ]
     context = ", ".join(item for item in facts if item) or t["context_fallback"]
-    action_items = _short_clinical_lines([*blocked, *caution, *consider, *continue_items], "action_items")
-    monitoring = _short_clinical_lines([*blocked, *caution, *consider, *continue_items], "monitoring")
-    warnings = _short_clinical_lines([*blocked, *caution, *consider, *continue_items], "warnings")
+    meds = payload.patient.current_medications or []
+    med_line = ", ".join(meds[:8]) if meds else ""
 
-    lines = [t["conclusion"]]
-    if blocked:
-        drugs_str = ", ".join(_display_drug_labels(blocked))
-        if drugs_str:
-            lines.append(t["avoid_msg"].format(drugs=drugs_str))
-    if caution:
-        drugs_str = ", ".join(_display_drug_labels(caution))
-        if drugs_str:
-            lines.append(t["caution_msg"].format(drugs=drugs_str))
-    if consider:
-        drugs_str = ", ".join(_display_drug_labels(consider))
-        if drugs_str:
-            lines.append(t["consider_msg"].format(drugs=drugs_str))
-    if continue_items:
-        drugs_str = ", ".join(_display_drug_labels(continue_items))
-        if drugs_str:
-            lines.append(f"Continue {drugs_str} per current GDMT plan.")
-    if not blocked and not caution and not consider and not continue_items:
-        lines.append(t["no_recommendations"])
+    paragraphs: list[str] = []
+    if question:
+        if lang == "vi":
+            paragraphs.append(
+                f"Dựa trên hồ sơ ({context})"
+                + (f" và thuốc đang dùng ({med_line})" if med_line else "")
+                + f", gợi ý cho câu hỏi: «{question}»."
+            )
+        else:
+            paragraphs.append(
+                f"For this profile ({context})"
+                + (f" on {med_line}" if med_line else "")
+                + f", regarding: “{question}”."
+            )
+    else:
+        paragraphs.append(context)
 
-    lines.append(f"\n{t['medications']}")
-    if blocked or caution or consider or continue_items:
-        for item in [*blocked, *caution, *consider, *continue_items][:8]:
-            summary = (item.plain_language_summary or "").strip()
+    def _item_paragraph(group: list, prefix_vi: str, prefix_en: str) -> None:
+        if not group:
+            return
+        for item in group[:3]:
             label = display_label_for_class_id(item.class_id, item.drug_class)
-            lines.append(f"- {label}: {summary or item.rationale or item.status}")
-    else:
-        lines.append(f"- {t['no_medications']}")
+            summary = (item.plain_language_summary or item.rationale or item.status or "").strip()
+            if lang == "vi":
+                paragraphs.append(f"- **{label}** ({item.status}): {summary}")
+            else:
+                paragraphs.append(f"- **{label}** ({item.status}): {summary}")
 
-    lines.append(f"\n{t['evidence']}")
-    lines.append(f"- {t['available_data']}: {context}.")
-    if payload.recommendation.constraints:
-        lines.append(
-            f"- {t['system_warning']}: "
-            + "; ".join(constraint.reason for constraint in payload.recommendation.constraints[:3])
+    if blocked:
+        _item_paragraph(blocked, t["avoid_msg"], t["avoid_msg"])
+    if caution:
+        _item_paragraph(caution, t["caution_msg"], t["caution_msg"])
+    if consider:
+        _item_paragraph(consider, t["consider_msg"], t["consider_msg"])
+    if continue_items:
+        _item_paragraph(continue_items, "continue", "continue")
+
+    if not blocked and not caution and not consider and not continue_items:
+        paragraphs.append(t["no_recommendations"])
+
+    relevant_constraints = [
+        c
+        for c in payload.recommendation.constraints
+        if not _question_focus_class_ids(payload)
+        or any(
+            (c.target_drug_class or "").lower().find(fid.replace("_", " ")) >= 0
+            for fid in _question_focus_class_ids(payload)
         )
+    ][:2]
+    if relevant_constraints:
+        if lang == "vi":
+            paragraphs.append(
+                "**Ràng buộc an toàn:** "
+                + "; ".join(f"{c.target_drug_class}: {c.reason}" for c in relevant_constraints)
+            )
+        else:
+            paragraphs.append(
+                "**Safety constraints:** "
+                + "; ".join(f"{c.target_drug_class}: {c.reason}" for c in relevant_constraints)
+            )
 
-    lines.append(f"\n{t['dose_check']}")
-    if payload.recommendation.dose_plans:
-        for plan in payload.recommendation.dose_plans[:4]:
-            if plan.recommended_dose:
-                dose_label = plan.recommended_dose.label or (
-                    f"{plan.recommended_dose.value:g} {plan.recommended_dose.unit}"
-                )
-                lines.append(
-                    f"- {plan.drug_name}: {dose_label} "
-                    f"{plan.recommended_dose.frequency} ({plan.status}). {plan.rationale}"
-                )
-            for step in plan.calculation_steps[:2]:
-                lines.append(f"  • {step.description}: {step.result}")
-    elif action_items:
-        lines.extend(f"- {item}" for item in action_items)
-    else:
-        lines.append("- Review current dose, treatment goals, and contraindications before making changes.")
+    monitoring = _short_clinical_lines([*blocked, *caution, *consider, *continue_items], "monitoring", limit=2)
+    if monitoring:
+        if lang == "vi":
+            paragraphs.append("**Theo dõi:** " + " ".join(monitoring))
+        else:
+            paragraphs.append("**Monitoring:** " + " ".join(monitoring))
 
     if missing:
-        lines.append(f"- {t['missing_data']}: {', '.join(missing)}.")
+        paragraphs.append(f"{t['missing_data']}: {', '.join(missing)}.")
 
-    lines.append(f"\n{t['monitoring']}")
-    if monitoring:
-        lines.extend(f"- {item}" for item in monitoring)
-    if warnings:
-        lines.extend(f"- {item}" for item in warnings)
-    if not monitoring and not warnings:
-        lines.append(f"- {t['default_monitoring']}")
-
-    lines.append(f"\n{t['safety_note']}")
-    return "\n\n".join(lines)
+    paragraphs.append(f"\n{t['safety_note']}")
+    return "\n\n".join(paragraphs)
 
 
 def _extract_chat_completion_text(data: dict[str, Any]) -> str:

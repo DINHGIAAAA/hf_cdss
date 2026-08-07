@@ -1,3 +1,5 @@
+name: hf_cdss
+
 services:
   ollama:
     image: ollama/ollama:latest
@@ -400,8 +402,12 @@ services:
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-test}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-test}
       PERSISTENCE: "1"
+      # Community edition: S3 objects are stored under /tmp/localstack-s3-storage (not /var/lib/localstack).
+      # Mount that path to a named volume so stop/start keeps buckets and objects.
+      DATA_DIR: /var/lib/localstack
     volumes:
       - localstack_data:/var/lib/localstack
+      - localstack_s3_storage:/tmp/localstack-s3-storage
       - ./localstack/init:/etc/localstack/init/ready.d:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://127.0.0.1:4566/_localstack/health"]
@@ -445,9 +451,25 @@ services:
 
 volumes:
   ollama_data:
+    name: hf_cdss_ollama_data
   postgres_data:
+    name: hf_cdss_postgres_data
   neo4j_data:
+    name: hf_cdss_neo4j_data
   chroma_data:
+    name: hf_cdss_chroma_data
   localstack_data:
+    name: hf_cdss_localstack_data
+  localstack_s3_storage:
+    name: hf_cdss_localstack_s3_storage
   redis_data:
+    name: hf_cdss_redis_data
   frontend_node_modules:
+    name: hf_cdss_frontend_node_modules
+
+# Single bridge for every service (fixed name). Without this, `docker compose` run from
+# different folders creates separate default networks — Airflow on `infrastructure_default`
+# cannot resolve `localstack` on `hf_cdss_default`.
+networks:
+  default:
+    name: hf_cdss_net

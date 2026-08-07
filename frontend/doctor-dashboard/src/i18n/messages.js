@@ -2,6 +2,9 @@ export const MESSAGES = {
   en: {
     sidebar: {
       newChat: "New chat",
+      renameChat: "Rename",
+      copyChat: "Copy chat",
+      copied: "Copied to clipboard",
       deleteChat: "Delete conversation",
       signOut: "Sign out",
       adminDashboard: "Admin dashboard",
@@ -25,6 +28,12 @@ export const MESSAGES = {
       deleteChat: "Delete conversation",
       clearConfirm: "Clear all messages in this conversation? Patient context is kept.",
       deleteConfirm: "Delete this conversation? This cannot be undone.",
+      renamePlaceholder: "Conversation name",
+      copyChat: "Copy chat",
+      copied: "Copied to clipboard",
+      openClinicalPanel: "Open GDMT panel",
+      openEvidencePanel: "Open evidence ({count})",
+      toggleClinicalPanel: "Clinical panel",
       disclaimer:
         "HF CDSS supports clinical decisions — not a substitute for physician judgment.",
       suggestions: [
@@ -159,6 +168,9 @@ export const MESSAGES = {
         "Structured CDSS output for review only. Confirm all decisions with clinical judgment.",
       emptyResponse:
         "No assistant text was saved for this turn. Send the question again or use Regenerate.",
+      seeClinicalPanel:
+        "Structured GDMT, pathway, and evidence are in the clinical panel on the right — not repeated here.",
+      panelSupplement: "Full GDMT table, lab pathway, and citations: clinical panel (GDMT / Evidence).",
       vitals: {
         lvef: "LVEF",
         egfr: "eGFR",
@@ -236,6 +248,9 @@ export const MESSAGES = {
   vi: {
     sidebar: {
       newChat: "Hội thoại mới",
+      renameChat: "Đổi tên",
+      copyChat: "Sao chép hội thoại",
+      copied: "Đã sao chép",
       deleteChat: "Xóa hội thoại",
       signOut: "Đăng xuất",
       adminDashboard: "Bảng quản trị",
@@ -259,6 +274,12 @@ export const MESSAGES = {
       deleteChat: "Xóa hội thoại",
       clearConfirm: "Xóa toàn bộ tin nhắn trong hội thoại này? Giữ nguyên ngữ cảnh bệnh nhân.",
       deleteConfirm: "Xóa hội thoại này? Thao tác không thể hoàn tác.",
+      renamePlaceholder: "Tên hội thoại",
+      copyChat: "Sao chép hội thoại",
+      copied: "Đã sao chép",
+      openClinicalPanel: "Mở panel GDMT",
+      openEvidencePanel: "Mở bằng chứng ({count})",
+      toggleClinicalPanel: "Panel lâm sàng",
       disclaimer:
         "HF CDSS hỗ trợ quyết định lâm sàng — không thay thế phán đoán của bác sĩ.",
       suggestions: [
@@ -393,6 +414,9 @@ export const MESSAGES = {
         "Đầu ra CDSS có cấu trúc — chỉ hỗ trợ tham khảo. Bác sĩ xác nhận quyết định lâm sàng.",
       emptyResponse:
         "Không có nội dung trả lời cho lượt này. Gửi lại câu hỏi hoặc bấm Regenerate.",
+      seeClinicalPanel:
+        "Bảng GDMT, lộ trình thuốc và bằng chứng nằm ở panel lâm sàng bên phải — không lặp lại trong chat.",
+      panelSupplement: "Bảng GDMT, pathway theo xét nghiệm và trích dẫn: panel lâm sàng (GDMT / Bằng chứng).",
       vitals: {
         lvef: "LVEF",
         egfr: "eGFR",

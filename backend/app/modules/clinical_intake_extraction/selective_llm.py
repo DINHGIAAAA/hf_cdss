@@ -212,6 +212,23 @@ def _message_mentions_medications(aggregated_message: str) -> bool:
     return any(hint in current for hint in MEDICATION_HINTS)
 
 
+def _has_update_language(aggregated_message: str) -> bool:
+    """Detect whether the message looks like an update to existing values (vs initial intake)."""
+    current = normalize_text(extract_current_message(aggregated_message))
+    update_markers = (
+        "now",
+        "updated",
+        "latest",
+        "vua",
+        "moi",
+        "cap nhat",
+        "hien tai",
+        "toi qua",
+        "hom nay",
+    )
+    return any(marker in current for marker in update_markers)
+
+
 def should_call_llm_extractor(
     *,
     aggregated_message: str,
@@ -241,7 +258,15 @@ def should_call_llm_extractor(
 
     if missing.status == "complete":
         if reasons:
-            return SelectiveLlmDecision(call_llm=True, reasons=reasons)
+            # Tighten: only escalate to LLM on real signals (conflicts, low confidence),
+            # not on minor care_context ambiguity once all required fields are present.
+            significant = [
+                r for r in reasons
+                if not r.startswith("ambiguous_care_context") and not r.startswith("complex_message")
+            ]
+            if significant:
+                return SelectiveLlmDecision(call_llm=True, reasons=reasons)
+            return SelectiveLlmDecision(call_llm=False, reasons=["complete_high_confidence"])
         return SelectiveLlmDecision(call_llm=False, reasons=["complete_high_confidence"])
 
     missing_ids = _missing_field_ids(merged)

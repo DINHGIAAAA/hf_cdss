@@ -1,6 +1,7 @@
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 const API_PREFIX = "/api/v1";
 export const API_FETCH_TIMEOUT_MS = 15_000;
+export const CHAT_STREAM_TIMEOUT_MS = 600_000;
 
 function withCredentials(options = {}) {
   return { credentials: "include", ...options };
@@ -9,7 +10,10 @@ function withCredentials(options = {}) {
 function fetchWithTimeout(url, options = {}) {
   const { timeoutMs = API_FETCH_TIMEOUT_MS, signal: userSignal, ...rest } = options;
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  let timeoutId;
+  if (typeof timeoutMs === "number" && timeoutMs > 0) {
+    timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  }
 
   if (userSignal) {
     if (userSignal.aborted) {
@@ -20,7 +24,9 @@ function fetchWithTimeout(url, options = {}) {
   }
 
   return fetch(url, { ...rest, signal: controller.signal }).finally(() => {
-    clearTimeout(timeoutId);
+    if (timeoutId !== undefined) {
+      clearTimeout(timeoutId);
+    }
   });
 }
 
