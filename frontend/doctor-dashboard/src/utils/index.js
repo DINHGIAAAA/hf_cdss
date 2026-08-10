@@ -82,13 +82,17 @@ export function buildPatient(patientForm, patientId) {
     },
     conditions: splitList(patientForm.conditions).map((name) => ({ name, status: "active" })),
     medications: splitList(patientForm.medications).map((name) => ({ name, status: "active" })),
-    allergy_statements: splitList(patientForm.allergies).map((substance) => ({ substance, status: "active" })),
-    red_flags: splitList(patientForm.redFlags).map((name) => ({
-      name,
-      status: /stable|no acute|khong|none/i.test(name) ? "absent" : "present",
-    })),
+    allergy_statements: splitList(patientForm.allergies).length
+      ? splitList(patientForm.allergies).map((substance) => ({ substance, status: "active" }))
+      : [{ substance: "no known drug allergies", status: "active" }],
+    red_flags: splitList(patientForm.redFlags).length
+      ? splitList(patientForm.redFlags).map((name) => ({
+          name,
+          status: /stable|no acute|khong|none/i.test(name) ? "absent" : "present",
+        }))
+      : [{ name: "no acute instability", status: "absent" }],
     care_context: {
-      clinician_question: "",
+      clinician_question: (patientForm.clinicianQuestion || "").trim() || "Medication safety and GDMT review",
       decision_context: "chat conversation patient intake",
     },
   };
@@ -128,6 +132,18 @@ export function parseSseBlock(block) {
   } catch {
     return { eventName, data };
   }
+}
+
+/** Resolve assistant bubble text from a chat stream `done` payload. */
+export function assistantTextFromChatDone(donePayload) {
+  if (!donePayload || typeof donePayload !== "object") return "";
+  const fromMessage = donePayload.assistant_message?.content;
+  const fromLlm = donePayload.llm_answer?.answer;
+  if (typeof fromMessage === "string" && fromMessage.trim()) return fromMessage;
+  if (typeof fromLlm === "string" && fromLlm.trim()) return fromLlm;
+  if (typeof fromMessage === "string") return fromMessage;
+  if (typeof fromLlm === "string") return fromLlm;
+  return "";
 }
 
 // ─── File reader ─────────────────────────────────────────────────────────────

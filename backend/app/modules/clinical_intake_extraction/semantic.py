@@ -207,11 +207,15 @@ def aggregate_conversation_context(
         return "\n".join(lines)
 
     try:
-        current_vector = embed_query(current)
+        texts = [current, *prior]
+        vectors = embed_documents(texts)
+        if len(vectors) != len(texts):
+            raise RuntimeError("embedding batch size mismatch")
+        current_vector = vectors[0]
         selected: list[tuple[float, str]] = []
         for index, message in enumerate(prior):
             keep_recent = index == len(prior) - 1
-            score = cosine_similarity(current_vector, embed_query(message))
+            score = cosine_similarity(current_vector, vectors[index + 1])
             if keep_recent or score >= threshold:
                 selected.append((score, message))
         if not selected:

@@ -135,6 +135,22 @@ def infer_last_completed_from_artifacts(data_root: Path) -> str | None:
     return last_completed
 
 
+def relationships_out_of_sync(data_root: Path) -> bool:
+    """True when upstream KG artifacts are newer than relationships.jsonl."""
+    rel_path = data_root / "artifacts/relationships/relationships.jsonl"
+    if not _nonempty(rel_path):
+        return False
+    rel_mtime = rel_path.stat().st_mtime
+    for rel_path_upstream in (
+        data_root / "artifacts/chunks/chunks.jsonl",
+        data_root / "artifacts/entities/entities.jsonl",
+        data_root / "artifacts/claims/claims.jsonl",
+    ):
+        if _nonempty(rel_path_upstream) and rel_path_upstream.stat().st_mtime > rel_mtime:
+            return True
+    return False
+
+
 def resolve_auto_resume(
     *,
     resume_from: str | None,
@@ -163,7 +179,14 @@ def resolve_auto_resume(
 
     if not last_completed:
         return None
-    return next_step_after(last_completed)
+    resume_from = next_step_after(last_completed)
+    if resume_from and relationships_out_of_sync(data_root):
+        ordered = _pipeline_step_order()
+        rewind = "derive_relationships"
+        if rewind in ordered and resume_from in ordered:
+            if ordered.index(resume_from) > ordered.index(rewind):
+                resume_from = rewind
+    return resume_from
 
 
 def should_skip_step(step_name: str, *, resume_from: str | None, checkpoint: dict[str, Any] | None) -> bool:

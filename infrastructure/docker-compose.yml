@@ -56,8 +56,8 @@ services:
         condition: service_healthy
       chromadb:
         condition: service_healthy
-      localstack-init:
-        condition: service_completed_successfully
+      localstack:
+        condition: service_healthy
       redis:
         condition: service_healthy
     environment:
@@ -156,8 +156,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      localstack-init:
-        condition: service_completed_successfully
+      localstack:
+        condition: service_healthy
       ollama:
         condition: service_healthy
     environment:
@@ -416,25 +416,6 @@ services:
       retries: 12
       start_period: 10s
     restart: unless-stopped
-
-  localstack-init:
-    image: amazon/aws-cli:2.15.0
-    container_name: hf_cdss_localstack_init
-    depends_on:
-      localstack:
-        condition: service_healthy
-    entrypoint: /bin/sh
-    command:
-      - -c
-      - |
-        until aws --endpoint-url http://localstack:4566 s3 ls 2>/dev/null; do sleep 2; done
-        aws --endpoint-url http://localstack:4566 s3 mb "s3://$${HF_CDSS_RAW_BUCKET:-hf-cdss-raw}" || true
-        aws --endpoint-url http://localstack:4566 s3 mb "s3://$${HF_CDSS_PROCESSED_BUCKET:-hf-cdss-processed}" || true
-        echo "S3 buckets created successfully"
-    environment:
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-test}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-test}
-      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
 
   redis:
     image: redis:7-alpine

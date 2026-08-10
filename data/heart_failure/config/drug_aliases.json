@@ -18,7 +18,8 @@
       "empagliflozin",
       "jardiance",
       "empagliflozin 10mg",
-      "empagliflozin 25mg"
+      "empagliflozin 25mg",
+      "jardiance 10mg"
     ]
   },
   "dapagliflozin": {
@@ -29,7 +30,8 @@
       "dapagliflozin",
       "farxiga",
       "forxiga",
-      "dapagliflozin 10mg"
+      "dapagliflozin 10mg",
+      "forxiga 10mg"
     ]
   },
   "canagliflozin": {
@@ -60,7 +62,10 @@
       "sacubitril and valsartan",
       "entresto",
       "sacubitril valsartan 24/26",
-      "sacubitril valsartan 97/103"
+      "sacubitril valsartan 49/51",
+      "sacubitril valsartan 97/103",
+      "entresto 24/26",
+      "entresto 49/51"
     ]
   },
   "spironolactone": {
@@ -106,7 +111,9 @@
       "toprol",
       "toprol-xl",
       "metoprolol succinate er",
-      "toprol xl"
+      "toprol xl",
+      "beloc zok",
+      "beloc"
     ]
   },
   "bisoprolol_fumarate": {
@@ -117,6 +124,9 @@
       "bisoprolol",
       "bisoprolol fumarate",
       "zebeta",
+      "concor",
+      "concor 5",
+      "bisoprolol 2.5mg",
       "bisoprolol 5mg",
       "bisoprolol 10mg"
     ]

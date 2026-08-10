@@ -19,11 +19,11 @@ python -c "import bcrypt; print(bcrypt.hashpw(b'your-password', bcrypt.gensalt(r
 
 ## Example dev passwords
 
-| User | Example password in `seed_users.example.json` |
-|------|-----------------------------------------------|
+| User | Dev password (example seed) |
+|------|-----------------------------|
 | `admin` | `password123` |
-| `clinical_lead` | `clinical_lead_dev` |
+| `clinical_lead` | `password123` |
 
-Each entry in the example file uses a **different** hash. Do not reuse the same hash across users.
+Hashes differ (unique bcrypt salt per user). Seed runs only when the `users` table is empty.
 
 See also `frontend/doctor-dashboard/README.md` for login workflow.

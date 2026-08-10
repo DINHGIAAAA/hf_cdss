@@ -9,7 +9,7 @@ import {
 
 import { streamClinicalChat } from "@/lib/clinicalChatStream";
 import { translate } from "@/i18n/messages.js";
-import { readClinicalFiles } from "@/utils";
+import { assistantTextFromChatDone, readClinicalFiles } from "@/utils";
 
 function extractText(message) {
   const part = message.content?.find?.((item) => item.type === "text");
@@ -173,14 +173,15 @@ export function ClinicalChatRuntimeProvider({
             });
           },
           onDone: (donePayload) => {
-            if (!donePayload) return;
+            if (!donePayload || typeof donePayload !== "object") return;
+            const assistantContent = assistantTextFromChatDone(donePayload);
             patchConversation(conversationId, (current) => {
               const updated = [...(current.messages || [])];
-              if (donePayload.assistant_message?.content) {
+              if (assistantContent.trim()) {
                 updated[updated.length - 1] = {
-                  id: donePayload.assistant_message.message_id || assistantId,
+                  id: donePayload.assistant_message?.message_id || assistantId,
                   role: "assistant",
-                  content: donePayload.assistant_message.content,
+                  content: assistantContent,
                 };
               }
               return {

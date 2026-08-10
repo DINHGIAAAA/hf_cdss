@@ -67,3 +67,18 @@ def test_artifact_sync_fails_when_required_s3_artifact_is_missing(tmp_path, monk
     with pytest.raises(RuntimeError, match="Required processed artifacts"):
         artifacts.sync_artifacts_from_processed_bucket(tmp_path)
 
+
+def test_ensure_artifacts_cached_does_not_raise_when_s3_missing(tmp_path, monkeypatch) -> None:
+    class FakeS3Client:
+        def download_file(self, bucket, key, target):
+            raise FileNotFoundError(key)
+
+    monkeypatch.setattr(settings, "processed_bucket", "hf-cdss-processed")
+    monkeypatch.setattr(settings, "s3_prefix", "heart_failure")
+    monkeypatch.setattr(artifacts, "_s3_client", lambda: FakeS3Client())
+
+    result = artifacts.ensure_artifacts_cached(tmp_path)
+
+    assert result["status"] == "unavailable"
+    assert result["missing"]
+

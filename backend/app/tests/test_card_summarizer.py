@@ -1,6 +1,7 @@
 import pytest
 
 from app.modules.explanation.card_summarizer import (
+    _contains_cjk,
     apply_deterministic_summaries,
     attach_plain_language_summaries,
     deterministic_card_summary,
@@ -40,6 +41,26 @@ def _recommendation(items: list[MedicationRecommendation] | None = None) -> Reco
         overall_status="consider",
         disclaimer="demo",
     )
+
+
+def test_merge_summaries_replaces_chinese_llm_output_with_vietnamese() -> None:
+    rec = _recommendation([_item(drug_class="SGLT2 inhibitor", status="consider")])
+    chinese = "钠尿肽类似物应密切监测血糖和肾功能。"
+    merged = merge_summaries(
+        rec,
+        {
+            "SGLT2 inhibitor": {
+                "summary": chinese,
+                "details": {
+                    "monitoring": ["建议患者进行血压、血脂和体重的定期检查"],
+                },
+            }
+        },
+        language="vi",
+    )
+    summary = merged.recommendations[0].plain_language_summary or ""
+    assert _contains_cjk(summary) is False
+    assert "SGLT2" in summary or "cân nhắc" in summary.lower() or "ức chế" in summary.lower()
 
 
 def test_deterministic_card_summary_vietnamese() -> None:

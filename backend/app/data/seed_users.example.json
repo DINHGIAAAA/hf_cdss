@@ -9,7 +9,7 @@
   "clinical_lead": {
     "id": "dr_lead",
     "roles": ["clinical_lead"],
-    "password_hash": "$2b$12$G8AadYPrXNn5ffLTW97nxuBT0x6rHRxw8Xaso2ZWRuJLCcXubYc9i",
+    "password_hash": "$2b$12$FbbXPtlkEJ65pZ7vVK3LJe9/FrlESOoxsci55bu71c8gsDYWHVYvS",
     "display_name": "Clinical Lead"
   }
 }

@@ -24,7 +24,7 @@ from app.modules.graphrag.hyde_expansion import (
 )
 from app.modules.graphrag.query_decomposition import decompose_retrieval_queries
 from app.modules.citation_validation.service import source_link_for_chunk
-from app.modules.datastores.artifacts import sync_artifacts_from_processed_bucket
+from app.modules.datastores.artifacts import ensure_artifacts_cached
 from app.modules.datastores.chroma import retrieve_chroma_candidates
 from app.modules.datastores.common import CHUNKS_PATH, DATA_ROOT, RELATIONSHIPS_PATH
 from app.modules.datastores.neo4j import neo4j_driver as get_driver, retrieve_neo4j
@@ -76,7 +76,10 @@ def load_chunks() -> list[dict[str, Any]]:
 
 @lru_cache(maxsize=1)
 def load_published_chunks() -> list[dict[str, Any]]:
-    sync_artifacts_from_processed_bucket(DATA_ROOT)
+    ensure_artifacts_cached(DATA_ROOT)
+    if not CHUNKS_PATH.exists():
+        logger.warning("Published chunks unavailable (S3 sync failed or cache empty)")
+        return []
     return _read_jsonl(CHUNKS_PATH)
 
 
@@ -94,7 +97,10 @@ def load_relationships() -> list[dict[str, Any]]:
 
 @lru_cache(maxsize=1)
 def load_published_relationships() -> list[dict[str, Any]]:
-    sync_artifacts_from_processed_bucket(DATA_ROOT)
+    ensure_artifacts_cached(DATA_ROOT)
+    if not RELATIONSHIPS_PATH.exists():
+        logger.warning("Published relationships unavailable (S3 sync failed or cache empty)")
+        return []
     return _read_jsonl(RELATIONSHIPS_PATH)
 
 
@@ -339,7 +345,11 @@ def retrieve_hybrid_evidence_chunks(
             patient=patient,
         )
         chroma_chunks = chroma_future.result()
-        bm25_chunks = bm25_future.result()
+        try:
+            bm25_chunks = bm25_future.result()
+        except Exception as exc:
+            logger.warning("BM25 evidence retrieval unavailable: %s", exc)
+            bm25_chunks = []
 
     if chroma_chunks:
         sources.append("chromadb")
@@ -384,11 +394,13 @@ def _chunks_fingerprint(chunk_rows: list[dict[str, Any]]) -> str:
     return digest.hexdigest()
 
 
-def _get_bm25_index(published: bool = True) -> BM25:
+def _get_bm25_index(published: bool = True) -> BM25 | None:
     """Get or build BM25 index for chunks."""
     global _bm25_index, _bm25_chunk_map, _bm25_fingerprint
 
     chunk_rows = load_published_chunks() if published else load_staging_chunks()
+    if not chunk_rows:
+        return None
     fingerprint = _chunks_fingerprint(chunk_rows)
 
     if _bm25_index is None or _bm25_fingerprint != fingerprint:
@@ -450,6 +462,8 @@ def retrieve_bm25_evidence_chunks(
 
     query_str = " ".join(terms)
     bm25 = _get_bm25_index(published)
+    if bm25 is None:
+        return []
     pool_k = bm25_top_k or max(top_k * 2, 20)
     bm25_results = bm25.search(query_str, top_k=pool_k)
     if not bm25_results:
@@ -660,7 +674,9 @@ async def build_graphrag_context_async(request: GraphRAGContextRequest) -> Graph
         multi_query=options.multi_query,
         query_decomposition=options.query_decomposition,
     )
-    return _build_graphrag_context_impl(
+    # Hybrid BM25/Chroma/Neo4j retrieval is CPU/IO heavy; keep it off the event loop.
+    return await asyncio.to_thread(
+        _build_graphrag_context_impl,
         request,
         terms=terms,
         semantic_query=semantic_query,

@@ -9,6 +9,12 @@ from app.core.http_client import get_async_client
 from app.core.llm_runtime import chat_completions_url, llm_auth_headers, llm_chat_completions_enabled
 from app.core.metrics import increment, observe
 from app.prompts.explanation import CLINICAL_EXPLANATION_SYSTEM_PROMPT
+from app.modules.explanation.card_summarizer import (
+    _contains_cjk,
+    _needs_locale_fallback,
+    _translate_bullet_vi,
+    deterministic_card_summary,
+)
 from app.modules.recommendation.drug_class_keys import (
     display_label_for_class_id,
     is_placeholder_drug_label,
@@ -185,6 +191,43 @@ def _get_fallback_template(language: str) -> dict[str, str]:
     return FALLBACK_TEMPLATES.get(language, FALLBACK_TEMPLATES["en"])
 
 
+def _localized_safety_note(language: str | None) -> str:
+    lang = (language or "vi").lower().strip()
+    if lang not in FALLBACK_TEMPLATES:
+        lang = "vi"
+    return FALLBACK_TEMPLATES[lang]["safety_note"]
+
+
+def _item_summary_for_locale(item: Any, lang: str) -> str:
+    summary = (item.plain_language_summary or item.rationale or item.status or "").strip()
+    if _needs_locale_fallback(summary, lang):
+        return deterministic_card_summary(item, lang)
+    return summary
+
+
+def _monitoring_lines_for_locale(items: list, lang: str, *, limit: int = 2) -> list[str]:
+    raw = _short_clinical_lines(items, "monitoring", limit=limit)
+    if lang != "vi":
+        return raw
+    lines: list[str] = []
+    for line in raw:
+        if _contains_cjk(line):
+            continue
+        if _looks_english_monitoring(line):
+            line = _translate_bullet_vi(line)
+        if line.strip():
+            lines.append(line.strip())
+    return lines
+
+
+def _looks_english_monitoring(text: str) -> bool:
+    lowered = f" {text.lower()} "
+    return any(
+        token in lowered
+        for token in ("monitor ", "creatinine", "blood pressure", "heart rate", "potassium", "renal")
+    )
+
+
 def _fallback_recommendation_items(payload: LLMAnswerRequest):
     stabilized = stabilize_recommendation_items(list(payload.recommendation.recommendations))
     return stabilized if stabilized else list(payload.recommendation.recommendations)
@@ -309,7 +352,7 @@ def fallback_answer(payload: LLMAnswerRequest) -> str:
             return
         for item in group[:3]:
             label = display_label_for_class_id(item.class_id, item.drug_class)
-            summary = (item.plain_language_summary or item.rationale or item.status or "").strip()
+            summary = _item_summary_for_locale(item, lang)
             if lang == "vi":
                 paragraphs.append(f"- **{label}** ({item.status}): {summary}")
             else:
@@ -348,7 +391,7 @@ def fallback_answer(payload: LLMAnswerRequest) -> str:
                 + "; ".join(f"{c.target_drug_class}: {c.reason}" for c in relevant_constraints)
             )
 
-    monitoring = _short_clinical_lines([*blocked, *caution, *consider, *continue_items], "monitoring", limit=2)
+    monitoring = _monitoring_lines_for_locale([*blocked, *caution, *consider, *continue_items], lang, limit=2)
     if monitoring:
         if lang == "vi":
             paragraphs.append("**Theo dõi:** " + " ".join(monitoring))
@@ -454,7 +497,7 @@ def _fallback_response(payload: LLMAnswerRequest, model: str) -> LLMAnswerRespon
         answer=fallback_answer(payload),
         model=model,
         used_llm=False,
-        safety_note=SAFETY_NOTE,
+        safety_note=_localized_safety_note(payload.language),
     )
 
 
@@ -538,6 +581,12 @@ async def stream_llm_answer(payload: LLMAnswerRequest) -> AsyncIterator[dict[str
             )
     except Exception:
         response_model = _fallback_response(payload, "fallback_after_llm_stream_error")
+        if not emitted_token:
+            for chunk in _chunk_text(response_model.answer):
+                yield {"type": "token", "content": chunk}
+
+    if not (response_model.answer or "").strip():
+        response_model = _fallback_response(payload, "fallback_empty_answer")
         if not emitted_token:
             for chunk in _chunk_text(response_model.answer):
                 yield {"type": "token", "content": chunk}

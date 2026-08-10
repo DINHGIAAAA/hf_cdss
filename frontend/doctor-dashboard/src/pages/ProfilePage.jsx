@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { Camera, KeyRound, LoaderCircle, Trash2, UserCircle } from "lucide-react";
+import { Camera, ChevronRight, LoaderCircle, Shield, Trash2, UserRound } from "lucide-react";
 
 import { deleteMyAvatar, updateMyProfile, uploadMyAvatar } from "@shared/api/client.js";
 
 import { useAuth } from "../auth/AuthContext";
 import { ProfileAvatar } from "../components/ProfileAvatar";
+import { ProfilePasswordField } from "../components/ProfilePasswordField";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
 import {
   loginId,
   profileLabel,
@@ -22,6 +25,7 @@ export function ProfilePage() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordOpen, setPasswordOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [avatarPreview, setAvatarPreview] = useState(null);
   const [avatarBusy, setAvatarBusy] = useState(false);
@@ -83,6 +87,7 @@ export function ProfilePage() {
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
+      setPasswordOpen(false);
       setToast("Profile updated.");
     } catch (err) {
       setError(err.message || "Could not update profile.");
@@ -151,6 +156,9 @@ export function ProfilePage() {
   const visibleName = profileLabel(user);
   const roles = roleSummary(user);
   const signInId = loginId(user);
+  const passwordDirty = Boolean(currentPassword || newPassword || confirmPassword);
+  const newPasswordOk = newPassword.length >= 8;
+  const passwordsMatch = newPassword === confirmPassword && confirmPassword.length > 0;
 
   return (
     <div className="admin-page admin-page--profile">
@@ -218,78 +226,123 @@ export function ProfilePage() {
         {error ? <div className="admin-banner danger profile-feedback">{error}</div> : null}
 
         <form className="profile-form" onSubmit={handleSubmit}>
-          <section className="profile-section">
-            <h2>
-              <UserCircle aria-hidden size={18} />
-              Personal information
-            </h2>
-            <div className="form-group">
-              <label htmlFor="profile-display-name">Display name</label>
-              <input
-                autoComplete="name"
-                id="profile-display-name"
-                onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="Your name"
-                type="text"
-                value={displayName}
-              />
-            </div>
-            <dl className="profile-readonly-meta">
-              <div>
-                <dt>Sign-in ID</dt>
-                <dd>
-                  <code>{signInId}</code>
-                </dd>
+          <div className="profile-form-grid">
+            <section aria-labelledby="profile-identity-heading" className="profile-panel">
+              <header className="profile-panel__head">
+                <span aria-hidden className="profile-panel__icon">
+                  <UserRound size={18} />
+                </span>
+                <div>
+                  <p className="profile-panel__kicker" id="profile-identity-heading">
+                    Identity
+                  </p>
+                  <p className="profile-panel__lede">How your name appears across the app.</p>
+                </div>
+              </header>
+              <div className="profile-panel__body">
+                <label className="profile-field-label" htmlFor="profile-display-name">
+                  Display name
+                </label>
+                <Input
+                  autoComplete="name"
+                  className="profile-field-input"
+                  id="profile-display-name"
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder="Your name"
+                  type="text"
+                  value={displayName}
+                />
+                <dl className="profile-signin-strip">
+                  <dt>Sign-in ID</dt>
+                  <dd>
+                    <code>{signInId}</code>
+                  </dd>
+                </dl>
               </div>
-            </dl>
-          </section>
+            </section>
 
-          <section className="profile-section">
-            <h2>
-              <KeyRound aria-hidden size={18} />
-              Change password
-            </h2>
-            <div className="form-group">
-              <label htmlFor="profile-current-password">Current password</label>
-              <input
-                autoComplete="current-password"
-                id="profile-current-password"
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                type="password"
-                value={currentPassword}
-              />
-            </div>
-            <div className="form-group">
-              <label htmlFor="profile-new-password">New password</label>
-              <input
-                autoComplete="new-password"
-                id="profile-new-password"
-                minLength={8}
-                onChange={(e) => setNewPassword(e.target.value)}
-                type="password"
-                value={newPassword}
-              />
-            </div>
-            <div className="form-group">
-              <label htmlFor="profile-confirm-password">Confirm new password</label>
-              <input
-                autoComplete="new-password"
-                id="profile-confirm-password"
-                minLength={8}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                type="password"
-                value={confirmPassword}
-              />
-            </div>
-            <p className="profile-hint">Leave password fields blank if you only update your display name.</p>
-          </section>
+            <section aria-labelledby="profile-security-heading" className="profile-panel profile-panel--security">
+              <header className="profile-panel__head">
+                <span aria-hidden className="profile-panel__icon profile-panel__icon--muted">
+                  <Shield size={18} />
+                </span>
+                <div className="profile-panel__head-text">
+                  <p className="profile-panel__kicker" id="profile-security-heading">
+                    Security
+                  </p>
+                  <p className="profile-panel__lede">Update your password when you are on a shared device.</p>
+                </div>
+              </header>
 
-          <div className="profile-actions">
-            <button className="primary-action" disabled={saving} type="submit">
+              <div className="profile-panel__body">
+                <button
+                  aria-expanded={passwordOpen}
+                  className="profile-security-trigger"
+                  onClick={() => setPasswordOpen((open) => !open)}
+                  type="button"
+                >
+                  <span className="profile-security-trigger__title">Change password</span>
+                  <span className="profile-security-trigger__meta">
+                    {passwordDirty ? "Unsaved password fields" : "Optional — leave closed to only update your name"}
+                  </span>
+                  <ChevronRight
+                    aria-hidden
+                    className={passwordOpen ? "profile-security-trigger__chevron is-open" : "profile-security-trigger__chevron"}
+                    size={18}
+                  />
+                </button>
+
+                <div
+                  aria-hidden={!passwordOpen}
+                  className={passwordOpen ? "profile-security-drawer is-open" : "profile-security-drawer"}
+                >
+                  <ProfilePasswordField
+                    autoComplete="current-password"
+                    id="profile-current-password"
+                    label="Current password"
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    value={currentPassword}
+                  />
+                  <div className="profile-password-row">
+                    <ProfilePasswordField
+                      aria-invalid={newPassword.length > 0 && !newPasswordOk}
+                      autoComplete="new-password"
+                      hint={newPassword.length > 0 && !newPasswordOk ? "Use at least 8 characters." : undefined}
+                      id="profile-new-password"
+                      label="New password"
+                      minLength={8}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      value={newPassword}
+                    />
+                    <ProfilePasswordField
+                      aria-invalid={confirmPassword.length > 0 && !passwordsMatch}
+                      autoComplete="new-password"
+                      hint={
+                        confirmPassword.length > 0 && !passwordsMatch ? "Passwords do not match." : undefined
+                      }
+                      id="profile-confirm-password"
+                      label="Confirm"
+                      minLength={8}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      value={confirmPassword}
+                    />
+                  </div>
+                  {newPasswordOk && passwordsMatch ? (
+                    <p className="profile-password-ready" role="status">
+                      Ready to save with your profile changes.
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <footer className="profile-form-footer">
+            <Button disabled={saving} size="lg" type="submit">
               {saving ? <LoaderCircle className="spin" size={16} /> : null}
               Save changes
-            </button>
-          </div>
+            </Button>
+          </footer>
         </form>
       </div>
     </div>

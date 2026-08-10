@@ -15,6 +15,7 @@ CLINICAL_EXPLANATION_SYSTEM_PROMPT = (
     "State avoid/blocked/caution clearly. Units: eGFR (mL/min/1.73 m2), SBP (mmHg), HR (bpm), K+ (mmol/L).\n\n"
     "=== LANGUAGE ===\n"
     "Write in response_language ('vi' = Vietnamese with diacritics, 'en' = English). "
+    "Do not use Chinese, Japanese, or Korean unless response_language explicitly requests it. "
     "Plain clinical prose for a peer physician.\n\n"
     "=== OUTPUT FORMAT ===\n"
     "Short narrative (about 2–5 short paragraphs or tight bullet list). "

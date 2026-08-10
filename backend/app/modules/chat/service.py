@@ -3,7 +3,7 @@ import asyncio
 import json
 import logging
 import hashlib
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from datetime import datetime, timezone
 from typing import Any
 
@@ -17,7 +17,7 @@ from app.modules.datastores.postgres import (
     upsert_patient_draft,
     write_audit_event,
 )
-from app.modules.explanation.llm_service import build_llm_answer, stream_llm_answer
+from app.modules.explanation.llm_service import build_llm_answer, fallback_answer, stream_llm_answer
 from app.modules.explanation.card_summarizer import apply_simplified_fields, attach_plain_language_summaries
 from app.modules.evidence_linking.service import collect_constraint_chunk_ids, enrich_recommendation_evidence
 from app.modules.missing_fields.service import build_missing_fields_prompt, check_missing_fields
@@ -25,10 +25,10 @@ from app.modules.reasoning.service import build_recommendation
 from app.modules.graphrag.service import build_graphrag_context_async
 from app.modules.verification_agents.service import verify_recommendation
 from app.schemas.chat import ChatMessage, ChatRequest, ChatResponse, PatientConflict, PatientDraft
-from app.schemas.graphrag import GraphRAGContextRequest, VerificationRequest
+from app.schemas.graphrag import GraphRAGContextRequest, GraphRAGContextResponse, VerificationRequest
 from app.schemas.llm import LLMAnswerRequest
 from app.schemas.patient import ClinicalDocument, PatientIdentity, PatientProfile
-from app.schemas.recommendation import RecommendationRequest
+from app.schemas.recommendation import RecommendationRequest, RecommendationResponse
 
 
 logger = logging.getLogger(__name__)
@@ -458,6 +458,7 @@ async def _resolve_patient_for_chat_turn(
     turn_message: str = "",
     confirmation_action: str | None = None,
     pending_patient: PatientProfile | None = None,
+    intake_status: Callable[[str], None] | None = None,
 ) -> tuple[PatientProfile, list[PatientConflict]]:
     """Resolve the patient profile for the current turn.
 
@@ -489,6 +490,8 @@ async def _resolve_patient_for_chat_turn(
 
     if check_missing_fields(prefill).status == "complete":
         logger.info("Skipping LLM clinical intake for conversation %s (profile complete)", conversation_id)
+        if intake_status:
+            intake_status("profile_complete_regex")
         regex_patient = _regex_extract_patient_from_message(extraction_message, conversation_id)
         merged = _apply_extracted_updates(prefill, regex_patient)
         conflicts = _detect_value_conflicts(base_patient, merged)
@@ -498,6 +501,7 @@ async def _resolve_patient_for_chat_turn(
         extraction_message,
         conversation_id,
         conversation_history=conversation_history,
+        intake_status=intake_status,
     )
     merged = _merge_patient(base_patient, extracted)
     if supplied_patient:
@@ -529,6 +533,67 @@ def _conversation_context_for_llm(current_message: str, conversation_id: str) ->
     return aggregate_conversation_context(current_message, _prior_user_messages(conversation_id))
 
 
+async def _build_recommendation_and_graphrag(
+    *,
+    patient: PatientProfile,
+    clinical_state: dict[str, Any],
+    message: str,
+    conversation_id: str,
+) -> tuple[RecommendationResponse, GraphRAGContextResponse]:
+    """Run CDSS recommendation then GraphRAG with constraint-linked chunk scope (non-stream path)."""
+    recommendation = await asyncio.to_thread(
+        build_recommendation,
+        RecommendationRequest(patient=patient, clinical_state=clinical_state),
+    )
+    graphrag_context = await build_graphrag_context_async(
+        GraphRAGContextRequest(
+            patient=patient,
+            query=message,
+            top_k=settings.verification_retrieval_top_k,
+            conversation_history=_prior_user_messages(conversation_id),
+            clinical_state=clinical_state,
+            constraint_chunk_ids=collect_constraint_chunk_ids(recommendation),
+            retrieval_profile=settings.graphrag_chat_retrieval_profile,
+        )
+    )
+    return recommendation, graphrag_context
+
+
+async def _resolve_patient_with_intake_status_events(
+    status_queue: asyncio.Queue[str | None],
+    **resolve_kwargs: Any,
+) -> tuple[PatientProfile, list[PatientConflict]]:
+    def sink(phase: str) -> None:
+        try:
+            status_queue.put_nowait(phase)
+        except Exception:
+            pass
+
+    try:
+        return await _resolve_patient_for_chat_turn(**resolve_kwargs, intake_status=sink)
+    finally:
+        try:
+            status_queue.put_nowait(None)
+        except Exception:
+            pass
+
+
+async def _drain_intake_status_events(
+    status_queue: asyncio.Queue[str | None],
+    resolve_task: asyncio.Task[tuple[PatientProfile, list[PatientConflict]]],
+) -> AsyncIterator[str]:
+    while True:
+        if resolve_task.done() and status_queue.empty():
+            break
+        try:
+            phase = await asyncio.wait_for(status_queue.get(), timeout=0.15)
+        except asyncio.TimeoutError:
+            continue
+        if phase is None:
+            continue
+        yield phase
+
+
 async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
     conversation_id = request.conversation_id or str(uuid.uuid4())
     yield _sse("status", {"step": "received", "conversation_id": conversation_id})
@@ -544,16 +609,24 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
         yield _sse("status", {"step": "using_supplied_profile"})
     else:
         yield _sse("status", {"step": "extracting_patient"})
-    merged, conflicts = await _resolve_patient_for_chat_turn(
-        extraction_message=extraction_message,
-        conversation_id=conversation_id,
-        conversation_history=_prior_user_messages(conversation_id),
-        base_patient=base_patient,
-        supplied_patient=request.patient,
-        turn_message=request.message,
-        confirmation_action=request.confirmation_action,
-        pending_patient=request.pending_confirmation,
+
+    status_queue: asyncio.Queue[str | None] = asyncio.Queue()
+    resolve_task = asyncio.create_task(
+        _resolve_patient_with_intake_status_events(
+            status_queue,
+            extraction_message=extraction_message,
+            conversation_id=conversation_id,
+            conversation_history=_prior_user_messages(conversation_id),
+            base_patient=base_patient,
+            supplied_patient=request.patient,
+            turn_message=request.message,
+            confirmation_action=request.confirmation_action,
+            pending_patient=request.pending_confirmation,
+        )
     )
+    async for phase in _drain_intake_status_events(status_queue, resolve_task):
+        yield _sse("status", {"step": "extracting_patient", "phase": phase})
+    merged, conflicts = await resolve_task
     merged = _merge_clinical_documents(merged, request)
 
     clinical_state = build_clinical_state(merged, extraction_message)
@@ -658,19 +731,11 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
         return
 
     yield _sse("status", {"step": "building_recommendation"})
-    graphrag_request = GraphRAGContextRequest(
+    recommendation, graphrag_context = await _build_recommendation_and_graphrag(
         patient=merged,
-        query=request.message,
-        top_k=settings.verification_retrieval_top_k,
-        conversation_history=_prior_user_messages(conversation_id),
         clinical_state=clinical_state,
-        retrieval_profile=settings.graphrag_chat_retrieval_profile,
-    )
-    graphrag_prefetch = asyncio.create_task(build_graphrag_context_async(graphrag_request))
-    # Offload sync rule engine so admin/API requests are not starved on the event loop.
-    recommendation = await asyncio.to_thread(
-        build_recommendation,
-        RecommendationRequest(patient=merged, clinical_state=clinical_state),
+        message=request.message,
+        conversation_id=conversation_id,
     )
 
     yield _sse("status", {"step": "verifying_evidence"})
@@ -682,7 +747,7 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
             clinical_state=clinical_state,
             query=request.message,
         ),
-        prefetched_context=await graphrag_prefetch,
+        prefetched_context=graphrag_context,
     )
     recommendation = enrich_recommendation_evidence(recommendation, verification.citation_validation)
     recommendation = await attach_plain_language_summaries(
@@ -720,6 +785,8 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
             llm_answer = event["llm_answer"]
 
     final_answer = llm_answer.answer if llm_answer else "".join(answer_parts).strip()
+    if not final_answer.strip():
+        final_answer = fallback_answer(llm_request)
     assistant_message = _message(
         conversation_id,
         "assistant",
@@ -875,20 +942,12 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
             _cache_idempotent_response(request.idempotency_key, response)
         return response
 
-    recommendation = build_recommendation(
-        RecommendationRequest(patient=merged, clinical_state=clinical_state)
-    )
-    constraint_chunk_ids = collect_constraint_chunk_ids(recommendation)
-    graphrag_request = GraphRAGContextRequest(
+    recommendation, graphrag_context = await _build_recommendation_and_graphrag(
         patient=merged,
-        query=request.message,
-        top_k=settings.verification_retrieval_top_k,
-        conversation_history=_prior_user_messages(conversation_id),
         clinical_state=clinical_state,
-        constraint_chunk_ids=constraint_chunk_ids,
-        retrieval_profile=settings.graphrag_chat_retrieval_profile,
+        message=request.message,
+        conversation_id=conversation_id,
     )
-    graphrag_context = await build_graphrag_context_async(graphrag_request)
     verification = await verify_recommendation(
         VerificationRequest(
             patient=merged,

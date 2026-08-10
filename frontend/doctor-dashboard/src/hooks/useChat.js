@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 
 import { apiFetch } from "@shared/api/client.js";
-import { parseSseBlock } from "../utils";
+import { assistantTextFromChatDone, parseSseBlock } from "../utils";
 import { compactPatientForRequest } from "./patientPayload.js";
 
 export function useChat({ active, patchConversation, language }) {
@@ -58,9 +58,14 @@ export function useChat({ active, patchConversation, language }) {
         let donePayload = null;
 
         while (true) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
+          const { value, done: eof } = await reader.read();
+          if (value) {
+            buffer += decoder.decode(value, { stream: !eof });
+          }
+          if (eof) {
+            buffer += decoder.decode(undefined, { stream: false });
+            break;
+          }
           const blocks = buffer.split(/\n\n/);
           buffer = blocks.pop() || "";
 
@@ -95,7 +100,7 @@ export function useChat({ active, patchConversation, language }) {
               patchConversation(conversationId, () => ({ verification: data }));
             }
 
-            if (eventName === "answer_delta" && data?.content) {
+            if (eventName === "answer_delta" && typeof data?.content === "string" && data.content) {
               patchConversation(conversationId, (current) => {
                 const messages = [...(current.messages || [])];
                 const last = messages[messages.length - 1] || assistantPlaceholder;
@@ -108,19 +113,29 @@ export function useChat({ active, patchConversation, language }) {
               });
             }
 
-            if (eventName === "done") donePayload = data;
+            if (eventName === "done" && typeof data === "object" && data !== null) {
+              donePayload = data;
+            }
             if (eventName === "error") throw new Error(data?.message || "Streaming chat failed");
           }
         }
 
-        if (donePayload) {
+        if (buffer.trim()) {
+          const { eventName, data } = parseSseBlock(buffer);
+          if (eventName === "done" && typeof data === "object" && data !== null) {
+            donePayload = data;
+          }
+        }
+
+        if (donePayload && typeof donePayload === "object") {
+          const assistantContent = assistantTextFromChatDone(donePayload);
           patchConversation(conversationId, (current) => {
             const messages = [...(current.messages || [])];
-            if (donePayload.assistant_message?.content) {
+            if (assistantContent.trim()) {
               messages[messages.length - 1] = {
-                id: donePayload.assistant_message.message_id || messages[messages.length - 1]?.id,
+                id: donePayload.assistant_message?.message_id || messages[messages.length - 1]?.id,
                 role: "assistant",
-                content: donePayload.assistant_message.content,
+                content: assistantContent,
               };
             }
             return {

@@ -86,11 +86,13 @@ Verify objects after restart:
 docker compose -f infrastructure\docker-compose.yml exec localstack awslocal s3 ls s3://hf-cdss-processed/heart_failure/ --recursive --summarize
 ```
 
-Start LocalStack:
+Start LocalStack (buckets are created on boot via `localstack/init/01-create-buckets.sh`):
 
 ```powershell
 docker compose -f infrastructure\docker-compose.yml up -d localstack
 ```
+
+If Docker Desktop **Start** fails after an old `localstack-init` container was removed, run **`up -d`** once (not only `start`) so missing services are recreated.
 
 List buckets:
 

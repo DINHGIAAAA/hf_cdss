@@ -185,11 +185,12 @@ export function constraintRuleTitle(rule = {}) {
   const drug =
     humanizeKey(rule.target_drug_class || rule.drug || usableDrugKeys(rule.drug_keys)[0] || "") ||
     drugFromConstraintId(rule.constraint_id);
-  const action = formatActionLabel(rule.action);
   const reason = String(rule.reason || rule.rule_body?.reason || "").trim();
 
-  if (drug && action) return clipText(`${drug}: ${action}`, 40);
+  // Action has its own column in the rules table — title is the constraint subject only.
   if (drug) return clipText(drug, 36);
+  const action = formatActionLabel(rule.action);
+  if (action) return clipText(action, 36);
   if (reason && !isBoilerplateReason(reason)) return clipText(reason, 44);
   return humanizeCatalogSlug(rule.constraint_id) || "Constraint";
 }

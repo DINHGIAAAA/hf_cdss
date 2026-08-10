@@ -4,8 +4,7 @@ import { ChevronRight, LoaderCircle, RefreshCw } from "lucide-react";
 import { adminApi } from "../api/index.js";
 import { useAuth } from "../auth/AuthContext";
 import { RuleDetail } from "../components/RuleDetail.jsx";
-import { RuleVisibilityBadge } from "../components/RuleVisibilityBadge.jsx";
-import { ruleVisibilityMeta, tabVisibilityBanner } from "../utils/ruleVisibility.js";
+import { tabVisibilityBanner } from "../utils/ruleVisibility.js";
 import { CatalogApprovalToolbar } from "@shared/governance/CatalogApprovalToolbar.jsx";
 import { CONSTRAINT_CATALOG } from "@shared/governance/catalogConfig.js";
 import { CatalogRecordLabel } from "@shared/governance/CatalogRecordLabel.jsx";
@@ -263,16 +262,13 @@ export function RulesPage() {
                   <th>Constraint</th>
                   <th>Action</th>
                   <th>Status</th>
-                  <th>Visibility</th>
                   <th>Tier</th>
                   <th>Drug class</th>
                   <th className="admin-col-actions">Review</th>
                 </tr>
               </thead>
               <tbody>
-                {items.map((rule) => {
-                  const visibility = ruleVisibilityMeta(rule.status);
-                  return (
+                {items.map((rule) => (
                     <tr className={selectedId === rule.id ? "selected" : ""} key={rule.id}>
                       {tab === "draft" && (
                         <td>
@@ -300,9 +296,6 @@ export function RulesPage() {
                       <td>
                         <span className={`badge ${statusClass(rule.status)}`}>{rule.status}</span>
                       </td>
-                      <td>
-                        <RuleVisibilityBadge status={rule.status} title={visibility.hint} />
-                      </td>
                       <td>{needsConditionBadge(rule) || "—"}</td>
                       <td className="cell-clamp" title={rule.target_drug_class || undefined}>
                         {rule.target_drug_class || "—"}
@@ -313,8 +306,7 @@ export function RulesPage() {
                         </button>
                       </td>
                     </tr>
-                  );
-                })}
+                ))}
               </tbody>
             </table>
             <CatalogPagination

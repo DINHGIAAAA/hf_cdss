@@ -147,6 +147,22 @@ def compact_recommendation_items(items: list[MedicationRecommendation]) -> list[
     return compact
 
 
+def _contains_cjk(text: str) -> bool:
+    return bool(re.search(r"[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]", text or ""))
+
+
+def _needs_locale_fallback(text: str, language: str) -> bool:
+    """True when LLM text is empty or not usable for the requested locale."""
+    stripped = (text or "").strip()
+    if not stripped:
+        return True
+    if _contains_cjk(stripped):
+        return True
+    if language == "vi" and _looks_english(stripped):
+        return True
+    return False
+
+
 def _looks_english(text: str) -> bool:
     lowered = text.lower()
     markers = (
@@ -273,41 +289,30 @@ def deterministic_card_summary(item: MedicationRecommendation, language: str = "
     return " ".join(parts)
 
 
+def _vi_detail_lines(lines: list[str] | None, *, fallback: list[str]) -> list[str]:
+    cleaned: list[str] = []
+    for line in lines or []:
+        text = str(line or "").strip()
+        if not text or _needs_locale_fallback(text, "vi"):
+            continue
+        cleaned.append(_translate_bullet_vi(text) if _looks_english(text) else text)
+    return cleaned or list(fallback)
+
+
 def _card_update_fields(item: MedicationRecommendation, language: str, *, summary: str | None = None, details: PlainLanguageDetails | None = None) -> dict[str, Any]:
     final_summary = (summary or "").strip()
-    if language == "vi" and (not final_summary or _looks_english(final_summary)):
-        final_summary = deterministic_card_summary(item, language)
-    elif not final_summary:
+    if _needs_locale_fallback(final_summary, language):
         final_summary = deterministic_card_summary(item, language)
 
     final_details = details or deterministic_card_details(item, language)
     if language == "vi":
-        # Ensure detail bullets are not left in English if LLM slipped.
+        det = deterministic_card_details(item, language)
+        # Ensure detail bullets are not left in English or wrong-script LLM output.
         final_details = PlainLanguageDetails(
-            reasoning=[
-                _translate_bullet_vi(line) if _looks_english(line) else line
-                for line in (final_details.reasoning or [])
-                if str(line).strip()
-            ]
-            or deterministic_card_details(item, language).reasoning,
-            next_steps=[
-                _translate_bullet_vi(line) if _looks_english(line) else line
-                for line in (final_details.next_steps or [])
-                if str(line).strip()
-            ]
-            or deterministic_card_details(item, language).next_steps,
-            monitoring=[
-                _translate_bullet_vi(line) if _looks_english(line) else line
-                for line in (final_details.monitoring or [])
-                if str(line).strip()
-            ]
-            or deterministic_card_details(item, language).monitoring,
-            warnings=[
-                _translate_bullet_vi(line) if _looks_english(line) else line
-                for line in (final_details.warnings or [])
-                if str(line).strip()
-            ]
-            or deterministic_card_details(item, language).warnings,
+            reasoning=_vi_detail_lines(final_details.reasoning, fallback=det.reasoning),
+            next_steps=_vi_detail_lines(final_details.next_steps, fallback=det.next_steps),
+            monitoring=_vi_detail_lines(final_details.monitoring, fallback=det.monitoring),
+            warnings=_vi_detail_lines(final_details.warnings, fallback=det.warnings),
         )
     return {
         "plain_language_summary": final_summary,
@@ -533,6 +538,18 @@ async def attach_plain_language_summaries(
             raw = message.get("content")
             content = raw.strip() if isinstance(raw, str) else ""
         summary_map = parse_summary_payload(content, expected)
+        if summary_map:
+            for drug_class, entry in list(summary_map.items()):
+                if not isinstance(entry, dict):
+                    continue
+                summary = str(entry.get("summary") or "")
+                if _needs_locale_fallback(summary, lang):
+                    logger.warning(
+                        "card summarizer wrong language for %s (requested %s); dropping LLM row",
+                        drug_class,
+                        lang,
+                    )
+                    del summary_map[drug_class]
         if not summary_map:
             logger.warning("card summarizer returned unusable payload; using deterministic fallback")
             return apply_deterministic_summaries(recommendation, lang)

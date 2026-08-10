@@ -2,6 +2,7 @@ import asyncio
 import json
 import re
 import unicodedata
+from collections.abc import Callable
 from typing import Any
 
 from app.core.config import settings
@@ -618,15 +619,20 @@ async def extract_patient_from_message(
     conversation_id: str,
     *,
     conversation_history: list[str] | None = None,
+    intake_status: Callable[[str], None] | None = None,
 ) -> PatientProfile:
     from app.modules.clinical_intake_extraction.semantic import aggregate_conversation_context, semantic_extract_patient
     from app.modules.clinical_intake_extraction.selective_llm import should_call_llm_extractor
 
+    if intake_status:
+        intake_status("aggregating_history")
     aggregated_message = await asyncio.to_thread(
         aggregate_conversation_context,
         message,
         conversation_history or [],
     )
+    if intake_status:
+        intake_status("regex_semantic")
     # Run regex + semantic layers concurrently; both are CPU-bound but block the event loop.
     regex_patient, semantic_patient = await asyncio.gather(
         asyncio.to_thread(_regex_extract_patient_from_message, aggregated_message, conversation_id),
@@ -641,6 +647,8 @@ async def extract_patient_from_message(
     )
     if not decision.call_llm:
         return merged
+    if intake_status:
+        intake_status("llm_extraction")
     llm_data = await _call_llm_extractor(aggregated_message)
     llm_patient = _patient_from_llm_data(llm_data, conversation_id, aggregated_message) if llm_data else None
     return _merge_extractions(merged, llm_patient)

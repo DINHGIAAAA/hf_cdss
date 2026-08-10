@@ -79,6 +79,15 @@ def sync_artifacts_from_processed_bucket(root: Path) -> dict[str, Any]:
     return result
 
 
+def ensure_artifacts_cached(root: Path) -> dict[str, Any]:
+    """Sync artifacts when possible; never raise (chat/retrieval can degrade to Chroma-only)."""
+    try:
+        return sync_artifacts_from_processed_bucket(root)
+    except RuntimeError as exc:
+        logger.warning("%s", exc)
+        return artifact_status(root)
+
+
 def artifact_status(root: Path) -> dict[str, Any]:
     required_targets = [root / target_path for _, target_path in ARTIFACT_DOWNLOADS]
     missing = [str(path.relative_to(root)) for path in required_targets if not path.exists()]

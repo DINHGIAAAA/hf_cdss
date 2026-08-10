@@ -7,6 +7,7 @@ from pathlib import Path
 from scraper.orchestration.pipeline_checkpoint import (
     infer_last_completed_from_artifacts,
     next_step_after,
+    relationships_out_of_sync,
     resolve_auto_resume,
 )
 
@@ -75,3 +76,36 @@ def test_auto_resume_uses_contiguous_artifact_step(tmp_path: Path):
         data_root=tmp_path,
     )
     assert resume == "refine_constraint_conditions"
+
+
+def test_auto_resume_rewinds_to_derive_when_chunks_newer_than_relationships(tmp_path: Path):
+    _touch(tmp_path / "processed/sections/drug_label_sections.jsonl")
+    _touch(tmp_path / "processed/sections/important_sections.jsonl")
+    _touch(tmp_path / "artifacts/chunks/chunks.jsonl", "chunk\n")
+    _touch(tmp_path / "artifacts/entities/entities.jsonl")
+    _touch(tmp_path / "artifacts/claims/claims.jsonl")
+    _touch(tmp_path / "artifacts/rules/rules.jsonl")
+    _touch(tmp_path / "artifacts/rules/rules_classified.jsonl")
+    _touch(tmp_path / "artifacts/relationships/relationships.jsonl", "rel\n")
+
+    chunk_path = tmp_path / "artifacts/chunks/chunks.jsonl"
+    rel_path = tmp_path / "artifacts/relationships/relationships.jsonl"
+    import os
+    import time
+
+    old = time.time() - 60
+    os.utime(rel_path, (old, old))
+    os.utime(chunk_path, (time.time(), time.time()))
+
+    assert relationships_out_of_sync(tmp_path)
+    resume = resolve_auto_resume(
+        resume_from=None,
+        auto_resume=True,
+        checkpoint={
+            "run_id": "manual__test",
+            "last_completed_step": "repair_chunk_provenance",
+        },
+        run_id="manual__test",
+        data_root=tmp_path,
+    )
+    assert resume == "derive_relationships"
