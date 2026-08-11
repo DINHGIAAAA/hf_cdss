@@ -23,7 +23,7 @@ def s3_client(endpoint_url: str):
             "s3",
             endpoint_url=endpoint_url,
             aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID", "test"),
-            aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY", "test"),
+            aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY", "testtest"),
             region_name=os.environ.get("AWS_DEFAULT_REGION", "us-east-1"),
             config=Config(
                 retries={"max_attempts": 0},

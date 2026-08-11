@@ -6,4 +6,4 @@ LocalStack Community Edition does not persist S3 objects to mounted volumes — 
 
 Use **MinIO** instead. See [../minio/README.md](../minio/README.md).
 
-The Docker network alias `localstack` still points to MinIO so existing `HF_CDSS_S3_ENDPOINT_URL=http://localstack:4566` settings keep working.
+Docker services should set `HF_CDSS_DOCKER_S3_ENDPOINT_URL=http://minio:9000`; host scripts use `HF_CDSS_S3_ENDPOINT_URL=http://localhost:4566`.

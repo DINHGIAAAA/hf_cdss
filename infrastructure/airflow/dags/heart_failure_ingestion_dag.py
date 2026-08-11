@@ -24,7 +24,7 @@ BACKEND_ROOT = f"{PROJECT_ROOT}/backend"
 DATA_ROOT = f"{PROJECT_ROOT}/data/heart_failure"
 # Ephemeral raw staging — not under data/heart_failure/raw
 RAW_ROOT = os.environ.get("HF_CDSS_RAW_ROOT", "/tmp/hf_cdss_raw")
-S3_ENDPOINT_URL = os.environ.get("HF_CDSS_S3_ENDPOINT_URL", "http://localstack:4566")
+S3_ENDPOINT_URL = os.environ.get("HF_CDSS_S3_ENDPOINT_URL", "http://minio:9000")
 PYTHON = "python"
 PIPELINE_TIMEOUT_HOURS = int(os.environ.get("HF_CDSS_AIRFLOW_PIPELINE_TIMEOUT_HOURS", "72"))
 KG_BASE_TIMEOUT_HOURS = int(os.environ.get("HF_CDSS_AIRFLOW_KG_BASE_TIMEOUT_HOURS", "72"))

@@ -9,7 +9,7 @@ MinIO stores all objects on a named Docker volume and survives container recreat
 | Use | URL |
 |-----|-----|
 | S3 API (host) | `http://localhost:4566` |
-| S3 API (in Docker network) | `http://localstack:4566` (DNS alias → MinIO) |
+| S3 API (in Docker network) | `http://minio:9000` |
 | MinIO console | `http://localhost:9001` |
 
 Credentials (defaults):

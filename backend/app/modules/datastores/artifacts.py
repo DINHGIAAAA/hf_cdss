@@ -76,7 +76,7 @@ def sync_artifacts_from_processed_bucket(root: Path) -> dict[str, Any]:
         "missing": missing,
     }
     if missing:
-        raise RuntimeError(f"Required processed artifacts are missing from S3/LocalStack: {result}")
+        raise RuntimeError(f"Required processed artifacts are missing from S3/MinIO: {result}")
     return result
 
 

@@ -122,8 +122,8 @@ services:
       HF_CDSS_VERIFICATION_CACHE_MAX_ENTRIES: ${HF_CDSS_VERIFICATION_CACHE_MAX_ENTRIES:-128}
       HF_CDSS_GRAPHRAG_CHAT_RETRIEVAL_PROFILE: ${HF_CDSS_GRAPHRAG_CHAT_RETRIEVAL_PROFILE:-fast}
       HF_CDSS_ARTIFACT_CACHE_ROOT: ${HF_CDSS_ARTIFACT_CACHE_ROOT:-/tmp/hf_cdss/heart_failure}
-      # Always use Docker DNS name; do not inherit host HF_CDSS_S3_ENDPOINT_URL=localhost.
-      HF_CDSS_S3_ENDPOINT_URL: http://localstack:4566
+      # In-network MinIO listens on 9000; host scripts use http://localhost:4566.
+      HF_CDSS_S3_ENDPOINT_URL: ${HF_CDSS_DOCKER_S3_ENDPOINT_URL:-http://minio:9000}
       HF_CDSS_RAW_BUCKET: ${HF_CDSS_RAW_BUCKET:-hf-cdss-raw}
       HF_CDSS_PROCESSED_BUCKET: ${HF_CDSS_PROCESSED_BUCKET:-hf-cdss-processed}
       HF_CDSS_S3_PREFIX: ${HF_CDSS_S3_PREFIX:-heart_failure}
@@ -230,8 +230,8 @@ services:
       # Keep local processed/artifacts after store; S3 remains source of truth for re-runs.
       HF_CDSS_CLEANUP_WORKSPACE_OUTPUTS: ${HF_CDSS_CLEANUP_WORKSPACE_OUTPUTS:-false}
       HF_CDSS_PURGE_LEGACY_DATA_RAW: ${HF_CDSS_PURGE_LEGACY_DATA_RAW:-true}
-      # Always use Docker DNS name; do not inherit host HF_CDSS_S3_ENDPOINT_URL=localhost.
-      HF_CDSS_S3_ENDPOINT_URL: http://localstack:4566
+      # In-network MinIO listens on 9000; host scripts use http://localhost:4566.
+      HF_CDSS_S3_ENDPOINT_URL: ${HF_CDSS_DOCKER_S3_ENDPOINT_URL:-http://minio:9000}
       HF_CDSS_RAW_BUCKET: ${HF_CDSS_RAW_BUCKET:-hf-cdss-raw}
       HF_CDSS_PROCESSED_BUCKET: ${HF_CDSS_PROCESSED_BUCKET:-hf-cdss-processed}
       HF_CDSS_S3_PREFIX: ${HF_CDSS_S3_PREFIX:-heart_failure}
@@ -392,14 +392,13 @@ services:
 
   # MinIO replaces LocalStack CE for S3: CE keeps objects in memory (EphemeralS3ObjectStore)
   # and does not survive container recreate even with volume mounts.
-  # DNS alias `localstack` keeps HF_CDSS_S3_ENDPOINT_URL=http://localstack:4566 unchanged.
   minio:
     image: minio/minio:latest
     container_name: hf_cdss_minio
     hostname: minio
     command: server /data --console-address ":9001"
     ports:
-      - "${LOCALSTACK_HOST_PORT:-4566}:9000"
+      - "${MINIO_API_PORT:-${LOCALSTACK_HOST_PORT:-4566}}:9000"
       - "${MINIO_CONSOLE_PORT:-9001}:9001"
     environment:
       MINIO_ROOT_USER: ${AWS_ACCESS_KEY_ID:-test}
@@ -413,10 +412,6 @@ services:
       retries: 12
       start_period: 10s
     restart: unless-stopped
-    networks:
-      default:
-        aliases:
-          - localstack
 
   minio-init:
     image: minio/mc:latest
@@ -471,7 +466,7 @@ volumes:
 
 # Single bridge for every service (fixed name). Without this, `docker compose` run from
 # different folders creates separate default networks — Airflow on `infrastructure_default`
-# cannot resolve `minio` / `localstack` on `hf_cdss_default`.
+# cannot resolve `minio` on `hf_cdss_default`.
 networks:
   default:
     name: hf_cdss_net
