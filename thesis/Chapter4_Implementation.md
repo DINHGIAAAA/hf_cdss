@@ -298,9 +298,9 @@ Shared frontend packages centralize HTTP helpers, evidence display formatting, a
 
 ### 4.5.1. Docker Compose Topology
 
-Docker Compose orchestrates PostgreSQL, Redis, Neo4j, ChromaDB, Ollama, LocalStack, the FastAPI backend, frontend services, and Nginx. Health checks delay backend startup until databases and model services are ready. GPU passthrough to the Ollama container is configured on hosts with the NVIDIA Container Toolkit.
+Docker Compose orchestrates PostgreSQL, Redis, Neo4j, ChromaDB, Ollama, MinIO, the FastAPI backend, frontend services, and Nginx. Health checks delay backend startup until databases and model services are ready. GPU passthrough to the Ollama container is configured on hosts with the NVIDIA Container Toolkit.
 
-Each service has a clear job. PostgreSQL persists governed truth. Redis accelerates hot reads. Neo4j answers relationship queries. ChromaDB answers semantic passage queries. Ollama runs embeddings and generation. LocalStack stores raw and processed artifacts. The backend performs clinical orchestration. Frontends present doctor and admin workflows. Nginx unifies access through one host port.
+Each service has a clear job. PostgreSQL persists governed truth. Redis accelerates hot reads. Neo4j answers relationship queries. ChromaDB answers semantic passage queries. Ollama runs embeddings and generation. MinIO stores raw and processed artifacts with a persistent Docker volume. The backend performs clinical orchestration. Frontends present doctor and admin workflows. Nginx unifies access through one host port.
 
 Compose was chosen over Kubernetes for the evaluation scale. A single-host pilot serving on the order of tens of concurrent users does not justify Kubernetes operational overhead. The modular monolith can later split GraphRAG or Ollama into separate services if load profiles demand it.
 
@@ -316,7 +316,7 @@ Thresholds and model names live in environment variables. Examples include datab
 
 ### 4.5.4. Deployment Trade-offs
 
-Local Ollama was preferred over cloud LLM APIs to keep vignettes on premises, control latency, and avoid per-token fees. The trade-off is GPU capital cost and model operations. LocalStack was preferred over cloud S3 during development for identical SDK behavior without cloud accounts. Production can switch to MinIO or AWS S3 without changing artifact layout. Neo4j Community and ChromaDB co-locate with the stack so embeddings and graph facts remain under institutional control; disaster recovery rebuilds indexes from processed S3 artifacts when needed.
+Local Ollama was preferred over cloud LLM APIs to keep vignettes on premises, control latency, and avoid per-token fees. The trade-off is GPU capital cost and model operations. MinIO was chosen for development S3 compatibility with durable volume-backed buckets; production can use AWS S3 without changing artifact layout. Neo4j Community and ChromaDB co-locate with the stack so embeddings and graph facts remain under institutional control; disaster recovery rebuilds indexes from processed S3 artifacts when needed.
 
 ## 4.6. Testing
 

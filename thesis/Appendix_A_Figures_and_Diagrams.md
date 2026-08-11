@@ -79,7 +79,7 @@ Interactive diagrams (Archify, showcase validation) live under [`figures/html/`]
 │  CONTRAINDICATED_WITH, INDICATED_FOR,    │                                        │
 │  INTERACTS_WITH, MONITORS, RELATED_TO     │                                        │
 ├───────────────────────────────────────────┴───────────────────────────────────────┤
-│  Redis (6379)                              │  S3 / LocalStack (4566)               │
+│  Redis (6379)                              │  S3 / MinIO (4566)                    │
 │  draft:{conversation_id}                  │  raw bucket: DailyMed XML/SPL,         │
 │  messages:{conversation_id}               │  guideline PDFs                        │
 │  llm_cache:{hash}, idempotency:{hash}    │  processed bucket: JSONL chunks,       │
@@ -129,7 +129,7 @@ For detailed table schemas with all columns, data types, constraints, and indexe
 | **Neo4j**               | Graph DB         | 7474  | Knowledge graph                 |
 | **ChromaDB**            | Vector DB        | 8001  | Evidence embeddings             |
 | **Redis**               | Cache            | 6379  | Draft, messages, LLM cache      |
-| **LocalStack**          | S3 Emulator      | 4566  | Artifact storage                |
+| **MinIO**               | S3-compatible storage | 4566  | Artifact storage (persistent dev bucket) |
 
 **Table A.1. Main system components and ports** — full copy in **Chapter 3, Table 3.1** (Section 3.2.2).
 

@@ -24,7 +24,7 @@ Dangerous combinations such as ACE inhibitors with recent ARNI use, triple RAAS 
 
 The system must surface renal impairment, hyperkalemia, hypotension, bradycardia, and missing critical labs before recommendations are finalized. Hard constraints block unsafe actions; soft constraints emit warnings with monitoring instructions. If required labs are absent for the inferred intent (for example potassium before MRA evaluation), the pipeline stops and asks for clarification instead of guessing. Safety outcomes stream to the clinician before the conversational answer finishes generating. For every recommendation turn that proceeds past missing-field checks, the system must assemble citation-ready evidence from drug labels and guidelines and verify that structured recommendations remain consistent with hard blocks and retrieved context. Verification agents audit safety, missing data, and evidence presence before narrative generation completes.
 
-The system must support Vietnamese and English. Doctors can switch language without losing conversation context. Intake handles Vietnamese diacritics and bilingual medication names. Plain-language labels on recommendation cards are generated in the selected locale without re-running expensive retrieval or reasoning. The system must ingest FDA Structured Product Labels and heart-failure guidelines into governed catalogs, vector indexes, and graph stores. Clinical leads must be able to review draft rules, refine conditions, approve usable rules, and retire outdated ones without redeploying application code; only approved executable tiers affect chat recommendations. Finally, the system must expose health, readiness, and dependency probes for PostgreSQL, Redis, ChromaDB, Neo4j, object storage, and local LLM services, and audit events must record recommendation and governance actions for later review.
+The system must support Vietnamese and English. Doctors can switch language without losing conversation context; the chat service also auto-detects locale from each message so mixed-language threads stay coherent. Intake handles Vietnamese diacritics and bilingual medication names. Plain-language labels on recommendation cards are generated in the selected locale without re-running expensive retrieval or reasoning. The system must ingest FDA Structured Product Labels and heart-failure guidelines into governed catalogs, vector indexes, and graph stores. Clinical leads must be able to review draft rules, refine conditions, approve usable rules, and retire outdated ones without redeploying application code; only approved executable tiers affect chat recommendations. Finally, the system must expose health, readiness, and dependency probes for PostgreSQL, Redis, ChromaDB, Neo4j, object storage, and local LLM services, and audit events must record recommendation and governance actions for later review.
 
 ### 3.1.2. Non-Functional Requirements
 
@@ -60,7 +60,7 @@ Table 3.1 is the deployment-facing inventory for the architecture in Figure 3.1.
 | **Neo4j** | Graph DB | 7474 | Knowledge graph |
 | **ChromaDB** | Vector DB | 8001 | Evidence embeddings |
 | **Redis** | Cache | 6379 | Draft, messages, LLM cache |
-| **LocalStack** | S3 Emulator | 4566 | Artifact storage |
+| **MinIO** | S3-compatible storage | 4566 | Artifact storage (persistent dev bucket) |
 
 Together, these processes form one deployable stack: the browser talks to FastAPI and static assets; FastAPI talks to the data tier and Ollama; batch ingestion (Chapter 4) writes the same artifact layout that bootstrap loads at backend startup. Port values may change in production behind Nginx, but the responsibility split in the table remains the contract for operations and security review.
 
@@ -84,7 +84,7 @@ The complete system is not only the chat path. It has two cooperating planes. Th
 
 ### 3.2.4. End-to-End Online Data Flow
 
-When a physician sends a chat message, processing follows a fixed safety-first sequence. Authentication establishes the caller's role. The chat service ensures a conversation identifier exists and appends the user message to history. Hybrid intake extracts and merges patient facts with any prior draft for that conversation. Clinical-state construction normalizes units, derives missing eGFR when creatinine, age, and sex are available, and attaches risk flags and focus medication classes. The service emits `draft_ready`. A missing-field checker then decides whether critical labs are absent for the inferred intent. If so, the pipeline emits `missing_check`, asks for clarification, and returns without producing a recommendation. Guessing electrolytes or ejection fraction is intentionally forbidden.
+When a physician sends a chat message, processing follows a fixed safety-first sequence. Authentication establishes the caller's role. The chat service ensures a conversation identifier exists, resolves response language from message text (overriding the UI toggle when Vietnamese or English is clearly detected), and appends the user message to history. On the first turn of a new conversation, the question planner and hybrid intake may run in parallel: the planner splits multi-part questions and lists required data fields per sub-question, while intake extracts and merges patient facts. Clinical-state construction normalizes units, derives missing eGFR when creatinine, age, and sex are available, infers intent and focus drug classes (including from the prior assistant message on follow-ups), and attaches risk flags. The service emits `draft_ready` and, when planning runs, `question_plan_ready`. A missing-field checker then decides whether critical labs are absent for the inferred intent or the active planned question. If so, the pipeline emits `missing_check`, asks for clarification (with multi-question index context when applicable), and returns without producing a recommendation. Guessing electrolytes or ejection fraction is intentionally forbidden.
 
 When required fields are present, GraphRAG prefetch starts asynchronously while deterministic recommendation building runs in a worker thread. Reasoning evaluates GDMT policies, constraints, interactions, dose plans, and dose-safety warnings. Verification agents await both the recommendation and GraphRAG context, then audit hard blocks, missing data, and evidence presence. Plain-language summaries and deterministic simplified card fields attach next. The service emits `recommendation_ready` and `verification_ready`. Finally, the explanation layer streams `answer_delta` tokens grounded in the verified recommendation and retrieved evidence, then emits `done`. Cards and safety statuses remain authoritative; narrative text remains explanatory.
 
@@ -113,7 +113,7 @@ PostgreSQL rules provide executable enforcement. The graph and vector indexes pr
 
 ### 3.2.6. Component Map of the Application Tier
 
-Inside the FastAPI application, the auth component issues and validates JWT tokens and enforces roles. The chat orchestrator owns conversation lifecycle and SSE event ordering. Clinical intake extraction owns hybrid profile building. Clinical-state and risk-extraction helpers compress profiles into flags used by reasoning and retrieval. The missing-fields component owns fail-closed clarification gates. The reasoning service owns RecommendationResponse construction. GDMT policy, constraint, interaction, dose-calculation, and dose-safety modules supply the rule families reasoning depends on. Drug normalization maps surface strings to substance keys. GraphRAG and semantic-retrieval modules assemble evidence. Citation validation and verification agents audit consistency. Explanation modules provide card summarization and LLM narrative generation. Governance modules support admin approve, retire, and diff workflows. Datastore adapters isolate PostgreSQL, Redis, ChromaDB, Neo4j, and artifact bootstrap details from clinical logic. Each component exists because a known failure mode appears when it is missing: without normalization, interactions miss brand names; without missing-field gates, rules evaluate incomplete labs; without verification, fluent prose can contradict hard blocks; without governance, extracted drafts become silent runtime hazards.
+Inside the FastAPI application, the auth component issues and validates JWT tokens and enforces roles. The chat orchestrator owns conversation lifecycle, SSE event ordering, multi-question state, and chat audit payloads. A lightweight language resolver infers vi/en from each message. The question planner splits compound queries and declares required fields per sub-question. Clinical intake extraction owns hybrid profile building. Clinical-state and risk-extraction helpers compress profiles into intent, focus classes, and flags used by reasoning and retrieval. The missing-fields component owns fail-closed clarification gates. The reasoning service owns RecommendationResponse construction. GDMT policy, constraint, interaction, dose-calculation, and dose-safety modules supply the rule families reasoning depends on. Drug normalization maps surface strings to substance keys. GraphRAG and semantic-retrieval modules assemble evidence. Citation validation and verification agents audit consistency. Explanation modules provide card summarization and LLM narrative generation. Governance modules support admin approve, retire, and diff workflows. Datastore adapters isolate PostgreSQL, Redis, ChromaDB, Neo4j, and artifact bootstrap details from clinical logic. Each component exists because a known failure mode appears when it is missing: without normalization, interactions miss brand names; without missing-field gates, rules evaluate incomplete labs; without verification, fluent prose can contradict hard blocks; without governance, extracted drafts become silent runtime hazards.
 
 ### 3.2.7. Sample Patient Walkthrough
 
@@ -143,34 +143,36 @@ Extracted rows enter draft or refinement states by default when conditions are i
 
 ## 3.4. Functional Module Design
 
-This section details each module’s contract, the actual function signatures and classes that implement it, and the test cases that verify correctness. All paths reference concrete implementation files under `backend/app/`.
+This section describes how the online CDSS is decomposed into functional modules. Each subsection states what the module is responsible for, how it fits into the end-to-end chat flow, and which implementation files and test suites verify its behavior. Paths refer to code under `backend/app/`.
+
+The modules form a pipeline rather than a flat list. A clinician message first becomes a typed patient profile (intake and schema), then normalized observations and risk flags (normalization and risk extraction). Language is resolved from message text; a question planner may split multi-part queries and declare per-question data requirements. Drug names are canonicalized so catalogs can match free text. Deterministic reasoning applies governed constraints, dose-safety rules, interactions, and GDMT policies, optionally enriched with label-derived dose plans. In parallel, GraphRAG retrieves evidence; linking and citation validation connect recommendations to passages. Verification agents cross-check outcomes before bilingual explanation and SSE streaming deliver the answer. Governance and auth modules surround this path so only approved rules execute and only authorized users can change them.
+
+---
 
 ### 3.4.1. Patient Profile Extraction Module
 
-**Module:** `app/modules/clinical_intake_extraction/service.py`
+**Implementation:** `app/modules/clinical_intake_extraction/service.py`
 
-**Responsibility:** Convert free-form clinician chat into a typed `PatientProfile`.
+**Purpose.** Clinicians rarely submit structured forms. They type abbreviations, mixed Vietnamese and English, brand names, and partial labs. This module converts that free text into a `PatientProfile` (Section 3.4.4) that downstream rules can evaluate, while preserving traceability to the original wording for audit.
 
-**Design:** Three-stage pipeline.
+**Three-stage design.** Stage 1 uses regular expressions and a medication lexicon to extract high-confidence numerics and drug mentions: LVEF, eGFR, potassium, blood pressure, heart rate, weight, and INR. Vietnamese aliases and brand names are included; longest-token matching avoids substring errors (e.g., matching “olol” inside another token). Negation phrases (“no,” “not,” “denies,” “không”) suppress false positives. Units are normalized where needed (for example potassium to mmol/L).
 
-Stage 1 — Regex extraction (`extract_patient_from_message_sync`). Patterns capture numeric labs: EF (`r”EF[:\s]*(\d+)”`), eGFR (`r”eGFR[:\s]*(\d+)”`), potassium (`r”K\+|kali[:\s]*(\d+\.?\d*)”`), SBP (`r”(?:Huyết áp|SBP|BP)[:\s/]*(\d+)”`), HR (`r”(?:mạch|HR)[:\s]*/?(\d+)”`), weight, and INR. A medication lexicon maps strings including Vietnamese aliases and brand names to standard drug keys using longest-token-first preference to prevent substring errors. Negation detection (phrases “no,” “not,” “denies,” Vietnamese “không”) suppresses false positives. Unit normalization converts related lab expressions to canonical forms (e.g., mg/dL → mmol/L for potassium) and preserves raw source spans for audit.
+Stage 2 applies semantic matching (`semantic.py`) for brand names absent from the static lexicon, with a thread-safe embedding cache.
 
-Stage 2 — Semantic matching (`semantic.py`). Embedding-based catalog matching for brand names not covered by the static lexicon, with thread-safe caching via a Lock-based cache.
+Stage 3 invokes a selective LLM extractor only when heuristics flag low confidence—long narratives, conflicting cues, or incomplete required fields. Merge logic deliberately prefers regex-sourced numerics over model guesses: instrument-like values outweigh probabilistic inference. Before any LLM call, `_sanitize_llm_input()` strips known injection patterns and normalizes Unicode (NFKC) to reduce prompt-manipulation risk.
 
-Stage 3 — Selective LLM merge (`_call_llm_extractor`). Runs only when heuristics detect low confidence: long narratives, conflicting cues, or ambiguous intake. Merge prefers regex-sourced numeric labs over model guesses — an explicit clinical epistemology encoded in code: instrument-like numbers beat probabilistic guesses. Prompt injection defense (`_sanitize_llm_input()`) strips 13 attack patterns and normalizes Unicode to NFKC form before LLM dispatch.
-
-**Output:** `PatientProfile` (Section 3.4.4) rich enough for downstream rule evaluation, traceable to the words the clinician typed.
+**Outputs and verification.** The result is a profile rich enough for constraint matching and dose logic.
 
 **Key test cases:**
 
 | TC | Description |
 |----|-------------|
-| TC-I-01 | Vietnamese vitals/labs extraction — EF 32%, eGFR 78, K+ 4.4, SBP 118, HR 74; brand-name medication “metoprolol 25 mg bid” parsed with dose_unit and frequency |
-| TC-I-02 | Negation prevents false positives — “no CKD”, “not on spironolactone” do not create active conditions; NKDA → “no known drug allergies” |
+| TC-I-01 | Vietnamese vitals/labs extraction — EF 32%, eGFR 78, K+ 4.4, SBP 118, HR 74; metoprolol 25 mg bid parsed with dose and frequency |
+| TC-I-02 | Negation prevents false positives — “no CKD”, “not on spironolactone”; NKDA recorded |
 | TC-I-03 | Brand-name resolution — Entresto → sacubitril/valsartan, Farxiga → dapagliflozin |
-| TC-I-04 | Acute red flag detection — “active bleeding today” → red_flag status=present |
-| TC-I-05 | LLM skipped when required fields complete — `_call_llm_extractor` never invoked |
-| TC-I-06 | LLM enriches when confidence low — full_name, age, sex, weight_kg added from LLM response |
+| TC-I-04 | Acute red flag — “active bleeding today” → red_flag present |
+| TC-I-05 | LLM skipped when required fields complete — `_call_llm_extractor` not invoked |
+| TC-I-06 | LLM enriches when confidence low — identity fields added; regex numerics override model guesses |
 
 **Implementation file:** `backend/app/tests/test_clinical_intake_extraction.py`
 
@@ -178,33 +180,30 @@ Stage 3 — Selective LLM merge (`_call_llm_extractor`). Runs only when heuristi
 
 ### 3.4.2. Clinical Normalization Module
 
-**Module:** `app/modules/clinical_normalization/service.py`
+**Implementation:** `app/modules/clinical_normalization/service.py`
 
-**Responsibility:** Classify patient observations into clinical status bands used by constraint matching.
+**Purpose.** Raw numbers are not yet clinical categories. Constraint rules reason over bands such as “severely reduced renal function” or “elevated potassium,” not isolated floats. Normalization translates typed labs and vitals into a small set of discrete status labels used everywhere else in the stack.
 
-**Design:** Pure functions — no side effects, no external calls. All are individually unit-testable.
+**Design.** All classifiers are pure functions with no I/O. Heart failure type follows guideline LVEF cutoffs: HFrEF (≤40%), HFmrEF (41–49%), HFpEF (≥50%), or unknown when LVEF is missing. Renal status uses eGFR bands from kidney failure (&lt;15) through preserved (≥60). Potassium is classified as low, normal, elevated, or high; blood pressure and heart rate receive analogous bands. Polypharmacy is detected when five or more medications are present. `normalize_patient()` assembles a `NormalizedPatientProfile`, including cleaned comorbidity strings.
 
 | Function | Input | Output bands |
 |---|---|---|
-| `classify_hf_type(lvef)` | LVEF % | `HFrEF` ≤40, `HFmrEF` 41–49, `HFpEF` ≥50, `unknown` |
-| `classify_renal_status(egfr)` | eGFR mL/min/1.73m² | `kidney_failure` <15, `severely_reduced` 15–29, `moderately_reduced` 30–44, `mildly_reduced` 45–59, `preserved` ≥60, `missing` |
-| `classify_potassium_status(k)` | K⁺ mmol/L | `low` <3.5, `normal` 3.5–5.0, `elevated` 5.0–5.3, `high` ≥5.3, `missing` |
-| `classify_bp_status(sbp)` | SBP mmHg | `hypotension` <90, `low` 90–99, `acceptable` 100–130, `elevated` >130, `missing` |
-| `classify_hr_status(hr)` | HR bpm | `bradycardia` <60, `acceptable` ≤100, `tachycardia` >100, `missing` |
-| `detect_polypharmacy(meds)` | medication list | `True` if ≥5 medications |
-| `normalize_patient(patient)` | `PatientProfile` | `NormalizedPatientProfile` with normalized comorbidities, observations dict |
-
-Whitespace normalization handles trailing spaces and mixed casing in comorbidity strings (“ Chronic_Kidney Disease “ → “chronic kidney disease”).
+| `classify_hf_type(lvef)` | LVEF % | HFrEF ≤40, HFmrEF 41–49, HFpEF ≥50, unknown |
+| `classify_renal_status(egfr)` | eGFR | kidney_failure &lt;15 … preserved ≥60, missing |
+| `classify_potassium_status(k)` | K⁺ mmol/L | low &lt;3.5, normal 3.5–5.0, elevated 5.0–5.3, high ≥5.3 |
+| `classify_bp_status(sbp)` | SBP mmHg | hypotension &lt;90, low 90–99, acceptable 100–130, elevated &gt;130 |
+| `classify_hr_status(hr)` | HR bpm | bradycardia &lt;60, acceptable ≤100, tachycardia &gt;100 |
+| `detect_polypharmacy(meds)` | medication list | True if ≥5 medications |
 
 **Key test cases:**
 
 | TC | Description |
 |----|-------------|
 | TC-N-01 | HF type thresholds — LVEF 40→HFrEF, 45→HFmrEF, 55→HFpEF, None→unknown |
-| TC-N-02 | Renal status bands — eGFR 12→kidney_failure, 28→severely_reduced, 38→moderately_reduced, 55→mildly_reduced, 90→preserved, None→missing |
-| TC-N-03 | Potassium status — K+ 3.2→low, 4.9→normal, 5.2→elevated, 5.5→high |
-| TC-N-04 | BP and HR status classification per thresholds above |
-| TC-N-05 | Polypharmacy — 5+ medications → True, fewer → False |
+| TC-N-02 | Renal bands — eGFR 12→kidney_failure … 90→preserved |
+| TC-N-03 | Potassium — K+ 3.2→low, 4.9→normal, 5.2→elevated, 5.5→high |
+| TC-N-04 | BP and HR classification per thresholds above |
+| TC-N-05 | Polypharmacy — 5+ medications → True |
 | TC-N-06 | Comorbidity normalization — “ Chronic_Kidney Disease “ → “chronic kidney disease” |
 
 **Implementation file:** `backend/app/tests/test_clinical_normalization.py`
@@ -213,39 +212,31 @@ Whitespace normalization handles trailing spaces and mixed casing in comorbidity
 
 ### 3.4.3. Risk Extraction Module
 
-**Module:** `app/modules/risk_extraction/service.py`
+**Implementation:** `app/modules/risk_extraction/service.py`
 
-**Responsibility:** Derive binary risk flags from a normalized patient profile. Flags become inputs to constraint matching.
+**Purpose.** Constraint rules should not re-derive clinical logic from raw labs on every evaluation. `extract_risks()` maps the normalized profile to a compact list of `RiskFlag` objects that rule authors can reference by name.
 
-**Design:** `extract_risks(profile: NormalizedPatientProfile) → list[RiskFlag]`.
-
-Flags include:
+**Flags produced.** Clinical risks include renal impairment, hyperkalemia, hypotension, bradycardia, and polypharmacy. Comorbidity-derived flags include diabetes and CKD history (set when CKD appears in comorbidities even if eGFR is not reduced). Missing-data flags (`missing_egfr`, `missing_potassium`, `missing_lvef`, `missing_sbp`, `missing_heart_rate`) allow warn-and-ask behavior instead of silent guessing.
 
 | Flag | Trigger condition |
 |------|-------------------|
 | `renal_impairment` | renal_status in {kidney_failure, severely_reduced, moderately_reduced} |
 | `hyperkalemia` | potassium_status in {elevated, high} |
 | `hypotension` | bp_status in {hypotension, low} |
-| `bradycardia` | hr_status in {bradycardia} |
+| `bradycardia` | hr_status = bradycardia |
 | `polypharmacy` | ≥5 current medications |
 | `diabetes` | “diabetes” in normalized comorbidities |
-| `ckd_history` | “chronic kidney disease” in comorbidities, even when eGFR not reduced |
-| `missing_egfr` | eGFR not provided |
-| `missing_potassium` | potassium not provided |
-| `missing_lvef` | LVEF not provided |
-| `missing_sbp` | SBP not provided |
-| `missing_heart_rate` | HR not provided |
-
-Separating risk derivation from rule evaluation keeps both testable in isolation.
+| `ckd_history` | “chronic kidney disease” in comorbidities (even when eGFR not reduced) |
+| `missing_*` | corresponding lab or vital not provided |
 
 **Key test cases:**
 
 | TC | Description |
 |----|-------------|
-| TC-R-01 | Core risks — patient with egfr=28, k=5.6, sbp=88, hr=55, 5 meds → renal_impairment, hyperkalemia, hypotension, bradycardia, polypharmacy, diabetes all present |
-| TC-R-02 | Missing LVEF → missing_lvef flag |
-| TC-R-03 | Missing labs do not create false renal/hyperK risks |
-| TC-R-04 | CKD history preserved when eGFR not reduced — ckd_history set, renal_impairment absent |
+| TC-R-01 | eGFR 28, K+ 5.6, SBP 88, HR 55, 5 meds, diabetes → renal_impairment, hyperkalemia, hypotension, bradycardia, polypharmacy, diabetes |
+| TC-R-02 | No LVEF → `missing_lvef` |
+| TC-R-03 | LVEF only — no false renal/hyperK risks; missing lab flags present |
+| TC-R-04 | CKD comorbidity + eGFR 70 → `ckd_history` set, `renal_impairment` absent |
 
 **Implementation file:** `backend/app/tests/test_risk_extraction.py`
 
@@ -253,45 +244,18 @@ Separating risk derivation from rule evaluation keeps both testable in isolation
 
 ### 3.4.4. Patient Schema Module
 
-**Module:** `app/schemas/patient.py` — class `PatientProfile`
+**Implementation:** `app/schemas/patient.py` — class `PatientProfile`
 
-**Responsibility:** The canonical input schema for all downstream clinical modules. The model uses Pydantic `model_validator` to accept two payload shapes.
+**Purpose.** Every clinical module shares one canonical patient model. The schema must accept both API-style flat payloads (legacy integrations and chat drafts) and nested domain documents (richer ingestion or FHIR-like shapes) without forcing callers to transform data manually.
 
-**Legacy flat payload:**
+**Dual-shape acceptance.** A legacy flat payload supplies `case_id`, scalar labs, vitals, comorbidities, medications, and allergies at the top level. A nested payload groups identity, demographics, heart-failure profile, labs, vitals, conditions, and medications into structured sub-objects with optional `ClinicalValue` wrappers (value, unit, source). A Pydantic `model_validator` normalizes either shape into the internal representation. Computed properties (`lvef`, `egfr`, `potassium`, etc.) expose flat accessors so downstream code stays simple. Physiological range validation rejects impossible values (for example LVEF outside 0–100%). `legacy_summary()` supports older callers during migration.
 
-```python
-PatientProfile(
-    case_id=”CASE_001”,
-    lvef=30, egfr=28, potassium=5.6,
-    systolic_bp=88, heart_rate=55,
-    comorbidities=[“CKD”],
-    current_medications=[“spironolactone”],
-    allergies=[“penicillin”],
-)
-```
-
-**Nested domain payload:**
-
-```python
-PatientProfile(
-    patient_identity={“case_id”: “CASE_NESTED”, “full_name”: “Nguyen Van A”},
-    demographics={“age”: 68, “sex”: “male”},
-    heart_failure_profile={“lvef”: {“value”: 32, “unit”: “%”}, “nyha_class”: “III”},
-    labs={“egfr”: {“value”: 35}, “potassium”: {“value”: 4.9}},
-    vitals={“systolic_bp”: {“value”: 105}, “heart_rate”: {“value”: 72}},
-    conditions=[{“name”: “Diabetes”}],
-    medications=[{“name”: “dapagliflozin”, “drug_class”: “SGLT2i”}],
-)
-```
-
-Computed properties (`case_id`, `lvef`, `egfr`, `potassium`, `systolic_bp`, `heart_rate`, `weight_kg`, `comorbidities`, `current_medications`, `allergies`) normalize both shapes to flat values. Physiological range validation rejects impossible values (LVEF 0–100%, HR 20–300, SBP 40–300, K 1.0–10.0). `legacy_summary()` provides backward compatibility for older callers.
-
-**Key test cases:**
+**Verification.**
 
 | TC | Description |
 |----|-------------|
-| TC-S-01 | Legacy flat payload — all fields map correctly via computed properties |
-| TC-S-02 | Nested domain payload — patient_identity.full_name, demographics, labs, vitals, conditions parsed |
+| TC-S-01 | Legacy flat payload — all fields map via computed properties |
+| TC-S-02 | Nested domain payload — identity, demographics, labs, vitals, conditions parsed |
 
 **Implementation file:** `backend/app/tests/test_patient_schema.py`
 
@@ -299,29 +263,21 @@ Computed properties (`case_id`, `lvef`, `egfr`, `potassium`, `systolic_bp`, `hea
 
 ### 3.4.5. Drug Normalization Module
 
-**Module:** `app/modules/drug_normalization/service.py`
+**Implementation:** `app/modules/drug_normalization/service.py` (runtime); `scraper/process/drug_normalization.py` (ingestion)
 
-**Responsibility:** Resolve brand names, salts, and bilingual aliases to canonical pipeline IDs used by interaction and GDMT catalogs.
+**Purpose.** Interaction rules, GDMT policies, and dose catalogs key on substance identifiers. Clinicians type brands (“Jardiance,” “Entresto”) and salts. Without normalization, valid rules would silently fail to match.
 
-**Functions:**
+**Behavior.** `normalize_drug_name()` returns a canonical key; `expand_drug_search_terms()` yields brand and generic variants for retrieval; `resolve_pipeline_drug_id()` is the primary resolver used at query time. The scraper-side copy ensures ingestion and online paths share the same naming contract.
 
-- `normalize_drug_name(name: str) → str` — canonical key
-- `expand_drug_search_terms(name: str) → set[str]` — includes brand + generic forms
-- `resolve_pipeline_drug_id(name: str) → str | None` — primary brand-to-generic resolver
-
-Examples: `Jardiance` → `empagliflozin`; `Entresto` → `sacubitril_and_valsartan`; `dapagliflozin` → `dapagliflozin`.
-
-Without normalization, interaction rules written against substance identifiers would miss free-text mentions. The scraper-side version in `scraper/process/drug_normalization.py` is used during the ingestion pipeline; the runtime version in `app/modules/` serves query-time normalization.
-
-**Key test cases:**
+**Verification.**
 
 | TC | Description |
 |----|-------------|
-| TC-D-01 | Brand → pipeline ID — Jardiance→empagliflozin, entresto→sacubitril_and_valsartan |
-| TC-D-02 | Search term expansion includes both brand and generic names |
-| TC-D-03 | Chunk claim matching — document_id + section + text match returns matched chunk |
-| TC-D-04 | Recommendation evidence enrichment uses constraint chunk_ids from `enrich_recommendation_evidence` |
-| TC-D-05 | Context prioritization — `prioritize_context_chunks` ranks linked chunks above generic |
+| TC-D-01 | Brand → pipeline ID — Jardiance→empagliflozin, Entresto→sacubitril_and_valsartan |
+| TC-D-02 | Search term expansion includes brand and generic |
+| TC-D-03 | Chunk claim matching by document, section, text |
+| TC-D-04 | `enrich_recommendation_evidence` attaches constraint chunk IDs |
+| TC-D-05 | `prioritize_context_chunks` ranks linked chunks first |
 
 **Implementation files:** `backend/app/tests/test_drug_normalization_and_evidence_linking.py`, `scraper/process/drug_normalization.py`
 
@@ -329,34 +285,26 @@ Without normalization, interaction rules written against substance identifiers w
 
 ### 3.4.6. Constraint Builder Module
 
-**Module:** `app/modules/constraint_builder/service.py`
+**Implementation:** `app/modules/constraint_builder/service.py`
 
-**Responsibility:** Evaluate approved constraint rules against the patient profile and risk flags to produce a set of `(target_drug_class, action)` constraints.
+**Purpose.** Approved constraint rules encode when a drug class should be avoided or used with caution given patient risks. `build_constraints(profile, risks)` evaluates those rules and returns `(target_drug_class, action)` pairs consumed by the reasoning service.
 
-**Design:**
+**Rule model and matching.** Each rule carries `constraint_id`, target class, action (`avoid` or `caution`), human-readable `reason`, `risk_names`, optional `severity_any`, and evidence metadata. Matching requires every named risk to be present and at least one listed severity to match when severities are specified—an AND-over-risks, OR-over-severities design that mirrors how clinicians phrase conditional advice.
 
-```python
-load_constraint_rules() → list[dict]        # cached TTL (5 min), stale-on-DB-error
-build_constraints(profile, risks) → list[Constraint]  # severity_any pair matching
-invalidate_constraint_cache() → None
-```
-
-Constraint rules carry: `constraint_id`, `target_drug_class`, `action` (avoid/caution), `reason`, `risk_names` (list), `severity_any` (list), `evidence_ref`, `clinical_sources`, `metadata`. Matching uses AND across `risk_names` and OR across `severity_any`: a rule fires when every risk in `risk_names` is present AND at least one severity in `severity_any` matches.
-
-**Cache design:** TTL cache with stale-on-DB-error fallback. When the database is unavailable, the last successful cache remains served rather than returning an empty list — fail-stale not fail-empty. Cache invalidation occurs on admin approve/retire operations via Redis TTL.
+**Caching and failure behavior.** `load_constraint_rules()` reads from PostgreSQL with a five-minute TTL cache. On database errors, the loader serves the last successful cache (fail-stale, not fail-empty). Admin approve/retire invalidates the cache.
 
 **Key test cases:**
 
 | TC | Description |
 |----|-------------|
-| TC-C-01 | Rules loaded from PostgreSQL — list returned with constraint_id on each |
+| TC-C-01 | Rules loaded from PostgreSQL with `constraint_id` on each |
 | TC-C-02 | TTL cache — repeated calls produce single DB read |
-| TC-C-03 | Stale cache served on DB error — last good cache returned, not empty |
-| TC-C-04 | Empty cache on fresh DB error — no prior cache → empty list returned |
-| TC-C-05 | MRA hard constraint — eGFR 25 + K+ 4.8 → (“MRA”, “avoid”) |
-| TC-C-06 | RAAS caution — SBP 96 + K+ 5.2 → (“ARNI/ACEi/ARB”, “caution”) |
-| TC-C-07 | Beta blocker caution — HR 55 → (“beta_blocker”, “caution”) |
-| TC-C-08 | No constraints for clean case — all labs normal → empty set |
+| TC-C-03 | Stale cache served on DB error after prior success |
+| TC-C-04 | Empty cache on fresh DB error |
+| TC-C-05 | eGFR 25 + K+ 4.8 → MRA avoid |
+| TC-C-06 | SBP 96 + K+ 5.2 → ARNI/ACEi/ARB caution |
+| TC-C-07 | HR 55 → beta_blocker caution |
+| TC-C-08 | Clean labs → empty constraint set |
 
 **Implementation file:** `backend/app/tests/test_constraint_builder.py`
 
@@ -364,40 +312,29 @@ Constraint rules carry: `constraint_id`, `target_drug_class`, `action` (avoid/ca
 
 ### 3.4.7. Dose Safety Module
 
-**Module:** `app/modules/dose_safety/evaluator.py`, `app/modules/dose_safety/rule_loader.py`
+**Implementation:** `app/modules/dose_safety/evaluator.py`, `rule_loader.py`
 
-**Responsibility:** Flag planned doses that exceed label-derived maxima for the patient’s current renal status.
+**Purpose.** Even when GDMT class-level advice is permissive, specific medications may require renal review, electrolyte monitoring, or dose ceilings. `evaluate_dose_safety_warnings()` evaluates label-derived warning predicates against the current profile and medication list.
 
-**Design:**
-
-```python
-evaluate_dose_safety_warnings(patient, rules) → list[MedicationSafetyWarning]
-load_executable_dose_safety_warnings() → list[DoseSafetyWarning]
-```
-
-Each warning has a `warning_id`, a `target_medications` list (drug keys), a condition evaluator, and severity rules. Condition operators: `always`, `missing`, `present`, `lt`, `lte`, `gt`, `gte`, `missing_or_lt`, `missing_or_lte`. Severity resolution picks the maximum applicable severity from a priority chain (critical > high > moderate > low).
-
-Warning IDs include:
+**Design.** Warnings are keyed by `warning_id` and target medications. Condition operators include `lt`, `lte`, `gt`, `gte`, presence/missing, and `missing_or_lt`. Severity resolves to the highest applicable level. Representative warnings: digoxin renal review, MRA renal/potassium review, loop-diuretic monitoring in CKD. PostgreSQL unavailable → empty list (no fabricated warnings).
 
 | warning_id | Trigger |
 |------------|---------|
 | `dose_digoxin_renal_review` | digoxin + reduced renal function |
-| `dose_mra_renal_potassium_review` | MRA (spironolactone/eplerenone) + eGFR <45 or K⁺ ≥5.0 |
+| `dose_mra_renal_potassium_review` | MRA + eGFR &lt;45 or K⁺ ≥5.0 |
 | `dose_loop_diuretic_lab_monitoring` | loop diuretic + CKD comorbidity |
-
-When PostgreSQL is unavailable at runtime, `load_executable_dose_safety_warnings()` returns an empty list — no fabricated warnings.
 
 **Key test cases:**
 
 | TC | Description |
 |----|-------------|
-| TC-DS-01 | Digoxin + MRA + loop diuretic → all three warning IDs present |
-| TC-DS-02 | Digoxin renal review has severity = critical |
-| TC-DS-03 | PostgreSQL unavailable → empty warning list (no crash) |
-| TC-DS-04 | RAAS dual therapy (lisinopril + losartan) → interaction warning |
-| TC-DS-05 | RAAS + MRA hyperkalemia monitoring → interaction warning |
-| TC-DS-06 | Anticoagulant + antiplatelet → bleeding interaction warning |
-| TC-DS-07 | Recommendation includes dose + interaction warnings — `dose_mra_renal_potassium_review` attached to MRA recommendation |
+| TC-DS-01 | Digoxin + MRA + loop diuretic → all three warning IDs |
+| TC-DS-02 | Digoxin renal review severity = critical |
+| TC-DS-03 | PostgreSQL unavailable → empty list |
+| TC-DS-04 | Lisinopril + losartan → ACEi-ARB combination warning |
+| TC-DS-05 | RAAS + MRA → hyperkalemia monitoring warning |
+| TC-DS-06 | Anticoagulant + antiplatelet → bleeding warning |
+| TC-DS-07 | MRA recommendation carries `dose_mra_renal_potassium_review` |
 
 **Implementation files:** `backend/app/tests/test_dose_safety_evaluator.py`, `backend/app/tests/test_medication_safety.py`
 
@@ -405,66 +342,34 @@ When PostgreSQL is unavailable at runtime, `load_executable_dose_safety_warnings
 
 ### 3.4.8. Medication Safety — Interaction Checking Module
 
-**Module:** `app/modules/interaction_checking/`, `app/api/routes/medication_safety.py`
+**Implementation:** `app/modules/interaction_checking/`, `app/api/routes/medication_safety.py`
 
-**Responsibility:** Detect drug-drug interactions at query time via `/interaction/check` and `/dose/check` API endpoints.
+**Purpose.** Drug–drug interactions are evaluated at query time through `/interaction/check` and `/dose/check`, independent of the main recommendation path when a standalone medication review is needed.
 
-**Design:** Interaction rules store drug-set pairs with severity and management text. The evaluator compares the patient’s normalized medication list against approved interaction pairs. Normalization (Section 3.4.5) ensures brand names are resolved before comparison.
+**Design.** Interaction rules store normalized drug-set pairs with severity and management text. The evaluator compares the patient’s normalized medication list against approved pairs. Examples include ACEi+ARB combination (triple RAAS blockade risk), RAAS inhibitor with MRA (hyperkalemia monitoring), and anticoagulant with antiplatelet (bleeding risk). Normalization (Section 3.4.5) runs before comparison.
 
-Interaction warning IDs include:
-
-| warning_id | Description |
-|------------|-------------|
-| `interaction_acei_arb_combination` | ACE inhibitor + ARB → triple RAAS blockade |
-| `interaction_raasi_mra_hyperkalemia_monitoring` | RAAS inhibitor + MRA → requires potassium monitoring |
-| `interaction_anticoagulant_antiplatelet_bleeding` | Anticoagulant + antiplatelet → bleeding risk |
-
-Dose checking (`/dose/check`) evaluates dose-safety rules independently of GDMT reasoning, supporting standalone medication review.
-
-**Key test cases:** See TC-DS-04 through TC-DS-07 in Section 3.4.7.
+**Key test cases:** TC-DS-04 through TC-DS-07 (Section 3.4.7).
 
 ---
 
 ### 3.4.9. Reasoning Service Module
 
-**Module:** `app/modules/reasoning/service.py`
+**Implementation:** `app/modules/reasoning/service.py`
 
-**Responsibility:** Produce the authoritative `RecommendationResponse` with no LLM in the critical path.
+**Purpose.** Produce the authoritative `RecommendationResponse`—the structured clinical decision artifact—without placing an LLM on the critical path.
 
-**Design:**
+**Pipeline.** `build_recommendation()` executes nine synchronous steps: normalize the patient; extract risks; build constraints (thread-offloaded); evaluate dose-safety warnings; check interactions; load GDMT policies; emit per-class `MedicationRecommendation` statuses (`start`, `continue`, `caution`, `avoid`, `review`); attach dose plans from the dose-calculation module; compute `overall_status`. Status becomes **blocked** when any hard avoid constraint or critical warning fires; **approved_with_warnings** when risks or non-critical warnings remain; otherwise **approved**.
 
-```python
-build_recommendation(request: RecommendationRequest) → RecommendationResponse
-```
-
-Pipeline steps (all synchronous except where noted):
-
-1. Normalize patient (`normalize_patient`)
-2. Extract risks (`extract_risks`)
-3. Build constraints (`build_constraints`) — thread-offloaded via `asyncio.to_thread`
-4. Check dose safety (`evaluate_dose_safety_warnings`)
-5. Check interactions (`check_interactions`)
-6. Load GDMT policies (`gdmt_policy.policy_loader`)
-7. Generate per-policy `MedicationRecommendation` (start/continue/caution/avoid/review)
-8. Build dose plans (`dose_calculation.build_dose_plans`)
-9. Compute `overall_status`: **blocked** if any hard avoid constraint or critical warning; **approved_with_warnings** if any risks or warnings; **approved** otherwise
-
-**Invariants (never violated):**
-
-- LLM output never modifies avoid statuses
-- Hard-block rules override permissive retrieved prose
-- No fabricated milligram strength when dose catalog row is incomplete
-
-**Governance version string** (`constraint_rules_version`, `dose_rules_version`, `interaction_rules_version`) records which catalog generation produced the result, enabling audit trail reconstruction.
+**Invariants.** LLM prose never upgrades an avoid decision. Hard-block rules override permissive retrieved text. Dose numbers are never invented when catalog rows are incomplete. Governance version strings stamp the response for audit reconstruction.
 
 **Key test cases:**
 
 | TC | Description |
 |----|-------------|
-| TC-REC-01 | Week 3 blocked — eGFR 28, K+ 5.4, SBP 92, HR 58 → overall_status=blocked; renal_impairment+hyperkalemia+hypotension+bradycardia risks; MRA avoid; SGLT2 consider_with_caution with constraint_ids |
-| TC-REC-02 | Clean HFrEF — eGFR 78, K+ 4.4, SBP 118, HR 74 → overall_status=approved; no risks; all GDMT classes status=consider |
-| TC-REC-03 | HFpEF case — LVEF 55 → HFpEF type; all GDMT classes status=review |
-| TC-REC-04 | Missing safety data — no egfr/potassium/hr → approved_with_warnings; missing_egfr+missing_potassium+missing_heart_rate risks; all GDMT classes become consider_with_caution |
+| TC-REC-01 | High-risk Week-3 case → `overall_status=blocked`; MRA avoid; multiple risk flags |
+| TC-REC-02 | Clean HFrEF → `overall_status=approved`; all GDMT classes consider |
+| TC-REC-03 | HFpEF LVEF 55 → all GDMT classes `review` |
+| TC-REC-04 | Missing eGFR/K/HR → `approved_with_warnings`; consider_with_caution on GDMT |
 
 **Implementation file:** `backend/app/tests/test_recommendation.py`
 
@@ -472,27 +377,18 @@ Pipeline steps (all synchronous except where noted):
 
 ### 3.4.10. Dose Calculation Module
 
-**Module:** `app/modules/dose_calculation/`
+**Implementation:** `app/modules/dose_calculation/`
 
-**Responsibility:** Personalize starting dose, target dose, renal bands, and titration schedules from FDA label JSONB rules.
+**Purpose.** When label-derived dose rules exist, personalize starting dose, target dose, renal adjustments, and titration steps for the patient’s current labs and medications.
 
-**Design:**
-
-```python
-build_dose_plans(patient, clinical_state) → list[DosePlan]
-dose_source_version() → str
-```
-
-Rules are stored as JSONB in PostgreSQL governance catalogs. The evaluator resolves the drug key, selects the matching eGFR band, and returns a `DosePlan` with start dose, target dose, titration steps, and rationale. When a catalog row is incomplete, the module returns no fabricated number — an explicit honesty contract.
-
-`dose_source_version()` returns the loaded artifact generation timestamp, included in the `RecommendationResponse` for traceability.
+**Design.** `build_dose_plans(patient, clinical_state)` selects drug keys from profile and recommendation context, resolves eGFR/potassium bands, and returns `DosePlan` objects. The missing-fields module adds dose-personalization requirements (`weight_kg`, `sex`, `age`, `creatinine`, `inr`, `acei_last_dose_hours_ago`) when the clinician asks about titration or ARNI switch. Incomplete catalog rows yield no numeric guess.
 
 **Key test cases:**
 
 | TC | Description |
 |----|-------------|
-| TC-DC-01 | Dose plans built from current medications — enalapril plan_id returned |
-| TC-DC-02 | Recommendation includes label dose plans and `dose_rules_version` |
+| TC-DC-01 | Dose plans from current medications — enalapril `plan_id` returned |
+| TC-DC-02 | Recommendation includes dose plans and `dose_rules_version` |
 
 **Implementation file:** `backend/app/tests/test_dose_calculation_integration.py`
 
@@ -500,39 +396,24 @@ Rules are stored as JSONB in PostgreSQL governance catalogs. The evaluator resol
 
 ### 3.4.11. GraphRAG and Evidence Retrieval Module
 
-**Module:** `app/modules/graphrag/service.py`, `app/modules/evidence_filter.py`, `app/modules/evidence_quality.py`
+**Implementation:** `app/modules/graphrag/service.py`, `app/modules/evidence_filter.py`, `app/modules/evidence_quality.py`
 
-**Responsibility:** Assemble citation-ready evidence from ChromaDB, Neo4j, and BM25 into ranked context for verification and explanation.
+**Purpose.** Recommendations must be explainable with guideline and label passages, not model parametric memory alone. This module assembles citation-ready context from vector, lexical, and graph stores.
 
-**Design:** Hybrid retrieval with four complementary signals:
+**Hybrid retrieval.** Four signals complement one another. HyDE expansion (`hyde_expansion.py`) drafts a hypothetical evidence paragraph from a short clinical query, then embeds it—bridging shorthand (“start MRA?”) to regulatory prose. Dense retrieval queries ChromaDB with BGE-M3 embeddings. Sparse BM25 retrieval favors exact drug names and regulatory phrases. Graph retrieval walks Neo4j neighborhoods seeded by patient medications and conditions. Reciprocal Rank Fusion merges ranked lists without hand-tuned score calibration.
 
-1. **HyDE expansion** (`hyde_expansion.py`) — generates a hypothetical evidence passage from a short query, then embeds that passage. Bridges vocabulary gaps between clinical shorthand and label prose.
-2. **Dense retrieval** — ChromaDB nearest-neighbor search using BGE-M3 embeddings
-3. **Sparse retrieval** — BM25 keyword search favoring exact drug names and regulatory phrases
-4. **Graph retrieval** — Neo4j neighborhood traversal seeded by patient medication and condition entities, merging multi-hop relationships
+**Filtering and boosting.** `filter_evidence_chunks()` drops low-quality or off-topic sections (packaging, contact information, generic wellness text lacking patient-specific terms). Patient entities (medications, abnormal labs) score relevance. Constraint-pinned chunks always survive filtering. If too few chunks remain, backfill restores a minimum `top_k` floor so verification never faces an empty context. Post-fusion boosting elevates passages mentioning current therapies.
 
-**Fusion:** Reciprocal Rank Fusion (RRF) merges ranked lists without brittle hand-tuned score calibration.
-
-**Evidence filtering** (`filter_evidence_chunks`, `evidence_filter.py`):
-
-- `passes_negative_evidence_filter()` — drops chunks with low quality scores, irrelevant sections (e.g., “CONTACT”, “PACKAGING”), or generic wellness text lacking patient-specific terms
-- `patient_profile_entities()` — extracts entities from the patient profile (medications, abnormal labs) to score relevance
-- `enrich_evidence_chunk()` — annotates each chunk with patient-specific entities and quality signals
-- Constraint-pinned chunks (`metadata.constraint_pinned=True`) are always retained regardless of score
-- **Backfill behavior**: when fewer than `evidence_negative_filter_min_results` chunks remain, fallback chunks are included to meet the top_k floor
-
-Post-fusion, clinical entity boosting elevates passages mentioning the patient’s current medications.
-
-**Outputs:** ranked `evidence_chunks` with scores, `graph_facts` with source links, `retrieval_sources` list (`local_chunks`, `local_relationships`).
+**Outputs.** Ranked `evidence_chunks`, `graph_facts`, and `retrieval_sources`.
 
 **Key test cases:**
 
 | TC | Description |
 |----|-------------|
 | TC-E-01 | Patient entities include medications and abnormal labs |
-| TC-E-02 | Negative filter drops low-quality/noisy chunks — score threshold + irrelevant section |
-| TC-E-03 | Constraint-pinned chunks always kept regardless of score |
-| TC-E-04 | Backfill when too few results — fallback chunks added to meet top_k |
+| TC-E-02 | Negative filter drops low-quality/noisy chunks |
+| TC-E-03 | Constraint-pinned chunks always kept |
+| TC-E-04 | Backfill when too few results — meets `top_k` floor |
 
 **Implementation file:** `backend/app/tests/test_evidence_filter.py`
 
@@ -540,50 +421,31 @@ Post-fusion, clinical entity boosting elevates passages mentioning the patient�
 
 ### 3.4.12. Evidence Linking and Citation Module
 
-**Module:** `app/modules/evidence_linking/service.py`
+**Implementation:** `app/modules/evidence_linking/service.py`
 
-**Responsibility:** Map recommendation constraint references to retrieved evidence chunks and prioritize context for display.
+**Purpose.** Connect deterministic recommendation metadata to retrieved passages so cards and narratives cite the right source.
 
-**Design:**
+**Behavior.** `find_chunk_for_claim()` matches claims to chunks by document, section, and text overlap. `enrich_recommendation_evidence()` attaches constraint `evidence_ref` chunk IDs to each `MedicationRecommendation`. `prioritize_context_chunks()` reorders context so linked passages appear before generic high-score hits. Citation helpers append PDF page fragments (`#page=N`) so clinicians can open the exact location in source documents.
 
-- `find_chunk_for_claim(claim, chunks)` — matches on `document_id` + `section` + `text` substring. Returns the matched chunk with its `chunk_id`.
-- `enrich_recommendation_evidence(response)` — attaches constraint `evidence_ref` chunk IDs to each `MedicationRecommendation`. The recommendation’s `evidence` field then contains the full chunk text and metadata.
-- `prioritize_context_chunks(context, linked_chunk_ids)` — reorders the evidence chunk list so chunks matching recommendation evidence links appear first. Linked chunks surface above generic high-score chunks.
-
-Citation helpers construct source links with PDF page fragments: `source_url + “#page=” + str(page)`. This enables clinicians to open the exact citation location in the original document.
-
-**Key test cases:** TC-D-03 through TC-D-05 (Section 3.4.5).
-
-**Implementation file:** `backend/app/tests/test_drug_normalization_and_evidence_linking.py`
+**Verification.** TC-D-03 through TC-D-05 (Section 3.4.5).
 
 ---
 
 ### 3.4.13. Citation Validation Module
 
-**Module:** `app/modules/citation_validation/service.py`
+**Implementation:** `app/modules/citation_validation/service.py`
 
-**Responsibility:** Verify that cited evidence is actually present in the retrieved context, and construct clickable source links.
+**Purpose.** Before streaming an answer, verify that cited evidence actually appears in the retrieved context.
 
-**Design:**
-
-```python
-validate_citations(recommendation, context) → CitationValidationResult
-source_link_for_chunk(chunk) → str  # appends #page=N
-```
-
-`validate_citations()` cross-checks each constraint’s `evidence_ref` against the retrieved `evidence_chunks`. It produces:
-- `supports` — list of validated citations with evidence verdict (`supported`/`weakly_supported`/`unsupported`) and confidence score
-- `status` — `strong` (all cited, high confidence), `weak` (some cited, mixed confidence), `missing` (none cited)
-
-`source_link_for_chunk()` constructs `https://example.org/hf.pdf#page=42` from chunk metadata.
+**Behavior.** `validate_citations(recommendation, context)` cross-checks each constraint `evidence_ref` against `evidence_chunks`, producing per-citation verdicts (`supported`, `weakly_supported`, `unsupported`) and an aggregate status (`strong`, `weak`, `missing`). `source_link_for_chunk()` builds clickable URLs with page anchors from chunk metadata.
 
 **Key test cases:**
 
 | TC | Description |
 |----|-------------|
-| TC-CV-01 | Citation with matching chunk → supported verdict with evidence_refs |
-| TC-CV-02 | Source link includes PDF page fragment — `#page=42` appended |
-| TC-CV-03 | Confidence score > 0 for supported items |
+| TC-CV-01 | Matching chunk → supported verdict with evidence_refs |
+| TC-CV-02 | Source link includes `#page=N` fragment |
+| TC-CV-03 | Confidence score &gt; 0 for supported items |
 
 **Implementation file:** `backend/app/tests/test_citation_validation.py`
 
@@ -591,31 +453,29 @@ source_link_for_chunk(chunk) → str  # appends #page=N
 
 ### 3.4.14. GraphRAG Verification Agents Module
 
-**Module:** `app/modules/verification_agents/` (six agent implementations)
+**Implementation:** `app/modules/verification_agents/` (six agents)
 
-**Responsibility:** Independent cross-checks of the deterministic recommendation before narrative generation.
+**Purpose.** Independent agents cross-check the deterministic recommendation and retrieved context before narrative generation—a fail-closed gate on top of rules.
 
-**Design:** Six agents run after the recommendation and GraphRAG context are both available:
+**Agents.**
 
 | Agent | Role | Fail-closed behavior |
 |-------|------|---------------------|
-| `safety_agent` | Verifies hard avoid constraints are respected | Fails the verdict if hard block fires while narrative sounds permissive |
-| `missing_data_agent` | Checks required labs are present for the inferred intent | Warns if critical labs remain unset |
-| `evidence_agent` | Confirms evidence was retrieved for cited claims | Fails if no usable chunks returned |
-| `guideline_alignment_agent` | Checks recommendation against guideline policy | Passes if within guideline bounds |
-| `citation_validator_agent` | Validates citation-to-chunk linkage | Sets citation status (strong/weak/missing) |
-| `final_reviewer_agent` | Aggregates all agent verdicts | Sets final verdict: `pass`, `warning`, or `fail` |
-
-The join point is at verification: agents await both the `RecommendationResponse` object and the `GraphRAGContextResponse` before streaming safety outcomes. Fail-closed means any `fail` verdict cascades to `final_verdict = “fail”` regardless of other agents passing.
+| `safety_agent` | Hard avoid constraints respected | Fails if block contradicted by permissive narrative |
+| `missing_data_agent` | Required labs for intent | Warns when critical labs unset |
+| `evidence_agent` | Evidence retrieved for claims | Fails if no usable chunks |
+| `guideline_alignment_agent` | Within guideline bounds | Passes when policy-consistent |
+| `citation_validator_agent` | Citation-to-chunk linkage | Sets strong/weak/missing citation status |
+| `final_reviewer_agent` | Aggregates verdicts | Any `fail` → `final_verdict=fail` |
 
 **Key test cases:**
 
 | TC | Description |
 |----|-------------|
-| TC-G-01 | GraphRAG context returns graph_facts + evidence_chunks + retrieval_sources |
-| TC-G-02 | All 6 agents produce results on a typical HFrEF case |
-| TC-G-03 | Final verdict is one of pass/warning/fail |
-| TC-G-04 | Citation validation status is strong/weak/missing |
+| TC-G-01 | GraphRAG context returns graph_facts, evidence_chunks, retrieval_sources |
+| TC-G-02 | All six agents produce results on typical HFrEF case |
+| TC-G-03 | Final verdict ∈ {pass, warning, fail} |
+| TC-G-04 | Citation status ∈ {strong, weak, missing} |
 
 **Implementation file:** `backend/app/tests/test_graphrag_agents.py`
 
@@ -623,173 +483,133 @@ The join point is at verification: agents await both the `RecommendationResponse
 
 ### 3.4.15. Explanation and Card Summarizer Module
 
-**Module:** `app/modules/explanation/card_summarizer.py`, `app/modules/explanation/llm_service.py`
+**Implementation:** `app/modules/explanation/card_summarizer.py`, `llm_service.py`
 
-**Responsibility:** Produce bilingual plain-language recommendation summaries — deterministic and LLM-assisted.
+**Purpose.** Deliver bilingual, plain-language summaries suitable for busy clinicians—fast enough to toggle language without re-running retrieval.
 
-**Design:** Two layers.
-
-**Layer 1 — Deterministic card summarizer** (`card_summarizer.py`):
-
-```python
-deterministic_card_summary(item, language) → str
-deterministic_card_details(item, language) → CardDetails
-apply_deterministic_summaries(response, language) → RecommendationResponse
-```
-
-Drug class codes map to readable phrases. Status codes map to badge text. Language toggling regenerates labels in under two seconds without re-running GraphRAG or reasoning. `merge_summaries()` combines LLM-generated per-item summaries with deterministic fallbacks: if the LLM does not provide a summary for a given drug class, the deterministic version is used instead.
-
-**Layer 2 — LLM answer service** (`llm_service.py`):
-
-```python
-attach_plain_language_summaries(response, language) → RecommendationResponse
-_compact_recommendation(request) → dict
-fallback_answer(request) → str
-```
-
-When enabled, an LLM call generates natural language summaries per drug class using a structured JSON response validated by Pydantic. Responses are cached in Redis (24 h TTL) keyed by recommendation hash. When the LLM is disabled or the cache misses, `fallback_answer()` prefers `plain_language_summary` over generated text — the structured field is authoritative.
-
-The system prompt (`CLINICAL_EXPLANATION_SYSTEM_PROMPT`) instructs the model to: cite plain-language summaries, not soft-pedal hard blocks, acknowledge uncertainty, and defer final treatment decisions to the clinician.
+**Two layers.** Deterministic card summarizer maps drug-class codes to localized phrases in under two seconds. LLM layer (`attach_plain_language_summaries()`) generates richer prose per class, cached in Redis (24 h). For Vietnamese and English outputs, Han-script characters are stripped from streamed tokens when the resolved locale is not Chinese—preventing CJK leakage from the base model. `question_focus.py` derives `focus_class_ids` from the clinician message and prior assistant excerpt so follow-up answers stay on the requested drug class. `merge_summaries()` falls back per item; structured `plain_language_summary` is authoritative over generated text.
 
 **Key test cases:**
 
 | TC | Description |
 |----|-------------|
-| TC-CS-01 | Vietnamese deterministic summary contains ARNI/RAAS — no English “No clear current” text |
-| TC-CS-02 | Vietnamese card details next_steps are plain language, not clinical English |
-| TC-CS-03 | Unknown drug classes ignored in LLM summary map — not included in output |
-| TC-CS-04 | Merge falls back per-item — missing LLM summary for one class, deterministic used for that class |
-| TC-CS-05 | Fallback answer prefers plain_language_summary over generated text |
-| TC-CS-06 | Compact recommendation includes plain_language_summary |
-| TC-CS-07 | LLM disabled → deterministic text used, no LLM call made |
-| TC-CS-08 | LLM JSON response correctly mapped to drug class summaries |
+| TC-CS-01 | Vietnamese summary contains ARNI/RAAS; no English placeholder |
+| TC-CS-02 | Vietnamese card details in plain language |
+| TC-CS-03 | Unknown drug classes ignored in LLM map |
+| TC-CS-04 | Per-item fallback when LLM omits one class |
+| TC-CS-05 | `fallback_answer` prefers `plain_language_summary` |
+| TC-CS-06 | Compact payload includes plain_language_summary |
+| TC-CS-07 | LLM disabled → deterministic text only |
+| TC-CS-08 | LLM JSON mapped to correct drug-class summaries |
+| TC-CS-09 | Han-script characters stripped from vi/en streamed tokens and compact payload |
+| TC-CS-10 | Follow-up clinical state inherits `focus_class_ids` from prior assistant message |
 
-**Implementation file:** `backend/app/tests/test_card_summarizer.py`
+**Implementation file:** `backend/app/tests/test_card_summarizer.py`, `backend/app/tests/test_explanation.py`
 
 ---
 
 ### 3.4.16. Chat Orchestration and SSE Module
 
-**Module:** `app/modules/chat/service.py` — `stream_chat()`
+**Implementation:** `app/modules/chat/service.py` (`stream_chat`), `app/modules/chat/language.py`, `app/modules/chat/clinical_state.py`, `app/modules/question_planner/service.py`, `app/modules/missing_fields/service.py`
 
-**Responsibility:** Orchestrate the full chat pipeline from clinician message to SSE stream, with patient draft persistence and multi-turn conversation continuity.
+**Purpose.** Orchestrate the full turn from authenticated message to streamed response, preserving multi-turn patient context, bilingual locale, multi-question threads, and audit payloads.
 
-**Design:** `stream_chat()` is the primary entry point. Processing follows a fixed safety-first sequence:
+**Language resolution.** `detect_message_language()` applies fast heuristics (Vietnamese diacritics, bilingual keyword hints, English question words) without an LLM call. `resolve_chat_language()` prefers the detected locale over the UI `language` field so a Vietnamese question still receives Vietnamese cards even when the dashboard toggle is English.
 
-1. **Authenticate** — validate JWT, establish role
-2. **Ensure conversation** — create or append to `chat_conversations`
-3. **Hybrid intake** — call `extract_patient_from_message_sync` with conversation history context
-4. **Merge draft** — combine extracted fields with prior draft for this conversation; save and emit `draft_ready`
-5. **Missing-field gate** — if critical labs are absent for inferred intent → emit `missing_check` with clarification prompt; **do not** produce a recommendation
-6. **Parallel execution** (asyncio):
-   - `create_task` — GraphRAG prefetch runs async
-   - `to_thread` — PostgreSQL rule evaluation runs in worker thread (keeps event loop free)
-7. **Verification** — fork-join point; await both recommendation and GraphRAG context
-8. **Summarization** — deterministic card labels + LLM plain-language summaries
-9. **Streaming** — emit `recommendation_ready`, `verification_ready`, `answer_delta` tokens, then `done`
+**Question planning.** `plan_clinical_questions()` splits compound messages into ordered `PlannedQuestion` objects with per-question intent, `focus_class_ids`, and `required_data_fields`. A rule-based fallback always runs; an optional LLM planner enriches ambiguous cases. `looks_like_obvious_single_question()` skips the planner LLM when the rule split finds exactly one question—reducing latency on typical single-intent turns. On the first draft of a conversation, planning and patient intake execute in parallel via `asyncio.gather`.
 
-**SSE event contract:**
+**Clinical state.** `build_clinical_state()` compresses the merged profile and message into intent (`dose_adjustment`, `start_medication`, `choice_question`, `follow_up_detail`, etc.), HF phenotype, key labs/vitals, safety flags, mentioned medications, and focus GDMT classes. On follow-up turns, `focus_class_ids_from_message()` also reads the prior assistant excerpt so “explain more” stays anchored to the drug class already under discussion.
 
-| Event | Payload | When |
-|-------|---------|------|
-| `status` | stage name | Progress updates |
-| `draft_ready` | `PatientDraft` | After intake merge |
-| `missing_check` | `MissingFieldCheck` | When required labs absent |
-| `recommendation_ready` | `RecommendationResponse` | After reasoning |
-| `verification_ready` | `VerificationResult` | After agents |
-| `answer_delta` | token string | LLM streaming |
-| `done` | full response snapshot | End of turn |
+**Missing-field gate.** `check_missing_fields()` and `check_required_field_ids()` stop the turn when GDMT labs or dose-personalization fields are absent. Dose intents accept eGFR without redundant creatinine; ARNI questions on ACEi therapy require `acei_last_dose_hours_ago`. `build_missing_fields_prompt()` echoes the active sub-question index when a multi-question batch is in progress.
 
-**Multi-turn continuity:** Conversation history contributes previously stated facts to intake extraction, so clinicians do not retype lab values on every message. Patient drafts are persisted in PostgreSQL (Redis cache, 30 min TTL) for reload across sessions.
+**Multi-question flow.** When two or more questions are detected, the orchestrator answers the first, emits `multi_question_ready`, and stores pending state. The clinician continues with `multi_question_action=continue` or stops with `stop`. Confirmation footers append to streamed answers without hiding the LLM prose.
+
+**Processing order (safety-first).** After language resolve and optional parallel plan+intake, hybrid intake merges the patient draft (`draft_ready`). If critical fields are missing, the pipeline emits `missing_check` and stops. Otherwise GraphRAG prefetch runs asynchronously while PostgreSQL rule evaluation executes in a worker thread. Verification joins both branches; summarization prepares cards and optional LLM prose; the stream emits `recommendation_ready`, `verification_ready`, tokenized `answer_delta` events, and a terminal `done` snapshot. Each terminal path records a structured chat audit payload.
+
+**SSE contract.** Progress `status` events bracket the turn. `question_plan_ready` carries the planner output. `draft_ready` carries the merged `PatientDraft`. `missing_check` lists absent fields. `multi_question_ready` exposes pending sub-questions. `recommendation_ready` and `verification_ready` surface structured safety artifacts before narrative tokens. `answer_delta` streams explanation text. `done` closes with the full response.
+
+**Continuity.** Conversation history informs intake on follow-up turns; drafts persist in PostgreSQL with Redis caching (30 min TTL).
 
 **Key test cases:**
 
 | TC | Description |
 |----|-------------|
-| TC-CH-01 | Missing systolic_bp → status=needs_more_information with missing_check event listing systolic_bp |
-| TC-CH-02 | SSE stream contains draft_ready + missing_check + answer_delta + done events |
-| TC-CH-03 | Nested patient payload fully merged — weight_kg 70 from nested payload |
-| TC-CH-04 | Chat uses intake extractor — Entresto → sacubitril/valsartan, no false CKD |
-| TC-CH-05 | Chat history persisted — GET /chat/{id}/history returns 2 messages |
+| TC-LG-01 | Vietnamese diacritics → `vi` |
+| TC-LG-02 | English clinical question → `en` |
+| TC-LG-03 | ASCII Vietnamese hints → `vi` |
+| TC-LG-04 | Detected locale overrides UI default |
+| TC-QP-01 | Multi-question message → three planned sub-questions with required fields |
+| TC-QP-02 | ARNI plan requires `acei_last_dose_hours_ago` when patient on ACEi |
+| TC-QP-03 | Planner falls back when LLM disabled |
+| TC-QP-04 | Rule split preserved when LLM under-splits |
+| TC-MF-01 | Dose intent: eGFR present → creatinine not required |
+| TC-MF-02 | Missing eGFR and creatinine → renal lab requested |
+| TC-MF-03 | ARNI on ACEi → washout timing requested in EN/VI prompt |
+| TC-MF-04 | Multi-question index echoed in missing-fields prompt |
+| TC-CH-01 | New turn creates draft and asks for missing fields |
+| TC-CH-02 | SSE stream emits `missing_check` before early `done` |
+| TC-CH-03 | Nested patient payload accepted; intake enriches contextual fields |
+| TC-CH-04 | Chat history reloads from persistent store |
+| TC-CH-05 | Prior-turn clinical facts merge into draft |
+| TC-CH-06 | Multi-question message → `multi_question_ready` SSE event |
+| TC-CH-07 | `multi_question_action=stop` clears pending batch |
+| TC-CH-08 | `multi_question_action=continue` answers next sub-question |
 
-**Implementation file:** `backend/app/tests/test_chat.py`
+**Implementation files:** `backend/app/tests/test_chat_language.py`, `test_question_planner.py`, `test_missing_fields.py`, `test_chat.py`, `test_explanation.py`
 
 ---
 
 ### 3.4.17. Governance and Admin Module
 
-**Module:** `app/modules/governance/`, `app/api/routes/admin/` (6 admin route modules)
+**Implementation:** `app/modules/governance/`, `app/api/routes/admin/`
 
-**Responsibility:** Human-in-the-loop review and lifecycle management of clinical decision rules.
+**Purpose.** Human-in-the-loop control over catalogs produced by the offline pipeline. Only approved executable tiers load into online reasoning; retired rules disappear from runtime loaders while history remains auditable.
 
-**Design:**
-
-- **Diff engine** (`governance/diff.py`): `diff_field_map(before, after, field_list) → list[Change]`. Each catalog family has a field list: `CONSTRAINT_DIFF_FIELDS` (9 fields), `DOSE_DIFF_FIELDS` (8), `INTERACTION_DIFF_FIELDS` (9), `GDMT_DIFF_FIELDS` (8), `DOSE_SAFETY_DIFF_FIELDS` (8). Changes are typed as `added`, `removed`, or `modified` with field path.
-- **Status transitions:** `draft` → `approved` → `retired`. Invalid transitions return HTTP 400.
-- **Role enforcement:** `clinical_lead` can approve and retire rules; `viewer` can read active rules only; `admin` has full access. Bulk approve helpers exist for trusted batches, still under role checks.
-
-Admin routes (registered under `/admin/`):
-
-| Route | Method | Role required | Description |
-|-------|--------|-------------|-------------|
-| `/admin/constraints` | GET | clinical_lead/admin | List constraint rules by status |
-| `/admin/constraints/rules/{id}` | PATCH | clinical_lead/admin | Approve/retire a rule |
-| `/admin/evidence/search` | GET | admin | Evidence passage search |
-| `/admin/users` | GET/POST | admin | User management |
-| `/admin/dose_rules` | GET | clinical_lead/admin | List dose rules |
-| `/admin/interaction_rules` | GET | clinical_lead/admin | List interaction rules |
-| `/admin/gdmt_policies` | GET | clinical_lead/admin | List GDMT policies |
-| `/admin/audit` | GET | clinical_lead/admin | Audit log |
-
-Cache invalidation (`invalidate_constraint_cache()`) runs synchronously on approve/retire operations to ensure the next chat request sees updated rules.
+**Lifecycle.** Rules progress `draft` → `approved` → `retired`; invalid transitions return HTTP 400. The diff engine (`governance/diff.py`) compares versions field-by-field per catalog family (constraints, dose rules, interactions, GDMT policies, dose-safety warnings), surfacing added, removed, or modified fields for reviewers. Role enforcement limits approval to `clinical_lead` and full administration to `admin`; `viewer` reads active catalogs only. Admin routes under `/admin/` expose list, search, approve, retire, user management, governance audit log access, and searchable chat audit at `/admin/audit/chat`. Approve and retire synchronously invalidate constraint caches so the next chat turn sees updated logic.
 
 **Key test cases:**
 
 | TC | Description |
 |----|-------------|
-| TC-AD-01 | Admin routes require JWT — 401 without token |
-| TC-AD-02 | Clinical lead can access active rules — 200 with list |
-| TC-AD-03 | Viewer role forbidden — 403 on admin constraint routes |
-| TC-AD-04 | Admin role required for user management — 403 for clinical_lead |
-| TC-AD-05 | JWT bearer token works for clinical routes without API key |
-| TC-AD-06 | Rule status approve/retire requires clinical_lead role |
-| TC-AD-07 | Invalid transition (draft → retired) → HTTP 400 |
-| TC-AD-08 | Diff field map detects reason change, ignores unchanged fields |
+| TC-AD-01 | Admin constraint routes require JWT |
+| TC-AD-02 | `clinical_lead` can read active rules; `viewer` rejected on write routes |
+| TC-AD-03 | `admin` can list and create users |
+| TC-AD-04 | Approve draft rule → status `approved` |
+| TC-AD-05 | Invalid lifecycle transition → HTTP 400 |
+| TC-AD-06 | Diff engine detects field-level changes |
+| TC-AD-07 | Bearer JWT accesses clinical routes without API key |
+| TC-AD-08 | Versioned and legacy auth login paths both work |
 
-**Implementation files:** `backend/app/tests/test_governance.py`, `backend/app/tests/test_admin_routes.py`
+**Implementation files:** `backend/app/tests/test_governance.py`, `test_admin_routes.py`
 
 ---
 
 ### 3.4.18. Auth and Security Module
 
-**Module:** `app/core/jwt.py`, `app/core/passwords.py`, `app/core/middleware.py`
+**Implementation:** `app/core/jwt.py`, `passwords.py`, `middleware.py`
 
-**Responsibility:** Authenticate clinicians and authorize governance operations.
+**Purpose.** Authenticate clinicians, authorize governance actions, and reduce abuse and data-leakage risk on a system that handles clinical narratives.
 
-**Design:**
+**Mechanisms.** Short-lived JWT access tokens encode user ID and roles; session cookies offer a browser-friendly alternative cleared on logout. Machine clients may use `X-API-Key`. RBAC distinguishes `clinical_lead` (chat plus rule approval), `clinician`/`doctor` (chat), `admin` (full access), and `viewer` (read-only catalogs). Login rate limiting uses a sliding window in middleware. Validation errors avoid echoing raw user input that might contain PHI—only field names and structured codes return. Each request receives a propagated request ID for log correlation. Revoked or inactive users are rejected even when the token signature is valid.
 
-- **JWT access tokens** (15-minute expiry): encode `sub` (user ID) and `roles` list. Validated on every protected route.
-- **JWT session cookies**: cookie-based alternative to bearer token, cleared on logout.
-- **API key**: `X-API-Key` header accepted for machine clients and tests.
-- **Role-based access control** (RBAC): three roles — `clinical_lead` (chat + rule approval), `clinician`/`doctor` (chat only), `admin` (full access), `viewer` (read-only active catalogs).
-- **Login rate limiting** via sliding window in `app/core/middleware.py` — blocks after N failed attempts within a time window.
-- **PHI echo prevention**: validation error responses do not echo input strings that could contain PHI; only field names and structured error codes are returned.
-- **Request ID propagation**: every request tagged with a unique ID propagated through logs and error responses.
-- **Token revocation**: inactive users rejected even with a valid signature.
+**Verification.** TC-AD-01 through TC-AD-05 plus `test_security_hardening.py` and `test_production_hardening.py` (rate limits, metrics, degraded-dependency responses).
 
-**Key test cases:** TC-AD-01 through TC-AD-05 (Section 3.4.17). Additional production hardening tests in `test_production_hardening.py` cover rate limiting on `/chat` and `/chat/stream`, Prometheus metrics, and degraded-dependency 503 responses.
+---
 
-**Implementation files:** `backend/app/tests/test_admin_routes.py`, `backend/app/tests/test_security_hardening.py`, `backend/app/tests/test_production_hardening.py`
+### 3.4.19. Chat Persistence and Audit Modules
 
+**Implementation:** PostgreSQL chat tables; `cdss_audit_events`; `app/modules/datastores/postgres.py` (`search_chat_audit_events`); `app/api/routes/admin/audit.py`
 
+**Purpose.** The CDSS is not a hospital-wide EHR, but conversation and recommendation audit trails are first-class. Conversations, messages, and patient drafts persist in PostgreSQL so sessions reload across visits. Redis caches hot drafts for latency. `_chat_audit_payload()` records missing-field stops, recommendation completions, and governance actions with timestamps, actor identity, user question text, patient snapshot, and assistant answer metadata—supporting later review in the admin portal (`ChatAuditPage`).
 
+**Key test cases:**
 
+| TC | Description |
+|----|-------------|
+| TC-AU-01 | `GET /admin/audit/chat?q=…` returns searchable chat audit items (admin JWT) |
+| TC-AU-02 | Audit payload includes `user_question`, patient snapshot, and assistant answer |
 
-Governance supports list, detail, diff, approve, retire, and history operations for constraint, dose, interaction, GDMT, and dose-safety catalogs. Clinical leads refine conditions that extraction could not fully encode. Bulk approve helpers may exist for trusted batches, still under role checks. Diff views help reviewers see what changed between pipeline runs before promotion.
-
-### 3.4.11. Chat Persistence and Audit Modules
-
-Conversations, messages, and patient drafts persist in PostgreSQL so history can be reloaded across sessions. Redis may cache hot drafts for latency. Audit events record missing-field stops, recommendation outcomes, and governance actions with timestamps and actor identity. The CDSS is still not an EHR system of record for the whole hospital chart, but conversation and recommendation audit trails are first-class design artifacts.
+**Implementation files:** `backend/app/tests/test_chat_audit_api.py`, `test_chat.py` (history persistence)
 
 ## 3.5. Database and Storage Design
 
@@ -864,7 +684,7 @@ At runtime, patient medication and condition terms are resolved to graph nodes, 
 
 ### 3.5.5. Object Storage Design
 
-S3-compatible storage (LocalStack in development, AWS S3 in production) hosts two primary bucket families:
+S3-compatible storage hosts two primary bucket families. Development uses **MinIO** (port 4566) with a named Docker volume so artifacts survive container recreate; production uses AWS S3 with the same key layout.
 
 | Bucket | Content | Purpose |
 |---|---|---|
@@ -897,7 +717,7 @@ The API is registered under `app/api/router.py`. All routes share the `/api/v1` 
 | `admin/dose_safety_warnings_router` | `/admin/dose_safety` | JWT (clinical_lead/admin) | Dose safety governance |
 | `admin/interaction_rules_router` | `/admin/interactions` | JWT (clinical_lead/admin) | Interaction rule governance |
 | `admin/gdmt_policies_router` | `/admin/gdmt` | JWT (clinical_lead/admin) | GDMT policy governance |
-| `admin/users_router` | `/admin/users` | JWT (admin) | User management |
+| `admin/audit_router` | `/admin/audit`, `/admin/audit/chat` | JWT (clinical_lead/admin) | Governance and chat audit search |
 
 Legacy aliases mount `/api/auth/*` alongside versioned auth routes. A `/routes` endpoint catalogs all public routes for API explorer tooling.
 
@@ -905,7 +725,7 @@ Legacy aliases mount `/api/auth/*` alongside versioned auth routes. A `/routes` 
 
 The primary clinician path is streaming chat at `POST /api/v1/chat/stream`. A non-streaming version exists at `POST /api/v1/chat`. History endpoints (`GET /api/v1/chat/{conversation_id}/history`) reload messages and drafts. Requests carry JWT credentials, message text, conversation identifier, optional pre-seeded patient fields, language preference, and optional attachments.
 
-SSE event order is a hard API contract: status frames, `draft_ready`, `missing_check` when needed, then either early `done` or the sequence `recommendation_ready`, `verification_ready`, `answer_delta` tokens, and `done`. Clients must render GDMT grids from recommendation payloads, not from answer tokens.
+SSE event order is a hard API contract: status frames, optional `question_plan_ready`, `draft_ready`, `missing_check` when needed, optional `multi_question_ready`, then either early `done` or the sequence `recommendation_ready`, `verification_ready`, `answer_delta` tokens, and `done`. Clients must render GDMT grids from recommendation payloads, not from answer tokens.
 
 ### 3.5.2. Supporting Clinical APIs
 
@@ -967,7 +787,7 @@ This chapter specified the complete system design of the heart-failure CDSS grou
 
 The architecture combines a three-tier online stack with an offline knowledge-construction plane. Authority stays with governed PostgreSQL rules; GraphRAG and language models support retrieval and explanation; SSE ordering delivers safety artifacts before prose.
 
-Section 3.4 detailed 18 functional modules with actual function signatures and test case references:
+Section 3.4 detailed 19 functional modules with implementation references and test case IDs:
 - **3.4.1** Clinical intake: `extract_patient_from_message_sync` with three-stage regex→semantic→LLM pipeline; prompt injection defense; negation detection; TC-I-01 through TC-I-06
 - **3.4.2** Normalization: pure classification functions `classify_hf_type`, `classify_renal_status`, `classify_potassium_status`, `classify_bp_status`, `classify_hr_status`, `detect_polypharmacy`; TC-N-01 through TC-N-06
 - **3.4.3** Risk extraction: `extract_risks` producing 12 risk flags including `ckd_history` preservation invariant; TC-R-01 through TC-R-04
@@ -982,9 +802,10 @@ Section 3.4 detailed 18 functional modules with actual function signatures and t
 - **3.4.12** Evidence linking: `enrich_recommendation_evidence`, `prioritize_context_chunks`
 - **3.4.13** Citation validation: `validate_citations`, `source_link_for_chunk` with `#page=N` fragments; TC-CV-01 through TC-CV-03
 - **3.4.14** Verification agents: six-agent pipeline with fail-closed behavior; TC-G-01 through TC-G-04
-- **3.4.15** Explanation: deterministic card summarizer + LLM service with Redis cache; TC-CS-01 through TC-CS-08
-- **3.4.16** Chat orchestration: `stream_chat` with SSE contract (7 event types); TC-CH-01 through TC-CH-05
-- **3.4.17** Governance: diff engine, status transitions, role enforcement; TC-AD-01 through TC-AD-08
+- **3.4.15** Explanation: deterministic card summarizer + LLM service with Redis cache, CJK strip for vi/en, `question_focus` follow-up anchoring; TC-CS-01 through TC-CS-08
+- **3.4.16** Chat orchestration: language auto-detect, parallel question planner + intake, clinical state, multi-question SSE, missing-field gate; TC-LG/QP/MF/CH series
+- **3.4.17** Governance: diff engine, status transitions, role enforcement, chat audit search; TC-AD-01 through TC-AD-08
 - **3.4.18** Auth: JWT + API key + cookie, RBAC, rate limiting, PHI echo prevention
+- **3.4.19** Chat persistence and audit: PostgreSQL conversations, drafts, `search_chat_audit_events`; TC-AU-01 through TC-AU-02
 
 Section 3.5 documented all 19 API route modules registered under `/api/v1`. Sections 3.6–3.10 cover storage design (PostgreSQL governance catalogs, Redis cache, ChromaDB, Neo4j, S3), interface design (doctor dashboard, admin portal), deployment (Docker Compose, Nginx), and security (JWT, RBAC, threat model). Chapter 4 maps this design to concrete implementation, pipelines, and the full test case suite.
