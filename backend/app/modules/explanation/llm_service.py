@@ -39,6 +39,24 @@ from app.core.redis_client import redis_client
 
 SAFETY_NOTE = "Đây là hỗ trợ quyết định lâm sàng dựa trên dữ liệu cung cấp. Quyết định điều trị cuối cùng thuộc về bác sĩ điều trị sau khi đánh giá toàn diện bệnh nhân."
 
+_CJK_TARGET_LANGUAGES = frozenset({"zh", "zh-cn", "zh-tw", "ja", "ko"})
+_LLM_ANSWER_MAX_TOKENS = 600
+_HAN_SCRIPT_RE = re.compile(r"[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]")
+
+
+def _should_strip_cjk_script(lang: str) -> bool:
+    return (lang or "vi").lower() not in _CJK_TARGET_LANGUAGES
+
+
+def _strip_han_script(text: str) -> str:
+    return _HAN_SCRIPT_RE.sub("", text or "").strip()
+
+
+def _sanitize_stream_token(content: str, lang: str) -> str:
+    if not _should_strip_cjk_script(lang):
+        return content
+    return _strip_han_script(content)
+
 
 def _compact_constraints(payload: LLMAnswerRequest, focus: set[str]) -> list[dict[str, str]]:
     status_by_class: dict[str, str] = {}
@@ -78,13 +96,13 @@ def _compact_constraints(payload: LLMAnswerRequest, focus: set[str]) -> list[dic
 
 def _lines_for_llm_payload(lines: list | None, *, lang: str) -> list[str]:
     lang_l = (lang or "vi").lower()
-    is_cjk_lang = lang_l in ("vi", "zh", "ja", "ko")
+    strip_cjk = _should_strip_cjk_script(lang_l)
     out: list[str] = []
     for raw in lines or []:
         text = str(raw or "").strip()
         if not text:
             continue
-        if not is_cjk_lang and _contains_cjk(text):
+        if strip_cjk and _contains_cjk(text):
             continue
         if text not in out:
             out.append(text)
@@ -96,20 +114,20 @@ def _text_for_llm_payload(text: str | None, item: Any, lang: str) -> str | None:
         return None
     cleaned = str(text).strip()
     lang_l = (lang or "vi").lower()
-    is_cjk_lang = lang_l in ("vi", "zh", "ja", "ko")
-    if not is_cjk_lang and _contains_cjk(cleaned):
+    strip_cjk = _should_strip_cjk_script(lang_l)
+    if strip_cjk and _contains_cjk(cleaned):
         cleaned = deterministic_card_summary(item, lang_l) or ""
     elif _needs_locale_fallback(cleaned, lang_l):
         cleaned = deterministic_card_summary(item, lang_l) or cleaned
-    # Final guard: strip CJK from the output so nothing leaks through.
-    if not is_cjk_lang and _contains_cjk(cleaned):
-        cleaned = re.sub(r"[一-鿿㐀-䶿豈-﫿]", "", cleaned).strip()
+    if strip_cjk and _contains_cjk(cleaned):
+        cleaned = _strip_han_script(cleaned)
     return cleaned.strip() or None
 
 
 def _per_class_fact_sheet(items: list, *, lang: str = "vi") -> dict[str, dict[str, Any]]:
     sheet: dict[str, dict[str, Any]] = {}
     lang_l = (lang or "vi").lower()
+    strip_cjk = _should_strip_cjk_script(lang_l)
     for item in items:
         class_id = (item.class_id or "").lower()
         if not class_id:
@@ -126,7 +144,7 @@ def _per_class_fact_sheet(items: list, *, lang: str = "vi") -> dict[str, dict[st
                 text = str(raw or "").strip()
                 if not text:
                     continue
-                if lang_l == "vi" and _contains_cjk(text):
+                if strip_cjk and _contains_cjk(text):
                     continue
                 allowed.append(text)
         sheet[class_id] = {
@@ -329,9 +347,8 @@ def _item_summary_for_locale(item: Any, lang: str) -> str:
 
 def _monitoring_lines_for_locale(items: list, lang: str, *, limit: int = 2) -> list[str]:
     raw = _short_clinical_lines(items, "monitoring", limit=limit)
-    is_cjk_lang = lang in ("vi", "zh", "ja", "ko")
-    if not is_cjk_lang:
-        # Non-CJK language: strip any CJK lines
+    strip_cjk = _should_strip_cjk_script(lang)
+    if strip_cjk:
         return [line for line in raw if not _contains_cjk(line)]
     lines: list[str] = []
     for line in raw:
@@ -639,6 +656,7 @@ async def stream_llm_answer(payload: LLMAnswerRequest) -> AsyncIterator[dict[str
     parts: list[str] = []
     finish_reason: str | None = None
     emitted_token = False
+    response_lang = (payload.language or "vi").lower()
     try:
         client = get_async_client("llm_answer_stream", settings.llm_timeout_seconds)
         async with client.stream(
@@ -652,7 +670,7 @@ async def stream_llm_answer(payload: LLMAnswerRequest) -> AsyncIterator[dict[str
                     {"role": "user", "content": json.dumps(compact_payload, ensure_ascii=False)},
                 ],
                 "temperature": 0.2,
-                "max_tokens": 420,
+                "max_tokens": _LLM_ANSWER_MAX_TOKENS,
                 "stream": True,
             },
         ) as response:
@@ -673,9 +691,12 @@ async def stream_llm_answer(payload: LLMAnswerRequest) -> AsyncIterator[dict[str
                 finish_reason = choices[0].get("finish_reason") or finish_reason
                 content = choices[0].get("delta", {}).get("content")
                 if isinstance(content, str) and content:
-                    parts.append(content)
+                    sanitized = _sanitize_stream_token(content, response_lang)
+                    if not sanitized:
+                        continue
+                    parts.append(sanitized)
                     emitted_token = True
-                    yield {"type": "token", "content": content}
+                    yield {"type": "token", "content": sanitized}
 
         answer = "".join(parts).strip()
         streamed_answer = answer
@@ -747,7 +768,7 @@ async def build_llm_answer(payload: LLMAnswerRequest) -> LLMAnswerResponse:
                     {"role": "user", "content": json.dumps(compact_payload, ensure_ascii=False)},
                 ],
                 "temperature": 0.2,
-                "max_tokens": 420,
+                "max_tokens": _LLM_ANSWER_MAX_TOKENS,
             },
         )
         response.raise_for_status()

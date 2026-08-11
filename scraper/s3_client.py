@@ -27,6 +27,7 @@ def s3_client(endpoint_url: str):
             region_name=os.environ.get("AWS_DEFAULT_REGION", "us-east-1"),
             config=Config(
                 retries={"max_attempts": 0},
+                s3={"addressing_style": "path"},
                 request_checksum_calculation="when_required",
                 response_checksum_validation="when_required",
             ),

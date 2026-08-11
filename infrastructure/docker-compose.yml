@@ -56,8 +56,10 @@ services:
         condition: service_healthy
       chromadb:
         condition: service_healthy
-      localstack:
+      minio:
         condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
     environment:
@@ -127,7 +129,7 @@ services:
       HF_CDSS_S3_PREFIX: ${HF_CDSS_S3_PREFIX:-heart_failure}
       HF_CDSS_RAW_ROOT: ${HF_CDSS_RAW_ROOT:-/tmp/hf_cdss_raw}
       HF_CDSS_AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-test}
-      HF_CDSS_AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-test}
+      HF_CDSS_AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-testtest}
       HF_CDSS_AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
       HF_CDSS_REDIS_URL: ${HF_CDSS_REDIS_URL:-redis://:${REDIS_PASSWORD:-change-me}@redis:6379/0}
       HF_CDSS_JWT_SECRET_KEY: ${HF_CDSS_JWT_SECRET_KEY:-hf-cdss-dev-jwt-secret-change-me}
@@ -153,8 +155,10 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      localstack:
+      minio:
         condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
       ollama:
         condition: service_healthy
     environment:
@@ -232,10 +236,10 @@ services:
       HF_CDSS_PROCESSED_BUCKET: ${HF_CDSS_PROCESSED_BUCKET:-hf-cdss-processed}
       HF_CDSS_S3_PREFIX: ${HF_CDSS_S3_PREFIX:-heart_failure}
       HF_CDSS_AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-test}
-      HF_CDSS_AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-test}
+      HF_CDSS_AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-testtest}
       HF_CDSS_AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-test}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-test}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-testtest}
       AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
       AWS_REQUEST_CHECKSUM_CALCULATION: when_required
       AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
@@ -386,31 +390,55 @@ services:
       start_period: 10s
     restart: unless-stopped
 
-  localstack:
-    image: localstack/localstack:3.8.1
-    container_name: hf_cdss_localstack
+  # MinIO replaces LocalStack CE for S3: CE keeps objects in memory (EphemeralS3ObjectStore)
+  # and does not survive container recreate even with volume mounts.
+  # DNS alias `localstack` keeps HF_CDSS_S3_ENDPOINT_URL=http://localstack:4566 unchanged.
+  minio:
+    image: minio/minio:latest
+    container_name: hf_cdss_minio
+    hostname: minio
+    command: server /data --console-address ":9001"
     ports:
-      - "${LOCALSTACK_HOST_PORT:-4566}:4566"
+      - "${LOCALSTACK_HOST_PORT:-4566}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
     environment:
-      SERVICES: s3
-      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-test}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-test}
-      PERSISTENCE: "1"
-      # Community edition: S3 objects are stored under /tmp/localstack-s3-storage (not /var/lib/localstack).
-      # Mount that path to a named volume so stop/start keeps buckets and objects.
-      DATA_DIR: /var/lib/localstack
+      MINIO_ROOT_USER: ${AWS_ACCESS_KEY_ID:-test}
+      MINIO_ROOT_PASSWORD: ${AWS_SECRET_ACCESS_KEY:-testtest}
     volumes:
-      - localstack_data:/var/lib/localstack
-      - localstack_s3_storage:/tmp/localstack-s3-storage
-      - ./localstack/init:/etc/localstack/init/ready.d:ro
+      - minio_data:/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://127.0.0.1:4566/_localstack/health"]
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:9000/minio/health/live"]
       interval: 10s
       timeout: 5s
       retries: 12
       start_period: 10s
     restart: unless-stopped
+    networks:
+      default:
+        aliases:
+          - localstack
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: hf_cdss_minio_init
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${AWS_ACCESS_KEY_ID:-test}
+      MINIO_ROOT_PASSWORD: ${AWS_SECRET_ACCESS_KEY:-testtest}
+      HF_CDSS_RAW_BUCKET: ${HF_CDSS_RAW_BUCKET:-hf-cdss-raw}
+      HF_CDSS_PROCESSED_BUCKET: ${HF_CDSS_PROCESSED_BUCKET:-hf-cdss-processed}
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        set -euo pipefail
+        mc alias set hf http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"
+        mc mb --ignore-existing "hf/$$HF_CDSS_RAW_BUCKET"
+        mc mb --ignore-existing "hf/$$HF_CDSS_PROCESSED_BUCKET"
+        echo "Buckets ready: $$HF_CDSS_RAW_BUCKET $$HF_CDSS_PROCESSED_BUCKET"
+    restart: "no"
 
   redis:
     image: redis:7-alpine
@@ -434,10 +462,8 @@ volumes:
     name: hf_cdss_neo4j_data
   chroma_data:
     name: hf_cdss_chroma_data
-  localstack_data:
-    name: hf_cdss_localstack_data
-  localstack_s3_storage:
-    name: hf_cdss_localstack_s3_storage
+  minio_data:
+    name: hf_cdss_minio_data
   redis_data:
     name: hf_cdss_redis_data
   frontend_node_modules:
@@ -445,7 +471,7 @@ volumes:
 
 # Single bridge for every service (fixed name). Without this, `docker compose` run from
 # different folders creates separate default networks — Airflow on `infrastructure_default`
-# cannot resolve `localstack` on `hf_cdss_default`.
+# cannot resolve `minio` / `localstack` on `hf_cdss_default`.
 networks:
   default:
     name: hf_cdss_net

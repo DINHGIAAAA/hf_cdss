@@ -66,6 +66,11 @@ export const MESSAGES = {
         streamFailed: "Streaming chat failed",
         noStream: "Chat API did not return a stream",
       },
+      multiQuestion: {
+        title: "{count} questions detected",
+        continue: "Continue",
+        stop: "Stop here",
+      },
       streamPhases: {
         intake: "Patient profile",
         recommendation: "Safety & GDMT",

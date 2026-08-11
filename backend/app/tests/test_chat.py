@@ -277,3 +277,227 @@ def test_chat_merges_prior_turn_clinical_facts(client, monkeypatch) -> None:
     assert patient["labs"]["potassium"]["value"] == 4.8
     assert patient["vitals"]["systolic_bp"]["value"] == 110
     assert patient["vitals"]["heart_rate"]["value"] == 68
+
+
+# --- Multi-question tests ---
+
+def test_chat_stream_emits_multi_question_ready_for_multi_question(client) -> None:
+    """When the backend detects multiple questions, it emits a multi_question_ready SSE event."""
+    with client.stream(
+        "POST",
+        api_path("/chat/stream"),
+        json={
+            "message": "Should we start MRA? And what about SGLT2i?",
+            "patient": {
+                "patient_identity": {"case_id": "MULTI_Q_READY"},
+                "care_context": {"clinician_question": "GDMT evaluation"},
+                "heart_failure_profile": {"lvef": {"value": 30}},
+                "labs": {"egfr": {"value": 55}, "potassium": {"value": 4.5}},
+                "vitals": {"systolic_bp": {"value": 110}, "heart_rate": {"value": 70}},
+                "conditions": [{"name": "HFrEF", "status": "active"}],
+                "medications": [{"name": "bisoprolol", "status": "active"}],
+                "allergy_statements": [{"substance": "NKDA", "status": "active"}],
+                "red_flags": [{"name": "stable", "status": "absent"}],
+            },
+        },
+    ) as response:
+        body = "".join(response.iter_text())
+
+    assert response.status_code == 200
+    assert "event: multi_question_ready" in body
+    assert "Should we start MRA" in body
+    assert "what about SGLT2i" in body or "SGLT2i" in body
+
+
+def test_chat_stream_stop_clears_pending_multi_question(client) -> None:
+    """Sending multi_question_action=stop clears the multi-question flow."""
+    conv_resp = client.post(
+        api_path("/chat"),
+        json={
+            "message": "Should we start MRA? And what about SGLT2i?",
+            "patient": {
+                "patient_identity": {"case_id": "MULTI_Q_STOP"},
+                "care_context": {"clinician_question": "GDMT review"},
+                "heart_failure_profile": {"lvef": {"value": 32}},
+                "labs": {"egfr": {"value": 60}, "potassium": {"value": 4.3}},
+                "vitals": {"systolic_bp": {"value": 115}, "heart_rate": {"value": 68}},
+                "conditions": [{"name": "HFrEF", "status": "active"}],
+                "medications": [{"name": "bisoprolol", "status": "active"}],
+                "allergy_statements": [{"substance": "NKDA", "status": "active"}],
+                "red_flags": [{"name": "stable", "status": "absent"}],
+            },
+        },
+    )
+    first = conv_resp.json()
+    assert first["status"] == "multi_question_confirm"
+    pending = first["pending_multi_question"]
+    assert pending is not None
+    assert len(pending.get("remaining_qs", [])) > 0
+
+    # Stop the flow
+    stop_resp = client.post(
+        api_path("/chat"),
+        json={
+            "message": "stop",
+            "conversation_id": first["conversation_id"],
+            "patient": {
+                "patient_identity": {"case_id": "MULTI_Q_STOP"},
+                "care_context": {"clinician_question": "GDMT review"},
+                "heart_failure_profile": {"lvef": {"value": 32}},
+                "labs": {"egfr": {"value": 60}, "potassium": {"value": 4.3}},
+                "vitals": {"systolic_bp": {"value": 115}, "heart_rate": {"value": 68}},
+                "conditions": [{"name": "HFrEF", "status": "active"}],
+                "medications": [{"name": "bisoprolol", "status": "active"}],
+                "allergy_statements": [{"substance": "NKDA", "status": "active"}],
+                "red_flags": [{"name": "stable", "status": "absent"}],
+            },
+            "multi_question_action": "stop",
+            "pending_multi_question": pending,
+        },
+    )
+    stopped = stop_resp.json()
+    # After stop, the pending_multi_question should be gone (multi-question flow ended)
+    assert stopped.get("pending_multi_question") is None
+    assert stopped["status"] in ("completed", "multi_question_confirm")
+
+
+def test_chat_continue_answers_next_question(client) -> None:
+    """Continuing after a multi-question answer processes the next question."""
+    first_resp = client.post(
+        api_path("/chat"),
+        json={
+            "message": "Should we start MRA? And what about SGLT2i?",
+            "patient": {
+                "patient_identity": {"case_id": "MULTI_Q_CONTINUE"},
+                "care_context": {"clinician_question": "GDMT review"},
+                "heart_failure_profile": {"lvef": {"value": 30}},
+                "labs": {"egfr": {"value": 50}, "potassium": {"value": 4.5}},
+                "vitals": {"systolic_bp": {"value": 110}, "heart_rate": {"value": 72}},
+                "conditions": [{"name": "HFrEF", "status": "active"}],
+                "medications": [{"name": "bisoprolol", "status": "active"}],
+                "allergy_statements": [{"substance": "NKDA", "status": "active"}],
+                "red_flags": [{"name": "stable", "status": "absent"}],
+            },
+        },
+    )
+    first = first_resp.json()
+    assert first["status"] == "multi_question_confirm"
+    pending = first["pending_multi_question"]
+
+    # Continue to the next question
+    second_resp = client.post(
+        api_path("/chat"),
+        json={
+            "message": "yes",
+            "conversation_id": first["conversation_id"],
+            "patient": {
+                "patient_identity": {"case_id": "MULTI_Q_CONTINUE"},
+                "care_context": {"clinician_question": "GDMT review"},
+                "heart_failure_profile": {"lvef": {"value": 30}},
+                "labs": {"egfr": {"value": 50}, "potassium": {"value": 4.5}},
+                "vitals": {"systolic_bp": {"value": 110}, "heart_rate": {"value": 72}},
+                "conditions": [{"name": "HFrEF", "status": "active"}],
+                "medications": [{"name": "bisoprolol", "status": "active"}],
+                "allergy_statements": [{"substance": "NKDA", "status": "active"}],
+                "red_flags": [{"name": "stable", "status": "absent"}],
+            },
+            "multi_question_action": "continue",
+            "pending_multi_question": pending,
+        },
+    )
+    second = second_resp.json()
+    # The second question should be processed (answer delta present)
+    assert second["status"] in ("completed", "multi_question_confirm")
+
+
+def test_single_question_no_multi_question_confirm(client) -> None:
+    """A single question should NOT trigger multi_question_confirm."""
+    resp = client.post(
+        api_path("/chat"),
+        json={
+            "message": "Should we start MRA for this HFrEF patient?",
+            "patient": {
+                "patient_identity": {"case_id": "SINGLE_Q_NO_MULTI"},
+                "care_context": {"clinician_question": "MRA evaluation"},
+                "heart_failure_profile": {"lvef": {"value": 28}},
+                "labs": {"egfr": {"value": 55}, "potassium": {"value": 4.6}},
+                "vitals": {"systolic_bp": {"value": 112}, "heart_rate": {"value": 70}},
+                "conditions": [{"name": "HFrEF", "status": "active"}],
+                "medications": [{"name": "bisoprolol", "status": "active"}],
+                "allergy_statements": [{"substance": "NKDA", "status": "active"}],
+                "red_flags": [{"name": "stable", "status": "absent"}],
+            },
+        },
+    )
+    data = resp.json()
+    assert data.get("pending_multi_question") is None
+
+
+def test_continue_updates_question_plans_so_active_question_is_current(client) -> None:
+    """After answering Q1 with continue, _question_plans must reflect Q2 so the
+    per-question missing check uses Q2's required_data_fields."""
+    from app.modules.chat import service as chat_service
+    from app.schemas.question_planner import PlannedQuestion, QuestionPlan
+
+    # Seed a plan with two questions and different required fields
+    conv_id = "test-qplan-sync"
+    plan = QuestionPlan(
+        source="llm",
+        reasoning="test",
+        questions=[
+            PlannedQuestion(
+                text="Should we start MRA?",
+                intent="start_medication",
+                focus_class_ids=["mra"],
+                required_data_fields=["lvef", "egfr", "potassium"],
+                priority=1,
+            ),
+            PlannedQuestion(
+                text="What about ARNI titration?",
+                intent="dose_adjustment",
+                focus_class_ids=["arni"],
+                required_data_fields=["lvef", "egfr", "systolic_bp", "heart_rate", "acei_last_dose_hours_ago"],
+                priority=2,
+            ),
+        ],
+        active_question_index=0,
+    )
+    chat_service._question_plans[conv_id] = plan
+    # Seed the pending_multi state pointing at Q2 (after Q1 was answered)
+    chat_service._pending_multi[conv_id] = {
+        "remaining": ["What about ARNI titration?"],
+        "answered": ["Should we start MRA?"],
+        "current_index": 1,
+        "total_questions": 2,
+        "active_planned_question": plan.questions[1].model_dump(mode="json"),
+        "plan": plan.model_dump(mode="json"),
+    }
+
+    # Apply continue action
+    from app.schemas.chat import ChatRequest
+    req = ChatRequest(
+        message="yes",
+        conversation_id=conv_id,
+        multi_question_action="continue",
+        pending_multi_question=chat_service.PendingMultiQuestion(
+            conversation_id=conv_id,
+            answered_qs=["Should we start MRA?"],
+            remaining_qs=["What about ARNI titration?"],
+            current_index=1,
+        ),
+    )
+    from app.modules.chat.service import _apply_multi_question_handling
+    updated_req, _ = _apply_multi_question_handling(req, conv_id, question_plan=plan)
+
+    # After apply, the request message should be Q2
+    assert "ARNI" in updated_req.message or "titration" in updated_req.message
+
+    # _pending_multi should be updated and _question_plans should reflect Q2
+    stored = chat_service._pending_multi.get(conv_id)
+    assert stored is not None
+    active = chat_service._active_planned_question(conv_id)
+    # Active planned question must be Q2 (ARNI), not Q1 (MRA)
+    assert active is not None
+    assert "arni" in (active.text or "").lower() or "titration" in (active.text or "").lower()
+
+

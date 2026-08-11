@@ -202,9 +202,7 @@ export function ClinicalChatRuntimeProvider({
                 confirmationAction: null,
                 conflicts: donePayload.conflicts || null,
                 pendingMultiQuestion:
-                  "pending_multi_question" in donePayload
-                    ? donePayload.pending_multi_question
-                    : current.pendingMultiQuestion,
+                  donePayload.pending_multi_question ?? current.pendingMultiQuestion ?? null,
                 multiQuestionAction: null,
               };
             });
@@ -244,7 +242,7 @@ export function ClinicalChatRuntimeProvider({
       const userId = `${conversationId}-user-${Date.now()}`;
       const assistantId = `${conversationId}-assistant-${Date.now()}`;
 
-      const continuePattern = /^(yes|y|continue|ok|okay|tiếp|tiep|tiếp tục|tiep tuc|đồng ý|dong y)$/i;
+      const continuePattern = /^(yes|y|continue|ok|okay)$/i;
       const isMultiContinue =
         current.pendingMultiQuestion?.remaining_qs?.length > 0 &&
         continuePattern.test(text.trim());

@@ -215,6 +215,17 @@ async def _call_llm_planner(
         return None
 
 
+def looks_like_obvious_single_question(message: str) -> bool:
+    """Fast path: skip planner LLM when rule split finds exactly one question."""
+    texts = detect_multi_question(message)
+    if len(texts) != 1:
+        return False
+    raw = (message or "").strip()
+    if raw.count("?") > 1:
+        return False
+    return True
+
+
 async def plan_clinical_questions(
     message: str,
     *,
@@ -227,6 +238,9 @@ async def plan_clinical_questions(
     fallback = fallback_question_plan(message, patient=patient, language=language)
 
     if not settings.question_planner_enabled:
+        return fallback
+
+    if looks_like_obvious_single_question(message) and len(fallback.questions) == 1:
         return fallback
 
     llm_data = await _call_llm_planner(

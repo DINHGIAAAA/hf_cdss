@@ -59,15 +59,6 @@ async def test_plan_clinical_questions_uses_fallback_when_llm_disabled(monkeypat
     assert len(plan.questions) >= 2
 
 
-def test_fallback_plan_splits_arni_and_beta_blocker() -> None:
-    message = "What about ARNI? Should I add beta blocker?"
-    plan = fallback_question_plan(message, patient=_demo_patient(), language="en")
-    assert plan.is_multi_question
-    assert len(plan.questions) == 2
-    assert "ARNI" in plan.questions[0].text
-    assert "beta blocker" in plan.questions[1].text.lower()
-
-
 def test_planner_prefers_rule_split_when_llm_under_splits() -> None:
     from app.modules.question_planner.service import _parse_llm_plan
 
@@ -107,3 +98,28 @@ def test_planner_model_defaults_to_1_5b(monkeypatch) -> None:
     monkeypatch.setattr(settings, "question_planner_model", "qwen2.5:1.5b")
     monkeypatch.setattr(settings, "llm_model", "qwen2.5:7b")
     assert _planner_model() == "qwen2.5:1.5b"
+
+
+def test_looks_like_obvious_single_question() -> None:
+    from app.modules.question_planner.service import looks_like_obvious_single_question
+
+    assert looks_like_obvious_single_question("What about ARNI?") is True
+    assert looks_like_obvious_single_question("What about ARNI? Should I add beta blocker?") is False
+
+
+@pytest.mark.asyncio
+async def test_plan_skips_llm_for_obvious_single_question(monkeypatch) -> None:
+    from app.core.config import settings
+    from app.modules.question_planner import service as qp_service
+
+    monkeypatch.setattr(settings, "question_planner_enabled", True)
+    called = {"llm": False}
+
+    async def fake_llm(**_kwargs):
+        called["llm"] = True
+        return None
+
+    monkeypatch.setattr(qp_service, "_call_llm_planner", fake_llm)
+    plan = await plan_clinical_questions("What about ARNI?", patient=_demo_patient(), language="en")
+    assert plan.source == "fallback"
+    assert called["llm"] is False

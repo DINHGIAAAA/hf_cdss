@@ -536,3 +536,23 @@ def test_combine_answer_with_multi_question_confirm_empty_answer() -> None:
     assert _combine_answer_with_multi_question_confirm("", "footer only") == "footer only"
     assert _combine_answer_with_multi_question_confirm("answer only", "") == "answer only"
 
+
+def test_sanitize_stream_token_strips_han_for_english() -> None:
+    from app.modules.explanation.llm_service import _sanitize_stream_token
+
+    assert _sanitize_stream_token("Consider 考虑 ARNI", "en") == "Consider  ARNI"
+
+
+def test_clinical_state_merges_prior_assistant_focus() -> None:
+    from app.modules.chat.clinical_state import build_clinical_state
+    from app.tests.conftest import hfref_patient
+
+    patient = hfref_patient()
+    state = build_clinical_state(
+        patient,
+        "chi tiet hon",
+        has_prior_assistant=True,
+        last_assistant_message="SGLT2i is appropriate when eGFR allows.",
+    )
+    assert "sglt2i" in state["focus_class_ids"]
+

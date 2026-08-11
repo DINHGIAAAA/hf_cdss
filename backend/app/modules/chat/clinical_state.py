@@ -116,7 +116,7 @@ def build_clinical_state(
     if not focus_classes and patient.current_medications:
         focus_classes = _active_classes(patient)
 
-    return {
+    state = {
         "case_id": patient.case_id,
         "intent": _intent(message, has_prior_assistant=has_prior_assistant),
         "hf_type": _hf_type(patient),
@@ -139,11 +139,15 @@ def build_clinical_state(
         },
         "active_medication_classes": _active_classes(patient),
         "focus_medication_classes": focus_classes,
+        "focus_class_ids": focus_classes,
         "mentioned_medications": mentioned,
         "conditions": patient.comorbidities,
         "allergies": patient.allergies,
         "safety_state": _safety_state(patient),
     }
+    if last_assistant_message:
+        state["last_assistant_excerpt"] = last_assistant_message[:4000]
+    return state
 
 
 def state_query_text(state: dict[str, Any]) -> str:

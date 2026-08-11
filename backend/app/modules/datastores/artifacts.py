@@ -28,6 +28,7 @@ def _s3_client():
         aws_secret_access_key=settings.aws_secret_access_key,
         region_name=settings.aws_default_region,
         config=Config(
+            s3={"addressing_style": "path"},
             request_checksum_calculation="when_required",
             response_checksum_validation="when_required",
         ),

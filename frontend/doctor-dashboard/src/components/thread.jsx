@@ -4,6 +4,7 @@ import {
   ComposerAttachments,
   UserMessageAttachments,
 } from "@/components/attachment";
+import { PendingQuestionsBanner } from "@/components/PendingQuestionsBanner";
 import { ThreadFollowupSuggestions } from "@/components/follow-up-suggestions";
 import { MarkdownText } from "@/components/markdown-text";
 import {
@@ -64,17 +65,22 @@ const isNewChatView = (s) =>
   s.thread.messages.length === 0 &&
   (!s.thread.isLoading || s.threads.isLoading);
 
-export const Thread = ({ components = EMPTY_COMPONENTS }) => {
+export const Thread = ({ components = EMPTY_COMPONENTS, pendingMultiQuestion, onContinueMulti, onStopMulti }) => {
   const isEmpty = useAuiState(isNewChatView);
 
   return (
     <ThreadComponentsContext.Provider value={components}>
-      <ThreadRoot isEmpty={isEmpty} />
+      <ThreadRoot
+        isEmpty={isEmpty}
+        pendingMultiQuestion={pendingMultiQuestion}
+        onContinueMulti={onContinueMulti}
+        onStopMulti={onStopMulti}
+      />
     </ThreadComponentsContext.Provider>
   );
 };
 
-const ThreadRoot = ({ isEmpty }) => {
+const ThreadRoot = ({ isEmpty, pendingMultiQuestion, onContinueMulti, onStopMulti }) => {
   const { Welcome = ThreadWelcome } = useContext(ThreadComponentsContext);
 
   return (
@@ -99,6 +105,12 @@ const ThreadRoot = ({ isEmpty }) => {
           <AuiIf condition={isNewChatView}>
             <Welcome />
           </AuiIf>
+
+          <PendingQuestionsBanner
+            pendingMultiQuestion={pendingMultiQuestion}
+            onContinue={onContinueMulti}
+            onStop={onStopMulti}
+          />
 
           <div
             data-slot="aui_message-group"

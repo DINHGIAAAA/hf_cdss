@@ -39,10 +39,12 @@ export async function streamClinicalChat({
   }
   const pendingMulti = active.pending_multi_question || active.pendingMultiQuestion;
   const looksLikeNewMultiQuestion = (text) => (String(text || "").match(/\?/g) || []).length > 1;
+  // Send pending_multi_question when:
+  // 1. multi_question_action is set (continue/stop response), OR
+  // 2. not a new multi-question input (supplemental data or "yes" for continue).
   if (
     pendingMulti &&
-    (requestBody.multi_question_action ||
-      !looksLikeNewMultiQuestion(message))
+    (requestBody.multi_question_action || !looksLikeNewMultiQuestion(message))
   ) {
     requestBody.pending_multi_question = pendingMulti;
   }

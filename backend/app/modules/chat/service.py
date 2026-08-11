@@ -342,6 +342,17 @@ def _apply_multi_question_handling(
                 "active_planned_question": active_planned,
                 "plan": plan_data,
             }
+            # Keep _question_plans in sync so _active_planned_question() returns the current question.
+            if active_planned and isinstance(plan_data, dict):
+                try:
+                    _question_plans[conversation_id] = QuestionPlan.model_validate(plan_data)
+                except Exception:
+                    pass
+        return request, None
+
+    if request.multi_question_action == "stop" and request.pending_multi_question:
+        _pending_multi.pop(conversation_id, None)
+        _question_plans.pop(conversation_id, None)
         return request, None
 
     if (
@@ -843,6 +854,79 @@ async def _resolve_patient_with_intake_status_events(
             pass
 
 
+def _resolve_request_language(request: ChatRequest) -> ChatRequest:
+    from app.modules.chat.language import resolve_chat_language
+
+    resolved = resolve_chat_language(request.message, request.language)
+    if resolved == (request.language or "vi"):
+        return request
+    return request.model_copy(update={"language": resolved})
+
+
+def _missing_fields_prompt_kwargs(conversation_id: str) -> dict[str, Any]:
+    pending = _pending_multi.get(conversation_id) or {}
+    if not _is_multi_question_thread(pending):
+        return {}
+    answered = pending.get("answered") or []
+    return {
+        "active_question": answered[-1] if answered else None,
+        "question_index": pending.get("current_index"),
+        "total_questions": pending.get("total_questions"),
+    }
+
+
+def _can_parallel_plan_and_intake(request: ChatRequest, *, is_initial_draft: bool) -> bool:
+    if not is_initial_draft:
+        return False
+    if not _should_run_question_planner(request):
+        return False
+    if request.pending_multi_question is not None:
+        return False
+    return request.multi_question_action != "continue"
+
+
+async def _intake_for_turn(
+    request: ChatRequest,
+    conversation_id: str,
+    extraction_message: str,
+    base_patient: PatientProfile,
+    *,
+    intake_status: Callable[[str], None] | None = None,
+) -> tuple[PatientProfile, list[PatientConflict]]:
+    return await _resolve_patient_for_chat_turn(
+        extraction_message=extraction_message,
+        conversation_id=conversation_id,
+        conversation_history=_prior_user_messages(conversation_id),
+        base_patient=base_patient,
+        supplied_patient=request.patient,
+        turn_message=request.message,
+        confirmation_action=request.confirmation_action,
+        pending_patient=request.pending_confirmation,
+        intake_status=intake_status,
+    )
+
+
+async def _plan_and_intake_parallel(
+    request: ChatRequest,
+    conversation_id: str,
+    plan_patient: PatientProfile,
+    extraction_message: str,
+    base_patient: PatientProfile,
+) -> tuple[QuestionPlan, PatientProfile, list[PatientConflict]]:
+    from app.modules.question_planner.service import plan_clinical_questions
+
+    question_plan, (merged, conflicts) = await asyncio.gather(
+        plan_clinical_questions(
+            request.message,
+            patient=plan_patient,
+            conversation_history=_prior_user_messages(conversation_id),
+            language=request.language or "vi",
+        ),
+        _intake_for_turn(request, conversation_id, extraction_message, base_patient),
+    )
+    return question_plan, merged, conflicts
+
+
 def _missing_check_for_turn(
     patient: PatientProfile,
     *,
@@ -877,6 +961,7 @@ async def _drain_intake_status_events(
 
 async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
     conversation_id = request.conversation_id or str(uuid.uuid4())
+    request = _resolve_request_language(request)
     yield _sse("status", {"step": "received", "conversation_id": conversation_id})
     _append_message(_message(conversation_id, "user", request.message))
 
@@ -885,55 +970,89 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
     if request.patient:
         plan_patient = _merge_patient(plan_patient, request.patient)
 
-    question_plan: QuestionPlan | None = None
-    if _should_run_question_planner(request):
-        from app.modules.question_planner.service import plan_clinical_questions
-
-        yield _sse("status", {"step": "planning_question"})
-        question_plan = await plan_clinical_questions(
-            request.message,
-            patient=plan_patient,
-            conversation_history=_prior_user_messages(conversation_id),
-            language=request.language or "vi",
-        )
-        _question_plans[conversation_id] = question_plan
-        yield _sse("question_plan_ready", question_plan.model_dump(mode="json"))
-
-    request, extraction_override = _apply_multi_question_handling(
-        request,
-        conversation_id,
-        question_plan=question_plan,
-    )
-
     current = _load_draft(conversation_id)
     base_patient = current.patient if current else _new_patient(conversation_id)
     is_initial_draft = current is None
     attachment_context = _attachment_context(request)
-    extraction_message = extraction_override or request.message
-    extraction_message = "\n".join(value for value in [extraction_message, attachment_context] if value)
+    intake_base_message = "\n".join(value for value in [request.message, attachment_context] if value)
 
-    if _prefilled_patient_complete(base_patient, request.patient, request.message):
-        yield _sse("status", {"step": "using_supplied_profile"})
-    else:
+    question_plan: QuestionPlan | None = None
+    merged: PatientProfile
+    conflicts: list[PatientConflict]
+
+    if _can_parallel_plan_and_intake(request, is_initial_draft=is_initial_draft):
+        yield _sse("status", {"step": "planning_question"})
         yield _sse("status", {"step": "extracting_patient"})
-
-    status_queue: asyncio.Queue[str | None] = asyncio.Queue()
-    resolve_task = asyncio.create_task(
-        _resolve_patient_with_intake_status_events(
-            status_queue,
-            extraction_message=extraction_message,
-            conversation_id=conversation_id,
-            conversation_history=_prior_user_messages(conversation_id),
-            base_patient=base_patient,
-            supplied_patient=request.patient,
-            turn_message=request.message,
-            confirmation_action=request.confirmation_action,
-            pending_patient=request.pending_confirmation,
+        question_plan, merged, conflicts = await _plan_and_intake_parallel(
+            request,
+            conversation_id,
+            plan_patient,
+            intake_base_message,
+            base_patient,
         )
-    )
-    async for phase in _drain_intake_status_events(status_queue, resolve_task):
-        yield _sse("status", {"step": "extracting_patient", "phase": phase})
-    merged, conflicts = await resolve_task
+        _question_plans[conversation_id] = question_plan
+        yield _sse("question_plan_ready", question_plan.model_dump(mode="json"))
+        request, extraction_override = _apply_multi_question_handling(
+            request,
+            conversation_id,
+            question_plan=question_plan,
+        )
+    else:
+        if _should_run_question_planner(request):
+            from app.modules.question_planner.service import plan_clinical_questions
+
+            yield _sse("status", {"step": "planning_question"})
+            question_plan = await plan_clinical_questions(
+                request.message,
+                patient=plan_patient,
+                conversation_history=_prior_user_messages(conversation_id),
+                language=request.language or "vi",
+            )
+            _question_plans[conversation_id] = question_plan
+            yield _sse("question_plan_ready", question_plan.model_dump(mode="json"))
+
+        request, extraction_override = _apply_multi_question_handling(
+            request,
+            conversation_id,
+            question_plan=question_plan,
+        )
+
+        extraction_message = extraction_override or request.message
+        extraction_message = "\n".join(value for value in [extraction_message, attachment_context] if value)
+
+        if _prefilled_patient_complete(base_patient, request.patient, request.message):
+            yield _sse("status", {"step": "using_supplied_profile"})
+        else:
+            yield _sse("status", {"step": "extracting_patient"})
+
+        status_queue: asyncio.Queue[str | None] = asyncio.Queue()
+        resolve_task = asyncio.create_task(
+            _resolve_patient_with_intake_status_events(
+                status_queue,
+                extraction_message=extraction_message,
+                conversation_id=conversation_id,
+                conversation_history=_prior_user_messages(conversation_id),
+                base_patient=base_patient,
+                supplied_patient=request.patient,
+                turn_message=request.message,
+                confirmation_action=request.confirmation_action,
+                pending_patient=request.pending_confirmation,
+            )
+        )
+        async for phase in _drain_intake_status_events(status_queue, resolve_task):
+            yield _sse("status", {"step": "extracting_patient", "phase": phase})
+        merged, conflicts = await resolve_task
+
+    # Emit the pending questions list to the frontend.
+    pending = _pending_multi.get(conversation_id)
+    if pending and _is_multi_question_thread(pending):
+        yield _sse("multi_question_ready", {
+            "answered": pending["answered"],
+            "remaining": pending["remaining"],
+            "current_index": pending["current_index"],
+            "total_questions": pending["total_questions"],
+        })
+
     merged = _merge_clinical_documents(merged, request)
 
     clinical_state = build_clinical_state(
@@ -1019,7 +1138,11 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
         return
 
     if missing_check.missing_fields:
-        content = build_missing_fields_prompt(missing_check, language=request.language or "vi")
+        content = build_missing_fields_prompt(
+            missing_check,
+            language=request.language or "vi",
+            **_missing_fields_prompt_kwargs(conversation_id),
+        )
         assistant_message = _message(conversation_id, "assistant", content, {"status": "needs_more_information"})
         await asyncio.to_thread(_append_message, assistant_message)
         await asyncio.to_thread(
@@ -1203,6 +1326,7 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
 
 async def process_chat(request: ChatRequest) -> ChatResponse:
     conversation_id = request.conversation_id or str(uuid.uuid4())
+    request = _resolve_request_language(request)
 
     # Check idempotency key to prevent duplicate processing
     if request.idempotency_key:
@@ -1218,40 +1342,54 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
     if request.patient:
         plan_patient = _merge_patient(plan_patient, request.patient)
 
-    question_plan: QuestionPlan | None = None
-    if _should_run_question_planner(request):
-        from app.modules.question_planner.service import plan_clinical_questions
-
-        question_plan = await plan_clinical_questions(
-            request.message,
-            patient=plan_patient,
-            conversation_history=_prior_user_messages(conversation_id),
-            language=request.language or "vi",
-        )
-        _question_plans[conversation_id] = question_plan
-
-    request, extraction_override = _apply_multi_question_handling(
-        request,
-        conversation_id,
-        question_plan=question_plan,
-    )
-
     current = _load_draft(conversation_id)
     base_patient = current.patient if current else _new_patient(conversation_id)
     is_initial_draft = current is None
     attachment_context = _attachment_context(request)
-    extraction_message = extraction_override or request.message
-    extraction_message = "\n".join(value for value in [extraction_message, attachment_context] if value)
-    merged, conflicts = await _resolve_patient_for_chat_turn(
-        extraction_message=extraction_message,
-        conversation_id=conversation_id,
-        conversation_history=_prior_user_messages(conversation_id),
-        base_patient=base_patient,
-        supplied_patient=request.patient,
-        turn_message=request.message,
-        confirmation_action=request.confirmation_action,
-        pending_patient=request.pending_confirmation,
-    )
+    intake_base_message = "\n".join(value for value in [request.message, attachment_context] if value)
+
+    question_plan: QuestionPlan | None = None
+    if _can_parallel_plan_and_intake(request, is_initial_draft=is_initial_draft):
+        question_plan, merged, conflicts = await _plan_and_intake_parallel(
+            request,
+            conversation_id,
+            plan_patient,
+            intake_base_message,
+            base_patient,
+        )
+        _question_plans[conversation_id] = question_plan
+        request, extraction_override = _apply_multi_question_handling(
+            request,
+            conversation_id,
+            question_plan=question_plan,
+        )
+    else:
+        if _should_run_question_planner(request):
+            from app.modules.question_planner.service import plan_clinical_questions
+
+            question_plan = await plan_clinical_questions(
+                request.message,
+                patient=plan_patient,
+                conversation_history=_prior_user_messages(conversation_id),
+                language=request.language or "vi",
+            )
+            _question_plans[conversation_id] = question_plan
+
+        request, extraction_override = _apply_multi_question_handling(
+            request,
+            conversation_id,
+            question_plan=question_plan,
+        )
+
+        extraction_message = extraction_override or request.message
+        extraction_message = "\n".join(value for value in [extraction_message, attachment_context] if value)
+        merged, conflicts = await _intake_for_turn(
+            request,
+            conversation_id,
+            extraction_message,
+            base_patient,
+        )
+
     merged = _merge_clinical_documents(merged, request)
 
     clinical_state = build_clinical_state(
@@ -1323,7 +1461,11 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
         return response
 
     if missing_check.missing_fields:
-        content = build_missing_fields_prompt(missing_check, language=request.language or "vi")
+        content = build_missing_fields_prompt(
+            missing_check,
+            language=request.language or "vi",
+            **_missing_fields_prompt_kwargs(conversation_id),
+        )
         assistant_message = _message(conversation_id, "assistant", content, {"status": "needs_more_information"})
         _append_message(assistant_message)
         write_audit_event(

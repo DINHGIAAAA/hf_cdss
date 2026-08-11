@@ -169,23 +169,39 @@ def check_required_field_ids(
     )
 
 
-def build_missing_fields_prompt(check: MissingFieldCheck, *, language: str = "vi") -> str:
+def build_missing_fields_prompt(
+    check: MissingFieldCheck,
+    *,
+    language: str = "vi",
+    active_question: str | None = None,
+    question_index: int | None = None,
+    total_questions: int | None = None,
+) -> str:
     labels = [item.label for item in check.missing_fields[:6]]
     if not labels:
         return ""
     joined = ", ".join(labels)
     lang = (language or "vi").lower()
     needs_arni_washout = any(item.field == "acei_last_dose_hours_ago" for item in check.missing_fields)
+
+    multi_q_prefix = ""
+    if active_question and total_questions and total_questions > 1:
+        index = question_index or 1
+        if lang == "en":
+            multi_q_prefix = f"For question {index}/{total_questions} ({active_question}), "
+        else:
+            multi_q_prefix = f"Để trả lời câu {index}/{total_questions} ({active_question}), "
+
     if lang == "en":
         prompt = (
-            "Not enough information to provide safe medication recommendations. "
+            f"{multi_q_prefix}Not enough information to provide safe medication recommendations. "
             f"Please add: {joined}."
         )
         if needs_arni_washout:
             prompt += " For ARNI initiation, confirm ACE inhibitor washout (typically ≥36 hours since last dose)."
         return prompt
     prompt = (
-        "Chưa đủ thông tin để đưa ra khuyến nghị thuốc an toàn. "
+        f"{multi_q_prefix}Chưa đủ thông tin để đưa ra khuyến nghị thuốc an toàn. "
         f"Vui lòng bổ sung: {joined}."
     )
     if needs_arni_washout:

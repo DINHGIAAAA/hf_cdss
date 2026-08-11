@@ -67,6 +67,25 @@ def test_arni_question_requires_acei_washout_when_on_acei() -> None:
     assert "ACEi" in vi_prompt or "ARNI" in vi_prompt
 
 
+def test_missing_fields_prompt_includes_multi_question_context() -> None:
+    from app.modules.missing_fields.service import MissingField, MissingFieldCheck, build_missing_fields_prompt
+
+    check = MissingFieldCheck(
+        status="missing_required_fields",
+        missing_fields=[MissingField(field="egfr", label="eGFR", reason="needed")],
+        present_fields=[],
+    )
+    prompt = build_missing_fields_prompt(
+        check,
+        language="en",
+        active_question="What about ARNI?",
+        question_index=1,
+        total_questions=2,
+    )
+    assert "question 1/2" in prompt
+    assert "What about ARNI?" in prompt
+
+
 def test_merge_patient_persists_acei_last_dose_hours() -> None:
     from app.modules.chat.service import _apply_extracted_updates, _merge_patient
     from app.modules.clinical_intake_extraction.service import _regex_extract_patient_from_message

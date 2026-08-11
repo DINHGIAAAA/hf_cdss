@@ -1,0 +1,2453 @@
+{
+  "version": "2026-08-11-merged",
+  "description": "HF-CDSS chat vignettes — full set: simple to complex (single Q, multi-Q, missing data, follow-up, language, patient-based dose calculation) merged with hard/edge cases (ambiguous reference, code-switch/no-diacritics language, no-delimiter multi-question, brand vs generic, contradictory data, critical red flags, out-of-scope, short input, small talk, conflicting updates, unit ambiguity, negation, conditional reasoning, duplicate therapy, cross-class interaction, all/partial missing data).",
+  "cases": [
+    {
+      "id": "sq-vi-01",
+      "category": "single_simple",
+      "language": "vi",
+      "message": "Bệnh nhân HFrEF LVEF 28%, nên khởi trị beta blocker không?",
+      "patient": {
+        "lvef": 28,
+        "egfr": 55,
+        "potassium": 4.3,
+        "systolic_bp": 108,
+        "heart_rate": 78,
+        "current_medications": [
+          "lisinopril"
+        ],
+        "allergies": []
+      }
+    },
+    {
+      "id": "sq-vi-02",
+      "category": "single_simple",
+      "language": "vi",
+      "message": "Có nên thêm SGLT2i cho bệnh nhân này không?",
+      "patient": {
+        "lvef": 30,
+        "egfr": 45,
+        "potassium": 4.8,
+        "systolic_bp": 112,
+        "heart_rate": 70,
+        "current_medications": [
+          "carvedilol",
+          "ramipril"
+        ],
+        "allergies": []
+      }
+    },
+    {
+      "id": "sq-vi-03",
+      "category": "single_simple",
+      "language": "vi",
+      "message": "MRA có phù hợp khi K+ 4.9 và eGFR 38 không?",
+      "patient": {
+        "lvef": 25,
+        "egfr": 38,
+        "potassium": 4.9,
+        "systolic_bp": 100,
+        "heart_rate": 65,
+        "current_medications": [
+          "bisoprolol",
+          "sacubitril/valsartan"
+        ],
+        "allergies": []
+      }
+    },
+    {
+      "id": "sq-vi-04",
+      "category": "single_simple",
+      "language": "vi",
+      "message": "Bệnh nhân đang dùng spironolactone 25mg, có tăng liều được không?",
+      "patient": {
+        "lvef": 32,
+        "egfr": 50,
+        "potassium": 4.5,
+        "systolic_bp": 115,
+        "heart_rate": 68,
+        "current_medications": [
+          "spironolactone",
+          "metoprolol",
+          "dapagliflozin"
+        ],
+        "allergies": []
+      }
+    },
+    {
+      "id": "sq-vi-05",
+      "category": "single_simple",
+      "language": "vi",
+      "message": "ARNI có thay thế ACEi được không khi BN ổn định?",
+      "patient": {
+        "lvef": 28,
+        "egfr": 60,
+        "potassium": 4.2,
+        "systolic_bp": 118,
+        "heart_rate": 72,
+        "current_medications": [
+          "enalapril",
+          "carvedilol"
+        ],
+        "allergies": []
+      }
+    },
+    {
+      "id": "sq-vi-06",
+      "category": "single_simple",
+      "language": "vi",
+      "message": "Loop diuretic có cần tăng khi BN tăng cân 2kg trong 3 ngày?",
+      "patient": {
+        "lvef": 22,
+        "egfr": 35,
+        "potassium": 4.0,
+        "systolic_bp": 95,
+        "heart_rate": 88,
+        "current_medications": [
+          "furosemide",
+          "lisinopril",
+          "spironolactone"
+        ],
+        "allergies": []
+      }
+    },
+    {
+      "id": "sq-vi-07",
+      "category": "single_simple",
+      "language": "vi",
+      "message": "BN HFpEF LVEF 48%, có chỉ định SGLT2i không?",
+      "patient": {
+        "lvef": 48,
+        "egfr": 70,
+        "potassium": 4.1,
+        "systolic_bp": 130,
+        "heart_rate": 74,
+        "current_medications": [
+          "amlodipine"
+        ],
+        "allergies": []
+      }
+    },
+    {
+      "id": "sq-vi-08",
+      "category": "single_simple",
+      "language": "vi",
+      "message": "Ivabradine có phù hợp khi nhịp tim 88 và đã dùng beta blocker tối đa?",
+      "patient": {
+        "lvef": 26,
+        "egfr": 55,
+        "potassium": 4.4,
+        "systolic_bp": 105,
+        "heart_rate": 88,
+        "current_medications": [
+          "bisoprolol",
+          "sacubitril/valsartan",
+          "dapagliflozin"
+        ],
+        "allergies": []
+      }
+    },
+    {
+      "id": "sq-en-01",
+      "category": "single_simple",
+      "language": "en",
+      "message": "Should I start a beta blocker in this HFrEF patient with LVEF 28%?",
+      "patient": {
+        "lvef": 28,
+        "egfr": 55,
+        "potassium": 4.3,
+        "systolic_bp": 108,
+        "heart_rate": 78,
+        "current_medications": [
+          "lisinopril"
+        ],
+        "allergies": []
+      }
+    },
+    {
+      "id": "sq-en-02",
+      "category": "single_simple",
+      "language": "en",
+      "message": "Is dapagliflozin appropriate given eGFR 42 and K+ 4.7?",
+      "patient": {
+        "lvef": 30,
+        "egfr": 42,
+        "potassium": 4.7,
+        "systolic_bp": 110,
+        "heart_rate": 70,
+        "current_medications": [
+          "metoprolol",
+          "ramipril"
+        ],
+        "allergies": []
+      }
+    },
+    {
+      "id": "sq-en-03",
+      "category": "single_simple",
+      "language": "en",
+      "message": "Can I add MRA when potassium is 5.1 and eGFR 35?",
+      "patient": {
+        "lvef": 25,
+        "egfr": 35,
+        "potassium": 5.1,
+        "systolic_bp": 100,
+        "heart_rate": 65,
+        "current_medications": [
+          "bisoprolol",
+          "sacubitril/valsartan"
+        ],
+        "allergies": []
+      }
+    },
+    {
+      "id": "sq-en-04",
+      "category": "single_simple",
+      "language": "en",
+      "message": "Patient on spironolactone 25mg daily — can I up-titrate to 50mg?",
+      "patient": {
+        "lvef": 32,
+        "egfr": 50,
+        "potassium": 4.5,
+        "systolic_bp": 115,
+        "heart_rate": 68,
+        "current_medications": [
+          "spironolactone",
+          "metoprolol",
+          "dapagliflozin"
+        ],
+        "allergies": []
+      }
+    },
+    {
+      "id": "sq-en-05",
+      "category": "single_simple",
+      "language": "en",
+      "message": "When is ARNI appropriate after ACEi washout?",
+      "patient": {
+        "lvef": 28,
+        "egfr": 60,
+        "potassium": 4.2,
+        "systolic_bp": 118,
+        "heart_rate": 72,
+        "current_medications": [
+          "enalapril",
+          "carvedilol"
+        ],
+        "allergies": []
+      }
+    },
+    {
+      "id": "sq-en-06",
+      "category": "single_simple",
+      "language": "en",
+      "message": "Should I increase furosemide for 2kg weight gain in 3 days?",
+      "patient": {
+        "lvef": 22,
+        "egfr": 35,
+        "potassium": 4.0,
+        "systolic_bp": 95,
+        "heart_rate": 88,
+        "current_medications": [
+          "furosemide",
+          "lisinopril",
+          "spironolactone"
+        ],
+        "allergies": []
+      }
+    },
+    {
+      "id": "sq-en-07",
+      "category": "single_simple",
+      "language": "en",
+      "message": "HFpEF with LVEF 48% — is SGLT2i indicated?",
+      "patient": {
+        "lvef": 48,
+        "egfr": 70,
+        "potassium": 4.1,
+        "systolic_bp": 130,
+        "heart_rate": 74,
+        "current_medications": [
+          "amlodipine"
+        ],
+        "allergies": []
+      }
+    },
+    {
+      "id": "sq-en-08",
+      "category": "single_simple",
+      "language": "en",
+      "message": "Is ivabradine an option with HR 88 on maximally tolerated beta blocker?",
+      "patient": {
+        "lvef": 26,
+        "egfr": 55,
+        "potassium": 4.4,
+        "systolic_bp": 105,
+        "heart_rate": 88,
+        "current_medications": [
+          "bisoprolol",
+          "sacubitril/valsartan",
+          "dapagliflozin"
+        ],
+        "allergies": []
+      }
+    },
+    {
+      "id": "ch-vi-01",
+      "category": "single_choice",
+      "language": "vi",
+      "message": "Nên ưu tiên MRA hay SGLT2i trước?",
+      "patient": {
+        "lvef": 28,
+        "egfr": 40,
+        "potassium": 4.6,
+        "systolic_bp": 105,
+        "heart_rate": 72,
+        "current_medications": [
+          "bisoprolol",
+          "ramipril"
+        ],
+        "allergies": []
+      }
+    },
+    {
+      "id": "ch-vi-02",
+      "category": "single_choice",
+      "language": "vi",
+      "message": "Sacubitril/valsartan hay tiếp tục lisinopril?",
+      "patient": {
+        "lvef": 30,
+        "egfr": 55,
+        "potassium": 4.3,
+        "systolic_bp": 112,
+        "heart_rate": 68,
+        "current_medications": [
+          "lisinopril",
+          "metoprolol"
+        ],
+        "allergies": []
+      }
+    },
+    {
+      "id": "ch-en-01",
+      "category": "single_choice",
+      "language": "en",
+      "message": "MRA or SGLT2i — which should I prioritize first?",
+      "patient": {
+        "lvef": 28,
+        "egfr": 40,
+        "potassium": 4.6,
+        "systolic_bp": 105,
+        "heart_rate": 72,
+        "current_medications": [
+          "bisoprolol",
+          "ramipril"
+        ],
+        "allergies": []
+      }
+    },
+    {
+      "id": "ch-en-02",
+      "category": "single_choice",
+      "language": "en",
+      "message": "Sacubitril/valsartan versus continuing lisinopril?",
+      "patient": {
+        "lvef": 30,
+        "egfr": 55,
+        "potassium": 4.3,
+        "systolic_bp": 112,
+        "heart_rate": 68,
+        "current_medications": [
+          "lisinopril",
+          "metoprolol"
+        ],
+        "allergies": []
+      }
+    },
+    {
+      "id": "ch-en-03",
+      "category": "single_choice",
+      "language": "en",
+      "message": "Beta blocker or ARNI first in newly diagnosed HFrEF?",
+      "patient": {
+        "lvef": 25,
+        "egfr": 65,
+        "potassium": 4.0,
+        "systolic_bp": 120,
+        "heart_rate": 82,
+        "current_medications": [],
+        "allergies": []
+      }
+    },
+    {
+      "id": "ch-vi-03",
+      "category": "single_choice",
+      "language": "vi",
+      "message": "Eplerenone hay dapagliflozin nên thêm trước?",
+      "patient": {
+        "lvef": 27,
+        "egfr": 48,
+        "potassium": 4.7,
+        "systolic_bp": 102,
+        "heart_rate": 70,
+        "current_medications": [
+          "carvedilol",
+          "lisinopril"
+        ],
+        "allergies": []
+      }
+    },
+    {
+      "id": "ds-vi-01",
+      "category": "single_dose",
+      "language": "vi",
+      "message": "Liều khởi đầu bisoprolol phù hợp cho BN này?",
+      "patient": {
+        "lvef": 28,
+        "egfr": 50,
+        "potassium": 4.2,
+        "systolic_bp": 110,
+        "heart_rate": 80,
+        "weight_kg": 75,
+        "age": 68,
+        "sex": "male",
+        "current_medications": [
+          "lisinopril"
+        ],
+        "allergies": []
+      }
+    },
+    {
+      "id": "ds-en-01",
+      "category": "single_dose",
+      "language": "en",
+      "message": "What starting dose of carvedilol is appropriate?",
+      "patient": {
+        "lvef": 26,
+        "egfr": 45,
+        "potassium": 4.4,
+        "systolic_bp": 105,
+        "heart_rate": 76,
+        "weight_kg": 82,
+        "age": 72,
+        "sex": "female",
+        "current_medications": [
+          "ramipril"
+        ],
+        "allergies": []
+      }
+    },
+    {
+      "id": "ds-vi-02",
+      "category": "single_dose",
+      "language": "vi",
+      "message": "Tăng liều sacubitril/valsartan từ 49/51 lên 97/103 có an toàn không?",
+      "patient": {
+        "lvef": 30,
+        "egfr": 55,
+        "potassium": 4.5,
+        "systolic_bp": 115,
+        "heart_rate": 65,
+        "current_medications": [
+          "sacubitril/valsartan",
+          "bisoprolol"
+        ],
+        "allergies": []
+      }
+    },
+    {
+      "id": "ds-en-02",
+      "category": "single_dose",
+      "language": "en",
+      "message": "How should I titrate dapagliflozin in CKD stage 3b?",
+      "patient": {
+        "lvef": 32,
+        "egfr": 32,
+        "potassium": 4.6,
+        "systolic_bp": 108,
+        "heart_rate": 70,
+        "current_medications": [
+          "metoprolol",
+          "lisinopril"
+        ],
+        "allergies": []
+      }
+    },
+    {
+      "id": "ds-en-03",
+      "category": "single_dose",
+      "language": "en",
+      "message": "Warfarin dose adjustment when INR is 1.8 (target 2-3)?",
+      "patient": {
+        "lvef": 35,
+        "egfr": 60,
+        "potassium": 4.3,
+        "systolic_bp": 118,
+        "heart_rate": 70,
+        "inr": 1.8,
+        "current_medications": [
+          "warfarin",
+          "metoprolol"
+        ],
+        "allergies": []
+      }
+    },
+    {
+      "id": "ds-vi-04",
+      "category": "patient_based_dose",
+      "language": "vi",
+      "message": "BN 74 tuổi, eGFR 42, HR 78, SBP 108 — liều khởi đầu metoprolol succinate phù hợp là bao nhiêu?",
+      "patient": {
+        "lvef": 30,
+        "egfr": 42,
+        "potassium": 4.4,
+        "systolic_bp": 108,
+        "heart_rate": 78,
+        "age": 74,
+        "sex": "male",
+        "weight_kg": 78,
+        "nyha_class": "II",
+        "current_medications": [
+          "lisinopril"
+        ],
+        "allergies": []
+      },
+      "notes": "Expect dose adjusted for age, renal function, hemodynamics"
+    },
+    {
+      "id": "ds-vi-05",
+      "category": "patient_based_dose",
+      "language": "vi",
+      "message": "Tính liều spironolactone phù hợp cho BN eGFR 28, K+ 4.3, đang dùng ramipril và bisoprolol.",
+      "patient": {
+        "lvef": 26,
+        "egfr": 28,
+        "potassium": 4.3,
+        "systolic_bp": 102,
+        "heart_rate": 66,
+        "age": 69,
+        "sex": "female",
+        "current_medications": [
+          "ramipril",
+          "bisoprolol"
+        ],
+        "allergies": []
+      },
+      "notes": "MRA dose with CKD stage 4"
+    },
+    {
+      "id": "ds-vi-06",
+      "category": "patient_based_dose",
+      "language": "vi",
+      "message": "BN suy thận nặng eGFR 22 — khởi trị enalapril nên dùng liều bao nhiêu?",
+      "patient": {
+        "lvef": 32,
+        "egfr": 22,
+        "creatinine": 2.8,
+        "potassium": 4.6,
+        "systolic_bp": 112,
+        "heart_rate": 74,
+        "age": 71,
+        "sex": "male",
+        "current_medications": [],
+        "allergies": [],
+        "comorbidities": [
+          "CKD stage 4"
+        ]
+      },
+      "notes": "ACEi renal dose reduction"
+    },
+    {
+      "id": "ds-vi-07",
+      "category": "patient_based_dose",
+      "language": "vi",
+      "message": "BN 92kg, phù nặng, eGFR 25 — liều furosemide uống hoặc IV tương đương nên là bao nhiêu?",
+      "patient": {
+        "lvef": 20,
+        "egfr": 25,
+        "potassium": 3.8,
+        "systolic_bp": 94,
+        "heart_rate": 92,
+        "weight_kg": 92,
+        "age": 66,
+        "sex": "male",
+        "nyha_class": "III",
+        "current_medications": [
+          "furosemide 40mg",
+          "lisinopril"
+        ],
+        "allergies": []
+      },
+      "notes": "Loop diuretic weight/renal/congestion based"
+    },
+    {
+      "id": "ds-vi-08",
+      "category": "patient_based_dose",
+      "language": "vi",
+      "message": "Chuyển từ lisinopril sang sacubitril/valsartan sau 36 giờ ngừng ACEi — liều khởi đầu phù hợp?",
+      "patient": {
+        "lvef": 28,
+        "egfr": 52,
+        "potassium": 4.2,
+        "systolic_bp": 116,
+        "heart_rate": 72,
+        "age": 63,
+        "sex": "male",
+        "current_medications": [
+          "lisinopril 10mg"
+        ],
+        "allergies": []
+      },
+      "notes": "ARNI starting dose after ACEi washout"
+    },
+    {
+      "id": "ds-vi-09",
+      "category": "patient_based_dose",
+      "language": "vi",
+      "message": "BN 62kg, eGFR 35, rung nhĩ — liều digoxin duy trì phù hợp là bao nhiêu?",
+      "patient": {
+        "lvef": 38,
+        "egfr": 35,
+        "potassium": 4.0,
+        "systolic_bp": 110,
+        "heart_rate": 88,
+        "weight_kg": 62,
+        "age": 78,
+        "sex": "female",
+        "current_medications": [
+          "metoprolol"
+        ],
+        "allergies": [],
+        "comorbidities": [
+          "atrial fibrillation"
+        ]
+      },
+      "notes": "Digoxin renal/weight adjustment"
+    },
+    {
+      "id": "ds-vi-10",
+      "category": "patient_based_dose",
+      "language": "vi",
+      "message": "Eplerenone sau nhồi máu cơ tim — BN K+ 4.8, eGFR 45, nên khởi liều bao nhiêu và titrate thế nào?",
+      "patient": {
+        "lvef": 32,
+        "egfr": 45,
+        "potassium": 4.8,
+        "systolic_bp": 108,
+        "heart_rate": 70,
+        "age": 67,
+        "sex": "male",
+        "nyha_class": "II",
+        "current_medications": [
+          "aspirin",
+          "atorvastatin",
+          "metoprolol"
+        ],
+        "allergies": [],
+        "comorbidities": [
+          "post-MI",
+          "HFrEF"
+        ]
+      },
+      "notes": "Eplerenone HF post-MI titration"
+    },
+    {
+      "id": "ds-vi-11",
+      "category": "patient_based_dose",
+      "language": "vi",
+      "message": "BN đang bisoprolol 2.5mg/ngày, SBP 118, HR 68 — có tăng liều được không, tăng lên bao nhiêu?",
+      "patient": {
+        "lvef": 28,
+        "egfr": 58,
+        "potassium": 4.1,
+        "systolic_bp": 118,
+        "heart_rate": 68,
+        "age": 65,
+        "sex": "male",
+        "current_medications": [
+          "bisoprolol 2.5mg",
+          "sacubitril/valsartan"
+        ],
+        "allergies": []
+      },
+      "notes": "Beta blocker up-titration"
+    },
+    {
+      "id": "ds-vi-12",
+      "category": "patient_based_dose",
+      "language": "vi",
+      "message": "Dapagliflozin khi eGFR giảm còn 28 — còn dùng được không và liều bao nhiêu?",
+      "patient": {
+        "lvef": 30,
+        "egfr": 28,
+        "potassium": 4.5,
+        "systolic_bp": 114,
+        "heart_rate": 72,
+        "age": 70,
+        "sex": "female",
+        "current_medications": [
+          "carvedilol",
+          "ramipril"
+        ],
+        "allergies": [],
+        "comorbidities": [
+          "type 2 diabetes",
+          "CKD"
+        ]
+      },
+      "notes": "SGLT2i renal threshold dosing"
+    },
+    {
+      "id": "ds-vi-13",
+      "category": "patient_based_dose",
+      "language": "vi",
+      "message": "BN SBP 88, HR 54 — có nên khởi carvedilol không, nếu có thì liều bao nhiêu?",
+      "patient": {
+        "lvef": 24,
+        "egfr": 48,
+        "potassium": 4.3,
+        "systolic_bp": 88,
+        "heart_rate": 54,
+        "age": 76,
+        "sex": "female",
+        "current_medications": [
+          "lisinopril",
+          "spironolactone"
+        ],
+        "allergies": []
+      },
+      "notes": "Low BP/bradycardia — cautious beta blocker start"
+    },
+    {
+      "id": "ds-vi-14",
+      "category": "patient_based_dose",
+      "language": "vi",
+      "message": "Ivabradine 5mg hay 7.5mg phù hợp hơn khi HR 96 và đã dùng bisoprolol 10mg?",
+      "patient": {
+        "lvef": 27,
+        "egfr": 55,
+        "potassium": 4.2,
+        "systolic_bp": 106,
+        "heart_rate": 96,
+        "age": 58,
+        "sex": "male",
+        "current_medications": [
+          "bisoprolol 10mg",
+          "sacubitril/valsartan",
+          "dapagliflozin"
+        ],
+        "allergies": []
+      },
+      "notes": "Ivabradine dose selection by HR"
+    },
+    {
+      "id": "ds-en-04",
+      "category": "patient_based_dose",
+      "language": "en",
+      "message": "Obese patient 110 kg, HR 82, SBP 118 — what carvedilol starting dose and titration schedule?",
+      "patient": {
+        "lvef": 29,
+        "egfr": 65,
+        "potassium": 4.3,
+        "systolic_bp": 118,
+        "heart_rate": 82,
+        "weight_kg": 110,
+        "age": 58,
+        "sex": "male",
+        "nyha_class": "II",
+        "current_medications": [
+          "lisinopril"
+        ],
+        "allergies": []
+      },
+      "notes": "Carvedilol BID start and titration"
+    },
+    {
+      "id": "ds-en-05",
+      "category": "patient_based_dose",
+      "language": "en",
+      "message": "On spironolactone 25mg with K+ 5.4 and eGFR 32 — hold, reduce, or continue? What dose?",
+      "patient": {
+        "lvef": 27,
+        "egfr": 32,
+        "potassium": 5.4,
+        "systolic_bp": 104,
+        "heart_rate": 64,
+        "age": 73,
+        "sex": "male",
+        "current_medications": [
+          "spironolactone 25mg",
+          "ramipril",
+          "metoprolol"
+        ],
+        "allergies": []
+      },
+      "notes": "MRA hold/reduce with hyperkalemia"
+    },
+    {
+      "id": "ds-en-06",
+      "category": "patient_based_dose",
+      "language": "en",
+      "message": "Starting enalapril in HFrEF with eGFR 55 — initial dose and titration targets?",
+      "patient": {
+        "lvef": 30,
+        "egfr": 55,
+        "potassium": 4.4,
+        "systolic_bp": 115,
+        "heart_rate": 76,
+        "age": 64,
+        "sex": "female",
+        "current_medications": [],
+        "allergies": []
+      },
+      "notes": "ACEi HF titration pathway"
+    },
+    {
+      "id": "ds-en-07",
+      "category": "patient_based_dose",
+      "language": "en",
+      "message": "3 kg weight gain in 4 days on furosemide 40mg — what dose adjustment is appropriate?",
+      "patient": {
+        "lvef": 22,
+        "egfr": 38,
+        "potassium": 4.1,
+        "systolic_bp": 98,
+        "heart_rate": 86,
+        "weight_kg": 84,
+        "age": 70,
+        "sex": "male",
+        "nyha_class": "III",
+        "current_medications": [
+          "furosemide 40mg",
+          "lisinopril",
+          "spironolactone"
+        ],
+        "allergies": []
+      },
+      "notes": "Diuretic escalation for congestion"
+    },
+    {
+      "id": "ds-en-08",
+      "category": "patient_based_dose",
+      "language": "en",
+      "message": "Switching from enalapril 10mg to sacubitril/valsartan — recommended starting dose for this patient?",
+      "patient": {
+        "lvef": 28,
+        "egfr": 50,
+        "potassium": 4.3,
+        "systolic_bp": 114,
+        "heart_rate": 70,
+        "age": 61,
+        "sex": "male",
+        "current_medications": [
+          "enalapril 10mg",
+          "carvedilol"
+        ],
+        "allergies": []
+      },
+      "notes": "ARNI switch dosing"
+    },
+    {
+      "id": "ds-en-09",
+      "category": "patient_based_dose",
+      "language": "en",
+      "message": "Maintenance digoxin dose for AF with eGFR 20 and weight 68 kg?",
+      "patient": {
+        "lvef": 40,
+        "egfr": 20,
+        "creatinine": 2.5,
+        "potassium": 3.9,
+        "systolic_bp": 108,
+        "heart_rate": 82,
+        "weight_kg": 68,
+        "age": 80,
+        "sex": "female",
+        "current_medications": [
+          "metoprolol"
+        ],
+        "allergies": [],
+        "comorbidities": [
+          "atrial fibrillation",
+          "CKD stage 4"
+        ]
+      },
+      "notes": "Digoxin severe renal impairment"
+    },
+    {
+      "id": "ds-en-10",
+      "category": "patient_based_dose",
+      "language": "en",
+      "message": "Apixaban for NVAF — age 84, weight 58 kg, creatinine 1.4. Standard or reduced dose?",
+      "patient": {
+        "lvef": 45,
+        "egfr": 48,
+        "creatinine": 1.4,
+        "potassium": 4.2,
+        "systolic_bp": 128,
+        "heart_rate": 78,
+        "weight_kg": 58,
+        "age": 84,
+        "sex": "female",
+        "current_medications": [],
+        "allergies": [],
+        "comorbidities": [
+          "atrial fibrillation"
+        ]
+      },
+      "notes": "Apixaban ABC dose reduction criteria"
+    },
+    {
+      "id": "ds-en-11",
+      "category": "patient_based_dose",
+      "language": "en",
+      "message": "Ivabradine starting dose when HR is 95 on maximally tolerated bisoprolol 10mg?",
+      "patient": {
+        "lvef": 26,
+        "egfr": 52,
+        "potassium": 4.3,
+        "systolic_bp": 104,
+        "heart_rate": 95,
+        "age": 55,
+        "sex": "male",
+        "current_medications": [
+          "bisoprolol 10mg",
+          "sacubitril/valsartan"
+        ],
+        "allergies": []
+      },
+      "notes": "Ivabradine 5 vs 7.5 mg"
+    },
+    {
+      "id": "ds-en-12",
+      "category": "patient_based_dose",
+      "language": "en",
+      "message": "Empagliflozin dose in CKD stage 3b (eGFR 35) with HFrEF?",
+      "patient": {
+        "lvef": 31,
+        "egfr": 35,
+        "potassium": 4.6,
+        "systolic_bp": 112,
+        "heart_rate": 68,
+        "age": 67,
+        "sex": "male",
+        "current_medications": [
+          "metoprolol",
+          "lisinopril"
+        ],
+        "allergies": [],
+        "comorbidities": [
+          "type 2 diabetes"
+        ]
+      },
+      "notes": "SGLT2i CKD dosing"
+    },
+    {
+      "id": "ds-en-13",
+      "category": "patient_based_dose",
+      "language": "en",
+      "message": "Eplerenone 25mg or 50mg for post-MI HFrEF with K+ 4.7 and eGFR 50?",
+      "patient": {
+        "lvef": 33,
+        "egfr": 50,
+        "potassium": 4.7,
+        "systolic_bp": 110,
+        "heart_rate": 68,
+        "age": 65,
+        "sex": "male",
+        "nyha_class": "II",
+        "current_medications": [
+          "aspirin",
+          "atorvastatin",
+          "metoprolol"
+        ],
+        "allergies": [],
+        "comorbidities": [
+          "post-MI"
+        ]
+      },
+      "notes": "Eplerenone dose selection"
+    },
+    {
+      "id": "ds-en-14",
+      "category": "patient_based_dose",
+      "language": "en",
+      "message": "Metoprolol succinate dose when HR 58 and SBP 92 — can we titrate up from 25mg?",
+      "patient": {
+        "lvef": 28,
+        "egfr": 60,
+        "potassium": 4.2,
+        "systolic_bp": 92,
+        "heart_rate": 58,
+        "age": 69,
+        "sex": "female",
+        "current_medications": [
+          "metoprolol succinate 25mg",
+          "sacubitril/valsartan"
+        ],
+        "allergies": []
+      },
+      "notes": "Beta blocker titration limits"
+    },
+    {
+      "id": "md-vi-04",
+      "category": "patient_based_dose",
+      "language": "vi",
+      "message": "Liều digoxin duy trì phù hợp cho BN này?",
+      "patient": {
+        "lvef": 36,
+        "potassium": 4.0,
+        "heart_rate": 85,
+        "age": 75,
+        "sex": "female",
+        "current_medications": [
+          "metoprolol"
+        ],
+        "allergies": [],
+        "comorbidities": [
+          "atrial fibrillation"
+        ]
+      },
+      "notes": "Missing eGFR/weight for digoxin — expect ask or conservative default"
+    },
+    {
+      "id": "md-en-04",
+      "category": "patient_based_dose",
+      "language": "en",
+      "message": "What furosemide dose should I use for this congested patient?",
+      "patient": {
+        "lvef": 22,
+        "egfr": 30,
+        "potassium": 3.9,
+        "systolic_bp": 96,
+        "heart_rate": 90,
+        "nyha_class": "III",
+        "current_medications": [
+          "lisinopril"
+        ],
+        "allergies": []
+      },
+      "notes": "Missing weight for loop diuretic dosing"
+    },
+    {
+      "id": "mq-vi-06",
+      "category": "patient_based_dose",
+      "language": "vi",
+      "message": "Khởi bisoprolol liều bao nhiêu? Spironolactone liều bao nhiêu?",
+      "patient": {
+        "lvef": 26,
+        "egfr": 40,
+        "potassium": 4.5,
+        "systolic_bp": 106,
+        "heart_rate": 80,
+        "age": 68,
+        "sex": "male",
+        "current_medications": [
+          "lisinopril"
+        ],
+        "allergies": []
+      },
+      "notes": "Multi-drug dose calculation"
+    },
+    {
+      "id": "mq-en-06",
+      "category": "patient_based_dose",
+      "language": "en",
+      "message": "Starting carvedilol dose? What spironolactone dose for this patient?",
+      "patient": {
+        "lvef": 27,
+        "egfr": 38,
+        "potassium": 4.6,
+        "systolic_bp": 104,
+        "heart_rate": 78,
+        "age": 71,
+        "sex": "female",
+        "current_medications": [
+          "ramipril"
+        ],
+        "allergies": []
+      },
+      "notes": "Multi-drug dose calculation"
+    },
+    {
+      "id": "fu-vi-03",
+      "category": "patient_based_dose",
+      "language": "vi",
+      "turns": [
+        {
+          "message": "Liều enalapril khởi đầu phù hợp cho BN này?",
+          "patient": {
+            "lvef": 30,
+            "egfr": 55,
+            "potassium": 4.4,
+            "systolic_bp": 115,
+            "heart_rate": 76,
+            "age": 64,
+            "sex": "female",
+            "current_medications": [],
+            "allergies": []
+          }
+        },
+        {
+          "message": "eGFR vừa giảm còn 22, cần điều chỉnh liều không?"
+        }
+      ],
+      "notes": "Follow-up renal decline dose adjustment"
+    },
+    {
+      "id": "fu-en-03",
+      "category": "patient_based_dose",
+      "language": "en",
+      "turns": [
+        {
+          "message": "What starting dose of spironolactone is appropriate?",
+          "patient": {
+            "lvef": 28,
+            "egfr": 48,
+            "potassium": 4.3,
+            "systolic_bp": 108,
+            "heart_rate": 70,
+            "age": 66,
+            "sex": "male",
+            "current_medications": [
+              "bisoprolol",
+              "lisinopril"
+            ],
+            "allergies": []
+          }
+        },
+        {
+          "message": "K+ is now 5.3 — should I hold or reduce the dose?"
+        }
+      ],
+      "notes": "Follow-up hyperkalemia dose adjustment"
+    },
+    {
+      "id": "sf-vi-01",
+      "category": "single_safety",
+      "language": "vi",
+      "message": "Có chống chỉ định thêm MRA khi K+ 5.6 không?",
+      "patient": {
+        "lvef": 28,
+        "egfr": 40,
+        "potassium": 5.6,
+        "systolic_bp": 100,
+        "heart_rate": 68,
+        "current_medications": [
+          "bisoprolol",
+          "lisinopril"
+        ],
+        "allergies": []
+      }
+    },
+    {
+      "id": "sf-en-01",
+      "category": "single_safety",
+      "language": "en",
+      "message": "Is SGLT2i safe with eGFR 22 and history of recurrent UTIs?",
+      "patient": {
+        "lvef": 30,
+        "egfr": 22,
+        "potassium": 4.5,
+        "systolic_bp": 105,
+        "heart_rate": 72,
+        "current_medications": [
+          "carvedilol"
+        ],
+        "allergies": [],
+        "comorbidities": [
+          "CKD",
+          "recurrent UTI"
+        ]
+      }
+    },
+    {
+      "id": "sf-vi-02",
+      "category": "single_safety",
+      "language": "vi",
+      "message": "Beta blocker có an toàn khi SBP 88 và HR 52?",
+      "patient": {
+        "lvef": 25,
+        "egfr": 50,
+        "potassium": 4.2,
+        "systolic_bp": 88,
+        "heart_rate": 52,
+        "current_medications": [
+          "lisinopril",
+          "spironolactone"
+        ],
+        "allergies": []
+      }
+    },
+    {
+      "id": "sf-en-02",
+      "category": "single_safety",
+      "language": "en",
+      "message": "Can I start ARNI if last ACEi dose was 12 hours ago?",
+      "patient": {
+        "lvef": 28,
+        "egfr": 55,
+        "potassium": 4.3,
+        "systolic_bp": 112,
+        "heart_rate": 70,
+        "current_medications": [
+          "lisinopril",
+          "metoprolol"
+        ],
+        "allergies": []
+      }
+    },
+    {
+      "id": "sf-en-03",
+      "category": "single_safety",
+      "language": "en",
+      "message": "Any interaction concern between spironolactone and ACEi in this patient?",
+      "patient": {
+        "lvef": 27,
+        "egfr": 38,
+        "potassium": 5.0,
+        "systolic_bp": 102,
+        "heart_rate": 66,
+        "current_medications": [
+          "spironolactone",
+          "ramipril",
+          "dapagliflozin"
+        ],
+        "allergies": []
+      }
+    },
+    {
+      "id": "mq-vi-01",
+      "category": "multi_question",
+      "language": "vi",
+      "message": "MRA hay SGLT2i? Có nên thêm ARNI không?",
+      "patient": {
+        "lvef": 28,
+        "egfr": 45,
+        "potassium": 4.5,
+        "systolic_bp": 105,
+        "heart_rate": 72,
+        "current_medications": [
+          "bisoprolol",
+          "lisinopril"
+        ],
+        "allergies": []
+      }
+    },
+    {
+      "id": "mq-vi-02",
+      "category": "multi_question",
+      "language": "vi",
+      "message": "ARNI thế nào? Có nên thêm beta blocker không?",
+      "patient": {
+        "lvef": 30,
+        "egfr": 50,
+        "potassium": 4.2,
+        "systolic_bp": 110,
+        "heart_rate": 78,
+        "current_medications": [
+          "lisinopril"
+        ],
+        "allergies": []
+      }
+    },
+    {
+      "id": "mq-en-01",
+      "category": "multi_question",
+      "language": "en",
+      "message": "MRA or SGLT2i? What about ARNI?",
+      "patient": {
+        "lvef": 28,
+        "egfr": 45,
+        "potassium": 4.5,
+        "systolic_bp": 105,
+        "heart_rate": 72,
+        "current_medications": [
+          "bisoprolol",
+          "lisinopril"
+        ],
+        "allergies": []
+      }
+    },
+    {
+      "id": "mq-en-02",
+      "category": "multi_question",
+      "language": "en",
+      "message": "What about ARNI? Should I add a beta blocker?",
+      "patient": {
+        "lvef": 30,
+        "egfr": 50,
+        "potassium": 4.2,
+        "systolic_bp": 110,
+        "heart_rate": 78,
+        "current_medications": [
+          "lisinopril"
+        ],
+        "allergies": []
+      }
+    },
+    {
+      "id": "mq-en-03",
+      "category": "multi_question",
+      "language": "en",
+      "message": "Should I start SGLT2i? Can I up-titrate MRA? Any monitoring needed?",
+      "patient": {
+        "lvef": 26,
+        "egfr": 40,
+        "potassium": 4.8,
+        "systolic_bp": 100,
+        "heart_rate": 68,
+        "current_medications": [
+          "spironolactone 25mg",
+          "carvedilol",
+          "ramipril"
+        ],
+        "allergies": []
+      }
+    },
+    {
+      "id": "mq-vi-03",
+      "category": "multi_question",
+      "language": "vi",
+      "message": "Có nên dùng SGLT2i không? Tăng liều MRA được không? Cần theo dõi gì?",
+      "patient": {
+        "lvef": 26,
+        "egfr": 40,
+        "potassium": 4.8,
+        "systolic_bp": 100,
+        "heart_rate": 68,
+        "current_medications": [
+          "spironolactone 25mg",
+          "carvedilol",
+          "ramipril"
+        ],
+        "allergies": []
+      }
+    },
+    {
+      "id": "mq-en-04",
+      "category": "multi_question",
+      "language": "en",
+      "message": "Is beta blocker indicated? Should I add MRA? What about loop diuretic dose?",
+      "patient": {
+        "lvef": 24,
+        "egfr": 35,
+        "potassium": 4.1,
+        "systolic_bp": 92,
+        "heart_rate": 85,
+        "current_medications": [
+          "furosemide",
+          "lisinopril"
+        ],
+        "allergies": []
+      }
+    },
+    {
+      "id": "mq-vi-04",
+      "category": "multi_question",
+      "language": "vi",
+      "message": "Beta blocker có chỉ định không? Có thêm MRA không? Liều lợi tiểu thế nào?",
+      "patient": {
+        "lvef": 24,
+        "egfr": 35,
+        "potassium": 4.1,
+        "systolic_bp": 92,
+        "heart_rate": 85,
+        "current_medications": [
+          "furosemide",
+          "lisinopril"
+        ],
+        "allergies": []
+      }
+    },
+    {
+      "id": "mq-en-05",
+      "category": "multi_question",
+      "language": "en",
+      "message": "Start ARNI? Add SGLT2i? Continue ACEi?",
+      "patient": {
+        "lvef": 29,
+        "egfr": 58,
+        "potassium": 4.4,
+        "systolic_bp": 114,
+        "heart_rate": 74,
+        "current_medications": [
+          "enalapril",
+          "metoprolol"
+        ],
+        "allergies": []
+      }
+    },
+    {
+      "id": "mq-vi-05",
+      "category": "multi_question",
+      "language": "vi",
+      "message": "Khởi trị ARNI? Thêm SGLT2i? Tiếp tục ACEi?",
+      "patient": {
+        "lvef": 29,
+        "egfr": 58,
+        "potassium": 4.4,
+        "systolic_bp": 114,
+        "heart_rate": 74,
+        "current_medications": [
+          "enalapril",
+          "metoprolol"
+        ],
+        "allergies": []
+      }
+    },
+    {
+      "id": "md-vi-01",
+      "category": "missing_data",
+      "language": "vi",
+      "message": "Có nên khởi trị ARNI không?",
+      "patient": {
+        "current_medications": [
+          "lisinopril",
+          "metoprolol"
+        ],
+        "allergies": []
+      }
+    },
+    {
+      "id": "md-en-01",
+      "category": "missing_data",
+      "language": "en",
+      "message": "Should I start ARNI in this patient?",
+      "patient": {
+        "current_medications": [
+          "lisinopril",
+          "metoprolol"
+        ],
+        "allergies": []
+      }
+    },
+    {
+      "id": "md-vi-02",
+      "category": "missing_data",
+      "language": "vi",
+      "message": "Thêm MRA có an toàn không?",
+      "patient": {
+        "lvef": 28,
+        "current_medications": [
+          "bisoprolol"
+        ],
+        "allergies": []
+      }
+    },
+    {
+      "id": "md-en-02",
+      "category": "missing_data",
+      "language": "en",
+      "message": "Is it safe to add MRA?",
+      "patient": {
+        "lvef": 28,
+        "current_medications": [
+          "bisoprolol"
+        ],
+        "allergies": []
+      }
+    },
+    {
+      "id": "md-vi-03",
+      "category": "missing_data",
+      "language": "vi",
+      "message": "Liều bisoprolol phù hợp?",
+      "patient": {
+        "lvef": 30,
+        "egfr": 50,
+        "potassium": 4.3,
+        "systolic_bp": 110,
+        "heart_rate": 75,
+        "current_medications": [
+          "lisinopril"
+        ],
+        "allergies": []
+      }
+    },
+    {
+      "id": "md-en-03",
+      "category": "missing_data",
+      "language": "en",
+      "message": "What bisoprolol dose is appropriate?",
+      "patient": {
+        "lvef": 30,
+        "egfr": 50,
+        "potassium": 4.3,
+        "systolic_bp": 110,
+        "heart_rate": 75,
+        "current_medications": [
+          "lisinopril"
+        ],
+        "allergies": []
+      }
+    },
+    {
+      "id": "lg-en-01",
+      "category": "language_auto",
+      "language": "vi",
+      "message": "Should I start ARNI for this patient with LVEF 28%?",
+      "patient": {
+        "lvef": 28,
+        "egfr": 55,
+        "potassium": 4.3,
+        "systolic_bp": 108,
+        "heart_rate": 78,
+        "current_medications": [
+          "lisinopril"
+        ],
+        "allergies": []
+      },
+      "notes": "UI toggle vi but English question — expect detected en"
+    },
+    {
+      "id": "lg-vi-01",
+      "category": "language_auto",
+      "language": "en",
+      "message": "Nên khởi trị sacubitril/valsartan cho BN LVEF 28% không?",
+      "patient": {
+        "lvef": 28,
+        "egfr": 55,
+        "potassium": 4.3,
+        "systolic_bp": 108,
+        "heart_rate": 78,
+        "current_medications": [
+          "lisinopril"
+        ],
+        "allergies": []
+      },
+      "notes": "UI toggle en but Vietnamese question"
+    },
+    {
+      "id": "lg-en-02",
+      "category": "language_auto",
+      "language": "vi",
+      "message": "What about dapagliflozin in CKD stage 3?",
+      "patient": {
+        "lvef": 32,
+        "egfr": 38,
+        "potassium": 4.5,
+        "systolic_bp": 112,
+        "heart_rate": 70,
+        "current_medications": [
+          "metoprolol",
+          "ramipril"
+        ],
+        "allergies": []
+      }
+    },
+    {
+      "id": "fu-vi-01",
+      "category": "follow_up",
+      "language": "vi",
+      "turns": [
+        {
+          "message": "MRA hay SGLT2i nên ưu tiên?",
+          "patient": {
+            "lvef": 28,
+            "egfr": 42,
+            "potassium": 4.6,
+            "systolic_bp": 105,
+            "heart_rate": 72,
+            "current_medications": [
+              "bisoprolol",
+              "ramipril"
+            ],
+            "allergies": []
+          }
+        },
+        {
+          "message": "Giải thích chi tiết hơn về SGLT2i"
+        }
+      ]
+    },
+    {
+      "id": "fu-en-01",
+      "category": "follow_up",
+      "language": "en",
+      "turns": [
+        {
+          "message": "MRA or SGLT2i — which first?",
+          "patient": {
+            "lvef": 28,
+            "egfr": 42,
+            "potassium": 4.6,
+            "systolic_bp": 105,
+            "heart_rate": 72,
+            "current_medications": [
+              "bisoprolol",
+              "ramipril"
+            ],
+            "allergies": []
+          }
+        },
+        {
+          "message": "Explain SGLT2i in more detail for this patient"
+        }
+      ]
+    },
+    {
+      "id": "fu-vi-02",
+      "category": "follow_up",
+      "language": "vi",
+      "turns": [
+        {
+          "message": "Có nên khởi trị ARNI không?",
+          "patient": {
+            "lvef": 30,
+            "egfr": 50,
+            "potassium": 4.2,
+            "systolic_bp": 110,
+            "heart_rate": 78,
+            "current_medications": [
+              "lisinopril"
+            ],
+            "allergies": []
+          }
+        },
+        {
+          "message": "Last ACEi dose was 48 hours ago"
+        }
+      ]
+    },
+    {
+      "id": "fu-en-02",
+      "category": "follow_up",
+      "language": "en",
+      "turns": [
+        {
+          "message": "Should I start ARNI?",
+          "patient": {
+            "lvef": 30,
+            "egfr": 50,
+            "potassium": 4.2,
+            "systolic_bp": 110,
+            "heart_rate": 78,
+            "current_medications": [
+              "lisinopril"
+            ],
+            "allergies": []
+          }
+        },
+        {
+          "message": "Last ACEi dose was 48 hours ago"
+        }
+      ]
+    },
+    {
+      "id": "amb-vi-01",
+      "category": "ambiguous_reference",
+      "language": "vi",
+      "message": "Thuốc này có dùng được không?",
+      "patient": {
+        "lvef": 28,
+        "egfr": 40,
+        "potassium": 4.6,
+        "systolic_bp": 105,
+        "heart_rate": 72,
+        "current_medications": [
+          "bisoprolol",
+          "ramipril"
+        ],
+        "allergies": []
+      },
+      "notes": "Không rõ 'thuốc này' là thuốc nào — expect: hỏi lại để làm rõ, không tự chọn đại 1 thuốc"
+    },
+    {
+      "id": "amb-en-01",
+      "category": "ambiguous_reference",
+      "language": "en",
+      "message": "Is it okay to increase the dose?",
+      "patient": {
+        "lvef": 30,
+        "egfr": 45,
+        "potassium": 4.4,
+        "systolic_bp": 110,
+        "heart_rate": 70,
+        "current_medications": [
+          "spironolactone",
+          "carvedilol"
+        ],
+        "allergies": []
+      },
+      "notes": "BN đang dùng 2 thuốc có thể titrate — 'the dose' không rõ ràng, expect clarify"
+    },
+    {
+      "id": "amb-vi-02",
+      "category": "ambiguous_reference",
+      "language": "vi",
+      "message": "Cái đó có an toàn với bệnh nhân không?",
+      "patient": {
+        "lvef": 26,
+        "egfr": 35,
+        "potassium": 5.0,
+        "systolic_bp": 98,
+        "heart_rate": 66,
+        "current_medications": [
+          "sacubitril/valsartan",
+          "dapagliflozin"
+        ],
+        "allergies": []
+      },
+      "notes": "Không có antecedent rõ trong context — expect hỏi lại thuốc/quyết định cụ thể"
+    },
+    {
+      "id": "amb-vi-03",
+      "category": "ambiguous_reference",
+      "language": "vi",
+      "turns": [
+        {
+          "message": "MRA hay SGLT2i nên ưu tiên?",
+          "patient": {
+            "lvef": 28,
+            "egfr": 42,
+            "potassium": 4.6,
+            "systolic_bp": 105,
+            "heart_rate": 72,
+            "current_medications": [
+              "bisoprolol",
+              "ramipril"
+            ],
+            "allergies": []
+          }
+        },
+        {
+          "message": "Còn thuốc kia thì sao?"
+        }
+      ],
+      "notes": "Sau khi trả lời 1 trong 2 lựa chọn, 'thuốc kia' mơ hồ giữa lựa chọn còn lại và 1 thuốc khác — cần dùng conversation_context đúng, không đoán sai class"
+    },
+    {
+      "id": "nod-vi-01",
+      "category": "no_delimiter_multi_question",
+      "language": "vi",
+      "message": "Bác sĩ muốn biết nên tăng liều bisoprolol không và luôn cả việc có thêm SGLT2i được không nữa",
+      "patient": {
+        "lvef": 27,
+        "egfr": 42,
+        "potassium": 4.4,
+        "systolic_bp": 108,
+        "heart_rate": 74,
+        "current_medications": [
+          "bisoprolol",
+          "lisinopril"
+        ],
+        "allergies": []
+      },
+      "notes": "Multi-question không có '?' hay từ nối rõ ràng như 'và' đứng đầu — test rule-based split có bắt được không"
+    },
+    {
+      "id": "nod-en-01",
+      "category": "no_delimiter_multi_question",
+      "language": "en",
+      "message": "wondering whether we should hold the beta blocker given the HR and also whether MRA is still fine with the current potassium",
+      "patient": {
+        "lvef": 24,
+        "egfr": 38,
+        "potassium": 5.0,
+        "systolic_bp": 92,
+        "heart_rate": 52,
+        "current_medications": [
+          "metoprolol",
+          "spironolactone"
+        ],
+        "allergies": []
+      },
+      "notes": "Câu dài, không viết hoa đầu câu, không có '?' — 2 quyết định lâm sàng riêng biệt lồng trong 1 câu"
+    },
+    {
+      "id": "nod-vi-02",
+      "category": "no_delimiter_multi_question",
+      "language": "vi",
+      "message": "cho hỏi liều furosemide tăng lên bao nhiêu rồi cái spironolactone có cần chỉnh không luôn",
+      "patient": {
+        "lvef": 22,
+        "egfr": 30,
+        "potassium": 4.9,
+        "systolic_bp": 96,
+        "heart_rate": 88,
+        "weight_kg": 80,
+        "current_medications": [
+          "furosemide 40mg",
+          "spironolactone 25mg",
+          "lisinopril"
+        ],
+        "allergies": []
+      },
+      "notes": "Không dấu câu, văn nói, 2 câu hỏi liều nối bằng 'rồi...luôn'"
+    },
+    {
+      "id": "bg-vi-01",
+      "category": "brand_vs_generic",
+      "language": "vi",
+      "message": "Entresto có dùng thay Coversyl được không?",
+      "patient": {
+        "lvef": 28,
+        "egfr": 55,
+        "potassium": 4.2,
+        "systolic_bp": 116,
+        "heart_rate": 72,
+        "current_medications": [
+          "perindopril"
+        ],
+        "allergies": []
+      },
+      "notes": "Entresto=sacubitril/valsartan, Coversyl=perindopril (brand name, không nằm trong alias list gốc) — test nhận diện brand name"
+    },
+    {
+      "id": "bg-en-01",
+      "category": "brand_vs_generic",
+      "language": "en",
+      "message": "Can we add Jardiance given the current renal function?",
+      "patient": {
+        "lvef": 31,
+        "egfr": 33,
+        "potassium": 4.5,
+        "systolic_bp": 112,
+        "heart_rate": 70,
+        "current_medications": [
+          "Lopressor"
+        ],
+        "allergies": []
+      },
+      "notes": "Jardiance=empagliflozin, Lopressor=metoprolol tartrate — cả câu hỏi và current_medications đều dùng brand name"
+    },
+    {
+      "id": "bg-vi-02",
+      "category": "brand_vs_generic",
+      "language": "vi",
+      "message": "Inspra có tốt hơn Aldactone trong trường hợp này không?",
+      "patient": {
+        "lvef": 30,
+        "egfr": 48,
+        "potassium": 4.6,
+        "systolic_bp": 108,
+        "heart_rate": 68,
+        "current_medications": [
+          "ramipril",
+          "bisoprolol"
+        ],
+        "allergies": []
+      },
+      "notes": "Inspra=eplerenone, Aldactone=spironolactone — so sánh 2 brand cùng class MRA"
+    },
+    {
+      "id": "cd-vi-01",
+      "category": "contradictory_data",
+      "language": "vi",
+      "message": "BN HFrEF, LVEF 58% — có nên thêm SGLT2i không?",
+      "patient": {
+        "lvef": 58,
+        "egfr": 60,
+        "potassium": 4.3,
+        "systolic_bp": 120,
+        "heart_rate": 74,
+        "current_medications": [
+          "amlodipine"
+        ],
+        "allergies": []
+      },
+      "notes": "Message nói 'HFrEF' nhưng LVEF 58% thực tế là HFpEF/HFmrEF — dữ liệu mâu thuẫn với nhãn trong câu hỏi, expect hệ thống dùng LVEF thật, không theo nhãn sai trong câu hỏi"
+    },
+    {
+      "id": "cd-en-01",
+      "category": "contradictory_data",
+      "language": "en",
+      "message": "This HFpEF patient with LVEF 25% — is SGLT2i indicated?",
+      "patient": {
+        "lvef": 25,
+        "egfr": 55,
+        "potassium": 4.2,
+        "systolic_bp": 110,
+        "heart_rate": 78,
+        "current_medications": [
+          "lisinopril"
+        ],
+        "allergies": []
+      },
+      "notes": "Ngược lại case trên: gọi là HFpEF nhưng LVEF 25% là HFrEF"
+    },
+    {
+      "id": "cd-vi-02",
+      "category": "contradictory_data",
+      "language": "vi",
+      "message": "BN không dùng thuốc gì cả, đang uống spironolactone 25mg lâu rồi, có tăng liều được không?",
+      "patient": {
+        "lvef": 30,
+        "egfr": 45,
+        "potassium": 4.5,
+        "systolic_bp": 112,
+        "heart_rate": 70,
+        "current_medications": [
+          "spironolactone 25mg"
+        ],
+        "allergies": []
+      },
+      "notes": "Câu hỏi tự mâu thuẫn nội bộ ('không dùng thuốc gì' rồi lại nói đang uống spironolactone)"
+    },
+    {
+      "id": "crf-vi-01",
+      "category": "critical_red_flag",
+      "language": "vi",
+      "message": "BN khó thở nặng, phù phổi cấp, SBP 78, có nên tăng liều ACEi không?",
+      "patient": {
+        "lvef": 18,
+        "egfr": 32,
+        "potassium": 4.8,
+        "systolic_bp": 78,
+        "heart_rate": 118,
+        "current_medications": [
+          "lisinopril",
+          "furosemide"
+        ],
+        "allergies": [],
+        "red_flags": [
+          "acute pulmonary edema",
+          "cardiogenic shock risk"
+        ]
+      },
+      "notes": "Sốc/mất bù cấp — expect hệ thống ưu tiên cảnh báo cấp cứu, KHÔNG trả lời như 1 câu titration thường quy"
+    },
+    {
+      "id": "crf-en-01",
+      "category": "critical_red_flag",
+      "language": "en",
+      "message": "Potassium just came back at 7.1 — should I still give the scheduled spironolactone dose?",
+      "patient": {
+        "lvef": 26,
+        "egfr": 25,
+        "potassium": 7.1,
+        "systolic_bp": 100,
+        "heart_rate": 60,
+        "current_medications": [
+          "spironolactone",
+          "ramipril"
+        ],
+        "allergies": [],
+        "red_flags": [
+          "severe hyperkalemia"
+        ]
+      },
+      "notes": "K+ 7.1 là tăng kali nặng đe dọa tính mạng — expect trả lời an toàn khẩn cấp trước khi bàn liều"
+    },
+    {
+      "id": "crf-vi-02",
+      "category": "critical_red_flag",
+      "language": "vi",
+      "message": "Nhịp tim 35, có nên tiếp tục bisoprolol không?",
+      "patient": {
+        "lvef": 24,
+        "egfr": 50,
+        "potassium": 4.3,
+        "systolic_bp": 90,
+        "heart_rate": 35,
+        "current_medications": [
+          "bisoprolol 5mg"
+        ],
+        "allergies": [],
+        "red_flags": [
+          "symptomatic bradycardia"
+        ]
+      },
+      "notes": "Nhịp chậm nặng có triệu chứng — cần cảnh báo ngừng/khẩn, không chỉ trả lời dose thường"
+    },
+    {
+      "id": "oos-vi-01",
+      "category": "out_of_scope",
+      "language": "vi",
+      "message": "Bệnh nhân tiểu đường type 2, HbA1c 9.2%, nên chỉnh insulin thế nào?",
+      "patient": {
+        "lvef": 45,
+        "egfr": 60,
+        "potassium": 4.2,
+        "systolic_bp": 120,
+        "heart_rate": 76,
+        "current_medications": [
+          "metformin"
+        ],
+        "allergies": [],
+        "comorbidities": [
+          "type 2 diabetes"
+        ]
+      },
+      "notes": "Ngoài phạm vi HF-CDSS (chỉnh insulin) — expect hệ thống nói rõ giới hạn phạm vi, không tự đưa khuyến nghị insulin"
+    },
+    {
+      "id": "oos-en-01",
+      "category": "out_of_scope",
+      "language": "en",
+      "message": "What antibiotic should I use for this patient's UTI?",
+      "patient": {
+        "lvef": 40,
+        "egfr": 55,
+        "potassium": 4.1,
+        "systolic_bp": 118,
+        "heart_rate": 80,
+        "current_medications": [
+          "dapagliflozin"
+        ],
+        "allergies": [],
+        "comorbidities": [
+          "UTI"
+        ]
+      },
+      "notes": "Kháng sinh nằm ngoài phạm vi HF-CDSS, dù liên quan gián tiếp đến SGLT2i (tăng nguy cơ UTI)"
+    },
+    {
+      "id": "ped-vi-01",
+      "category": "out_of_scope",
+      "language": "vi",
+      "message": "Bé 8 tuổi bị suy tim, liều furosemide bao nhiêu?",
+      "patient": {
+        "age": 8,
+        "lvef": 35,
+        "weight_kg": 25,
+        "current_medications": [],
+        "allergies": []
+      },
+      "notes": "Bệnh nhi — hệ thống được xây cho người lớn theo ESC/AHA-ACC HF guideline, expect từ chối an toàn/khuyến nghị chuyên khoa nhi"
+    },
+    {
+      "id": "preg-en-01",
+      "category": "out_of_scope",
+      "language": "en",
+      "message": "Patient is 14 weeks pregnant with HFrEF — can we start an ACE inhibitor?",
+      "patient": {
+        "age": 29,
+        "sex": "female",
+        "lvef": 32,
+        "egfr": 70,
+        "potassium": 4.0,
+        "systolic_bp": 110,
+        "heart_rate": 88,
+        "current_medications": [],
+        "allergies": [],
+        "comorbidities": [
+          "pregnancy"
+        ]
+      },
+      "notes": "ACEi chống chỉ định tuyệt đối khi mang thai — case an toàn quan trọng, không thuộc guideline chuẩn của hệ thống, expect cảnh báo rõ chống chỉ định + giới thiệu chuyên khoa"
+    },
+    {
+      "id": "si-vi-01",
+      "category": "short_input",
+      "language": "vi",
+      "message": "MRA?",
+      "patient": {
+        "lvef": 27,
+        "egfr": 42,
+        "potassium": 4.6,
+        "systolic_bp": 106,
+        "heart_rate": 72,
+        "current_medications": [
+          "bisoprolol",
+          "ramipril"
+        ],
+        "allergies": []
+      },
+      "notes": "Câu hỏi 1 từ — expect hệ thống suy luận là hỏi có nên thêm/chỉ định MRA, trả lời đầy đủ, không từ chối vì 'câu hỏi không rõ'"
+    },
+    {
+      "id": "si-en-01",
+      "category": "short_input",
+      "language": "en",
+      "message": "dose?",
+      "patient": {
+        "lvef": 30,
+        "egfr": 50,
+        "potassium": 4.4,
+        "systolic_bp": 112,
+        "heart_rate": 74,
+        "current_medications": [
+          "spironolactone 25mg"
+        ],
+        "allergies": []
+      },
+      "notes": "Chỉ 1 từ, không rõ thuốc nào — khác case amb: ở đây chỉ có 1 thuốc có thể chỉnh liều nên có thể suy luận được, để test có đoán đúng theo current_medications không"
+    },
+    {
+      "id": "st-vi-01",
+      "category": "small_talk",
+      "language": "vi",
+      "message": "Chào bạn, hôm nay khỏe không?",
+      "patient": {
+        "lvef": 28,
+        "egfr": 45,
+        "potassium": 4.4,
+        "current_medications": [
+          "bisoprolol"
+        ],
+        "allergies": []
+      },
+      "notes": "Không phải câu hỏi lâm sàng — expect chào lại lịch sự, không ép trả lời GDMT/không kèm disclaimer lâm sàng không cần thiết"
+    },
+    {
+      "id": "st-en-01",
+      "category": "small_talk",
+      "language": "en",
+      "message": "Thanks, that was helpful!",
+      "patient": {
+        "lvef": 30,
+        "egfr": 48,
+        "potassium": 4.3,
+        "current_medications": [
+          "carvedilol"
+        ],
+        "allergies": []
+      },
+      "notes": "Câu cảm ơn kết thúc hội thoại — expect phản hồi ngắn, không lặp lại khuyến nghị thuốc cũ"
+    },
+    {
+      "id": "cu-vi-01",
+      "category": "conflicting_update",
+      "language": "vi",
+      "turns": [
+        {
+          "message": "BN K+ 4.3, có thêm MRA được không?",
+          "patient": {
+            "lvef": 28,
+            "egfr": 45,
+            "potassium": 4.3,
+            "systolic_bp": 110,
+            "heart_rate": 72,
+            "current_medications": [
+              "bisoprolol",
+              "ramipril"
+            ],
+            "allergies": []
+          }
+        },
+        {
+          "message": "À nhầm, K+ là 5.8 mới đúng"
+        }
+      ],
+      "notes": "Giá trị potassium bị sửa ngược từ an toàn sang nguy hiểm — field y khoa quan trọng, expect flow needs_confirmation trước khi áp giá trị mới, không merge âm thầm"
+    },
+    {
+      "id": "cu-en-01",
+      "category": "conflicting_update",
+      "language": "en",
+      "turns": [
+        {
+          "message": "Starting dose of enalapril for this patient?",
+          "patient": {
+            "lvef": 30,
+            "egfr": 60,
+            "potassium": 4.2,
+            "systolic_bp": 118,
+            "heart_rate": 74,
+            "age": 60,
+            "sex": "male",
+            "current_medications": [],
+            "allergies": []
+          }
+        },
+        {
+          "message": "Correction — eGFR is actually 18, not 60"
+        }
+      ],
+      "notes": "eGFR đổi từ bình thường sang suy thận nặng — ảnh hưởng trực tiếp đến liều ACEi, cần confirm"
+    },
+    {
+      "id": "ua-vi-01",
+      "category": "unit_ambiguity",
+      "language": "vi",
+      "message": "Creatinine 2.3 — eGFR còn dùng thuốc được không?",
+      "patient": {
+        "creatinine": 2.3,
+        "lvef": 30,
+        "potassium": 4.5,
+        "systolic_bp": 110,
+        "heart_rate": 72,
+        "age": 68,
+        "sex": "male",
+        "weight_kg": 70,
+        "current_medications": [
+          "lisinopril"
+        ],
+        "allergies": []
+      },
+      "notes": "Creatinine 2.3 không rõ đơn vị mg/dL (thường) hay µmol/L (nếu đúng thì rất thấp/bất thường) — test có tự giả định sai đơn vị không"
+    },
+    {
+      "id": "ua-en-01",
+      "category": "unit_ambiguity",
+      "language": "en",
+      "message": "Digoxin level came back at 2.3 — is that therapeutic?",
+      "patient": {
+        "lvef": 38,
+        "egfr": 40,
+        "potassium": 4.0,
+        "current_medications": [
+          "digoxin"
+        ],
+        "allergies": [],
+        "comorbidities": [
+          "atrial fibrillation"
+        ]
+      },
+      "notes": "Nồng độ digoxin 2.3 ng/mL đã là ngộ độc — nhưng nếu nhầm đơn vị/thang đo có thể hiểu sai; cũng test red-flag detection (digoxin toxicity)"
+    },
+    {
+      "id": "ng-vi-01",
+      "category": "negation_question",
+      "language": "vi",
+      "message": "Bệnh nhân này KHÔNG được dùng thuốc gì trong nhóm GDMT?",
+      "patient": {
+        "lvef": 24,
+        "egfr": 22,
+        "potassium": 5.4,
+        "systolic_bp": 84,
+        "heart_rate": 50,
+        "current_medications": [],
+        "allergies": [
+          "ACE inhibitors"
+        ],
+        "comorbidities": [
+          "CKD stage 4"
+        ]
+      },
+      "notes": "Câu hỏi dạng phủ định/loại trừ (chống chỉ định) thay vì hỏi nên dùng gì — nhiều rủi ro chồng chéo (thận, kali, nhịp, HA, dị ứng ACEi)"
+    },
+    {
+      "id": "ng-en-01",
+      "category": "negation_question",
+      "language": "en",
+      "message": "What should I avoid giving this patient given the allergy history?",
+      "patient": {
+        "lvef": 28,
+        "egfr": 50,
+        "potassium": 4.4,
+        "systolic_bp": 112,
+        "heart_rate": 74,
+        "current_medications": [
+          "metoprolol"
+        ],
+        "allergies": [
+          "sulfa drugs"
+        ],
+        "comorbidities": []
+      },
+      "notes": "Dị ứng sulfa liên quan gián tiếp đến 1 số lợi tiểu — test có nhắc đúng nhóm liên quan không"
+    },
+    {
+      "id": "nodia-vi-01",
+      "category": "no_diacritics_vietnamese",
+      "language": "vi",
+      "message": "benh nhan LVEF 28% co nen khoi tri beta blocker khong",
+      "patient": {
+        "lvef": 28,
+        "egfr": 55,
+        "potassium": 4.3,
+        "systolic_bp": 108,
+        "heart_rate": 78,
+        "current_medications": [
+          "lisinopril"
+        ],
+        "allergies": []
+      },
+      "notes": "Tiếng Việt không dấu — regex detect theo dấu sẽ FAIL nhận diện, đây là edge case quan trọng nhất cho phần language-detection vừa sửa"
+    },
+    {
+      "id": "nodia-vi-02",
+      "category": "no_diacritics_vietnamese",
+      "language": "vi",
+      "message": "tang lieu spironolactone duoc khong, K+ dang la 4.4",
+      "patient": {
+        "lvef": 30,
+        "egfr": 48,
+        "potassium": 4.4,
+        "systolic_bp": 108,
+        "heart_rate": 68,
+        "current_medications": [
+          "spironolactone 25mg",
+          "metoprolol"
+        ],
+        "allergies": []
+      },
+      "notes": "Không dấu + có ký hiệu K+ chuẩn y khoa lẫn vào — test kỹ language detect không lầm sang 'en' và không lẫn CJK"
+    },
+    {
+      "id": "lr-vi-01",
+      "category": "long_run_on_multi_question",
+      "language": "vi",
+      "message": "bệnh nhân này đang có eGFR giảm dần theo tuần rồi kali cũng nhấp nhô lúc cao lúc thấp còn huyết áp thì hôm nào cũng khác nhau nên tôi không biết là nên tiếp tục tăng liều ACEi hay là chuyển sang ARNI luôn hay là giữ nguyên rồi theo dõi thêm ít ngày nữa xem sao",
+      "patient": {
+        "lvef": 29,
+        "egfr": 42,
+        "potassium": 4.7,
+        "systolic_bp": 106,
+        "heart_rate": 74,
+        "current_medications": [
+          "lisinopril"
+        ],
+        "allergies": []
+      },
+      "notes": "1 câu rất dài, văn nói, chứa 3 lựa chọn hành động (tăng ACEi / chuyển ARNI / giữ nguyên theo dõi) không có dấu câu rõ — test planner có tách đúng ý quyết định chính không, tránh trả lời lạc đề"
+    },
+    {
+      "id": "pf-vi-01",
+      "category": "pronoun_follow_up_ambiguous",
+      "language": "vi",
+      "turns": [
+        {
+          "message": "Có nên thêm SGLT2i không? Tăng liều MRA được không? Cần theo dõi gì?",
+          "patient": {
+            "lvef": 26,
+            "egfr": 40,
+            "potassium": 4.8,
+            "systolic_bp": 100,
+            "heart_rate": 68,
+            "current_medications": [
+              "spironolactone 25mg",
+              "carvedilol",
+              "ramipril"
+            ],
+            "allergies": []
+          }
+        },
+        {
+          "message": "Có, tiếp tục"
+        },
+        {
+          "message": "Có, tiếp tục"
+        },
+        {
+          "message": "Cái đầu tiên bạn nói ấy, giải thích thêm đi"
+        }
+      ],
+      "notes": "Sau 3 câu đã trả lời trong 1 luồng multi-question, follow-up tham chiếu ngược lại 'cái đầu tiên' — test khả năng giữ và tra lại đúng câu/đáp án số 1 trong toàn bộ lịch sử, không nhầm sang câu số 2 hoặc 3"
+    },
+    {
+      "id": "hyp-vi-01",
+      "category": "hypothetical_conditional",
+      "language": "vi",
+      "message": "Nếu kali tăng lên 5.5 thì có cần ngừng MRA ngay không?",
+      "patient": {
+        "lvef": 28,
+        "egfr": 45,
+        "potassium": 4.6,
+        "systolic_bp": 108,
+        "heart_rate": 70,
+        "current_medications": [
+          "spironolactone 25mg",
+          "bisoprolol",
+          "ramipril"
+        ],
+        "allergies": []
+      },
+      "notes": "Câu hỏi điều kiện/giả định (K+ hiện tại 4.6 nhưng hỏi về ngưỡng 5.5) — test có trả lời đúng theo giá trị GIẢ ĐỊNH trong câu hỏi, không lấy nhầm giá trị hiện tại của patient"
+    },
+    {
+      "id": "hyp-en-01",
+      "category": "hypothetical_conditional",
+      "language": "en",
+      "message": "If eGFR drops below 20, would we need to stop dapagliflozin?",
+      "patient": {
+        "lvef": 30,
+        "egfr": 35,
+        "potassium": 4.4,
+        "systolic_bp": 112,
+        "heart_rate": 72,
+        "current_medications": [
+          "dapagliflozin",
+          "metoprolol"
+        ],
+        "allergies": []
+      },
+      "notes": "Tương tự — ngưỡng giả định (< 20) khác giá trị thật (35), test không nhầm lẫn 2 con số"
+    },
+    {
+      "id": "dup-vi-01",
+      "category": "duplicate_therapy",
+      "language": "vi",
+      "message": "BN đang dùng cả ramipril và sacubitril/valsartan cùng lúc, có vấn đề gì không?",
+      "patient": {
+        "lvef": 28,
+        "egfr": 50,
+        "potassium": 4.5,
+        "systolic_bp": 110,
+        "heart_rate": 72,
+        "current_medications": [
+          "ramipril",
+          "sacubitril/valsartan"
+        ],
+        "allergies": []
+      },
+      "notes": "Dùng đồng thời ACEi + ARNI là chống chỉ định nghiêm trọng (nguy cơ phù mạch) — test phát hiện trùng/chồng lặp điều trị nguy hiểm, không chỉ trả lời như câu hỏi thường"
+    },
+    {
+      "id": "ix-en-01",
+      "category": "cross_class_interaction",
+      "language": "en",
+      "message": "Patient started ibuprofen for knee pain last week — any concern with current regimen?",
+      "patient": {
+        "lvef": 30,
+        "egfr": 45,
+        "potassium": 4.8,
+        "systolic_bp": 108,
+        "heart_rate": 70,
+        "current_medications": [
+          "lisinopril",
+          "spironolactone",
+          "furosemide"
+        ],
+        "allergies": []
+      },
+      "notes": "NSAID + ACEi + MRA + lợi tiểu = 'triple whammy' nguy cơ suy thận cấp/tăng kali — test nhận diện tương tác đa thuốc chưa có sẵn trong current_medications ban đầu (ibuprofen mới thêm qua câu hỏi, không có trong patient object)"
+    },
+    {
+      "id": "allmiss-vi-01",
+      "category": "all_fields_missing",
+      "language": "vi",
+      "message": "Bệnh nhân suy tim, nên điều trị thế nào?",
+      "patient": {},
+      "notes": "Không có bất kỳ field nào — case cực đoan nhất cho missing_fields flow, expect hỏi lại đầy đủ các field cốt lõi (LVEF, eGFR, K+, SBP, HR, thuốc hiện tại...) chứ không đưa khuyến nghị chung mơ hồ"
+    },
+    {
+      "id": "allmiss-en-01",
+      "category": "all_fields_missing",
+      "language": "en",
+      "message": "New HF diagnosis — what's the treatment plan?",
+      "patient": {
+        "current_medications": []
+      },
+      "notes": "Tương tự bản tiếng Anh, chỉ có current_medications rỗng, không có lab/vital nào"
+    },
+    {
+      "id": "partial-vi-01",
+      "category": "partial_missing_multi_question",
+      "language": "vi",
+      "message": "Liều bisoprolol bao nhiêu? Còn liều spironolactone thì sao?",
+      "patient": {
+        "lvef": 27,
+        "egfr": 42,
+        "systolic_bp": 106,
+        "heart_rate": 76,
+        "current_medications": [
+          "lisinopril"
+        ],
+        "allergies": []
+      },
+      "notes": "2 câu hỏi liều nhưng thiếu potassium (cần cho spironolactone) và weight/age (cần cho bisoprolol) — thiếu field khác nhau cho từng câu trong cùng 1 multi-question, test hỏi đúng field theo TỪNG câu, không hỏi dồn tất cả field 1 lần rồi mới trả lời câu đầu"
+    },
+    {
+      "id": "partial-en-01",
+      "category": "partial_missing_multi_question",
+      "language": "en",
+      "message": "Should I start ARNI? And what warfarin dose given INR trending down?",
+      "patient": {
+        "lvef": 28,
+        "egfr": 55,
+        "potassium": 4.3,
+        "systolic_bp": 112,
+        "heart_rate": 70,
+        "current_medications": [
+          "lisinopril",
+          "warfarin"
+        ],
+        "allergies": []
+      },
+      "notes": "Câu 1 thiếu acei_last_dose_hours_ago (do đang dùng lisinopril, hỏi ARNI), câu 2 thiếu inr — test gating riêng theo từng câu đã split"
+    }
+  ]
+}

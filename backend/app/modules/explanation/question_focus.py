@@ -79,6 +79,19 @@ def merged_focus_class_ids(*, message: str, clinical_state: dict[str, Any] | Non
     return focus
 
 
+def merged_focus_class_ids(
+    *,
+    message: str,
+    clinical_state: dict[str, Any] | None,
+    last_assistant_message: str | None = None,
+) -> set[str]:
+    focus = focus_class_ids_from_state(clinical_state)
+    focus.update(focus_class_ids_from_message(message))
+    if last_assistant_message:
+        focus.update(focus_class_ids_from_message(last_assistant_message))
+    return focus
+
+
 def is_choice_question(message: str) -> bool:
     normalized = normalize_text(message or "")
     if not normalized:
@@ -96,4 +109,11 @@ def is_mra_vs_sglt2_choice(message: str, clinical_state: dict[str, Any] | None =
 
 
 def focus_class_ids_for_payload(payload: LLMAnswerRequest) -> set[str]:
-    return merged_focus_class_ids(message=payload.user_input or "", clinical_state=payload.clinical_state)
+    last_assistant = None
+    if payload.clinical_state:
+        last_assistant = payload.clinical_state.get("last_assistant_excerpt")
+    return merged_focus_class_ids(
+        message=payload.user_input or "",
+        clinical_state=payload.clinical_state,
+        last_assistant_message=last_assistant,
+    )

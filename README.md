@@ -84,7 +84,7 @@ Docker services:
 - PostgreSQL: `localhost:55432` mapped to container port `5432`
 - Neo4j Browser: `http://localhost:7474`
 - ChromaDB: `http://localhost:8001`
-- LocalStack S3: `http://localhost:4566`
+- MinIO S3: `http://localhost:4566` (console: `http://localhost:9001`)
 
 ## Docker Demo Flow
 
@@ -99,7 +99,7 @@ Copy-Item infrastructure/.env.example infrastructure/.env -ErrorAction SilentlyC
 2. Start infrastructure services first:
 
 ```powershell
-docker compose -f infrastructure/docker-compose.yml up -d postgres neo4j chromadb localstack ollama ollama-pull
+docker compose -f infrastructure/docker-compose.yml up -d postgres neo4j chromadb minio minio-init ollama ollama-pull
 ```
 
 3. Confirm the embedding and chat models are available:
@@ -124,7 +124,7 @@ docker exec hf_cdss_ollama ollama pull bge-m3
 
 4. Build or refresh scraped and processed data.
 
-Use this when LocalStack was recreated, raw files changed, or you want a clean demo dataset:
+Use this when MinIO was recreated, raw files changed, or you want a clean demo dataset:
 
 ```powershell
 python -m scraper.acquisition.download_sources --registry data/heart_failure/sources/sources.example.json --bucket hf-cdss-raw --prefix heart_failure --endpoint-url http://localhost:4566
@@ -163,7 +163,7 @@ For the full semantic embedding path, keep the default Ollama embedding provider
 
 In the frontend, enter patient demographics and clinical values, optionally upload clinical text files/images, then ask a clinical question in chat. Evidence cards should include source metadata and clickable source links.
 
-If LocalStack fails with `port is already allocated`, stop the old container that is using port `4566`, then rerun the compose command:
+If MinIO fails with `port is already allocated`, stop the old container that is using port `4566`, then rerun the compose command:
 
 ```powershell
 docker ps --filter publish=4566

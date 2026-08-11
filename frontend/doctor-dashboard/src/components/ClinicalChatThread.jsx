@@ -337,6 +337,9 @@ export function ClinicalChatThread({
                 TextPart: ClinicalAnswerText,
                 hideBranchPicker: true,
               }}
+              pendingMultiQuestion={active?.pendingMultiQuestion}
+              onContinueMulti={() => patchConversation(active?.id, { multiQuestionAction: "continue" })}
+              onStopMulti={() => patchConversation(active?.id, { multiQuestionAction: "stop" })}
             />
           </StreamProgressProvider>
         </ClinicalConversationContext.Provider>
