@@ -1,8 +1,8 @@
 # CHƯƠNG 4: CÀI ĐẶT VÀ TRIỂN KHAI
 
-## 4.1. Môi trường phát triển
+Chương này mô tả cách triển khai thiết kế ở Chương 3: môi trường, pipeline nạp tri thức, backend chat, frontend và Docker Compose.
 
-Chương này giải thích cách thiết kế ở Chương 3 trở thành phần mềm chạy được. Nội dung gồm máy và công cụ dùng để xây hệ thống, pipeline tự động biến nhãn thuốc và guideline thành tri thức y khoa có thể tìm kiếm, backend FastAPI trả lời chat lâm sàng, giao diện React cho bác sĩ và quản trị viên, và triển khai Docker giữ mọi thứ chạy cùng nhau. Mỗi kỹ thuật xuất hiện, chương nêu nó làm gì, vì sao tồn tại, và nó giúp bác sĩ hay vận hành thế nào.
+## 4.1. Môi trường phát triển
 
 ### 4.1.1. Cấu hình phần cứng
 

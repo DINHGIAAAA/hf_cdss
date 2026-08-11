@@ -528,6 +528,79 @@ def read_audit_events(case_id: str, limit: int = 50) -> list[dict[str, Any]]:
             ]
 
 
+_CHAT_AUDIT_EVENT_TYPES = (
+    "chat_recommendation_completed",
+    "chat_missing_fields",
+    "chat_value_conflict",
+)
+
+
+def search_chat_audit_events(
+    *,
+    q: str | None = None,
+    case_id: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> dict[str, Any]:
+    """Search chat-related audit events for the admin console."""
+    clauses = ["event_type = ANY(%s)"]
+    params: list[Any] = [list(_CHAT_AUDIT_EVENT_TYPES)]
+
+    if case_id:
+        clauses.append("case_id ILIKE %s")
+        params.append(f"%{_escape_like(case_id.strip())}%")
+
+    if q:
+        pattern = f"%{_escape_like(q.strip())}%"
+        clauses.append(
+            """(
+                payload->>'user_question' ILIKE %s
+                OR payload->>'message' ILIKE %s
+                OR payload->'assistant'->>'answer' ILIKE %s
+                OR payload->'clinical_state'->>'intent' ILIKE %s
+            )"""
+        )
+        params.extend([pattern, pattern, pattern, pattern])
+
+    where_sql = " AND ".join(clauses)
+    safe_limit = max(1, min(limit, 100))
+    safe_offset = max(0, offset)
+
+    with postgres_pool().connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"""
+                SELECT COUNT(*) FROM cdss_audit_events
+                WHERE {where_sql}
+                """,
+                params,
+            )
+            total = int(cursor.fetchone()[0])
+
+            cursor.execute(
+                f"""
+                SELECT id, case_id, event_type, payload, created_at
+                FROM cdss_audit_events
+                WHERE {where_sql}
+                ORDER BY created_at DESC
+                LIMIT %s OFFSET %s
+                """,
+                [*params, safe_limit, safe_offset],
+            )
+            items = [
+                {
+                    "id": row[0],
+                    "case_id": row[1],
+                    "event_type": row[2],
+                    "payload": row[3],
+                    "created_at": row[4].isoformat(),
+                }
+                for row in cursor.fetchall()
+            ]
+
+    return {"total": total, "limit": safe_limit, "offset": safe_offset, "items": items}
+
+
 def ensure_chat_conversation(conversation_id: str, case_id: str | None = None) -> None:
     with postgres_pool().connection() as connection:
         with connection.cursor() as cursor:

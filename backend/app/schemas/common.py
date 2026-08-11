@@ -37,6 +37,14 @@ class AuditHistoryResponse(BaseModel):
     status: str = "ok"
 
 
+class ChatAuditLogResponse(BaseModel):
+    total: int
+    limit: int
+    offset: int
+    items: list[dict[str, Any]]
+    status: str = "ok"
+
+
 class ErrorDetail(BaseModel):
     code: str
     message: str

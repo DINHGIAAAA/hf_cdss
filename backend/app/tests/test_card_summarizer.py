@@ -195,6 +195,7 @@ def test_explanation_prompt_keeps_contract() -> None:
     assert "soft-pedal" in CLINICAL_EXPLANATION_SYSTEM_PROMPT
     assert "Quyết định điều trị cuối cùng" in CLINICAL_EXPLANATION_SYSTEM_PROMPT
     assert "No fixed section templates" in CLINICAL_EXPLANATION_SYSTEM_PROMPT
+    assert "per_class_fact_sheet" in CLINICAL_EXPLANATION_SYSTEM_PROMPT
 
 
 def json_dumps(value: dict) -> str:

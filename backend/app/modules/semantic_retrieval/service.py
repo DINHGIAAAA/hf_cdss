@@ -46,7 +46,7 @@ def embed_query(text: str) -> list[float]:
     return list(_embed_query_cached(normalized))
 
 
-@lru_cache(maxsize=256)
+@lru_cache(maxsize=1024)
 def _embed_query_cached(normalized: str) -> tuple[float, ...]:
     embeddings = _langchain_embeddings()
     try:
@@ -58,12 +58,19 @@ def _embed_query_cached(normalized: str) -> tuple[float, ...]:
 def embed_documents(texts: list[str]) -> list[list[float]]:
     if not texts:
         return []
-    normalized = [normalize_evidence_text(text) for text in texts]
-    embeddings = _langchain_embeddings()
-    try:
-        return [[float(value) for value in row] for row in embeddings.embed_documents(normalized)]
-    except Exception as exc:
-        raise RuntimeError(f"Failed to embed {len(texts)} documents: {exc}") from exc
+    # Normalize once per unique text so the lru_cache key stays stable
+    # across repeated calls with the same content.
+    seen: dict[str, list[float]] = {}
+    result: list[list[float]] = []
+    for text in texts:
+        if text in seen:
+            result.append(seen[text])
+        else:
+            normalized = normalize_evidence_text(text)
+            vector = list(_embed_query_cached(normalized))
+            seen[text] = vector
+            result.append(vector)
+    return result
 
 
 def cosine_similarity(left: list[float], right: list[float]) -> float:

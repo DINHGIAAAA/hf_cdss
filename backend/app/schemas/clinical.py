@@ -39,6 +39,10 @@ class Constraint(BaseModel):
     constraint_type: str | None = None
     evidence_ref: str | None = None
     source_locator: str | None = None
+    # When False (default): this constraint applies only to the exact target_drug_class.
+    # When True: this constraint intentionally applies as a class-wide constraint
+    # (e.g. "all_gdmt" polypharmacy review). Use explicitly.
+    class_effect: bool = False
 
 
 class Evidence(BaseModel):

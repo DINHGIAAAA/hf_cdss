@@ -2,7 +2,7 @@ from app.modules.clinical_normalization.service import normalize_patient
 from app.modules.constraint_builder.service import build_constraints
 from app.modules.dose_calculation import build_dose_plans, dose_source_version
 from app.modules.dose_checking.service import check_dose_safety
-from app.modules.gdmt_policy.policy_engine import gdmt_classes_map, recommendation_for_policy
+from app.modules.gdmt_policy.policy_engine import gdmt_classes_map, filter_constraints_for_profile, recommendation_for_policy
 from app.modules.gdmt_policy.policy_loader import gdmt_policy_version, load_executable_gdmt_policies
 from app.modules.interaction_checking.service import check_interactions
 from app.modules.recommendation.drug_class_keys import stabilize_recommendation_items
@@ -72,11 +72,12 @@ def build_recommendation(payload: RecommendationRequest) -> RecommendationRespon
             for policy in policies
         ]
     )
+    display_constraints = filter_constraints_for_profile(constraints, profile)
     response = RecommendationResponse(
         case_id=profile.case_id,
         patient_summary=_patient_summary(profile),
         risk_flags=risks,
-        constraints=constraints,
+        constraints=display_constraints,
         dose_warnings=dose_warnings,
         interaction_warnings=interaction_warnings,
         recommendations=recommendations,

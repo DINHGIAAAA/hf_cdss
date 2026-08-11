@@ -2,6 +2,7 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   Activity,
   BookOpen,
+  ClipboardList,
   FileSearch,
   HeartPulse,
   Sparkles,
@@ -24,6 +25,7 @@ const NAV_ITEMS = [
   { to: "/dose-safety-warnings", label: "Dose safety", icon: ShieldAlert },
   { to: "/interaction-rules", label: "Interactions", icon: Link2 },
   { to: "/gdmt-policies", label: "GDMT policies", icon: HeartPulse },
+  { to: "/chat-audit", label: "Chat audit", icon: ClipboardList },
   { to: "/evidence", label: "Evidence", icon: FileSearch },
   { to: "/system", label: "System", icon: Activity },
   { to: "/api", label: "API Explorer", icon: Network },

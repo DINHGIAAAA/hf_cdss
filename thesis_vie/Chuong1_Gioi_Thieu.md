@@ -1,67 +1,92 @@
 # CHƯƠNG 1: GIỚI THIỆU
 
-*(Bản dịch từ `thesis/Chapter1_Introduction.md`)*
+Chương này nêu bối cảnh, mục tiêu, phạm vi, cách làm, vấn đề cần giải, ba câu hỏi nghiên cứu, tóm tắt công trình liên quan và lộ trình các chương sau. Lý thuyết chi tiết ở Chương 2; thiết kế ở Chương 3; cài đặt và số liệu ở Chương 4–5.
 
-Chương này nêu vấn đề luận văn giải quyết, tóm tắt mối liên hệ với công trình trước, và phác thảo cấu trúc Phần II. Bối cảnh lâm sàng, mục tiêu nghiên cứu, phạm vi, cách tiếp cận kỹ thuật và lý thuyết chi tiết được phát triển ở các chương sau như đã chỉ dẫn.
+## 1.1 Bối cảnh và động lực
 
-## 1.1 Phát biểu vấn đề
+Suy tim là bệnh mạn tính: tim bơm hoặc chứa máu kém, bệnh nhân khó thở, mệt, phù, hay nhập viện. Ước tính toàn cầu có hơn 64 triệu người sống với suy tim; con số tăng khi dân số già và nhiều người sống sót sau nhồi máu nhưng còn suy chức năng thất [1].
 
-Vấn đề nằm giao điểm của khoảng trống chăm sóc lâm sàng dai dẳng, hạn chế của cách tiếp cận kỹ thuật hiện có, và câu hỏi nghiên cứu về cách kết hợp chúng có trách nhiệm. Điều trị suy tim vừa giàu bằng chứng vừa mong manh vận hành. Hành động đúng phụ thuộc kiểu hình, thuốc đang dùng, xét nghiệm, sinh hiệu và ràng buộc trình tự trải nhiều tài liệu, cập nhật theo chu kỳ.
+Bác sĩ thường phân loại theo phân suất tống máu thất trái (LVEF). Khi LVEF ≤ 40% gọi là suy tim phân suất tống máu giảm (HFrEF). Luận văn tập trung HFrEF vì điều trị nội khoa theo hướng dẫn (GDMT) có bằng chứng mạnh nhất ở nhóm này [2], [3], [6].
 
-### 1.1.1 Vấn đề lâm sàng (thiếu GDMT, rào cản)
+GDMT HFrEF gồm bốn nhóm chính: ức chế hệ renin–angiotensin (ACEi, ARB hoặc ARNI), beta blocker có bằng chứng, MRA và SGLT2i. Trên thực tế, rất ít bệnh nhân đủ điều kiện dùng đủ bốn nhóm ở liều mục tiêu [6]. Người già, suy thận, tuyến tỉnh thường thiếu hơn.
 
-Với HFrEF, guideline hiện đại tổ chức trị liệu quanh bốn trụ GDMT: ức chế hệ renin–angiotensin (ACEi, ARB hoặc ARNI), beta blocker có bằng chứng, MRA và SGLT2i [2], [3], [6]. Dù bằng chứng thử nghiệm mạnh, thực tế triển khai rất thiếu. Quan sát cho thấy chỉ khoảng 1–2% bệnh nhân đủ điều kiện nhận đủ bốn nhóm ở liều đích [6]. Thiếu không ngẫu nhiên: người già, suy thận, điều trị ngoài trung tâm học thuật bị thiếu nhiều hơn.
+Mỗi lần khám, bác sĩ phải ghép kiểu suy tim, thuốc đang dùng, xét nghiệm, sinh hiệu và quy tắc thời gian (ví dụ washout giữa ACEi và ARNI). Guideline dài; nhãn thuốc có liều theo thận, cảnh báo kali, tương tác. Ở Việt Nam, hồ sơ thường lẫn tiếng Việt–Anh, tên biệt dược khó khớp với mã quốc tế [1]. Hệ hỗ trợ quyết định (CDSS) được kỳ vọng giúp thu hẹp khoảng cách giữa khuyến cáo và thực hành [4], [5].
 
-Nhiều rào cản giải thích khoảng trống này. Quá tải thông tin vượt khả năng tổng hợp liên tục của bác sĩ bận. Guideline dài hàng trăm trang; nhãn thuốc có chỉnh liều thận, cảnh báo kali, tương tác tinh tế. Chống chỉ định tuyệt đối phụ thuộc trạng thái động: khởi ARNI trong 36 giờ sau ACEi, khởi MRA khi kali/eGFR ngoài ngưỡng an toàn, tăng liều beta blocker khi hạ huyết áp triệu chứng hoặc nhịp chậm đều đòi hỏi ghép thuốc–lab–sinh hiệu đang phân tán. Phức tạp liều tăng rủi ro sai. Nơi mật độ bác sĩ tim mạch thấp như nhiều tỉnh Việt Nam, bác sĩ thiếu hỗ trợ có cấu trúc đúng lúc cân nhắc tăng liều hoặc thêm nhóm thuốc.
+Công nghệ hiện có hai hướng: đồ thị tri thức và nhãn thuốc có thể nạp tự động vào kho có quản trị [7]–[11]; mô hình ngôn ngữ lớn (LLM) đọc văn bản tự do và viết giải thích dễ nghe, nhưng có thể sai liều hoặc bỏ chống chỉ định nếu không bị ràng buộc [12], [19]. Chạy model mã nguồn mở tại chỗ (Ollama) phù hợp thí điểm cần giữ dữ liệu trong bệnh viện.
 
-Ví dụ ngoại trú: nam 68 tuổi HFrEF (LVEF 30%), tăng huyết áp, ĐTĐ type 2, CKD giai đoạn 3, đang lisinopril và carvedilol nhưng chưa MRA/SGLT2i; kali 4,9; eGFR 38; huyết áp 108/68. Kế hoạch đúng phải đánh giá đồng thời thêm dapagliflozin, spironolactone, tăng liều beta blocker, washout ACEi→ARNI [2], [3]. CDSS phải làm nổi các phụ thuộc này mạch lạc chứ không trả từng đoạn monograph rời.
+## 1.2 Mục đích, phạm vi và cách tiếp cận
 
-Các rào cản sinh lỗi dự đoán được: chậm khởi SGLT2i, tiếp tục ACEi không lập kế hoạch washout ARNI, kê MRA thiếu ngữ cảnh kali, tăng liều beta blocker dù huyết động không ổn, trì trệ sau xuất viện. CDSS phải trả lời “hiện tại bệnh nhân này nên làm gì với lab–thuốc–rủi ro này”, kèm cưỡng chế an toàn rõ. Chương 2 phát triển bối cảnh dịch tễ và guideline làm nền cho các yêu cầu này.
+### 1.2.1 Mục đích
 
-### 1.1.2 Vấn đề kỹ thuật (ảo giác LLM đối lập rule cứng)
+Thiết kế, cài đặt và đánh giá CDSS chuyên suy tim: đồ thị tri thức, GraphRAG lai, engine quy tắc cố định, agent kiểm chứng và LLM cục bộ. Hệ biến nhãn FDA (SPL), guideline ESC và AHA/ACC/HFSA thành catalog có quản trị, có thể truy vấn, để khuyến nghị và giải thích không mâu thuẫn nhau.
 
-Chatbot LLM thuần nhận mô tả lâm sàng lộn xộn và viết giải thích trôi chảy [18], [19]. Sinh xác suất không khớp hỗ trợ quyết định thuốc nếu là thẩm quyền duy nhất. LLM có thể bịa liều, bịa tương tác, bỏ chống chỉ định cứng, hoặc lẫn HFpEF với HFrEF. Trong kê đơn rủi ro cao, một âm tính giả trên rule “tránh tuyệt đối” đã có thể thảm họa lâm sàng.
+Bốn hướng kỹ thuật: (1) pipeline xây tri thức tự động; (2) truy xuất lai (dense, BM25, đồ thị, HyDE, RRF) [12]–[14]; (3) tách logic khuyến nghị khỏi văn LLM; (4) đo end-to-end theo tiêu chí Chương 5 (mục 5.0). Hệ chỉ hỗ trợ dưới giám sát bác sĩ, không thay EHR hay tự kê đơn.
 
-RAG giảm nhưng không xóa rủi ro [12]. Ngay cả với RAG, model trôi chảy vẫn có thể mâu thuẫn đoạn an toàn đã truy xuất nếu không có rule cứng cưỡng chế khuyến nghị cuối.
+### 1.2.2 Phạm vi
 
-CDSS chỉ có rule nằm ở cực đối diện [15], [4], [5]. Engine rule mạnh khi tri thức chính xác và output phải tái lập được, nhưng intake văn bản tự do dễ gãy, bảo trì rule tốn công, trích dẫn bằng chứng cần lớp riêng, mệt mỏi cảnh báo làm giảm tin cậy.
+Trong phạm vi: GDMT dược lý HFrEF (ACEi, ARB, ARNI, beta blocker, MRA, SGLT2i), nguồn DailyMed SPL và guideline suy tim, chat bác sĩ (không HL7/FHIR trực tiếp), giao diện Việt–Anh, triển khai Docker cục bộ, đánh giá trên vignette và bộ an toàn có cấu trúc.
 
-Vấn đề kỹ thuật là cách kết hợp tri thức y có cấu trúc, logic an toàn tất định và tương tác qua LLM. Luận văn xem đây là bài toán tích hợp: engine tất định là thẩm quyền khuyến nghị và chặn cứng; truy xuất và đồ thị neo bằng chứng; LLM chỉ giải thích, làm rõ biên và intake dự phòng. Chương 3 nêu luận điểm và kiến trúc; Chương 4 và 5 báo cáo cài đặt và đo lường.
+Ngoài phạm vi chính: HFpEF, suy tim cấp nặng, thiết bị, ghép, dược địa phương đầy đủ. Khuyến nghị mang tính tư vấn; quyết định cuối thuộc bác sĩ.
 
-### 1.1.3 Câu hỏi nghiên cứu
+### 1.2.3 Luận điểm
 
-**RQ1 (Pipeline tri thức):** Làm sao pipeline tự động nạp nhãn SPL FDA, guideline ESC/AHA/ACC/HFSA và nguồn tương tác vào catalog có quản trị, lập chỉ mục vector và đồ thị, vừa kiểm soát chi phí trích xuất vừa giữ độ đặc hiệu lâm sàng?
+CDSS lai (rule GDMT/an toàn + GraphRAG + LLM giải thích) có thể hỗ trợ điều trị suy tim đúng hướng dẫn, kịp thời, song ngữ, trong khi bác sĩ giữ quyền quyết định. Không dùng chat LLM tự do làm “người kê đơn”; không chỉ cảnh báo rule khô mà thiếu trích dẫn.
 
-**RQ2 (Suy luận lai):** Làm sao kết hợp engine GDMT/an toàn tất định với GraphRAG lai và agent kiểm chứng để khuyến nghị khớp guideline, fail-closed với chống chỉ định cứng, giải thích LLM vẫn bám bằng chứng đã truy xuất?
+### 1.2.4 Cách làm ngoại tuyến (xây tri thức)
 
-**RQ3 (UX song ngữ và an toàn):** Làm sao giao diện chat Việt–Anh truyền thẻ khuyến nghị qua SSE không mất ngữ cảnh, và các chỉ số so với tiêu chí định trước (Chương 5, mục 5.0) trên vignette HFrEF?
+Thu nhãn SPL và guideline vào kho có phiên bản. Lọc mục ba bước: từ khóa, embedding (BGE-M3), LLM chỉ với mục không chắc. Cắt đoạn, trích claim, phân lớp an toàn. Đồng bộ PostgreSQL (rule thực thi), ChromaDB (vector), Neo4j (đồ thị). PostgreSQL là nơi quyết định chặn cứng.
 
-## 1.2 Công trình liên quan
+### 1.2.5 Cách làm khi truy vấn (online)
 
-Thiết kế CDSS suy tim dựa trên bốn dòng nghiên cứu. Chương 2 xem xét chi tiết; ở đây chỉ nêu liên hệ với vấn đề trên và vị trí luận văn.
+Intake lai (regex, từ điển thuốc, phủ định, LLM khi cần) → engine GDMT/ràng buộc/tương tác/liều cố định. Song song GraphRAG: HyDE, dense, BM25, Neo4j, RRF. LLM viết giải thích và hỗ trợ intake; không đổi trạng thái hard_block. SSE đẩy thẻ có cấu trúc trước văn dài.
 
-**CDSS cổ điển** [15], [4], [5], [17]: logic có thể kiểm toán; EHR doanh nghiệp mạnh kiểm tương tác chung nhưng hạn chế phân tích khoảng trống GDMT HFrEF và intake chat song ngữ.
+### 1.2.6 Nguyên tắc: rule là thẩm quyền, LLM là lớp ngôn ngữ
 
-**Đồ thị tri thức và thuật ngữ y sinh** [7]–[11]: suy luận đa bước; cần quản trị vì trích xuất tự động tạo nhiễu [8].
+Trạng thái khuyến nghị, chặn cứng, liều lấy từ catalog PostgreSQL đã duyệt. Đoạn trích dẫn phải khớp chunk đã truy xuất. LLM không được hạ mức an toàn hay bịa thuốc ngoài output engine.
 
-**RAG, GraphRAG, truy xuất lai** [12]–[14]: neo LLM vào tài liệu; ít sản phẩm CDSS triển khai kết hợp này với tầng rule fail-closed cho GDMT.
+## 1.3 Phát biểu vấn đề và câu hỏi nghiên cứu
 
-**Guideline suy tim** [2], [3], [6]: xương sống chuẩn mực; nhãn SPL bổ sung liều theo sản phẩm.
+### 1.3.1 Vấn đề lâm sàng
 
-**Khoảng trống:** nhiều hệ chỉ tiếng Anh, ung thư, hoặc tra cứu thụ động; chat LLM ưu tiên độ trôi chảy; RAG chỉ vector bỏ chuỗi tương tác; rule-only thiếu trích dẫn. Luận văn nhắm kiến trúc tích hợp: nạp đa kho có quản trị, GraphRAG lai, engine GDMT tất định, agent kiểm chứng, chat stream song ngữ với thẻ có cấu trúc, đánh giá theo tiêu chí Chương 5.
+Thiếu GDMT và sai trình tự vẫn phổ biến: chậm SGLT2i, không lập washout ARNI, kê MRA khi kali/eGFR rủi ro, tăng liều khi huyết động chưa ổn. CDSS cần trả lời: với lab, thuốc và rủi ro hiện tại, nên làm gì tiếp theo, kèm chặn an toàn rõ.
 
-## 1.3 Bố cục luận văn
+Ví dụ: nam 68 tuổi, HFrEF (LVEF 30%), đang ACEi và carvedilol, chưa MRA/SGLT2i; K+ 4,9; eGFR 38; HA 108/68. Kế hoạch phải xét đồng thời thêm SGLT2i, MRA, tăng liều beta blocker và lộ trình ARNI sau washout [2], [3].
 
-Luận văn chia hai phần. **Phần I** (chương này): vấn đề và công trình liên quan. **Phần II**: lý thuyết, thiết kế, cài đặt, kết quả, kết luận.
+### 1.3.2 Vấn đề kỹ thuật
 
-**Chương 2:** bối cảnh, CDSS, KG, RAG/GraphRAG, LLM, xây tri thức y, nền lâm sàng suy tim, công nghệ triển khai, kỹ thuật được chọn.
+Chat LLM thuần dễ viết đẹp nhưng không đáng tin để kê đơn [18], [19]. RAG giúp bám tài liệu [12] nhưng không tự cưỡng chế rule fail-closed. Engine chỉ rule mạnh về kiểm toán nhưng yếu intake chat và trích dẫn. Bài toán là ghép catalog có quản trị, logic cố định, truy xuất lai và LLM giới hạn vai trò.
 
-**Chương 3:** mục đích, phạm vi, cách tiếp cận; yêu cầu; kiến trúc 3 tầng; module intake/GraphRAG/reasoning/an toàn/stream.
+### 1.3.3 Câu hỏi nghiên cứu
 
-**Chương 4:** backend, pipeline, runtime, Docker Compose.
+**RQ1 (Pipeline tri thức):** Làm sao nạp nhãn SPL FDA, guideline suy tim và nguồn tương tác vào catalog có quản trị, chỉ mục vector và đồ thị, vừa kiểm soát chi phí trích xuất vừa giữ độ đặc hiệu lâm sàng?
 
-**Chương 5:** tiêu chí thành công định trước; số liệu pipeline, accuracy, latency, an toàn, usability.
+**RQ2 (Suy luận lai):** Làm sao kết hợp engine GDMT/an toàn cố định với GraphRAG lai và agent kiểm chứng để khuyến nghị khớp guideline, fail-closed trên chống chỉ định cứng, và giải thích LLM bám bằng chứng đã truy xuất?
 
-**Chương 6:** đóng góp, phản ánh RQ1–RQ3, hạn chế, hướng phát triển.
+**RQ3 (Giao diện song ngữ và an toàn):** Làm sao chat Việt–Anh stream thẻ khuyến nghị qua SSE không mất ngữ cảnh khi đổi ngôn ngữ, và các chỉ số so với tiêu chí mục 5.0 trên vignette HFrEF?
 
-References và Phụ lục A: nguồn và sơ đồ. Phần II lập luận CDSS lai tăng cường đồ thị có thể hỗ trợ GDMT suy tim khi phân quyền thẩm quyền đúng, tri thức được quản trị, bác sĩ giữ quyết định cuối.
+## 1.4 Công trình liên quan (tóm tắt)
+
+Chương 2 xem xét chi tiết. Ở đây chỉ định vị luận văn:
+
+- **CDSS cổ điển** [15], [4], [5], [17]: rule kiểm toán được; EHR thương mại mạnh tương tác chung nhưng ít tập trung khoảng trống GDMT HFrEF và chat song ngữ.
+- **Đồ thị tri thức y** [7]–[11]: suy luận quan hệ; cần quản trị vì trích xuất tự động dễ nhiễu [8].
+- **RAG / GraphRAG** [12]–[14]: neo LLM vào tài liệu; ít sản phẩm CDSS ghép đủ với tầng rule fail-closed cho GDMT.
+- **Guideline và nhãn suy tim** [2], [3], [6]: chuẩn điều trị và chi tiết liều theo sản phẩm.
+
+Khoảng trống: thiếu hệ HFrEF, song ngữ, chat có cấu trúc, nạp đa nguồn có quản trị, đánh giá trên đối tượng khuyến nghị có cấu trúc (không chỉ văn LLM trông hợp lý).
+
+## 1.5 Bố cục luận văn
+
+**Phần I** (chương này): bối cảnh, mục tiêu, phạm vi, vấn đề, RQ, công trình liên quan tóm tắt.
+
+**Phần II:**
+
+| Chương | Nội dung chính |
+|--------|----------------|
+| 2 | Lý thuyết CDSS, đồ thị, RAG, LLM, GraphRAG, nền HFrEF (không mô tả code) |
+| 3 | Yêu cầu, kiến trúc, module, API, UI |
+| 4 | Cài đặt, pipeline, Docker, kiểm thử |
+| 5 | Tiêu chí 5.0, số liệu accuracy, latency, an toàn, usability |
+| 6 | Đóng góp, trả lời RQ, hạn chế, hướng phát triển |
+
+Tài liệu tham khảo và phụ lục hình nằm ở cuối luận văn tiếng Anh trong `thesis/`.

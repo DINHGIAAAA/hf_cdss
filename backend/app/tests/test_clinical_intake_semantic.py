@@ -24,9 +24,16 @@ def test_aggregate_conversation_context_keeps_relevant_prior_turns(monkeypatch) 
         score = scores.get(text, 0.2)
         return [score, 1.0 - score]
 
+    def fake_embed_documents(texts: list[str]) -> list[list[float]]:
+        return [fake_embed_query(text) for text in texts]
+
     monkeypatch.setattr(
         "app.modules.clinical_intake_extraction.semantic.embed_query",
         fake_embed_query,
+    )
+    monkeypatch.setattr(
+        "app.modules.clinical_intake_extraction.semantic.embed_documents",
+        fake_embed_documents,
     )
 
     aggregated = aggregate_conversation_context(

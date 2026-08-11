@@ -3,6 +3,7 @@ import asyncio
 import json
 import logging
 import hashlib
+import re
 from collections.abc import AsyncIterator, Callable
 from datetime import datetime, timezone
 from typing import Any
@@ -20,11 +21,23 @@ from app.modules.datastores.postgres import (
 from app.modules.explanation.llm_service import build_llm_answer, fallback_answer, stream_llm_answer
 from app.modules.explanation.card_summarizer import apply_simplified_fields, attach_plain_language_summaries
 from app.modules.evidence_linking.service import collect_constraint_chunk_ids, enrich_recommendation_evidence
-from app.modules.missing_fields.service import build_missing_fields_prompt, check_missing_fields
+from app.modules.missing_fields.service import (
+    build_missing_fields_prompt,
+    check_missing_fields,
+    check_required_field_ids,
+)
 from app.modules.reasoning.service import build_recommendation
 from app.modules.graphrag.service import build_graphrag_context_async
 from app.modules.verification_agents.service import verify_recommendation
-from app.schemas.chat import ChatMessage, ChatRequest, ChatResponse, PatientConflict, PatientDraft
+from app.schemas.chat import (
+    ChatMessage,
+    ChatRequest,
+    ChatResponse,
+    PatientConflict,
+    PatientDraft,
+    PendingMultiQuestion,
+)
+from app.schemas.question_planner import PlannedQuestion, QuestionPlan
 from app.schemas.graphrag import GraphRAGContextRequest, GraphRAGContextResponse, VerificationRequest
 from app.schemas.llm import LLMAnswerRequest
 from app.schemas.patient import ClinicalDocument, PatientIdentity, PatientProfile
@@ -36,6 +49,8 @@ logger = logging.getLogger(__name__)
 # In-memory fallback caches (used when Redis is unavailable)
 _drafts: dict[str, PatientDraft] = {}
 _messages: dict[str, list[ChatMessage]] = {}
+_pending_multi: dict[str, dict] = {}  # conversation_id → multi-question state
+_question_plans: dict[str, QuestionPlan] = {}  # conversation_id → latest pre-flight plan
 
 # TTL for Redis cache (24 hours for drafts/messages)
 _CHAT_CACHE_TTL_SECONDS = 86400
@@ -175,6 +190,216 @@ def _message(conversation_id: str, role: str, content: str, metadata: dict[str, 
     )
 
 
+def _chat_audit_payload(
+    request: ChatRequest,
+    *,
+    clinical_state: dict[str, Any] | None = None,
+    patient: PatientProfile | None = None,
+    question_plan: QuestionPlan | None = None,
+    extra: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build audit payload with user_question (not redacted) for admin review."""
+    payload: dict[str, Any] = {
+        "user_question": request.message,
+        "conversation_id": request.conversation_id,
+        "language": request.language,
+        "attachments": [item.model_dump(mode="json") for item in request.clinical_attachments],
+    }
+    if clinical_state is not None:
+        payload["clinical_state"] = clinical_state
+    if patient is not None:
+        payload["patient"] = patient.model_dump(mode="json")
+    if question_plan is not None:
+        payload["question_plan"] = question_plan.model_dump(mode="json")
+    if extra:
+        payload.update(extra)
+    return payload
+
+
+def _build_multi_question_confirm_message(
+    current_q: str, next_q: str | None, *, next_q_index: int, language: str
+) -> str:
+    """Build the confirmation footer shown after answering one question in a multi-question flow."""
+    if language == "vi":
+        msg = f"**Câu hỏi {next_q_index}:** {current_q}\n\n"
+        msg += "Tôi đã trả lời câu hỏi trên."
+        if next_q:
+            msg += f"\n\n**Câu hỏi tiếp theo ({next_q_index + 1}):** {next_q}\n\n"
+            msg += "Bạn có muốn tôi tiếp tục trả lời câu tiếp theo không?"
+        else:
+            msg += "\n\n_Đã trả lời tất cả câu hỏi._"
+    else:
+        msg = f"**Question {next_q_index}:** {current_q}\n\n"
+        msg += "I've answered the above question."
+        if next_q:
+            msg += f"\n\n**Next question ({next_q_index + 1}):** {next_q}\n\n"
+            msg += "Would you like me to continue?"
+        else:
+            msg += "\n\n_All questions have been answered._"
+    return msg
+
+
+def _combine_answer_with_multi_question_confirm(answer: str, confirm: str) -> str:
+    """Keep the LLM answer visible and append the multi-question confirmation footer."""
+    answer = (answer or "").strip()
+    confirm = (confirm or "").strip()
+    if answer and confirm:
+        return f"{answer}\n\n{confirm}"
+    return answer or confirm
+
+
+_MULTI_QUESTION_CONTINUE_PATTERN = re.compile(
+    r"^(yes|y|continue|ok|okay|tiếp|tiep|tiếp tục|tiep tuc|đồng ý|dong y)$",
+    re.IGNORECASE,
+)
+
+
+def _is_multi_question_continue_text(message: str) -> bool:
+    return bool(_MULTI_QUESTION_CONTINUE_PATTERN.match((message or "").strip()))
+
+
+def _pending_multi_question_model(
+    conversation_id: str,
+    merged: Any,
+    clinical_state: dict[str, Any],
+) -> PendingMultiQuestion | None:
+    pending = _pending_multi.get(conversation_id)
+    if not pending:
+        return None
+    return PendingMultiQuestion(
+        conversation_id=conversation_id,
+        answered_qs=pending["answered"],
+        remaining_qs=pending["remaining"],
+        current_index=pending["current_index"],
+        patient_snapshot=merged.model_dump(mode="json"),
+        clinical_state_snapshot=clinical_state,
+    )
+
+
+def _active_planned_question(conversation_id: str) -> PlannedQuestion | None:
+    pending = _pending_multi.get(conversation_id) or {}
+    raw = pending.get("active_planned_question")
+    if isinstance(raw, dict):
+        try:
+            return PlannedQuestion.model_validate(raw)
+        except Exception:
+            return None
+    plan = _question_plans.get(conversation_id)
+    if plan and plan.active_question:
+        return plan.active_question
+    return None
+
+
+def _should_run_question_planner(request: ChatRequest) -> bool:
+    if request.multi_question_action == "continue":
+        return False
+    if (
+        request.pending_multi_question
+        and request.multi_question_action is None
+        and not _is_multi_question_continue_text(request.message)
+    ):
+        return False
+    return True
+
+
+def _apply_multi_question_handling(
+    request: ChatRequest,
+    conversation_id: str,
+    *,
+    question_plan: QuestionPlan | None = None,
+) -> tuple[ChatRequest, str | None]:
+    """Adjust the active clinical question during a multi-question thread.
+
+    Returns the request to process and an optional extraction override when the
+    user sends supplemental data for the current pending question.
+    """
+    original_message = request.message
+
+    if request.multi_question_action == "continue" and request.pending_multi_question:
+        pending = request.pending_multi_question
+        if pending.remaining_qs:
+            next_q = pending.remaining_qs[0]
+            remaining = pending.remaining_qs[1:]
+            answered = pending.answered_qs + [next_q]
+            request = request.model_copy(update={"message": next_q})
+            stored = _pending_multi.get(conversation_id, {})
+            plan_data = stored.get("plan")
+            active_planned = None
+            if isinstance(plan_data, dict):
+                try:
+                    plan = QuestionPlan.model_validate(plan_data)
+                    for item in plan.questions:
+                        if item.text.strip() == next_q.strip():
+                            active_planned = item.model_dump(mode="json")
+                            break
+                except Exception:
+                    active_planned = stored.get("active_planned_question")
+            _pending_multi[conversation_id] = {
+                "remaining": remaining,
+                "answered": answered,
+                "current_index": pending.current_index + 1,
+                "total_questions": len(answered) + len(remaining),
+                "active_planned_question": active_planned,
+                "plan": plan_data,
+            }
+        return request, None
+
+    if (
+        request.multi_question_action is None
+        and request.pending_multi_question
+        and not _is_multi_question_continue_text(original_message)
+    ):
+        pending = request.pending_multi_question
+        active_q = pending.answered_qs[-1] if pending.answered_qs else original_message
+        _pending_multi[conversation_id] = {
+            "remaining": list(pending.remaining_qs),
+            "answered": list(pending.answered_qs),
+            "current_index": pending.current_index,
+            "total_questions": len(pending.answered_qs) + len(pending.remaining_qs),
+        }
+        request = request.model_copy(update={"message": active_q})
+        supplemental = (
+            f"Supplemental clinician note: {original_message}"
+            if original_message.strip() and original_message.strip() != active_q.strip()
+            else None
+        )
+        extraction = "\n".join(value for value in [active_q, supplemental] if value)
+        return request, extraction
+
+    if request.multi_question_action is None and request.pending_multi_question is None:
+        from app.modules.clinical_intake_extraction.semantic import detect_multi_question
+
+        _pending_multi.pop(conversation_id, None)
+        planned_questions = question_plan.questions if question_plan and question_plan.questions else []
+        questions = (
+            [item.text for item in planned_questions]
+            if planned_questions
+            else detect_multi_question(request.message)
+        )
+        if len(questions) > 1:
+            active_planned = planned_questions[0].model_dump(mode="json") if planned_questions else None
+            _pending_multi[conversation_id] = {
+                "remaining": questions[1:],
+                "answered": [questions[0]],
+                "current_index": 1,
+                "total_questions": len(questions),
+                "active_planned_question": active_planned,
+                "plan": question_plan.model_dump(mode="json") if question_plan else None,
+            }
+            request = request.model_copy(update={"message": questions[0]})
+
+    return request, None
+
+
+def _is_multi_question_thread(pending: dict) -> bool:
+    """True only when this conversation turn is part of a multi-question batch."""
+    if pending.get("total_questions", 0) > 1:
+        return True
+    answered = pending.get("answered") or []
+    remaining = pending.get("remaining") or []
+    return len(answered) + len(remaining) > 1
+
+
 def _sse(event: str, data: Any) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False, default=str)}\n\n"
 
@@ -270,6 +495,18 @@ def _merge_patient(existing: PatientProfile, incoming: PatientProfile) -> Patien
     patient.care_context.decision_context = _prefer(
         patient.care_context.decision_context,
         incoming.care_context.decision_context,
+    )
+    patient.care_context.acei_last_dose_hours_ago = _prefer(
+        patient.care_context.acei_last_dose_hours_ago,
+        incoming.care_context.acei_last_dose_hours_ago,
+    )
+    patient.care_context.inr_target_low = _prefer(
+        patient.care_context.inr_target_low,
+        incoming.care_context.inr_target_low,
+    )
+    patient.care_context.inr_target_high = _prefer(
+        patient.care_context.inr_target_high,
+        incoming.care_context.inr_target_high,
     )
     return patient
 
@@ -415,6 +652,12 @@ def _apply_extracted_updates(prefill: PatientProfile, extracted: PatientProfile)
         result.vitals.systolic_bp = extracted.vitals.systolic_bp
     if extracted.vitals.heart_rate is not None:
         result.vitals.heart_rate = extracted.vitals.heart_rate
+    if extracted.care_context.acei_last_dose_hours_ago is not None:
+        result.care_context.acei_last_dose_hours_ago = extracted.care_context.acei_last_dose_hours_ago
+    if extracted.care_context.inr_target_low is not None:
+        result.care_context.inr_target_low = extracted.care_context.inr_target_low
+    if extracted.care_context.inr_target_high is not None:
+        result.care_context.inr_target_high = extracted.care_context.inr_target_high
     return result
 
 
@@ -516,21 +759,43 @@ async def _resolve_patient_for_chat_turn(
     return merged, conflicts
 
 
-def _prior_user_messages(conversation_id: str) -> list[str]:
+def _chat_messages(conversation_id: str) -> list[ChatMessage]:
     messages = _messages.get(conversation_id, [])
     if not messages:
         try:
             messages = [ChatMessage.model_validate(row) for row in read_chat_messages(conversation_id)]
         except Exception:
             messages = []
-    user_messages = [message.content for message in messages if message.role == "user"]
+    return messages
+
+
+def _prior_user_messages(conversation_id: str) -> list[str]:
+    user_messages = [message.content for message in _chat_messages(conversation_id) if message.role == "user"]
     return user_messages[:-1] if user_messages else []
 
 
-def _conversation_context_for_llm(current_message: str, conversation_id: str) -> str:
+def _last_assistant_message(conversation_id: str) -> str | None:
+    assistant_messages = [
+        message.content for message in _chat_messages(conversation_id) if message.role == "assistant"
+    ]
+    return assistant_messages[-1] if assistant_messages else None
+
+
+def _conversation_context_for_llm(
+    current_message: str,
+    conversation_id: str,
+    *,
+    clinical_state: dict[str, Any] | None = None,
+) -> str:
     from app.modules.clinical_intake_extraction.semantic import aggregate_conversation_context
 
-    return aggregate_conversation_context(current_message, _prior_user_messages(conversation_id))
+    intent = (clinical_state or {}).get("intent")
+    last_assistant = _last_assistant_message(conversation_id) if intent == "follow_up_detail" else None
+    return aggregate_conversation_context(
+        current_message,
+        _prior_user_messages(conversation_id),
+        last_assistant_message=last_assistant,
+    )
 
 
 async def _build_recommendation_and_graphrag(
@@ -578,6 +843,22 @@ async def _resolve_patient_with_intake_status_events(
             pass
 
 
+def _missing_check_for_turn(
+    patient: PatientProfile,
+    *,
+    clinical_state: dict[str, Any],
+    conversation_id: str,
+) -> Any:
+    planned = _active_planned_question(conversation_id)
+    if planned and planned.required_data_fields:
+        return check_required_field_ids(patient, planned.required_data_fields)
+    return check_missing_fields(
+        patient,
+        clinical_intent=clinical_state.get("intent"),
+        clinical_state=clinical_state,
+    )
+
+
 async def _drain_intake_status_events(
     status_queue: asyncio.Queue[str | None],
     resolve_task: asyncio.Task[tuple[PatientProfile, list[PatientConflict]]],
@@ -599,11 +880,37 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
     yield _sse("status", {"step": "received", "conversation_id": conversation_id})
     _append_message(_message(conversation_id, "user", request.message))
 
+    draft_for_plan = _load_draft(conversation_id)
+    plan_patient = draft_for_plan.patient if draft_for_plan else _new_patient(conversation_id)
+    if request.patient:
+        plan_patient = _merge_patient(plan_patient, request.patient)
+
+    question_plan: QuestionPlan | None = None
+    if _should_run_question_planner(request):
+        from app.modules.question_planner.service import plan_clinical_questions
+
+        yield _sse("status", {"step": "planning_question"})
+        question_plan = await plan_clinical_questions(
+            request.message,
+            patient=plan_patient,
+            conversation_history=_prior_user_messages(conversation_id),
+            language=request.language or "vi",
+        )
+        _question_plans[conversation_id] = question_plan
+        yield _sse("question_plan_ready", question_plan.model_dump(mode="json"))
+
+    request, extraction_override = _apply_multi_question_handling(
+        request,
+        conversation_id,
+        question_plan=question_plan,
+    )
+
     current = _load_draft(conversation_id)
     base_patient = current.patient if current else _new_patient(conversation_id)
     is_initial_draft = current is None
     attachment_context = _attachment_context(request)
-    extraction_message = "\n".join(value for value in [request.message, attachment_context] if value)
+    extraction_message = extraction_override or request.message
+    extraction_message = "\n".join(value for value in [extraction_message, attachment_context] if value)
 
     if _prefilled_patient_complete(base_patient, request.patient, request.message):
         yield _sse("status", {"step": "using_supplied_profile"})
@@ -629,7 +936,12 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
     merged, conflicts = await resolve_task
     merged = _merge_clinical_documents(merged, request)
 
-    clinical_state = build_clinical_state(merged, extraction_message)
+    clinical_state = build_clinical_state(
+        merged,
+        request.message,
+        has_prior_assistant=bool(prior_last_assistant := _last_assistant_message(conversation_id)),
+        last_assistant_message=prior_last_assistant,
+    )
     if state_text := state_query_text(clinical_state):
         merged.care_context.decision_context = " ".join(
             value for value in [merged.care_context.decision_context, state_text] if value
@@ -654,10 +966,10 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
         {**draft.model_dump(mode="json"), "is_initial_draft": is_initial_draft, "conflicts": [c.model_dump(mode="json") for c in conflicts]},
     )
 
-    missing_check = check_missing_fields(
+    missing_check = _missing_check_for_turn(
         merged,
-        clinical_intent=clinical_state.get("intent"),
         clinical_state=clinical_state,
+        conversation_id=conversation_id,
     )
     tool_outputs: list[dict[str, Any]] = [
         {"tool": "patient_draft_merge", "patient": merged.legacy_summary()},
@@ -681,10 +993,13 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
             write_audit_event,
             merged.case_id,
             "chat_value_conflict",
-            {
-                "message": request.message,
-                "conflicts": [c.model_dump(mode="json") for c in conflicts],
-            },
+            _chat_audit_payload(
+                request,
+                clinical_state=clinical_state,
+                patient=merged,
+                question_plan=question_plan,
+                extra={"conflicts": [c.model_dump(mode="json") for c in conflicts]},
+            ),
         )
         response = ChatResponse(
             conversation_id=conversation_id,
@@ -704,19 +1019,20 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
         return
 
     if missing_check.missing_fields:
-        content = build_missing_fields_prompt(missing_check)
+        content = build_missing_fields_prompt(missing_check, language=request.language or "vi")
         assistant_message = _message(conversation_id, "assistant", content, {"status": "needs_more_information"})
         await asyncio.to_thread(_append_message, assistant_message)
         await asyncio.to_thread(
             write_audit_event,
             merged.case_id,
             "chat_missing_fields",
-            {
-                "message": request.message,
-                "attachments": [item.model_dump(mode="json") for item in request.clinical_attachments],
-                "clinical_state": clinical_state,
-                "missing_check": missing_check.model_dump(mode="json"),
-            },
+            _chat_audit_payload(
+                request,
+                clinical_state=clinical_state,
+                patient=merged,
+                question_plan=question_plan,
+                extra={"missing_check": missing_check.model_dump(mode="json")},
+            ),
         )
         response = ChatResponse(
             conversation_id=conversation_id,
@@ -725,6 +1041,7 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
             patient_draft=draft,
             missing_check=missing_check,
             tool_outputs=tool_outputs,
+            pending_multi_question=_pending_multi_question_model(conversation_id, merged, clinical_state),
         )
         yield _sse("answer_delta", {"content": content})
         yield _sse("done", response.model_dump(mode="json"))
@@ -764,7 +1081,11 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
     yield _sse("status", {"step": "loading_model"})
     llm_request = LLMAnswerRequest(
         user_input=request.message,
-        conversation_context=_conversation_context_for_llm(request.message, conversation_id),
+        conversation_context=_conversation_context_for_llm(
+            request.message,
+            conversation_id,
+            clinical_state=clinical_state,
+        ),
         clinical_state=clinical_state,
         patient=merged,
         recommendation=recommendation,
@@ -781,12 +1102,80 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
                 yield _sse("status", {"step": "generating_answer"})
             answer_parts.append(event["content"])
             yield _sse("answer_delta", {"content": event["content"]})
+        elif event["type"] == "replace":
+            answer_parts.clear()
+            answer_parts.append(event["content"])
+            yield _sse("answer_replace", {"content": event["content"]})
         elif event["type"] == "final":
             llm_answer = event["llm_answer"]
 
     final_answer = llm_answer.answer if llm_answer else "".join(answer_parts).strip()
     if not final_answer.strip():
         final_answer = fallback_answer(llm_request)
+    await asyncio.to_thread(
+        write_audit_event,
+        merged.case_id,
+        "chat_recommendation_completed",
+        _chat_audit_payload(
+            request,
+            clinical_state=clinical_state,
+            patient=merged,
+            question_plan=question_plan,
+            extra={
+                "recommendation": recommendation.model_dump(mode="json"),
+                "verification": verification.model_dump(mode="json"),
+                "assistant": llm_answer.model_dump(mode="json") if llm_answer else None,
+            },
+        ),
+    )
+
+    # Multi-question confirmation path — if there are remaining questions, ask for confirmation.
+    pending = _pending_multi.get(conversation_id)
+    if pending and _is_multi_question_thread(pending):
+        next_q = pending["remaining"][0] if pending["remaining"] else None
+        confirm_content = _build_multi_question_confirm_message(
+            pending["answered"][-1],
+            next_q,
+            next_q_index=len(pending["answered"]),
+            language=request.language or "vi",
+        )
+        combined_content = _combine_answer_with_multi_question_confirm(final_answer, confirm_content)
+        assistant_message = _message(
+            conversation_id,
+            "assistant",
+            combined_content,
+            {
+                "status": "multi_question_confirm",
+                "model": llm_answer.model if llm_answer else "unknown",
+                "used_llm": llm_answer.used_llm if llm_answer else False,
+            },
+        )
+        await asyncio.to_thread(_append_message, assistant_message)
+        pending_multi = PendingMultiQuestion(
+            conversation_id=conversation_id,
+            answered_qs=pending["answered"],
+            remaining_qs=pending["remaining"],
+            current_index=pending["current_index"],
+            patient_snapshot=merged.model_dump(mode="json"),
+            clinical_state_snapshot=clinical_state,
+        )
+        response = ChatResponse(
+            conversation_id=conversation_id,
+            status="multi_question_confirm",
+            assistant_message=assistant_message,
+            patient_draft=draft,
+            missing_check=missing_check,
+            recommendation=recommendation,
+            verification=verification,
+            llm_answer=llm_answer,
+            tool_outputs=tool_outputs,
+            pending_multi_question=pending_multi,
+        )
+        yield _sse("done", response.model_dump(mode="json"))
+        if not pending["remaining"]:
+            _pending_multi.pop(conversation_id, None)
+        return
+
     assistant_message = _message(
         conversation_id,
         "assistant",
@@ -798,20 +1187,6 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
         },
     )
     await asyncio.to_thread(_append_message, assistant_message)
-    await asyncio.to_thread(
-        write_audit_event,
-        merged.case_id,
-        "chat_recommendation_completed",
-        {
-            "message": request.message,
-            "attachments": [item.model_dump(mode="json") for item in request.clinical_attachments],
-            "clinical_state": clinical_state,
-            "patient": merged.model_dump(mode="json"),
-            "recommendation": recommendation.model_dump(mode="json"),
-            "verification": verification.model_dump(mode="json"),
-            "assistant": llm_answer.model_dump(mode="json") if llm_answer else None,
-        },
-    )
     response = ChatResponse(
         conversation_id=conversation_id,
         status="completed",
@@ -838,11 +1213,35 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
 
     _append_message(_message(conversation_id, "user", request.message))
 
+    draft_for_plan = _load_draft(conversation_id)
+    plan_patient = draft_for_plan.patient if draft_for_plan else _new_patient(conversation_id)
+    if request.patient:
+        plan_patient = _merge_patient(plan_patient, request.patient)
+
+    question_plan: QuestionPlan | None = None
+    if _should_run_question_planner(request):
+        from app.modules.question_planner.service import plan_clinical_questions
+
+        question_plan = await plan_clinical_questions(
+            request.message,
+            patient=plan_patient,
+            conversation_history=_prior_user_messages(conversation_id),
+            language=request.language or "vi",
+        )
+        _question_plans[conversation_id] = question_plan
+
+    request, extraction_override = _apply_multi_question_handling(
+        request,
+        conversation_id,
+        question_plan=question_plan,
+    )
+
     current = _load_draft(conversation_id)
     base_patient = current.patient if current else _new_patient(conversation_id)
     is_initial_draft = current is None
     attachment_context = _attachment_context(request)
-    extraction_message = "\n".join(value for value in [request.message, attachment_context] if value)
+    extraction_message = extraction_override or request.message
+    extraction_message = "\n".join(value for value in [extraction_message, attachment_context] if value)
     merged, conflicts = await _resolve_patient_for_chat_turn(
         extraction_message=extraction_message,
         conversation_id=conversation_id,
@@ -855,7 +1254,12 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
     )
     merged = _merge_clinical_documents(merged, request)
 
-    clinical_state = build_clinical_state(merged, extraction_message)
+    clinical_state = build_clinical_state(
+        merged,
+        request.message,
+        has_prior_assistant=bool(prior_last_assistant := _last_assistant_message(conversation_id)),
+        last_assistant_message=prior_last_assistant,
+    )
     if state_text := state_query_text(clinical_state):
         merged.care_context.decision_context = " ".join(
             value for value in [merged.care_context.decision_context, state_text] if value
@@ -873,10 +1277,10 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
     )
     _save_draft(draft)
 
-    missing_check = check_missing_fields(
+    missing_check = _missing_check_for_turn(
         merged,
-        clinical_intent=clinical_state.get("intent"),
         clinical_state=clinical_state,
+        conversation_id=conversation_id,
     )
     tool_outputs: list[dict[str, Any]] = [
         {"tool": "patient_draft_merge", "patient": merged.legacy_summary()},
@@ -893,10 +1297,13 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
         write_audit_event(
             merged.case_id,
             "chat_value_conflict",
-            {
-                "message": request.message,
-                "conflicts": [c.model_dump(mode="json") for c in conflicts],
-            },
+            _chat_audit_payload(
+                request,
+                clinical_state=clinical_state,
+                patient=merged,
+                question_plan=question_plan,
+                extra={"conflicts": [c.model_dump(mode="json") for c in conflicts]},
+            ),
         )
         # Include merged (unconfirmed) patient in the draft so the client can pass it
         # back as pending_confirmation on the next request.
@@ -916,18 +1323,19 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
         return response
 
     if missing_check.missing_fields:
-        content = build_missing_fields_prompt(missing_check)
+        content = build_missing_fields_prompt(missing_check, language=request.language or "vi")
         assistant_message = _message(conversation_id, "assistant", content, {"status": "needs_more_information"})
         _append_message(assistant_message)
         write_audit_event(
             merged.case_id,
             "chat_missing_fields",
-            {
-                "message": request.message,
-                "attachments": [item.model_dump(mode="json") for item in request.clinical_attachments],
-                "clinical_state": clinical_state,
-                "missing_check": missing_check.model_dump(mode="json"),
-            },
+            _chat_audit_payload(
+                request,
+                clinical_state=clinical_state,
+                patient=merged,
+                question_plan=question_plan,
+                extra={"missing_check": missing_check.model_dump(mode="json")},
+            ),
         )
         response = ChatResponse(
             conversation_id=conversation_id,
@@ -936,6 +1344,7 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
             patient_draft=draft,
             missing_check=missing_check,
             tool_outputs=tool_outputs,
+            pending_multi_question=_pending_multi_question_model(conversation_id, merged, clinical_state),
         )
         # Cache idempotent response
         if request.idempotency_key:
@@ -968,7 +1377,11 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
     llm_answer = await build_llm_answer(
         LLMAnswerRequest(
             user_input=request.message,
-            conversation_context=_conversation_context_for_llm(request.message, conversation_id),
+            conversation_context=_conversation_context_for_llm(
+            request.message,
+            conversation_id,
+            clinical_state=clinical_state,
+        ),
             clinical_state=clinical_state,
             patient=merged,
             recommendation=recommendation,
@@ -982,6 +1395,69 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
             {"tool": "verification", "result": verification.model_dump(mode="json")},
         ]
     )
+    write_audit_event(
+        merged.case_id,
+        "chat_recommendation_completed",
+        _chat_audit_payload(
+            request,
+            clinical_state=clinical_state,
+            patient=merged,
+            question_plan=question_plan,
+            extra={
+                "recommendation": recommendation.model_dump(mode="json"),
+                "verification": verification.model_dump(mode="json"),
+                "assistant": llm_answer.model_dump(mode="json"),
+            },
+        ),
+    )
+    # Multi-question confirmation path — if there are remaining questions, ask for confirmation.
+    pending = _pending_multi.get(conversation_id)
+    if pending and _is_multi_question_thread(pending):
+        next_q = pending["remaining"][0] if pending["remaining"] else None
+        confirm_content = _build_multi_question_confirm_message(
+            pending["answered"][-1],
+            next_q,
+            next_q_index=len(pending["answered"]),
+            language=request.language or "vi",
+        )
+        combined_content = _combine_answer_with_multi_question_confirm(llm_answer.answer, confirm_content)
+        assistant_message = _message(
+            conversation_id,
+            "assistant",
+            combined_content,
+            {
+                "status": "multi_question_confirm",
+                "model": llm_answer.model,
+                "used_llm": llm_answer.used_llm,
+            },
+        )
+        _append_message(assistant_message)
+        pending_multi = PendingMultiQuestion(
+            conversation_id=conversation_id,
+            answered_qs=pending["answered"],
+            remaining_qs=pending["remaining"],
+            current_index=pending["current_index"],
+            patient_snapshot=merged.model_dump(mode="json"),
+            clinical_state_snapshot=clinical_state,
+        )
+        response = ChatResponse(
+            conversation_id=conversation_id,
+            status="multi_question_confirm",
+            assistant_message=assistant_message,
+            patient_draft=draft,
+            missing_check=missing_check,
+            recommendation=recommendation,
+            verification=verification,
+            llm_answer=llm_answer,
+            tool_outputs=tool_outputs,
+            pending_multi_question=pending_multi,
+        )
+        if request.idempotency_key:
+            _cache_idempotent_response(request.idempotency_key, response)
+        if not pending["remaining"]:
+            _pending_multi.pop(conversation_id, None)
+        return response
+
     assistant_message = _message(
         conversation_id,
         "assistant",
@@ -989,19 +1465,6 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
         {"status": "completed", "model": llm_answer.model, "used_llm": llm_answer.used_llm},
     )
     _append_message(assistant_message)
-    write_audit_event(
-        merged.case_id,
-        "chat_recommendation_completed",
-        {
-            "message": request.message,
-            "attachments": [item.model_dump(mode="json") for item in request.clinical_attachments],
-            "clinical_state": clinical_state,
-            "patient": merged.model_dump(mode="json"),
-            "recommendation": recommendation.model_dump(mode="json"),
-            "verification": verification.model_dump(mode="json"),
-            "assistant": llm_answer.model_dump(mode="json"),
-        },
-    )
     response = ChatResponse(
         conversation_id=conversation_id,
         status="completed",

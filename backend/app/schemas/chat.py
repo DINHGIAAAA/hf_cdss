@@ -51,6 +51,18 @@ class ClinicalAttachment(BaseModel):
 
 
 ConfirmationAction = Literal["confirm", "cancel"]
+MultiQuestionAction = Literal["continue", "stop"]
+
+
+class PendingMultiQuestion(BaseModel):
+    """Carries multi-question state across turns when user asks multiple questions at once."""
+
+    conversation_id: str
+    answered_qs: list[str] = Field(default_factory=list)
+    remaining_qs: list[str] = Field(default_factory=list)
+    current_index: int = 0
+    patient_snapshot: dict[str, Any] = Field(default_factory=dict)
+    clinical_state_snapshot: dict[str, Any] = Field(default_factory=dict)
 
 
 class ChatRequest(BaseModel):
@@ -75,6 +87,16 @@ class ChatRequest(BaseModel):
         "unconfirmed field values that should be applied (confirm) or discarded (cancel). "
         "Populated by the client from the last needs_confirmation SSE response.",
     )
+    multi_question_action: MultiQuestionAction | None = Field(
+        default=None,
+        description="User's response to a multi_question_confirm prompt: 'continue' proceeds "
+        "to answer the next question, 'stop' finalizes and returns all answers.",
+    )
+    pending_multi_question: PendingMultiQuestion | None = Field(
+        default=None,
+        description="Carries multi-question state from a prior multi_question_confirm response. "
+        "Populated by the client from the last SSE response.",
+    )
 
 
 class ChatMessage(BaseModel):
@@ -98,6 +120,14 @@ class ChatResponse(BaseModel):
     tool_outputs: list[dict[str, Any]] = Field(default_factory=list)
     needs_confirmation: bool = False
     conflicts: list[PatientConflict] = Field(default_factory=list)
+    pending_multi_question: PendingMultiQuestion | None = Field(
+        default=None,
+        description="Present when status='multi_question_confirm', carries state for the next turn.",
+    )
+    question_plan: dict[str, Any] | None = Field(
+        default=None,
+        description="Pre-flight chain-of-thought question plan for this turn.",
+    )
 
 
 class ChatHistoryResponse(BaseModel):

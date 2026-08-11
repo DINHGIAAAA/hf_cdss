@@ -8,7 +8,7 @@ Thư mục này chứa **bản dịch chi tiết** để đọc kèm luận văn
 | File | Nội dung |
 |------|----------|
 | [00_Phan1_Gioi_Thieu.md](00_Phan1_Gioi_Thieu.md) | Tổng quan Phần I |
-| [Chuong1_Gioi_Thieu.md](Chuong1_Gioi_Thieu.md) | Chương 1 — Vấn đề, công trình liên quan, bố cục |
+| [Chuong1_Gioi_Thieu.md](Chuong1_Gioi_Thieu.md) | Chương 1 — Bối cảnh, mục đích/phạm vi/cách làm, vấn đề, RQ, công trình liên quan, bố cục |
 
 ### Phần II — Nội dung luận văn
 | File | Chương |
@@ -33,5 +33,6 @@ Thư mục này chứa **bản dịch chi tiết** để đọc kèm luận văn
 
 - Bản **chính thức nộp** vẫn là tiếng Anh trong `thesis/`.
 - Bản Việt giữ **cùng số mục** (1.1, 2.0, 3.0.1…) để đối chiếu dễ.
+- **Phần mở đầu** (bối cảnh, mục đích, phạm vi, cách làm) nằm gọn ở Chương 1; Chương 2–6 chỉ tham chiếu, không lặp đoạn dài.
 - Thuật ngữ kỹ thuật: tiếng Việt trước, tiếng Anh trong ngoặc khi cần.
 - Số liệu đánh giá (94,0%, 8,1s…) giữ nguyên như bản Anh.

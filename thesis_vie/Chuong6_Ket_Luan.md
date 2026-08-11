@@ -1,14 +1,10 @@
 # CHƯƠNG 6: KẾT LUẬN
 
-*(Bản dịch chi tiết từ `thesis/Chapter6_Conclusion.md`)*
-
-Chương này kết thúc luận văn bằng cách tóm tắt những gì đã xây dựng, đánh giá cho thấy gì, phần nào còn dở, và bước tiếp theo nên là gì. Hệ hỗ trợ quyết định lâm sàng (CDSS) suy tim được thiết kế để kết hợp tri thức y được quản trị, logic an toàn tất định, và hỗ trợ mô hình ngôn ngữ lớn (LLM) mà không coi model là người kê đơn tự trị. Câu hỏi xuyên suốt dự án là liệu cách tiếp cận lai đó có thể cung cấp hỗ trợ chính xác, kịp thời, giải thích được và song ngữ trong khi bác sĩ vẫn kiểm soát quyết định cuối.
+Tóm tắt đóng góp, trả lời RQ1–RQ3 (đặt ở Chương 1), hạn chế và hướng phát triển. Chi tiết số liệu ở Chương 5.
 
 ## 6.1 Tóm tắt đóng góp
 
-Luận văn nghiên cứu, thiết kế, cài đặt và đánh giá một hệ hỗ trợ quyết định lâm sàng chuyên suy tim. Thay vì yêu cầu LLM kê đơn trực tiếp, kiến trúc giao sinh xác suất cho các tác vụ ngôn ngữ tự nhiên thêm giá trị, như giải thích bằng chứng, trong khi dành trạng thái điều trị có thẩm quyền cho catalog PostgreSQL được đánh giá bởi dịch vụ tất định.
-
-Công trình xuất phát từ khoảng trống lâm sàng dai dẳng. Suy tim phân suất tống máu giảm (HFrEF) có bằng chứng mạnh cho điều trị nội khoa theo hướng dẫn (GDMT) bốn thuốc, nhưng dùng thực tế ở liều đích vẫn rất thấp. Đồng thời, công cụ chat mục đích chung dễ tương tác nhưng thiếu an toàn dược lý được quản trị phù hợp để tin cậy trực tiếp lâm sàng. Luận văn kiểm tra liệu thiết kế lai có thể giải quyết căng thẳng đó trong hệ triển khai được với tiêu chí đo lường, không chỉ như lập luận khái niệm.
+Luận văn thiết kế, cài đặt và đánh giá CDSS suy tim lai: catalog PostgreSQL quyết định khuyến nghị và chặn cứng; GraphRAG và LLM cục bộ phục vụ bằng chứng và giải thích; chat Việt–Anh qua SSE. Bối cảnh và câu hỏi nghiên cứu ở Chương 1; số liệu ở Chương 5.
 
 Về kiến trúc, hệ trải trên tầng trình bày, ứng dụng và dữ liệu. Tầng trình bày cung cấp dashboard bác sĩ React với chat stream, thẻ khuyến nghị có cấu trúc, và chuyển ngôn ngữ song ngữ tái sinh nhãn dễ hiểu mà không chạy lại suy luận lâm sàng. Tầng ứng dụng điều phối intake bệnh nhân lai, suy luận tất định, truy xuất GraphRAG lai, kiểm chứng, tính liều, và tóm tắt thẻ qua dịch vụ FastAPI. Tầng dữ liệu lưu quy tắc được quản trị trong PostgreSQL, cache phiên trong Redis, embedding trong ChromaDB, cấu trúc đồ thị trong Neo4j, và phiên bản artifact pipeline trong kho đối tượng.
 

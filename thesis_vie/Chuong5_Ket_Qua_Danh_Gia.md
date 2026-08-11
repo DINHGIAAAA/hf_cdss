@@ -1,8 +1,6 @@
 # CHƯƠNG 5: KẾT QUẢ VÀ ĐÁNH GIÁ
 
-*(Bản dịch chi tiết từ `thesis/Chapter5_Results_and_Evaluation.md`)*
-
-Chương này báo cáo những gì hệ hỗ trợ quyết định lâm sàng (CDSS) suy tim đạt được sau khi được xây dựng, chạy trên phần cứng thực tế, và đo lường bằng đánh giá của bác sĩ tim mạch cùng thử nghiệm khả năng sử dụng. Mục tiêu là trả lời một câu hỏi thực tiễn: thiết kế lai mô tả ở các chương trước có thực sự hoạt động đủ tốt cho mục đích lâm sàng dưới giám sát hay không? Chúng tôi báo cáo kết quả cho pipeline cơ sở tri thức, dịch vụ chat khuyến nghị, giao diện người dùng, so sánh với hệ thống khác, lỗi thường gặp, hành vi an toàn, và giới hạn của những con số này có thể chứng minh được.
+Chương này báo cáo số liệu đo trên phần cứng thực tế và đánh giá bác sĩ. Câu hỏi trung tâm: hệ có đạt tiêu chí mục 5.0 (đặt trước khi cài đặt) hay không. Không lặp lại mô tả kiến trúc ở Chương 3–4.
 
 ## 5.0 Tiêu chí thành công định trước
 

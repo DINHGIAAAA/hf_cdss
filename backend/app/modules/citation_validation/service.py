@@ -8,9 +8,202 @@ from app.schemas.graphrag import (
     GraphRAGContextResponse,
 )
 from app.core.metrics import increment
+from app.modules.clinical_intake_extraction.service import normalize_text
+from app.modules.explanation.card_summarizer import _contains_cjk
 from app.modules.evidence_quality import quality_score_for_chunk
+from app.prompts.explanation import REQUIRED_CLINICAL_DISCLAIMER
 from app.schemas.patient import PatientProfile
 from app.schemas.recommendation import RecommendationResponse
+
+
+# Drug-specific warnings — NOT class-wide.
+# Appearing in text for a drug that doesn't have them in its payload warnings = hallucination.
+_DRUG_SPECIFIC_WARNINGS_TEXT: dict[str, list[str]] = {
+    "sglt2i": ["amputation", "cắt cụt", "lower extremity amputation", "leg amputation"],
+    "dapagliflozin": ["amputation", "cắt cụt", "lower extremity amputation", "leg amputation"],
+    "empagliflozin": ["amputation", "cắt cụt", "lower extremity amputation", "leg amputation"],
+}
+
+
+def _text_hallucination_check(text: str, compact_payload: dict) -> list[CitationSupport]:
+    """Check generated text for hallucinated drug-specific warnings.
+
+    Parses drug-class mentions and verifies any safety warnings cited
+    are present in the compact_payload candidate_medication_classes entry.
+    """
+    supports: list[CitationSupport] = []
+    text_lower = text.lower()
+    candidates = compact_payload.get("candidate_medication_classes", [])
+
+    # Check sglt2i agents
+    for agent in ("sglt2i", "dapagliflozin", "empagliflozin"):
+        keywords = _DRUG_SPECIFIC_WARNINGS_TEXT.get(agent, [])
+        for kw in keywords:
+            if kw.lower() not in text_lower:
+                continue
+            # Find class item
+            class_id = "sglt2i" if agent != "sglt2i" else agent
+            class_item = next(
+                (item for item in candidates if (item.get("class_id") or "").lower() == class_id),
+                None,
+            )
+            legitimate = False
+            if class_item:
+                all_texts = {w.lower() for w in class_item.get("warnings", [])}
+                for r in class_item.get("clinical_reasoning", []):
+                    if r:
+                        all_texts.add(r.lower())
+                rationale = class_item.get("rationale", "")
+                if rationale:
+                    all_texts.add(rationale.lower())
+                if kw.lower() in all_texts:
+                    legitimate = True
+            if not legitimate:
+                supports.append(
+                    CitationSupport(
+                        target_id=f"text:{agent}",
+                        target_type="text_hallucination",
+                        evidence_status="unsupported",
+                        message=f"Hallucinated warning '{kw}' attributed to {agent} — not in CDSS payload warnings.",
+                        required_terms=[kw],
+                        matched_terms=[],
+                        evidence_refs=[],
+                        source_links=[],
+                        evidence_verdict="hallucination",
+                        confidence=0.0,
+                        quality_score=0.0,
+                    )
+                )
+    return supports
+
+
+_AVOID_PHRASES_VI = ("chong chi dinh", "tranh", "khong nen", "hoan", "ngung")
+_AVOID_PHRASES_EN = ("contraindicated", "avoid", "do not use", "should not")
+_SGLT2_MENTION = ("sglt2", "dapagliflozin", "empagliflozin", "forxiga", "jardiance")
+
+
+def _status_consistency_check(text: str, compact_payload: dict) -> list[CitationSupport]:
+    """Fail if prose claims avoid/contraindication for a class whose CDSS status is not avoid."""
+    supports: list[CitationSupport] = []
+    normalized = normalize_text(text)
+    if not any(term in normalized for term in _SGLT2_MENTION):
+        return supports
+
+    class_item = next(
+        (
+            item
+            for item in compact_payload.get("candidate_medication_classes", [])
+            if (item.get("class_id") or "").lower() == "sglt2i"
+        ),
+        None,
+    )
+    if not class_item:
+        return supports
+    status = (class_item.get("status") or "").lower()
+    if status == "avoid":
+        return supports
+
+    has_avoid_language = any(p in normalized for p in _AVOID_PHRASES_VI + _AVOID_PHRASES_EN)
+    if has_avoid_language:
+        supports.append(
+            CitationSupport(
+                target_id="text:sglt2i_status",
+                target_type="status_mismatch",
+                evidence_status="unsupported",
+                message="Answer implies SGLT2i is avoided/contraindicated but CDSS status is not avoid.",
+                required_terms=list(_AVOID_PHRASES_VI[:2]),
+                matched_terms=[],
+                evidence_refs=[],
+                source_links=[],
+                evidence_verdict="status_mismatch",
+                confidence=0.0,
+                quality_score=0.0,
+            )
+        )
+    return supports
+
+
+_CJK_ALLOWED_LANGUAGES = frozenset({"zh", "zh-cn", "zh-tw", "ja", "ko"})
+
+
+def _cjk_leak_check(text: str, compact_payload: dict) -> list[CitationSupport]:
+    """Fail when response_language is not CJK-targeted but the answer contains CJK script."""
+    language = (compact_payload.get("response_language") or "vi").lower().strip()
+    if language in _CJK_ALLOWED_LANGUAGES:
+        return []
+    if not _contains_cjk(text):
+        return []
+    return [
+        CitationSupport(
+            target_id="text:locale",
+            target_type="locale_compliance",
+            evidence_status="unsupported",
+            message=(
+                f"Answer contains CJK characters but response_language is '{language}'. "
+                "Use fallback or regenerate without Chinese/Japanese/Korean script."
+            ),
+            required_terms=["latin_or_vietnamese_only"],
+            matched_terms=[],
+            evidence_refs=[],
+            source_links=[],
+            evidence_verdict="locale_cjk_leak",
+            confidence=0.0,
+            quality_score=0.0,
+        )
+    ]
+
+
+def validate_text_answer(text: str, compact_payload: dict) -> CitationValidation:
+    """Validate a generated text answer against the compact_payload.
+
+    Checks for hallucinated drug-specific warnings in the generated text.
+    Returns a CitationValidation with hallucination flags as unsupported items.
+    """
+    hallucination_supports = _text_hallucination_check(text, compact_payload)
+    status_supports = _status_consistency_check(text, compact_payload)
+    cjk_supports = _cjk_leak_check(text, compact_payload)
+
+    required_disclaimer = REQUIRED_CLINICAL_DISCLAIMER
+    disclaimer_supports: list[CitationSupport] = []
+    if required_disclaimer not in text:
+        disclaimer_supports.append(
+            CitationSupport(
+                target_id="disclaimer",
+                target_type="format_compliance",
+                evidence_status="unsupported",
+                message="Required disclaimer line is missing from generated text.",
+                required_terms=[required_disclaimer],
+                matched_terms=[],
+                evidence_refs=[],
+                source_links=[],
+                evidence_verdict="missing_disclaimer",
+                confidence=0.0,
+                quality_score=0.0,
+            )
+        )
+
+    all_supports = hallucination_supports + status_supports + cjk_supports + disclaimer_supports
+    status = "strong"
+    if any(s.evidence_status == "unsupported" for s in all_supports):
+        status = "weak"
+    increment("hf_cdss_citation_validation_total", {"status": status, "mode": "text_answer"})
+    return CitationValidation(status=status, supports=all_supports)
+
+
+def explanation_validation_failed(validation: CitationValidation) -> bool:
+    return any(
+        s.evidence_status == "unsupported"
+        for s in validation.supports
+    )
+
+
+def validate_explanation_answer(text: str, compact_payload: dict) -> CitationValidation:
+    """Single entry point for free-text clinical explanations (deterministic checks).
+
+    Optional LLM-as-judge is a secondary layer only: the same model family as generation
+    can share systematic blind spots (correlated failure). Do not rely on the judge alone.
+    """
+    return validate_text_answer(text, compact_payload)
 
 
 DRUG_CLASS_TERMS = {

@@ -220,12 +220,16 @@ def _translate_bullet_vi(text: str) -> str:
 
 
 def _vi_meaning_from_rationale(item: MedicationRecommendation) -> str:
+    # Build blob from English-only fields; strip CJK so it doesn't poison keyword checks.
     blob = " ".join(
         [
             str(item.rationale or ""),
             " ".join(item.clinical_reasoning[:2]),
         ]
-    ).lower()
+    )
+    # Strip CJK characters before keyword matching to avoid false matches.
+    import re
+    blob = re.sub(r"[一-鿿㐀-䶿豈-﫿]", "", blob).lower()
     drug = _vi_class_phrase(item.drug_class)
     status = item.status
 
@@ -283,6 +287,10 @@ def deterministic_card_summary(item: MedicationRecommendation, language: str = "
         (str(line).strip() for line in item.clinical_reasoning if str(line).strip()),
         "",
     )
+    # Strip CJK text — rationale/monitoring may contain CJK from DB but we only
+    # surface English summaries here.
+    if _contains_cjk(lead):
+        lead = ""
     parts = [f"{status_label} {item.drug_class}."]
     if lead:
         parts.append(lead if lead.endswith((".", "!", "?")) else f"{lead}.")
@@ -296,7 +304,10 @@ def _vi_detail_lines(lines: list[str] | None, *, fallback: list[str]) -> list[st
         if not text or _needs_locale_fallback(text, "vi"):
             continue
         cleaned.append(_translate_bullet_vi(text) if _looks_english(text) else text)
-    return cleaned or list(fallback)
+    # When falling back, strip CJK lines so nothing leaks through.
+    if not cleaned:
+        cleaned = [line for line in fallback if not _contains_cjk(line)]
+    return cleaned
 
 
 def _card_update_fields(item: MedicationRecommendation, language: str, *, summary: str | None = None, details: PlainLanguageDetails | None = None) -> dict[str, Any]:
@@ -486,6 +497,7 @@ async def attach_plain_language_summaries(
     recommendation: RecommendationResponse,
     *,
     language: str = "vi",
+    patient_context: dict[str, Any] | None = None,
 ) -> RecommendationResponse:
     """Attach plain_language_summary + details via one batch LLM call, with fallback."""
     if not recommendation.recommendations:
@@ -508,6 +520,7 @@ async def attach_plain_language_summaries(
 
     payload = {
         "response_language": lang,
+        "patient_context": patient_context or recommendation.patient_summary or {},
         "recommendations": compact,
     }
     try:

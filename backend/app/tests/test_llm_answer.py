@@ -34,7 +34,8 @@ def test_llm_answer_falls_back_when_ollama_unavailable(client) -> None:
     payload = response.json()
     assert payload["case_id"] == "LLM_CASE"
     assert payload["answer"]
-    assert "structured CDSS output" in payload["safety_note"]
+    # Fallback safety_note (when LLM unavailable) comes from FALLBACK_TEMPLATES
+    assert "bác sĩ" in payload["safety_note"]
 
 
 def test_llm_answer_uses_cache_for_repeated_payload(monkeypatch, client) -> None:
@@ -78,7 +79,8 @@ def test_llm_answer_uses_cache_for_repeated_payload(monkeypatch, client) -> None
             calls["count"] += 1
             return FakeResponse()
 
-    monkeypatch.setattr(llm_service, "get_async_client", lambda *args, **kwargs: FakeClient())
+    # Patch get_async_client at its definition site so build_llm_answer picks it up
+    monkeypatch.setattr("app.core.http_client.get_async_client", lambda *args, **kwargs: FakeClient())
 
     first = client.post(api_path("/llm/answer"), json=body)
     second = client.post(api_path("/llm/answer"), json=body)

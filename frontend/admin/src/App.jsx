@@ -5,6 +5,7 @@ import { ProtectedRoute } from "./auth/ProtectedRoute";
 import { AdminLayout } from "./layouts/AdminLayout";
 import { LoginPage } from "./pages/LoginPage";
 import { ApiExplorerPage } from "./pages/ApiExplorerPage";
+import { ChatAuditPage } from "./pages/ChatAuditPage";
 import { EvidencePage } from "./pages/EvidencePage";
 import { DoseRulesPage } from "./pages/DoseRulesPage.jsx";
 import { DoseSafetyWarningsPage } from "./pages/DoseSafetyWarningsPage.jsx";
@@ -37,6 +38,7 @@ function App() {
             <Route element={<DoseSafetyWarningsPage />} path="dose-safety-warnings" />
             <Route element={<InteractionRulesPage />} path="interaction-rules" />
             <Route element={<GdmtPoliciesPage />} path="gdmt-policies" />
+            <Route element={<ChatAuditPage />} path="chat-audit" />
             <Route element={<EvidencePage />} path="evidence" />
             <Route element={<SystemPage />} path="system" />
             <Route element={<ApiExplorerPage />} path="api" />

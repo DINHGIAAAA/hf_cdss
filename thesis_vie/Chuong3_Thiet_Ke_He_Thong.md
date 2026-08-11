@@ -1,36 +1,14 @@
 # CHƯƠNG 3: THIẾT KẾ HỆ THỐNG
 
-## 3.0 Mục đích, phạm vi và cách tiếp cận
+Lý thuyết ở Chương 2; mục đích, phạm vi và cách tiếp cận ở Chương 1 (mục 1.2). Chương này mô tả yêu cầu, kiến trúc và biên module. Cài đặt và số liệu ở Chương 4–5.
 
-### 3.0.1 Mục đích nghiên cứu
+## 3.0 Ghi chú định hướng
 
-Mục đích là thiết kế, cài đặt và đánh giá CDSS chuyên suy tim tích hợp đồ thị tri thức y, GraphRAG lai, engine quy tắc lâm sàng tất định, agent kiểm chứng và LLM chạy cục bộ. Hệ thống giúp bác sĩ áp dụng GDMT nhất quán và an toàn hơn bằng cách biến nguồn có thẩm quyền (DailyMed SPL/XML, guideline ESC và AHA/ACC/HFSA, tri thức tương tác đã biên soạn) thành artifact có quản trị, truy vấn được.
-
-Về khoa học, nghiên cứu theo bốn mục tiêu: pipeline xây tri thức tự động; truy xuất lai (dense, BM25, đồ thị, HyDE, RRF) [12]–[14]; tách logic khuyến nghị tất định khỏi văn bản LLM; đo end-to-end theo tiêu chí định trước (Chương 5, mục 5.0). Về thực tiễn: prototype dùng dưới giám sát bác sĩ tim mạch với intake lai, GDMT, an toàn, GraphRAG, kiểm chứng và SSE song ngữ. Nghiên cứu không thay EHR hay tự động kê đơn không người duyệt. Phương pháp theo paradigm thiết kế–khoa học: vấn đề ở Chương 1, artifact có claim kiểm chứng, đánh giá minh bạch.
-
-### 3.0.2 Phạm vi và giới hạn
-
-Phạm vi lâm sàng chính: dược trị liệu GDMT HFrEF (ACEi, ARB, ARNI, beta blocker có bằng chứng, MRA, SGLT2i). HFpEF, suy tim mất bù cấp, thiết bị, ghép phần lớn ngoài phạm vi. Nguồn: DailyMed SPL, guideline ESC/AHA/ACC/HFSA, tương tác trong PostgreSQL. Dữ liệu qua chat, không HL7/FHIR. Khuyến nghị mang tính tư vấn. Triển khai cục bộ với JWT và Docker. Dashboard Việt–Anh. Đánh giá vignette và bộ an toàn có cấu trúc.
-
-### 3.0.3 Tuyên bố luận điểm
-
-CDSS lai ghép rule GDMT/an toàn tất định với GraphRAG và LLM giải thích cục bộ có thể mang hỗ trợ điều trị suy tim chính xác, kịp thời, song ngữ, phù hợp workflow trong khi bác sĩ giữ quyết định cuối. Luận văn từ chối chat sinh không ràng buộc và cảnh báo chỉ rule cứng thiếu giải thích bám bằng chứng.
-
-### 3.0.4 Cách tiếp cận kỹ thuật tri thức (offline)
-
-Nạp nhãn SPL và guideline vào object storage có phiên bản. Bộ lọc 3 tầng (từ khóa, BGE-M3, LLM vùng biên). Cắt đoạn, trích claim, phân lớp an toàn. Sync PostgreSQL, ChromaDB, Neo4j. PostgreSQL là thẩm quyền rule thực thi.
-
-### 3.0.5 Cách tiếp cận lúc truy vấn (online)
-
-Intake lai → engine GDMT/ràng buộc/tương tác/liều tất định. Song song GraphRAG: HyDE, dense ChromaDB, BM25, Neo4j, RRF. LLM không phải thẩm quyền lâm sàng; kiểm chứng và SSE đẩy thẻ trước văn bản giải thích.
-
-### 3.0.6 Nguyên tắc: LLM lớp giải thích, rule là thẩm quyền
-
-Rule và catalog quản trị quyết định trạng thái khuyến nghị, chặn cứng và liều. LLM chỉ giải thích và hỗ trợ intake/truy vấn; không ghi đè hard_block. Mục 3.2.1 diễn giải lại trong kiến trúc runtime đầy đủ.
+Nội dung trùng với Chương 1 (mục 1.2.1–1.2.6) không lặp lại ở đây. Mục 3.2.1 nêu lại nguyên tắc “rule là thẩm quyền” trong kiến trúc runtime.
 
 ## 3.1. Yêu cầu hệ thống
 
-Điều trị suy tim phức tạp. Bác sĩ phải theo dõi bốn trụ cột của điều trị nội khoa theo hướng dẫn (Guideline-Directed Medical Therapy, GDMT), cảnh giác các phối hợp thuốc nguy hiểm, chỉnh liều theo chức năng thận, và giải thích quyết định rõ ràng cho bệnh nhân. Nhiều công cụ kiểu chatbot có thể viết văn bản trôi chảy nhưng không thể đáng tin cậy thực thi quy tắc an toàn hay chỉ ra khuyến nghị đến từ đâu. Chương này mô tả cách thiết kế Hệ hỗ trợ quyết định lâm sàng (Clinical Decision Support System, CDSS) suy tim đáp ứng các nhu cầu đó từ đầu đến cuối: từ xây dựng tri thức ngoại tuyến (offline), qua suy luận và truy xuất lúc truy vấn, đến giao diện song ngữ cho bác sĩ và quản trị tri thức.
+Hệ phải đọc tin nhắn bác sĩ, chạy rule GDMT và an toàn, truy xuất bằng chứng, kiểm chứng, rồi hiển thị thẻ khuyến nghị và giải thích song ngữ. Phần dưới liệt kê chức năng và phi chức năng tương ứng từng module.
 
 ### 3.1.1. Yêu cầu chức năng
 

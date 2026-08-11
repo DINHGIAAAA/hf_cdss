@@ -54,6 +54,10 @@ class Settings(BaseSettings):
     clinical_intake_selective_min_confidence: float = 0.75
     clinical_intake_selective_simple_missing_max: int = 3
     clinical_intake_selective_complexity_word_threshold: int = 80
+    question_planner_enabled: bool = True
+    question_planner_model: str = "qwen2.5:1.5b"
+    question_planner_timeout_seconds: float = 45.0
+    question_planner_max_tokens: int = 700
     postgres_dsn: str = "postgresql://hf_cdss:hf_cdss@localhost:55432/hf_cdss"
     neo4j_uri: str = "bolt://localhost:7687"
     neo4j_user: str = "neo4j"
@@ -85,7 +89,7 @@ class Settings(BaseSettings):
     aws_access_key_id: str = "test"
     aws_secret_access_key: str = "test"
     aws_default_region: str = "us-east-1"
-    postgres_audit_enabled: bool = False
+    postgres_audit_enabled: bool = True
     audit_schema_version: str = "2026-06-12"
     rate_limit_requests: int = 60
     rate_limit_window_seconds: int = 60

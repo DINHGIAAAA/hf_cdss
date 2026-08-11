@@ -339,6 +339,7 @@ def _regex_extract_patient_from_message(message: str, conversation_id: str) -> P
         r"\b(?:last\s+)?(?:acei|ace inhibitor|enalapril|lisinopril|ramipril|captopril)\s+"
         r"(?:dose\s+)?(?:was\s+)?(\d+(?:[.,]\d+)?)\s*(?:hours?|h|gio|giờ)\s+ago",
         normalized,
+        flags=re.IGNORECASE,
     )
     if acei_hours_match:
         acei_last_dose_hours_ago = float(acei_hours_match.group(1).replace(",", "."))

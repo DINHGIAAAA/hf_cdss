@@ -1,9 +1,9 @@
 # PHẦN I: GIỚI THIỆU
 
-Phần I định hướng đọc giả về vấn đề lâm sàng và kỹ thuật, vị trí công trình so với nghiên cứu trước (ở mức tổng quan), và cách bố cục phần còn lại của luận văn.
+Phần I gom toàn bộ phần mở đầu của luận văn: bối cảnh, mục tiêu, phạm vi, cách làm, vấn đề, câu hỏi nghiên cứu, công trình liên quan (tóm tắt) và bố cục.
 
 | File | Nội dung |
 |------|----------|
-| [Chuong1_Gioi_Thieu.md](Chuong1_Gioi_Thieu.md) | Phát biểu vấn đề, công trình liên quan (tóm tắt), bố cục luận văn |
+| [Chuong1_Gioi_Thieu.md](Chuong1_Gioi_Thieu.md) | Toàn bộ nội dung giới thiệu (mục 1.1–1.5) |
 
-Bối cảnh lâm sàng, mục đích nghiên cứu, phạm vi, cách tiếp cận kỹ thuật, tiêu chí thành công và tổng quan lý thuyết chi tiết nằm ở **Phần II** (Chương 2–6).
+Phần II (Chương 2–6) đi thẳng vào lý thuyết, thiết kế, cài đặt, kết quả và kết luận. Các chương đó không lặp lại đoạn mở đầu dài; chỉ tham chiếu về Chương 1 khi cần.

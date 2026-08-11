@@ -1,6 +1,6 @@
 # PART II: THESIS CONTENT
 
-Part II presents the theoretical foundations, system design and implementation, evaluation results, and conclusions of the heart-failure clinical decision support system (HF-CDSS). Background, motivation, purpose, and scope are in Chapter 1 (Sections 1.1–1.2).
+Part II presents theory, system design, implementation, evaluation, and conclusions for the heart-failure CDSS (HF-CDSS). Background, purpose, scope, and approach are in Chapter 1 (Sections 1.1–1.2). Later chapters add short orientation notes (Sections 2.0 and 3.0) instead of repeating that material.
 
 | File | Chapter |
 |------|---------|

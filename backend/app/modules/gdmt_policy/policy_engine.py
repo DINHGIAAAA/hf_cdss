@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.modules.graphrag.query_decomposition import normalize_drug_class
 from app.modules.gdmt_policy.guidance_normalize import ensure_str_list, normalize_gdmt_status, normalize_policy_body
+from app.modules.recommendation.drug_class_keys import canonical_gdmt_class_id
 from app.schemas.clinical import Constraint
 from app.schemas.clinical_pipeline import NormalizedPatientProfile
 from app.schemas.medication_safety import MedicationSafetyWarning
@@ -105,12 +107,117 @@ def _build_guidance(
     return rationale, reasoning, actions, monitoring
 
 
-def _constraints_for_class(constraints: list[Constraint], drug_class_key: str) -> list[Constraint]:
-    return [
+def _normalized_constraint_target(target: str | None) -> str:
+    raw = (target or "").strip()
+    if not raw:
+        return ""
+    lowered = raw.lower().replace("-", "_")
+    if lowered == "all_gdmt":
+        return "all_gdmt"
+    return canonical_gdmt_class_id(raw) or normalize_drug_class(raw) or lowered
+
+
+_SOFT_BLOCK_ACTIONS = frozenset({"avoid", "contraindicated", "not_recommended"})
+
+
+def _observation_float(profile: NormalizedPatientProfile, key: str) -> float | None:
+    value = profile.observations.get(key)
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _class_lab_gates_pass(class_key: str, profile: NormalizedPatientProfile) -> bool | None:
+    """Same eligibility thresholds as medication_pathway lab gates (True/False/unknown)."""
+    egfr = _observation_float(profile, "egfr")
+    potassium = _observation_float(profile, "potassium")
+    sbp = _observation_float(profile, "systolic_bp")
+    hr = _observation_float(profile, "heart_rate")
+    cid = canonical_gdmt_class_id(class_key) or class_key.lower()
+
+    if cid in {"acei_arb", "arni", "acei", "arb", "raas"}:
+        checks: list[bool | None] = []
+        if sbp is not None:
+            checks.append(sbp >= 100)
+        if potassium is not None:
+            checks.append(potassium <= 5.5)
+        if egfr is not None:
+            checks.append(egfr >= 20)
+        return all(checks) if checks else None
+    if cid == "beta_blocker":
+        checks = []
+        if hr is not None:
+            checks.append(hr >= 55)
+        if sbp is not None:
+            checks.append(sbp >= 95)
+        return all(checks) if checks else None
+    if cid == "mra":
+        checks = []
+        if potassium is not None:
+            checks.append(potassium <= 5.0)
+        if egfr is not None:
+            checks.append(egfr >= 30)
+        return all(checks) if checks else None
+    if cid == "sglt2i":
+        if egfr is None:
+            return None
+        return egfr >= 20
+    return None
+
+
+def _filter_constraints_by_lab_eligibility(
+    constraints: list[Constraint],
+    class_key: str,
+    profile: NormalizedPatientProfile,
+) -> list[Constraint]:
+    """Drop soft avoid/CI rules when numeric lab gates show the class is eligible (e.g. MRA at eGFR 42, K 4.8)."""
+    if _class_lab_gates_pass(class_key, profile) is not True:
+        return constraints
+    filtered = [
         constraint
         for constraint in constraints
-        if constraint.target_drug_class in {drug_class_key, "all_gdmt"}
+        if not (
+            (constraint.action or "").lower() in _SOFT_BLOCK_ACTIONS
+            and (constraint.constraint_type or "soft").lower() == "soft"
+        )
     ]
+    return filtered
+
+
+def filter_constraints_for_profile(
+    constraints: list[Constraint],
+    profile: NormalizedPatientProfile,
+) -> list[Constraint]:
+    """Remove soft avoid/CI rows from the top-level constraint list when lab gates show eligibility."""
+    kept: list[Constraint] = []
+    for constraint in constraints:
+        target = _normalized_constraint_target(constraint.target_drug_class)
+        if not target or target == "all_gdmt":
+            kept.append(constraint)
+            continue
+        if _filter_constraints_by_lab_eligibility([constraint], target, profile):
+            kept.append(constraint)
+    return kept
+
+
+def _constraints_for_class(constraints: list[Constraint], drug_class_key: str) -> list[Constraint]:
+    class_key = canonical_gdmt_class_id(drug_class_key) or normalize_drug_class(drug_class_key) or drug_class_key.lower()
+    matched: list[Constraint] = []
+    for constraint in constraints:
+        target_norm = _normalized_constraint_target(constraint.target_drug_class)
+        if target_norm == "all_gdmt":
+            if constraint.class_effect:
+                matched.append(constraint)
+            continue
+        if target_norm and target_norm == class_key:
+            matched.append(constraint)
+            continue
+        if constraint.target_drug_class in {drug_class_key, class_key}:
+            matched.append(constraint)
+    return matched
 
 
 def _warnings_for_class(
@@ -147,7 +254,11 @@ def _status_for_policy(
 ) -> tuple[str, str]:
     body = _policy_body(policy)
     label = policy.get("display_label") or policy.get("drug_class_key") or "Medication class"
-    avoid_constraints = [item for item in relevant_constraints if item.action == "avoid"]
+    avoid_constraints = [
+        item
+        for item in relevant_constraints
+        if (item.action or "").lower() in {"avoid", "contraindicated", "not_recommended"}
+    ]
     caution_constraints = [item for item in relevant_constraints if item.action == "caution"]
     high_safety_warnings = [item for item in relevant_warnings if item.severity in {"critical", "high"}]
 
@@ -158,6 +269,15 @@ def _status_for_policy(
             "consider_with_caution",
             f"{label} may be relevant for {profile.hf_type}, but patient-specific risks require review.",
         )
+    class_key = canonical_gdmt_class_id(policy.get("drug_class_key") or "") or (policy.get("drug_class_key") or "")
+    if class_key == "mra" and profile.hf_type == "HFrEF":
+        potassium = _observation_float(profile, "potassium")
+        if potassium is not None and 4.5 <= potassium < 5.0:
+            return (
+                "consider_with_caution",
+                f"{label}: eligible by eGFR/K+ thresholds, but serum potassium is near 5.0 mmol/L — "
+                "favor cautious up-titration with close K+ and renal monitoring.",
+            )
     if profile.hf_type == "HFrEF":
         return normalize_gdmt_status(body.get("hfref_default_status"), default="consider"), ""
     return normalize_gdmt_status(body.get("non_hfref_status"), default="review"), ""
@@ -171,7 +291,11 @@ def recommendation_for_policy(
 ) -> MedicationRecommendation:
     drug_class_key = policy.get("drug_class_key") or ""
     label = policy.get("display_label") or drug_class_key
-    relevant_constraints = _constraints_for_class(constraints, drug_class_key)
+    relevant_constraints = _filter_constraints_by_lab_eligibility(
+        _constraints_for_class(constraints, drug_class_key),
+        drug_class_key,
+        profile,
+    )
     relevant_warnings = _warnings_for_class(safety_warnings, policy)
     status, default_rationale = _status_for_policy(profile, policy, relevant_constraints, relevant_warnings)
     rationale, clinical_reasoning, action_items, monitoring = _build_guidance(

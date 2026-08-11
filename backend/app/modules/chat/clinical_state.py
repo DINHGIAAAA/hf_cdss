@@ -4,6 +4,7 @@ import re
 from typing import Any
 
 from app.modules.clinical_intake_extraction.service import MEDICATIONS, normalize_text
+from app.modules.explanation.question_focus import focus_class_ids_from_message, is_choice_question
 from app.schemas.patient import PatientProfile
 
 
@@ -22,6 +23,22 @@ INTENT_PATTERNS = {
     "stop_or_avoid": ("stop", "avoid", "hold", "ngung", "tranh", "tam dung"),
     "safety_check": ("safe", "contraindication", "warning", "an toan", "chong chi dinh"),
     "evidence_question": ("evidence", "guideline", "source", "citation", "bang chung", "khuyen cao"),
+    "choice_question": ("hoac", "hay la", "lua chon", " or ", "either"),
+    "follow_up_detail": (
+        "giai thich them",
+        "noi ro hon",
+        "chi tiet hon",
+        "cu the hon",
+        "sau hon",
+        "vi sao",
+        "tai sao",
+        "con gi nua",
+        "elaborate",
+        "explain more",
+        "in detail",
+        "more detail",
+        "go deeper",
+    ),
 }
 
 
@@ -54,9 +71,17 @@ def _mentioned_medications(message: str) -> list[dict[str, str]]:
     return mentioned
 
 
-def _intent(message: str) -> str:
+def _intent(message: str, *, has_prior_assistant: bool = False) -> str:
     normalized = normalize_text(message)
+    if is_choice_question(message):
+        return "choice_question"
+    if has_prior_assistant:
+        for term in INTENT_PATTERNS.get("follow_up_detail", ()):
+            if term in normalized:
+                return "follow_up_detail"
     for intent, terms in INTENT_PATTERNS.items():
+        if intent in {"choice_question", "follow_up_detail"}:
+            continue
         if any(term in normalized for term in terms):
             return intent
     return "recommendation"
@@ -72,15 +97,28 @@ def _safety_state(patient: PatientProfile) -> dict[str, Any]:
     }
 
 
-def build_clinical_state(patient: PatientProfile, message: str) -> dict[str, Any]:
+def build_clinical_state(
+    patient: PatientProfile,
+    message: str,
+    *,
+    has_prior_assistant: bool = False,
+    last_assistant_message: str | None = None,
+) -> dict[str, Any]:
     mentioned = _mentioned_medications(message)
     focus_classes = sorted({item["drug_class"] for item in mentioned})
+    message_focus = focus_class_ids_from_message(message)
+    if message_focus:
+        focus_classes = sorted(set(focus_classes) | message_focus)
+    if has_prior_assistant and last_assistant_message:
+        prior_focus = focus_class_ids_from_message(last_assistant_message)
+        if prior_focus:
+            focus_classes = sorted(set(focus_classes) | prior_focus)
     if not focus_classes and patient.current_medications:
         focus_classes = _active_classes(patient)
 
     return {
         "case_id": patient.case_id,
-        "intent": _intent(message),
+        "intent": _intent(message, has_prior_assistant=has_prior_assistant),
         "hf_type": _hf_type(patient),
         "key_values": {
             "lvef": patient.lvef,

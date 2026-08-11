@@ -42,3 +42,5 @@
 Figures in the body: **Chapter 3** (3.1–3.6), **Chapter 4** (4.1–4.2), and **Chapter 5** (5.1–5.3) embed standalone pages under [figures/chapters/](figures/chapters/). Appendix A repeats the same diagrams with A.x labels. See [figures/README.md](figures/README.md).
 
 Tables: **Table 3.1** and **Table 4.1** in Chapters 3–4; evaluation tables **5.0–5.4** in Chapter 5. See [tables/README.md](tables/README.md).
+
+**Introductory material** (background, purpose, scope, approach) lives in Chapter 1 only. Chapters 2–6 reference Chapter 1 and avoid repeating long opening sections. A Vietnamese reading edition with the same structure is in [../thesis_vie/](../thesis_vie/).

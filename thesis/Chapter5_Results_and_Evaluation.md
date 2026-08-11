@@ -1,22 +1,16 @@
 # CHAPTER 5: RESULTS AND EVALUATION
 
-Chapter 5 reports measured behavior of the heart failure CDSS on the hardware in Section 5.1.1, with cardiologist review and usability testing. The central question is whether the design in Chapter 3 and the implementation in Chapter 4 meet the success criteria in Section 5.0 for supervised clinical use.
+This chapter reports measured behavior on the hardware in Section 5.1.1, with cardiologist review and usability testing. The central question is whether the system meets the predefined success criteria in Section 5.0. It does not repeat the architecture descriptions in Chapters 3–4.
 
 ## 5.0 Predefined Success Criteria
 
-Before implementation, the study defined targets against which Part II results would be judged. The study succeeds on its primary claims if the system meets the following criteria, assessed in the sections below.
-
-Recommendation accuracy against guideline-aligned expert review should reach at least 90 percent on structured recommendation objects (drug class, action status, major safety flags), measured on curated vignettes reviewed by cardiologists. Mean end-to-end response time should remain under 10 seconds on reference hardware, measured from chat submission through SSE completion. For hard contraindications in curated safety cases, the system must not miss absolute avoid rules encoded as hard_block tiers; failure on any mandatory avoid scenario disqualifies success regardless of average accuracy. Cardiologist satisfaction on a five-point Likert scale should average at least 4.0, including clinical usefulness, trust in safety alerts, and bilingual usability. The interface must support Vietnamese and English without losing conversation context across language toggles. The knowledge pipeline should automate extraction for major GDMT drug classes into reviewable catalogs that clinical leads can govern without redeploying application code. These criteria combine accuracy, safety, latency, maintainability, and usability aligned to Osheroff-style workflow adequacy [17].
+Before implementation, the study defined targets against which Part II results would be judged. Recommendation accuracy against guideline-aligned expert review should reach at least 90 percent on structured recommendation objects (drug class, action status, major safety flags), measured on curated vignettes reviewed by cardiologists. Mean end-to-end response time should remain under 10 seconds on reference hardware, measured from chat submission through SSE completion. For hard contraindications in curated safety cases, the system must not miss absolute avoid rules encoded as hard_block tiers; failure on any mandatory avoid scenario disqualifies success regardless of average accuracy. Cardiologist satisfaction on a five-point Likert scale should average at least 4.0, including clinical usefulness, trust in safety alerts, and bilingual usability. The interface must support Vietnamese and English without losing conversation context across language toggles. The knowledge pipeline should automate extraction for major GDMT drug classes into reviewable catalogs that clinical leads can govern without redeploying application code. These criteria combine accuracy, safety, latency, maintainability, and usability aligned to Osheroff-style workflow adequacy [17].
 
 ## 5.1 Experimental Environment
 
 ### 5.1.1 Hardware and Software Setup
 
-All evaluation runs used a dedicated server with a 16-core CPU, 32 GB of RAM, a 500 GB solid-state drive, and an NVIDIA RTX 3080 graphics card with 10 GB of video memory. The operating system was Ubuntu 22.04 LTS. The application stack included Python 3.11, PostgreSQL 15 for governed clinical rules, Redis 7 for caching, Neo4j 5 for the knowledge graph, ChromaDB for vector search, LocalStack as an S3-compatible object store, and Ollama for local large language model inference.
-
-The system used the same model pairing intended for production: BGE-M3 for embeddings and section filtering, Qwen2.5-7B-Instruct for clinician-facing answers, and Qwen2.5-1.5B for lightweight verification tasks. The backend ran under Docker Compose with FastAPI async workers, server-sent event streaming for chat responses, and hybrid GraphRAG retrieval that combined dense vector search, keyword search, and graph traversal before merging results.
-
-This matters because the reported numbers reflect the full integrated system, not isolated module benchmarks. Latency was timed across the complete chat path. Accuracy was scored on structured recommendation objects, not on free-form answer text. Knowledge metrics came from full pipeline runs over the complete drug manifest rather than from small hand-picked samples.
+All evaluation runs used a dedicated server with a 16-core CPU, 32 GB of RAM, a 500 GB solid-state drive, and an NVIDIA RTX 3080 graphics card with 10 GB of video memory. The operating system was Ubuntu 22.04 LTS. The application stack included Python 3.11, PostgreSQL 15 for governed clinical rules, Redis 7 for caching, Neo4j 5 for the knowledge graph, ChromaDB for vector search, LocalStack as an S3-compatible object store, and Ollama for local large language model inference. The system used the same model pairing intended for production: BGE-M3 for embeddings and section filtering, Qwen2.5-7B-Instruct for clinician-facing answers, and Qwen2.5-1.5B for lightweight verification tasks. The backend ran under Docker Compose with FastAPI async workers, server-sent event streaming for chat responses, and hybrid GraphRAG retrieval that combined dense vector search, keyword search, and graph traversal before merging results. The reported numbers reflect the full integrated system, not isolated module benchmarks. Latency was timed across the complete chat path. Accuracy was scored on structured recommendation objects, not on free-form answer text. Knowledge metrics came from full pipeline runs over the complete drug manifest rather than from small hand-picked samples.
 
 ### 5.1.2 Evaluation Data
 
@@ -251,13 +245,7 @@ Interaction detection was the strongest safety sub-task in this breakdown; MRA-r
 
 ### 5.3.2 System Performance and Latency
 
-Latency means how long the user waits for a complete response. End-to-end latency was measured from the moment a chat message was sent until the streamed response finished.
-
-The mean response time was 8.1 seconds. The median (P50) was 7.4 seconds, meaning half of requests finished faster than that. P95 was 12.6 seconds, meaning 95% of requests finished within that time. On average, the system met the under-10-second goal. The median also met the goal. Some slower cases still exceeded 10 seconds at the tail of the distribution.
-
-Patient intake took a mean of 1.2 seconds. This confirms that regex-first intake avoids model calls on typical structured case presentations. GraphRAG retrieval averaged 0.8 seconds. Deterministic reasoning averaged 2.1 seconds. Verification averaged 0.5 seconds. LLM answer generation averaged 3.5 seconds and was the largest single contributor to total wait time.
-
-Streaming delivery materially improved perceived speed. Clinicians often saw patient summary fields and recommendation cards within one to two seconds, even when the full answer took longer to finish. That early feedback made the system feel responsive during guided usability tasks.
+Latency means how long the user waits for a complete response. End-to-end latency was measured from the moment a chat message was sent until the streamed response finished. The mean response time was 8.1 seconds. The median (P50) was 7.4 seconds. P95 was 12.6 seconds. On average, the system met the under-10-second goal; the median also met the goal, but some slower cases still exceeded 10 seconds at the tail of the distribution. Patient intake took a mean of 1.2 seconds, confirming that regex-first intake avoids model calls on typical structured case presentations. GraphRAG retrieval averaged 0.8 seconds. Deterministic reasoning averaged 2.1 seconds. Verification averaged 0.5 seconds. LLM answer generation averaged 3.5 seconds and was the largest single contributor to total wait time. Streaming delivery materially improved perceived speed. Clinicians often saw patient summary fields and recommendation cards within one to two seconds, even when the full answer took longer to finish.
 
 ### 5.3.3 Alert Rates and Alert Burden
 
@@ -279,33 +267,15 @@ Renal-related alerts carried a higher false-positive burden, often when intake l
 
 ## 5.4 User Interface Results
 
-### 5.4.1 Simplified Display
+The interface translates technical drug class names and status codes into plain language appropriate for the selected locale. For example, "ACE inhibitor" with status "consider with caution" can be shown in English as "blood pressure medication" with "use with caution," or in Vietnamese with equivalent patient-friendly wording. This mapping is produced deterministically by the card summarizer, not by the main language model, so the on-screen status always matches the structured recommendation object. Survey participants said this simplified display improved scan speed during rounds. Clinicians could read GDMT rows quickly while still opening structured evidence and numeric vitals in adjacent panels.
 
-The interface translates technical drug class names and status codes into plain language appropriate for the selected locale. For example, "ACE inhibitor" with status "consider with caution" can be shown in English as "blood pressure medication" with "use with caution," or in Vietnamese with equivalent patient-friendly wording. This mapping is produced deterministically by the card summarizer, not by the main language model, so the on-screen status always matches the structured recommendation object.
+The interface supports switching between Vietnamese and English while preserving conversation context. Simplified card text is regenerated for the new locale without rerunning full retrieval or deterministic reasoning. All test users rated language switching as easy to use. Switching completed in under 2 seconds, and no data loss was observed. Localization is mostly a presentation concern in the current design: expensive clinical inference and inexpensive language display are intentionally separated.
 
-Survey participants said this simplified display improved scan speed during rounds. Clinicians could read GDMT rows quickly while still opening structured evidence and numeric vitals in adjacent panels. Deterministic wording also avoids dangerous variability, such as rendering an "avoid" status with softer language.
-
-### 5.4.2 Language Switching
-
-The interface supports switching between Vietnamese and English while preserving conversation context. Simplified card text is regenerated for the new locale without rerunning full retrieval or deterministic reasoning. All test users rated language switching as easy to use. Switching completed in under 2 seconds, and no data loss was observed.
-
-This confirms that localization is mostly a presentation concern in the current design. Expensive clinical inference and inexpensive language display are intentionally separated.
-
-### 5.4.3 User Satisfaction
-
-Twenty-five cardiologists completed a structured usability survey after guided tasks covering GDMT gap review, interaction checking, language toggling, and streaming chat. Scores used a 1-to-5 scale, where 5 means strongly agree or very satisfied.
-
-Ease of use averaged 4.2. Clinical usefulness averaged 4.5, the highest score. Perceived recommendation accuracy averaged 4.1. User interface quality averaged 4.3. Response time averaged 4.0, the lowest score. Overall satisfaction averaged 4.22 out of 5.
-
-Clinicians valued GDMT gap identification and interaction support even when they occasionally disagreed with a class-level suggestion. That pattern is common in decision support research: workflow help often matters as much as perfect autonomous correctness. Response time scored lower than other criteria, which aligns with the measured latency profile, but streaming partial results partially offset the wait.
+Twenty-five cardiologists completed a structured usability survey after guided tasks covering GDMT gap review, interaction checking, language toggling, and streaming chat. Scores used a 1-to-5 scale, where 5 means strongly agree or very satisfied. Ease of use averaged 4.2. Clinical usefulness averaged 4.5, the highest score. Perceived recommendation accuracy averaged 4.1. User interface quality averaged 4.3. Response time averaged 4.0, the lowest score. Overall satisfaction averaged 4.22 out of 5. Clinicians valued GDMT gap identification and interaction support even when they occasionally disagreed with a class-level suggestion. Response time scored lower than other criteria, which aligns with the measured latency profile, but streaming partial results partially offset the wait.
 
 ## 5.5 Comparative Evaluation
 
-### 5.5.1 Comparison with Other CDSS Systems
-
 We compared the proposed system with published characteristics of Mediwis and Watson for Oncology along dimensions relevant to heart failure workflow deployment. This comparison is qualitative because public benchmarks do not always use identical tasks or latency definitions.
-
-**Table 5.4** compares architecture and deployment dimensions (domain, languages, chat, dosing, latency)—not head-to-head accuracy on the same patient cohort.
 
 **Table 5.4. Qualitative comparison with other CDSS products**
 
@@ -319,78 +289,36 @@ We compared the proposed system with published characteristics of Mediwis and Wa
 | Dosing support | Yes | No | No |
 | Typical response time | Under 10 seconds median | Not reported | 30 to 90 seconds |
 
-The proposed system emphasizes heart-failure GDMT specialization, hybrid retrieval with on-prem inference, bilingual UI, and interactive dosing support. Mediwis and Watson differ mainly in breadth, language coverage, and reported latency—not in direct head-to-head accuracy on the same vignettes.
-
-These comparisons describe published capabilities and architectural fit, not equivalence trials on identical cases.
-
-### 5.5.2 System Strengths
+The proposed system emphasizes heart-failure GDMT specialization, hybrid retrieval with on-prem inference, bilingual UI, and interactive dosing support. Mediwis and Watson differ mainly in breadth, language coverage, and reported latency, not in direct head-to-head accuracy on the same vignettes. These comparisons describe published capabilities and architectural fit, not equivalence trials on identical cases.
 
 The evaluation highlighted several strengths tied directly to design choices. Deep heart failure focus enabled GDMT pillar evaluation and class-specific safety catalogs. Hybrid GraphRAG retrieval contributed to strong interaction performance and reliable ACE inhibitor, ARB, and ARNI recommendations. Cost-aware gating during ingestion and intake kept model use low while retaining 95% section coverage and 1.2-second mean intake time. Native Vietnamese support addressed a documented gap in English-only products. Verification agents and hard block tiers preserved fail-closed safety even when retrieved text sounded permissive. Streaming delivery and plain-language cards translated engineering metrics into clinician-perceived value, reflected in 4.22 out of 5 overall satisfaction.
 
-### 5.5.3 Current System Limitations
-
-Several limitations constrain how far these results generalize. Only 60 of 127 registered drugs were fully integrated in the accuracy cohort. Many medications commonly used in Vietnam, especially local brand names, were not yet reliably recognized. The system lacked HL7 or FHIR integration, so patient data had to be typed manually into chat rather than pulled from hospital systems. There was no mobile application; access was web-based only. LLM narrative text can still contain errors even when structured recommendations are correct, so human review remains necessary. Finally, evaluation was retrospective on curated vignettes rather than a prospective trial measuring patient outcomes.
+Several limitations constrain how far these results generalize. Only 60 of 127 registered drugs were fully integrated in the accuracy cohort. Many medications commonly used in Vietnam, especially local brand names, were not yet reliably recognized. The system lacked HL7 or FHIR integration, so patient data had to be typed manually into chat rather than pulled from hospital systems. There was no mobile application; access was web-based only. LLM narrative text can still contain errors even when structured recommendations are correct, so human review remains necessary. Evaluation was retrospective on curated vignettes rather than a prospective trial measuring patient outcomes.
 
 ## 5.6 Error Analysis and Improvements
 
-### 5.6.1 Common Errors
-
-Three error patterns appeared repeatedly during evaluation.
-
-First, drug name extraction failed for some Vietnamese drug names because acquisition strings and intake lexicons were biased toward international nonproprietary names and United States brand labels. When a local brand could not be mapped to the same identifier used in rule catalogs, medications were omitted or misclassified. That reduced interaction completeness and GDMT coverage even though interaction F1 remained high on detected pairs.
-
-Second, unit conversion errors occurred when creatinine was reported without explicit units. Regex intake captured the number but sometimes assigned the wrong unit, which propagated into incorrect eGFR estimates and renal alert false positives.
-
-Third, missing laboratory values, especially eGFR, lowered recall for MRA and SGLT2 inhibitor recommendations. When creatinine, age, and sex were available, the system could estimate eGFR deterministically and flag it as derived rather than measured. When even those inputs were missing, eligibility rules lacked prerequisites.
-
-Errors were less frequent in interaction checking and ACE inhibitor or ARB pathways where hard block rules compensate for some intake gaps. That confirms the value of layered safety design when natural language intake is imperfect.
-
-### 5.6.2 Improvement Plan
+Three error patterns appeared repeatedly during evaluation. Drug name extraction failed for some Vietnamese drug names because acquisition strings and intake lexicons were biased toward international nonproprietary names and United States brand labels. When a local brand could not be mapped to the same identifier used in rule catalogs, medications were omitted or misclassified, reducing interaction completeness and GDMT coverage even though interaction F1 remained high on detected pairs. Unit conversion errors occurred when creatinine was reported without explicit units: regex intake captured the number but sometimes assigned the wrong unit, which propagated into incorrect eGFR estimates and renal alert false positives. Missing laboratory values, especially eGFR, lowered recall for MRA and SGLT2 inhibitor recommendations. When creatinine, age, and sex were available, the system could estimate eGFR deterministically and flag it as derived rather than measured; when even those inputs were missing, eligibility rules lacked prerequisites. Errors were less frequent in interaction checking and ACE inhibitor or ARB pathways where hard block rules compensate for some intake gaps.
 
 Near-term priorities target root causes rather than symptoms. Vietnamese synonym integration into acquisition and intake lexicons should close the most frequent medication omission class. FHIR integration should populate creatinine, potassium, eGFR, and active medications from hospital systems, reducing reliance on free-text completeness. Medium-term work includes a mobile client and a dedicated drug interaction API for external systems. Longer-term work may include domain fine-tuning to reduce borderline intake and section-filter model calls, while keeping hard block enforcement deterministic regardless of model improvements.
 
 ## 5.7 Safety Evaluation
 
-### 5.7.1 Safety Testing
+Safety testing examined high-risk scenarios where incorrect advice could cause direct harm. Each case ran through the full recommendation and verification pipeline. Pass criteria required the structured recommendation to show "avoid" or an appropriate warning, regardless of how the language model phrased the explanation. Four curated scenarios all passed: ACE inhibitor plus ARNI contraindication, SGLT2 inhibitor initiation at eGFR below 20, hyperkalemia with MRA therapy, and beta blocker initiation in bradycardia. Verification agents also checked that generated answers did not contradict structured avoid statuses. These tests validate the architectural separation between deterministic safety classification and generative explanation: safety logic lives in governed catalogs and reasoning services, not in model prose alone.
 
-Safety testing examined high-risk scenarios where incorrect advice could cause direct harm. Each case ran through the full recommendation and verification pipeline. Pass criteria required the structured recommendation to show "avoid" or an appropriate warning, regardless of how the language model phrased the explanation.
-
-Four curated scenarios all passed: ACE inhibitor plus ARNI contraindication, SGLT2 inhibitor initiation at eGFR below 20, hyperkalemia with MRA therapy, and beta blocker initiation in bradycardia. Verification agents also checked that generated answers did not contradict structured avoid statuses.
-
-These tests validate the architectural separation between deterministic safety classification and generative explanation. Safety logic lives in governed catalogs and reasoning services, not in model prose alone.
-
-### 5.7.2 Alert Fatigue Analysis
-
-Alert optimization used tiered classification, deduplication of overlapping warnings, and suppression of redundant interaction alerts when a parent avoid status already implied stopping a drug. These techniques reduced alerts per patient from 8.2 to 4.3 and lowered override rate from 72% to 45%.
-
-The remaining alert burden is still meaningful. Deployment should include education so clinicians can distinguish hard blocks requiring immediate action from cautionary monitoring prompts that may be acknowledged and deferred. Further tuning of renal precaution thresholds will likely improve once structured laboratory feeds reduce eGFR uncertainty.
+Alert optimization used tiered classification, deduplication of overlapping warnings, and suppression of redundant interaction alerts when a parent avoid status already implied stopping a drug. These techniques reduced alerts per patient from 8.2 to 4.3 and lowered override rate from 72% to 45%. The remaining alert burden is still meaningful. Deployment should include education so clinicians can distinguish hard blocks requiring immediate action from cautionary monitoring prompts that may be acknowledged and deferred. Further tuning of renal precaution thresholds will likely improve once structured laboratory feeds reduce eGFR uncertainty.
 
 ## 5.8 Threats to Validity
 
-Evaluation conclusions must be read with explicit validity boundaries.
+Evaluation conclusions must be read with explicit validity boundaries. Internal validity is limited by sample size. Fifty cases are enough to show the system exceeded the 90% accuracy target, but per-class metrics such as MRA recall can move noticeably with a single misclassified case. Two cardiologist reviewers may share similar training backgrounds. Latency was measured on a dedicated GPU server and may differ on lower-resource hospital hardware. External validity is limited because vignettes drawn from guidelines may be clearer than messy real-world notes. The 60-drug integrated subset underrepresents broader polypharmacy outside modeled classes. Vietnamese evaluation focused on interface switching and limited intake cases rather than a full local formulary. No prospective outcomes such as readmission or GDMT uptitration were measured.
 
-Internal validity is limited by sample size. Fifty cases are enough to show the system exceeded the 90% accuracy target, but per-class metrics such as MRA recall can move noticeably with a single misclassified case. Two cardiologist reviewers may share similar training backgrounds. Latency was measured on a dedicated GPU server and may differ on lower-resource hospital hardware.
-
-External validity is limited because vignettes drawn from guidelines may be clearer than messy real-world notes. The 60-drug integrated subset underrepresents broader polypharmacy outside modeled classes. Vietnamese evaluation focused on interface switching and limited intake cases rather than a full local formulary. No prospective outcomes such as readmission or GDMT uptitration were measured.
-
-Construct validity matters because accuracy was scored on structured JSON fields, not on every token of generated narrative or on complete dose precision while dose rules remained incomplete. Satisfaction scores measure perceived usefulness, not objective error rates. Section retention measures preprocessing coverage, not guaranteed correctness of every extracted rule.
-
-Conclusion validity is affected because ablation reasoning in this chapter is qualitative. We did not rerun the system with individual components removed in controlled experiments. Comparative evaluation uses published feature descriptions rather than identical-case benchmarking.
-
-These limits do not invalidate the core findings. They define the conditions under which claims apply: clinician-supervised decision support on evaluated hardware, with structured cards treated as authoritative over chat prose.
+Construct validity matters because accuracy was scored on structured JSON fields, not on every token of generated narrative or on complete dose precision while dose rules remained incomplete. Satisfaction scores measure perceived usefulness, not objective error rates. Section retention measures preprocessing coverage, not guaranteed correctness of every extracted rule. Conclusion validity is affected because ablation reasoning in this chapter is qualitative; we did not rerun the system with individual components removed in controlled experiments. Comparative evaluation uses published feature descriptions rather than identical-case benchmarking. These limits do not invalidate the core findings. They define the conditions under which claims apply: clinician-supervised decision support on evaluated hardware, with structured cards treated as authoritative over chat prose.
 
 ## 5.9 Discussion
 
-Taken together, the results describe a coherent performance profile shaped by the hybrid architecture's division of labor.
+Taken together, the results describe a coherent performance profile shaped by the hybrid architecture's division of labor. Knowledge construction metrics show that automated ingestion can populate governable catalogs at scale. Extraction succeeded on 94.2% of drugs, section filtering retained 95.0% of content with only 6.6% borderline model review, and 53.9% of extracted rules were immediately usable. At the same time, 35.2% of rules still need refinement and dose rule completion remains unfinished, so human clinical governance remains essential. Staged claim filtering (passes 0–8) raised safety-only LLM semantic precision from 57.8% (raw, 1.5B judge) to 73.8% (pass 8, 7B judge) while retaining 4,440 safety claims; strict structural precision on the stratified sample reached 100% after pass 8, with dose and renal types improving from 50% to 90% and 80% respectively. Runtime safety still depends on governed catalogs and verification, not on raw claim volume alone.
 
-Knowledge construction metrics show that automated ingestion can populate governable catalogs at scale. Extraction succeeded on 94.2% of drugs, section filtering retained 95.0% of content with only 6.6% borderline model review, and 53.9% of extracted rules were immediately usable. At the same time, 35.2% of rules still need refinement and dose rule completion remains unfinished, so human clinical governance remains essential. Staged claim filtering (passes 0–8) raised safety-only LLM semantic precision from 57.8% (raw, 1.5B judge) to 73.8% (pass 8, 7B judge) while retaining 4,440 safety claims; strict structural precision on the stratified sample reached 100% after pass 8, with dose and renal types improving from 50% to 90% and 80% respectively. Runtime safety still depends on governed catalogs and verification, not on raw claim volume alone.
+Query-time metrics show that those catalogs, when combined with hybrid intake and retrieval, meet the thesis success criteria on median performance. Accuracy reached 94.0%, mean latency was 8.1 seconds with a median of 7.4 seconds, and interaction F1 was 97.1%. Usability results translate those engineering outcomes into clinician value: 4.22 out of 5 overall satisfaction and 4.5 out of 5 for clinical usefulness. Error and alert analyses connect pipeline gaps to runtime symptoms in traceable ways. Vietnamese drug name gaps reduce medication recall. Creatinine unit ambiguity inflates renal false positives. Missing eGFR depresses MRA recall. Alert optimization reduced burden from 8.2 to 4.3 alerts per patient without removing hard blocks.
 
-Query-time metrics show that those catalogs, when combined with hybrid intake and retrieval, meet the thesis success criteria on median performance. Accuracy reached 94.0%, mean latency was 8.1 seconds with a median of 7.4 seconds, and interaction F1 was 97.1%. Usability results translate those engineering outcomes into clinician value: 4.22 out of 5 overall satisfaction and 4.5 out of 5 for clinical usefulness.
-
-Error and alert analyses connect pipeline gaps to runtime symptoms in traceable ways. Vietnamese drug name gaps reduce medication recall. Creatinine unit ambiguity inflates renal false positives. Missing eGFR depresses MRA recall. Alert optimization reduced burden from 8.2 to 4.3 alerts per patient without removing hard blocks.
-
-Mapping results to the predefined success criteria in Section 5.0, five of six targets were fully met. Recommendation accuracy exceeded 90%. Mean and median response times met the under-10-second goal. Hard contraindication scenarios passed all curated safety tests. User satisfaction exceeded 4.0 out of 5. Bilingual switching worked in under 2 seconds with no data loss. Knowledge pipeline completeness was only partially met because dose rules remained in progress and only 60 of 127 manifest drugs were fully integrated.
-
-The evaluation supports deployment as a clinician-supervised GDMT gap identification and interaction checking assistant during ward rounds or outpatient visits, not as autonomous prescribing software. Prospective deployment should track override rates, intake completeness, time to decision, and correlation between missing laboratories and lower recall for MRA and SGLT2 inhibitor classes. Outcome studies remain the ultimate test beyond vignette accuracy.
+Mapping results to the predefined success criteria in Section 5.0, five of six targets were fully met. Recommendation accuracy exceeded 90%. Mean and median response times met the under-10-second goal. Hard contraindication scenarios passed all curated safety tests. User satisfaction exceeded 4.0 out of 5. Bilingual switching worked in under 2 seconds with no data loss. Knowledge pipeline completeness was only partially met because dose rules remained in progress and only 60 of 127 manifest drugs were fully integrated. The evaluation supports deployment as a clinician-supervised GDMT gap identification and interaction checking assistant during ward rounds or outpatient visits, not as autonomous prescribing software. Prospective deployment should track override rates, intake completeness, time to decision, and correlation between missing laboratories and lower recall for MRA and SGLT2 inhibitor classes. Outcome studies remain the ultimate test beyond vignette accuracy.
 
 All quantitative results in this chapter come from the Docker Compose stack documented in Chapter 4. Reproducing them requires the approved-rule snapshot, the listed Ollama models, the 50-case vignette suite, and the cardiologist rubric for structured recommendation fields. Latency figures reflect full stream completion; first structured events typically arrive within about two seconds on the evaluation server. Replication should report mean and percentile latency, structured accuracy separate from narrative review, and section-filter tier breakdowns, not headline accuracy alone.

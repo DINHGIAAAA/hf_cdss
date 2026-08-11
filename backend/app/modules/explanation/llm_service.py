@@ -1,5 +1,6 @@
 import hashlib
 import json
+import re
 import time
 from collections.abc import AsyncIterator
 from typing import Any
@@ -8,13 +9,25 @@ from app.core.config import settings
 from app.core.http_client import get_async_client
 from app.core.llm_runtime import chat_completions_url, llm_auth_headers, llm_chat_completions_enabled
 from app.core.metrics import increment, observe
-from app.prompts.explanation import CLINICAL_EXPLANATION_SYSTEM_PROMPT
+from app.modules.citation_validation.service import (
+    explanation_validation_failed,
+    validate_explanation_answer,
+)
+from app.modules.explanation.comparative_answer import build_comparative_answer
+from app.modules.explanation.question_focus import focus_class_ids_for_payload
+from app.prompts.explanation import (
+    CLINICAL_EXPLANATION_SYSTEM_PROMPT,
+    EXPLANATION_FAITHFULNESS_VERSION,
+    EXPLANATION_PROMPT_VERSION,
+)
 from app.modules.explanation.card_summarizer import (
     _contains_cjk,
     _needs_locale_fallback,
     _translate_bullet_vi,
+    _vi_detail_lines,
     deterministic_card_summary,
 )
+from app.modules.gdmt_policy.policy_engine import _normalized_constraint_target
 from app.modules.recommendation.drug_class_keys import (
     display_label_for_class_id,
     is_placeholder_drug_label,
@@ -24,15 +37,119 @@ from app.schemas.llm import LLMAnswerRequest, LLMAnswerResponse
 from app.core.redis_client import redis_client
 
 
-SAFETY_NOTE = "LLM answer is constrained to explain structured CDSS output and must not replace physician review."
+SAFETY_NOTE = "Đây là hỗ trợ quyết định lâm sàng dựa trên dữ liệu cung cấp. Quyết định điều trị cuối cùng thuộc về bác sĩ điều trị sau khi đánh giá toàn diện bệnh nhân."
+
+
+def _compact_constraints(payload: LLMAnswerRequest, focus: set[str]) -> list[dict[str, str]]:
+    status_by_class: dict[str, str] = {}
+    for item in payload.recommendation.recommendations:
+        cid = (item.class_id or "").lower()
+        if cid:
+            status_by_class[cid] = (item.status or "").lower()
+
+    rows = []
+    for constraint in payload.recommendation.constraints:
+        action = (constraint.action or "").lower()
+        target_norm = _normalized_constraint_target(constraint.target_drug_class)
+        class_status = status_by_class.get(target_norm, "")
+        if action in {"contraindicated", "not_recommended"} and class_status not in {
+            "avoid",
+            "blocked",
+        }:
+            continue
+        rows.append(
+            {
+                "target_drug_class": constraint.target_drug_class,
+                "action": constraint.action,
+                "reason": constraint.reason,
+            }
+        )
+    if not focus:
+        return rows
+    filtered: list[dict[str, str]] = []
+    for row in rows:
+        target_norm = _normalized_constraint_target(row["target_drug_class"])
+        if target_norm == "all_gdmt":
+            continue
+        if target_norm in focus or (row["target_drug_class"] or "").lower() in focus:
+            filtered.append(row)
+    return filtered if filtered else rows
+
+
+def _lines_for_llm_payload(lines: list | None, *, lang: str) -> list[str]:
+    lang_l = (lang or "vi").lower()
+    is_cjk_lang = lang_l in ("vi", "zh", "ja", "ko")
+    out: list[str] = []
+    for raw in lines or []:
+        text = str(raw or "").strip()
+        if not text:
+            continue
+        if not is_cjk_lang and _contains_cjk(text):
+            continue
+        if text not in out:
+            out.append(text)
+    return out
+
+
+def _text_for_llm_payload(text: str | None, item: Any, lang: str) -> str | None:
+    if not text or not str(text).strip():
+        return None
+    cleaned = str(text).strip()
+    lang_l = (lang or "vi").lower()
+    is_cjk_lang = lang_l in ("vi", "zh", "ja", "ko")
+    if not is_cjk_lang and _contains_cjk(cleaned):
+        cleaned = deterministic_card_summary(item, lang_l) or ""
+    elif _needs_locale_fallback(cleaned, lang_l):
+        cleaned = deterministic_card_summary(item, lang_l) or cleaned
+    # Final guard: strip CJK from the output so nothing leaks through.
+    if not is_cjk_lang and _contains_cjk(cleaned):
+        cleaned = re.sub(r"[一-鿿㐀-䶿豈-﫿]", "", cleaned).strip()
+    return cleaned.strip() or None
+
+
+def _per_class_fact_sheet(items: list, *, lang: str = "vi") -> dict[str, dict[str, Any]]:
+    sheet: dict[str, dict[str, Any]] = {}
+    lang_l = (lang or "vi").lower()
+    for item in items:
+        class_id = (item.class_id or "").lower()
+        if not class_id:
+            continue
+        allowed: list[str] = []
+        for field in ("rationale", "plain_language_summary"):
+            value = getattr(item, field, None)
+            if isinstance(value, str) and value.strip():
+                phrase = _text_for_llm_payload(value, item, lang_l)
+                if phrase:
+                    allowed.append(phrase)
+        for collection in ("clinical_reasoning", "action_items", "monitoring", "warnings"):
+            for raw in (getattr(item, collection, None) or [])[:4]:
+                text = str(raw or "").strip()
+                if not text:
+                    continue
+                if lang_l == "vi" and _contains_cjk(text):
+                    continue
+                allowed.append(text)
+        sheet[class_id] = {
+            "status": item.status,
+            "drug_class": item.drug_class,
+            "allowed_phrases": allowed[:12],
+        }
+    return sheet
 
 
 def _compact_recommendation(payload: LLMAnswerRequest) -> dict[str, Any]:
     verification = payload.verification
+    focus = focus_class_ids_for_payload(payload)
+    narrowed_items = _items_for_clinician_question(payload)
+    lang = payload.language or "vi"
     return {
         "user_input": payload.user_input,
         "conversation_context": payload.conversation_context,
         "clinical_state": payload.clinical_state,
+        "focus_class_ids": sorted(focus),
+        "choice_question": payload.clinical_state.get("intent") == "choice_question"
+        if payload.clinical_state
+        else False,
         "response_language": payload.language,
         "patient": {
             "lvef": payload.patient.lvef,
@@ -56,32 +173,37 @@ def _compact_recommendation(payload: LLMAnswerRequest) -> dict[str, Any]:
             {"name": risk.name, "severity": risk.severity, "evidence": risk.evidence}
             for risk in payload.recommendation.risk_flags
         ],
-        "constraints": [
-            {
-                "target_drug_class": constraint.target_drug_class,
-                "action": constraint.action,
-                "reason": constraint.reason,
-            }
-            for constraint in payload.recommendation.constraints
-        ],
+        "constraints": _compact_constraints(payload, focus),
+        "per_class_fact_sheet": _per_class_fact_sheet(narrowed_items, lang=lang),
         "candidate_medication_classes": [
             {
                 "class_id": item.class_id,
                 "drug_class": item.drug_class,
                 "status": item.status,
-                "rationale": item.rationale,
-                "plain_language_summary": item.plain_language_summary,
+                "rationale": _text_for_llm_payload(item.rationale, item, lang),
+                "plain_language_summary": _text_for_llm_payload(
+                    item.plain_language_summary, item, lang
+                )
+                or _item_summary_for_locale(item, lang),
                 "plain_language_details": (
                     item.plain_language_details.model_dump()
                     if item.plain_language_details
                     else None
                 ),
-                "clinical_reasoning": item.clinical_reasoning[:3],
-                "action_items": item.action_items[:3],
-                "monitoring": item.monitoring[:2],
-                "warnings": item.warnings[:3],
+                "clinical_reasoning": _vi_detail_lines(item.clinical_reasoning[:3], fallback=item.clinical_reasoning[:3])
+                if lang == "vi"
+                else _lines_for_llm_payload(item.clinical_reasoning[:3], lang=lang),
+                "action_items": _vi_detail_lines(item.action_items[:3], fallback=item.action_items[:3])
+                if lang == "vi"
+                else _lines_for_llm_payload(item.action_items[:3], lang=lang),
+                "monitoring": _vi_detail_lines(item.monitoring[:2], fallback=item.monitoring[:2])
+                if lang == "vi"
+                else _lines_for_llm_payload(item.monitoring[:2], lang=lang),
+                "warnings": _vi_detail_lines(item.warnings[:3], fallback=item.warnings[:3])
+                if lang == "vi"
+                else _lines_for_llm_payload(item.warnings[:3], lang=lang),
             }
-            for item in _items_for_clinician_question(payload)
+            for item in narrowed_items
         ],
         "dose_plans": [
             {
@@ -207,8 +329,10 @@ def _item_summary_for_locale(item: Any, lang: str) -> str:
 
 def _monitoring_lines_for_locale(items: list, lang: str, *, limit: int = 2) -> list[str]:
     raw = _short_clinical_lines(items, "monitoring", limit=limit)
-    if lang != "vi":
-        return raw
+    is_cjk_lang = lang in ("vi", "zh", "ja", "ko")
+    if not is_cjk_lang:
+        # Non-CJK language: strip any CJK lines
+        return [line for line in raw if not _contains_cjk(line)]
     lines: list[str] = []
     for line in raw:
         if _contains_cjk(line):
@@ -234,36 +358,7 @@ def _fallback_recommendation_items(payload: LLMAnswerRequest):
 
 
 def _question_focus_class_ids(payload: LLMAnswerRequest) -> set[str]:
-    state = payload.clinical_state or {}
-    focus = {str(c).lower() for c in (state.get("focus_medication_classes") or []) if c}
-    question = (payload.user_input or "").lower()
-    keyword_map = {
-        "mra": "mra",
-        "mineralocorticoid": "mra",
-        "spironolactone": "mra",
-        "eplerenone": "mra",
-        "sglt2": "sglt2i",
-        "dapagliflozin": "sglt2i",
-        "empagliflozin": "sglt2i",
-        "arni": "arni",
-        "entresto": "arni",
-        "sacubitril": "arni",
-        "ramipril": "acei_arb",
-        "lisinopril": "acei_arb",
-        "enalapril": "acei_arb",
-        "ace inhibitor": "acei_arb",
-        "arb": "acei_arb",
-        "beta blocker": "beta_blocker",
-        "bisoprolol": "beta_blocker",
-        "metoprolol": "beta_blocker",
-        "carvedilol": "beta_blocker",
-        "loop diuretic": "loop_diuretic",
-        "furosemide": "loop_diuretic",
-    }
-    for keyword, class_id in keyword_map.items():
-        if keyword in question:
-            focus.add(class_id)
-    return focus
+    return focus_class_ids_for_payload(payload)
 
 
 def _items_for_clinician_question(payload: LLMAnswerRequest):
@@ -308,6 +403,16 @@ def _short_clinical_lines(items, field: str, *, limit: int = 4, max_len: int = 2
 
 
 def fallback_answer(payload: LLMAnswerRequest) -> str:
+    comparative = build_comparative_answer(
+        patient=payload.patient,
+        recommendation=payload.recommendation,
+        message=payload.user_input or "",
+        clinical_state=payload.clinical_state,
+        language=payload.language,
+    )
+    if comparative:
+        return comparative
+
     items = _items_for_clinician_question(payload)
     blocked = [item for item in items if item.status == "avoid"]
     caution = [item for item in items if item.status == "consider_with_caution"]
@@ -429,6 +534,11 @@ def _looks_truncated(answer: str, finish_reason: str | None) -> bool:
     return stripped[-1] not in ".!?:;\n"
 
 
+def _answer_passes_validation(text: str, compact_payload: dict[str, Any]) -> bool:
+    validation = validate_explanation_answer(text, compact_payload)
+    return not explanation_validation_failed(validation)
+
+
 def _stable(value: Any) -> Any:
     if isinstance(value, dict):
         return {key: _stable(value[key]) for key in sorted(value)}
@@ -443,6 +553,8 @@ def _cache_key(compact_payload: dict[str, Any]) -> str:
         "model": settings.llm_model,
         "base_url": settings.llm_base_url,
         "api_type": settings.llm_api_type,
+        "explanation_prompt_version": EXPLANATION_PROMPT_VERSION,
+        "faithfulness_version": EXPLANATION_FAITHFULNESS_VERSION,
         "payload": _stable(compact_payload),
     }
     encoded = json.dumps(raw, sort_keys=True, ensure_ascii=False, default=str).encode("utf-8")
@@ -566,11 +678,14 @@ async def stream_llm_answer(payload: LLMAnswerRequest) -> AsyncIterator[dict[str
                     yield {"type": "token", "content": content}
 
         answer = "".join(parts).strip()
-        if not answer or _looks_truncated(answer, finish_reason):
+        streamed_answer = answer
+        if not answer or _looks_truncated(answer, finish_reason) or not _answer_passes_validation(answer, compact_payload):
             response_model = _fallback_response(payload, "fallback_after_llm_stream_error")
             if not emitted_token:
                 for chunk in _chunk_text(response_model.answer):
                     yield {"type": "token", "content": chunk}
+            elif response_model.answer.strip() != streamed_answer:
+                yield {"type": "replace", "content": response_model.answer}
         else:
             response_model = LLMAnswerResponse(
                 case_id=payload.patient.case_id,
@@ -591,7 +706,14 @@ async def stream_llm_answer(payload: LLMAnswerRequest) -> AsyncIterator[dict[str
             for chunk in _chunk_text(response_model.answer):
                 yield {"type": "token", "content": chunk}
 
-    await _write_cache(cache_key, response_model)
+    if response_model.used_llm and not _answer_passes_validation(response_model.answer, compact_payload):
+        prior_answer = response_model.answer
+        response_model = _fallback_response(payload, "fallback_validation_failed")
+        if emitted_token and response_model.answer.strip() != prior_answer.strip():
+            yield {"type": "replace", "content": response_model.answer}
+
+    if response_model.used_llm:
+        await _write_cache(cache_key, response_model)
     status = "ok" if response_model.used_llm else "error"
     increment("hf_cdss_llm_requests_total", {"model": response_model.model, "status": status})
     observe("hf_cdss_llm_latency", time.perf_counter() - started, {"model": response_model.model, "status": status})
@@ -631,7 +753,9 @@ async def build_llm_answer(payload: LLMAnswerRequest) -> LLMAnswerResponse:
         response.raise_for_status()
         data = response.json()
         answer = _extract_chat_completion_text(data)
-        if _looks_truncated(answer, _finish_reason(data)):
+        if not answer or _looks_truncated(answer, _finish_reason(data)) or not _answer_passes_validation(
+            answer, compact_payload
+        ):
             answer = fallback_answer(payload)
     except Exception:
         fallback_response = _fallback_response(payload, "fallback_after_llm_error")
@@ -651,7 +775,8 @@ async def build_llm_answer(payload: LLMAnswerRequest) -> LLMAnswerResponse:
         used_llm=bool(answer),
         safety_note=SAFETY_NOTE,
     )
-    await _write_cache(cache_key, response)
+    if response.used_llm:
+        await _write_cache(cache_key, response)
     status = "ok" if response.used_llm else "empty_response"
     increment("hf_cdss_llm_requests_total", {"model": response.model, "status": status})
     observe("hf_cdss_llm_latency", time.perf_counter() - started, {"model": response.model, "status": status})

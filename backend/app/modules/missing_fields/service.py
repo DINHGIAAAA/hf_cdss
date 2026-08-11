@@ -138,13 +138,56 @@ def check_missing_fields(
     )
 
 
-def build_missing_fields_prompt(check: MissingFieldCheck) -> str:
+_FIELD_CATALOG: dict[str, tuple[str, str, Callable[[PatientProfile], bool]]] = {
+    field: (label, reason, predicate)
+    for field, label, reason, predicate in (
+        REQUIRED_CHAT_FIELDS + DOSE_PERSONALIZATION_FIELDS + WARFARIN_DOSE_FIELDS + ARNI_WASHOUT_FIELDS
+    )
+}
+
+
+def check_required_field_ids(
+    patient: PatientProfile,
+    field_ids: list[str],
+) -> MissingFieldCheck:
+    """Check only the explicit planner-selected field ids."""
+    missing: list[MissingField] = []
+    present: list[str] = []
+    for field_id in field_ids:
+        entry = _FIELD_CATALOG.get(field_id)
+        if not entry:
+            continue
+        label, reason, predicate = entry
+        if predicate(patient):
+            present.append(field_id)
+        else:
+            missing.append(MissingField(field=field_id, label=label, reason=reason))
+    return MissingFieldCheck(
+        status="complete" if not missing else "missing_required_fields",
+        missing_fields=missing,
+        present_fields=present,
+    )
+
+
+def build_missing_fields_prompt(check: MissingFieldCheck, *, language: str = "vi") -> str:
     labels = [item.label for item in check.missing_fields[:6]]
     if not labels:
         return ""
-    return (
-        "Chua du thong tin de dua ra khuyen nghi thuoc an toan. "
-        "Vui long bo sung: "
-        + ", ".join(labels)
-        + "."
+    joined = ", ".join(labels)
+    lang = (language or "vi").lower()
+    needs_arni_washout = any(item.field == "acei_last_dose_hours_ago" for item in check.missing_fields)
+    if lang == "en":
+        prompt = (
+            "Not enough information to provide safe medication recommendations. "
+            f"Please add: {joined}."
+        )
+        if needs_arni_washout:
+            prompt += " For ARNI initiation, confirm ACE inhibitor washout (typically ≥36 hours since last dose)."
+        return prompt
+    prompt = (
+        "Chưa đủ thông tin để đưa ra khuyến nghị thuốc an toàn. "
+        f"Vui lòng bổ sung: {joined}."
     )
+    if needs_arni_washout:
+        prompt += " Với ARNI, cần xác nhận thời gian ngừng ACEi (thường ≥36 giờ kể từ liều cuối)."
+    return prompt

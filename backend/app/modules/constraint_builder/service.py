@@ -107,18 +107,34 @@ def build_constraints(
             continue
 
         constraint_id = rule.get("constraint_id")
+        target = format_constraint_target(rule.get("target_drug_class")) or rule.get("target_drug_class")
+        class_effect = rule.get("class_effect")
+        if class_effect is None:
+            metadata = rule.get("metadata") or {}
+            class_effect = metadata.get("class_effect", False)
+        class_effect = bool(class_effect)
+
+        # Warn if target=all_gdmt but class_effect is not explicitly True —
+        # this will broadcast the constraint to all drug classes unintentionally.
+        if target == "all_gdmt" and not class_effect:
+            logger.warning(
+                "Constraint %s has target=all_gdmt but class_effect=False — "
+                "this broadcasts the constraint to all GDMT drug classes. "
+                "Set class_effect=True if intentional, or fix target_drug_class.",
+                constraint_id,
+            )
 
         constraints.append(
             hydrate_constraint(
                 Constraint(
                     constraint_id=f"{profile.case_id}:{constraint_id}",
                     case_id=profile.case_id,
-                    target_drug_class=format_constraint_target(rule.get("target_drug_class"))
-                    or rule.get("target_drug_class"),
+                    target_drug_class=target,
                     action=rule.get("action"),
                     reason=rule.get("reason"),
                     constraint_type=rule.get("metadata", {}).get("constraint_type", "soft"),
                     evidence_ref=rule.get("evidence_ref"),
+                    class_effect=class_effect,
                 ),
                 rule.get("metadata") or {},
             )

@@ -99,4 +99,13 @@ export const retrievalApi = {
 
 export const auditApi = {
   byCase: (caseId, limit = 20) => apiGet(`/audit/${encodeURIComponent(caseId)}?limit=${limit}`),
+  listChat: ({ q, caseId, limit = 30, offset = 0 } = {}) => {
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    if (caseId) params.set("case_id", caseId);
+    params.set("limit", String(limit));
+    params.set("offset", String(offset));
+    const query = params.toString();
+    return apiGet(`/admin/audit/chat${query ? `?${query}` : ""}`);
+  },
 };

@@ -45,6 +45,7 @@ export const MESSAGES = {
       stream: {
         preparing: "Preparing clinical stream...",
         received: "Opening streaming bundle...",
+        planning_question: "Analyzing question structure and required data...",
         using_supplied_profile: "Using profile from intake form (skipping LLM extract)...",
         extracting_patient: "Collecting patient draft...",
         aggregating_history: "Merging conversation context...",
@@ -295,6 +296,7 @@ export const MESSAGES = {
       stream: {
         preparing: "Đang chuẩn bị luồng lâm sàng...",
         received: "Đang mở luồng phản hồi...",
+        planning_question: "Đang phân tích câu hỏi và dữ liệu cần thiết...",
         using_supplied_profile: "Dùng hồ sơ từ form (bỏ qua trích xuất LLM)...",
         extracting_patient: "Đang thu thập hồ sơ bệnh nhân...",
         aggregating_history: "Đang gom ngữ cảnh hội thoại...",

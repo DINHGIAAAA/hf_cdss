@@ -183,6 +183,7 @@ def aggregate_conversation_context(
     current_message: str,
     prior_user_messages: list[str],
     *,
+    last_assistant_message: str | None = None,
     max_messages: int | None = None,
     relevance_threshold: float | None = None,
 ) -> str:
@@ -197,14 +198,26 @@ def aggregate_conversation_context(
     )
     prior = [message.strip() for message in prior_user_messages if message.strip()]
     current = current_message.strip()
+
+    def _with_previous_answer(body: str) -> str:
+        prior_answer = (last_assistant_message or "").strip()
+        if not prior_answer:
+            return body
+        excerpt = prior_answer if len(prior_answer) <= 4000 else prior_answer[:3997] + "..."
+        header = "[Your previous answer]"
+        if body.strip():
+            return f"{header}\n{excerpt}\n\n{body}"
+        return f"{header}\n{excerpt}"
+
     if not prior:
-        return current
+        body = f"[Current] {current}" if current else ""
+        return _with_previous_answer(body)
     prior = prior[-limit:]
 
     if not settings.clinical_intake_semantic_enabled:
         lines = [f"[Previous] {message}" for message in prior]
         lines.append(f"[Current] {current}")
-        return "\n".join(lines)
+        return _with_previous_answer("\n".join(lines))
 
     try:
         texts = [current, *prior]
@@ -223,12 +236,12 @@ def aggregate_conversation_context(
         selected.sort(key=lambda item: item[0], reverse=True)
         lines = [f"[Previous relevance={score:.2f}] {message}" for score, message in selected]
         lines.append(f"[Current] {current}")
-        return "\n".join(lines)
+        return _with_previous_answer("\n".join(lines))
     except Exception as exc:
         logger.warning("Conversation context aggregation failed; using linear history: %s", exc)
         lines = [f"[Previous] {message}" for message in prior]
         lines.append(f"[Current] {current}")
-        return "\n".join(lines)
+        return _with_previous_answer("\n".join(lines))
 
 
 def semantic_extract_patient(text: str, conversation_id: str) -> PatientProfile | None:
@@ -268,3 +281,81 @@ def clear_catalog_cache() -> None:
     global _catalog_cache
     with _catalog_cache_lock:
         _catalog_cache = None
+
+
+def _split_by_conjunction(raw: str) -> list[str]:
+    """Split a sentence with multiple question fragments using English question-word boundaries."""
+    import re
+
+    # English question-word patterns that mark a new independent question.
+    QWORD_PATTERNS = [
+        r"and\s+(?:should\s+)?(?:I\s+)?(?:we\s+)?(?:consider|add|start|try)\b",
+        r"and\s+(?:what\s+about|how\s+about)\b",
+        r"also\b",
+        r"what\s+about\b",
+        r"how\s+about\b",
+        r"what\s+(?:about\s+)?(?:is\s+)?(?:the\s+)?(?:effect\s+)?(?:on|of)\b",
+        r"what\s+(?:else|next)\b",
+        r"is\s+it\s+(?:necessary|needed|recommended)\b",
+        r"do\s+I\s+(?:also|need)\b",
+        r"should\s+I\s+(?:also|also\s+consider|add)\b",
+        r"then\s+(?:what|how|about)\b",
+        r"what\s+if\b",
+        r"does\s+it\b",
+        r"is\s+there\b",
+        r"can\s+(?:we|I)\b",
+        r"could\s+(?:we|I)\b",
+        r"would\s+(?:it|you)\b",
+        r",\s*also\b",
+    ]
+
+    pattern = "|".join(f"(?:{p})" for p in QWORD_PATTERNS)
+    parts: list[str] = []
+    last = 0
+    for m in re.finditer(pattern, raw, re.IGNORECASE):
+        start = m.start()
+        if start > last:
+            chunk = raw[last:start].strip()
+            chunk = re.sub(r"[,]+\s*$", "", chunk).strip()
+            if chunk:
+                parts.append(chunk)
+        last = m.start()
+    if last < len(raw):
+        tail = raw[last:].strip()
+        tail = re.sub(r"^[,]+\s*", "", tail).strip()
+        if tail:
+            parts.append(tail)
+    return parts
+
+
+def detect_multi_question(message: str) -> list[str]:
+    """Split a multi-question message into individual questions (English only).
+
+    Two detection strategies, tried in order:
+
+    1. Explicit '?' delimiters  — "MRA or SGLT2i? What about ARNI?"
+    2. Question-word boundaries inside a clause — "Should I add MRA and also consider SGLT2i"
+
+    Returns [message] if only one question is found so the normal flow is unchanged.
+    """
+    from app.modules.clinical_intake_extraction.service import normalize_text
+
+    raw = (message or "").strip()
+    if not raw:
+        return [raw]
+
+    # Strategy 1: split on '?' (explicit delimiters)
+    parts = [s.strip() for s in raw.split("?") if s.strip()]
+    MIN_QUESTION_LEN = 10
+    questions = [s for s in parts if len(normalize_text(s)) >= MIN_QUESTION_LEN]
+    if len(questions) > 1:
+        return [f"{q}?" for q in questions]
+
+    # Strategy 2: detect English question-word boundaries inside the single clause
+    by_qword = _split_by_conjunction(raw)
+    qword_questions = [s for s in by_qword if len(normalize_text(s)) >= MIN_QUESTION_LEN]
+    if len(qword_questions) > 1:
+        return [f"{q}?" for q in qword_questions]
+
+    # No multi-question detected
+    return [raw]

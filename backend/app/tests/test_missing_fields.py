@@ -41,3 +41,50 @@ def test_dose_intent_still_requires_renal_lab_without_egfr_or_creatinine() -> No
     patient.labs.egfr = None
     check = check_missing_fields(patient, clinical_intent="start_medication")
     assert any(item.field == "creatinine" for item in check.missing_fields)
+
+
+def test_arni_question_requires_acei_washout_when_on_acei() -> None:
+    from app.modules.missing_fields.service import build_missing_fields_prompt
+
+    patient = PatientProfile.model_validate(
+        {
+            **_demo_like_patient().model_dump(mode="python"),
+            "medications": [
+                {"name": "spironolactone", "status": "active"},
+                {"name": "lisinopril", "status": "active", "drug_class": "ACEi"},
+            ],
+        }
+    )
+    check = check_missing_fields(
+        patient,
+        clinical_state={"focus_medication_classes": ["ARNI/ACEi/ARB"], "mentioned_medications": [{"name": "ARNI"}]},
+    )
+    assert any(item.field == "acei_last_dose_hours_ago" for item in check.missing_fields)
+    en_prompt = build_missing_fields_prompt(check, language="en")
+    assert "ACEi last dose timing" in en_prompt
+    assert "ARNI" in en_prompt
+    vi_prompt = build_missing_fields_prompt(check, language="vi")
+    assert "ACEi" in vi_prompt or "ARNI" in vi_prompt
+
+
+def test_merge_patient_persists_acei_last_dose_hours() -> None:
+    from app.modules.chat.service import _apply_extracted_updates, _merge_patient
+    from app.modules.clinical_intake_extraction.service import _regex_extract_patient_from_message
+
+    base = _demo_like_patient()
+    assert base.care_context.acei_last_dose_hours_ago is None
+
+    extracted = _regex_extract_patient_from_message("Last ACEi dose was 48 hours ago", base.case_id)
+    assert extracted.care_context.acei_last_dose_hours_ago == 48.0
+
+    merged = _merge_patient(base, extracted)
+    assert merged.care_context.acei_last_dose_hours_ago == 48.0
+
+    fast_path = _apply_extracted_updates(base, extracted)
+    assert fast_path.care_context.acei_last_dose_hours_ago == 48.0
+
+    check = check_missing_fields(
+        merged,
+        clinical_state={"focus_medication_classes": ["ARNI/ACEi/ARB"], "mentioned_medications": [{"name": "ARNI"}]},
+    )
+    assert not any(item.field == "acei_last_dose_hours_ago" for item in check.missing_fields)

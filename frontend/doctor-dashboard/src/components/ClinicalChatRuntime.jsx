@@ -172,6 +172,15 @@ export function ClinicalChatRuntimeProvider({
               return { messages: updated };
             });
           },
+          onAnswerReplace: (content) => {
+            patchConversation(conversationId, (current) => {
+              const updated = [...(current.messages || [])];
+              const last = updated[updated.length - 1];
+              if (!last || last.role !== "assistant") return { messages: updated };
+              updated[updated.length - 1] = { ...last, content };
+              return { messages: updated };
+            });
+          },
           onDone: (donePayload) => {
             if (!donePayload || typeof donePayload !== "object") return;
             const assistantContent = assistantTextFromChatDone(donePayload);
@@ -189,10 +198,14 @@ export function ClinicalChatRuntimeProvider({
                 recommendation: donePayload.recommendation,
                 verification: donePayload.verification,
                 messages: updated,
-                // Clear pending confirmation on success (confirmed or skipped).
                 pendingConfirmation: null,
                 confirmationAction: null,
                 conflicts: donePayload.conflicts || null,
+                pendingMultiQuestion:
+                  "pending_multi_question" in donePayload
+                    ? donePayload.pending_multi_question
+                    : current.pendingMultiQuestion,
+                multiQuestionAction: null,
               };
             });
           },
@@ -230,6 +243,25 @@ export function ClinicalChatRuntimeProvider({
       const conversationId = current.id;
       const userId = `${conversationId}-user-${Date.now()}`;
       const assistantId = `${conversationId}-assistant-${Date.now()}`;
+
+      const continuePattern = /^(yes|y|continue|ok|okay|tiếp|tiep|tiếp tục|tiep tuc|đồng ý|dong y)$/i;
+      const isMultiContinue =
+        current.pendingMultiQuestion?.remaining_qs?.length > 0 &&
+        continuePattern.test(text.trim());
+
+      if (isMultiContinue) {
+        patchConversation(conversationId, (prev) => ({
+          messages: [
+            ...(prev.messages || []),
+            { id: userId, role: "user", content: text },
+            { id: assistantId, role: "assistant", content: "" },
+          ],
+          multiQuestionAction: "continue",
+        }));
+        await runClinicalStream({ conversationId, userText: text, assistantId });
+        patchConversation(conversationId, () => ({ multiQuestionAction: null }));
+        return;
+      }
 
       patchConversation(conversationId, (prev) => ({
         messages: [

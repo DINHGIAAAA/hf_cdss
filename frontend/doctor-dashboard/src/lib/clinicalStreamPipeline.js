@@ -4,7 +4,7 @@ export const CLINICAL_STREAM_PHASES = [
   {
     id: "intake",
     labelKey: "chat.streamPhases.intake",
-    steps: ["preparing", "received", "using_supplied_profile", "extracting_patient", "draft_ready", "missing_check"],
+    steps: ["preparing", "received", "planning_question", "using_supplied_profile", "extracting_patient", "draft_ready", "missing_check"],
   },
   {
     id: "recommendation",
