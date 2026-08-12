@@ -320,11 +320,13 @@ Local Ollama was preferred over cloud LLM APIs to keep vignettes on premises, co
 
 ## 4.6. Testing
 
+Test case identifiers (`TC-I-01`, `TC-CH-06`, and so on) match the design contracts in **Chapter 3, Section 3.4**. Chapter 3 states what each module must verify; this section documents the pytest input and expected-output specifications. Tables 4.3–4.16 cover the original clinical pipeline; Tables 4.17–4.21 cover chat orchestration features added after the baseline implementation (language detection, question planner, missing-field gate extensions, multi-question SSE, chat audit).
+
 ### 4.6.1. Test Philosophy
 
 The test suite follows the same authority separation as the production system. Deterministic modules — normalization, constraint matching, dose evaluation, clinical classification — are unit-tested with no mocks. Their correctness depends only on their input, making failures fast and reproducible. Generative components — LLM extraction, LLM summarization, verification agents — are mocked in CI so GPU hardware is not required for every pull request. Clinical accuracy of recommendations on vignettes still requires cardiologist review (Chapter 5), because judgment about therapeutic trade-offs is not fully automatable.
 
-The test infrastructure is designed so that all 53 test files run without live PostgreSQL, Redis, ChromaDB, Neo4j, or Ollama instances. Fixture data lives in the fixtures directory. Session-level monkey-patching isolates the application from external services. This enables developers to run the full suite on a laptop.
+The test infrastructure is designed so that all 69 test files run without live PostgreSQL, Redis, ChromaDB, Neo4j, or Ollama instances. Fixture data lives in the fixtures directory. Session-level monkey-patching isolates the application from external services. This enables developers to run the full suite on a laptop.
 
 ### 4.6.2. Test Infrastructure
 
@@ -513,20 +515,29 @@ The test setup establishes the test environment with the following mechanisms:
 | TC-CS-06 | Compact recommendation payload | Output includes plain language summary |
 | TC-CS-07 | Language model disabled | Returns result with plain language summary; no model call made |
 | TC-CS-08 | Mock language model JSON with RAAS/ARNI summary | Mapped summary attached to correct drug class |
+| TC-CS-09 | Vietnamese or English locale; streamed token or compact payload contains Han script | CJK characters stripped before display |
+| TC-CS-10 | Follow-up message after assistant discussed MRA; `build_clinical_state` with prior excerpt | `focus_class_ids` includes MRA/beta_blocker from prior assistant text |
+
+**Implementation file:** `backend/app/tests/test_card_summarizer.py`, `test_explanation.py`
 
 ### 4.6.12. Integration Tests — Chat and SSE
 
-**Table 4.13** lists HTTP and SSE integration tests for the chat API: missing-field gates, event ordering on the stream, medication normalization in drafts, and conversation history persistence.
+**Table 4.13** lists HTTP and SSE integration tests for the chat API: missing-field gates, event ordering on the stream, medication normalization in drafts, conversation history persistence, and multi-question batch handling.
 
 **Table 4.13. Chat and SSE integration test cases**
 
 | TC | Request | Expected |
 |----|---------|---------|
 | TC-CH-01 | Message with LVEF, eGFR, K, no SBP | HTTP 200; status indicates missing information; missing fields includes systolic blood pressure |
-| TC-CH-02 | Same message, stream endpoint | SSE body contains draft, missing check, answer, and done events |
+| TC-CH-02 | Same message, stream endpoint | SSE body contains `draft_ready`, `missing_check`, and early `done` (or full recommendation sequence) |
 | TC-CH-03 | Nested patient payload with weight | Weight preserved in patient draft |
-| TC-CH-04 | Patient taking Entresto and Farxiga | Medications normalized correctly; conditions is empty |
-| TC-CH-05 | Full chat flow | History endpoint returns messages after stream completes |
+| TC-CH-04 | Patient taking Entresto and Farxiga | Medications normalized correctly |
+| TC-CH-05 | Full chat flow with persistent store patched | History endpoint returns messages after stream completes |
+| TC-CH-06 | Two-part question ("start MRA? And SGLT2i?"), stream endpoint | SSE body contains `multi_question_ready`; both sub-questions listed |
+| TC-CH-07 | `multi_question_action=stop` after first answer | `pending_multi_question` cleared; flow ends |
+| TC-CH-08 | `multi_question_action=continue` after first answer | Next sub-question processed; confirmation footer appended |
+
+**Implementation file:** `backend/app/tests/test_chat.py`
 
 ### 4.6.13. Integration Tests — GraphRAG and Verification
 
@@ -571,6 +582,77 @@ The test setup establishes the test environment with the following mechanisms:
 
 All seed users use the same test password. Tests verify password verification against seeded bcrypt hashes.
 
+### 4.6.15. Unit Tests — Dose Calculation
+
+**Table 4.17** verifies that label-derived dose rules produce `DosePlan` objects and attach to `RecommendationResponse` with a traceable rules version string.
+
+**Table 4.17. Dose calculation integration test cases**
+
+| TC | Setup | Expected |
+|----|-------|---------|
+| TC-DC-01 | Patient on enalapril; `build_dose_plans(patient, clinical_state)` | Non-empty plan list; enalapril `plan_id` present |
+| TC-DC-02 | Same patient; `build_recommendation()` | Response includes `dose_plans` and `dose_rules_version` matching loaded catalog |
+
+**Implementation file:** `backend/app/tests/test_dose_calculation_integration.py`
+
+### 4.6.16. Unit Tests — Chat Language Detection
+
+**Table 4.18** covers heuristic locale inference applied before intake and card summarization (Chapter 3, §3.4.16).
+
+**Table 4.18. Chat language detection test cases**
+
+| TC | Input message | UI language | Expected resolved locale |
+|----|---------------|-------------|-------------------------|
+| TC-LG-01 | "Nên dùng ARNI không?" | vi | vi |
+| TC-LG-02 | "Should I start ARNI for this patient?" | vi | en |
+| TC-LG-03 | "Co nen them beta blocker khong?" (ASCII Vietnamese) | en | vi |
+| TC-LG-04 | "What about ARNI?" / "Nên dùng ARNI?" | opposite UI toggle | detected locale wins over UI default |
+
+**Implementation file:** `backend/app/tests/test_chat_language.py`
+
+### 4.6.17. Unit Tests — Question Planner
+
+**Table 4.19** documents multi-question splitting, per-question required fields, LLM skip for obvious single questions, and fallback when the planner model is disabled.
+
+**Table 4.19. Question planner test cases**
+
+| TC | Input | Expected |
+|----|-------|---------|
+| TC-QP-01 | "MRA or SGLT2i? What about ARNI? Should I add beta blocker?" | `is_multi_question=true`; three `PlannedQuestion` rows; first intent `choice_question`; `egfr` in required fields |
+| TC-QP-02 | "What about ARNI?" on patient with active ACEi | `acei_last_dose_hours_ago` in required fields |
+| TC-QP-03 | Multi-question message; `question_planner_enabled=false` | Plan source is `fallback`; at least two sub-questions |
+| TC-QP-04 | LLM returns one question; rule split finds two | Merged plan preserves rule-based split count |
+
+**Implementation file:** `backend/app/tests/test_question_planner.py`
+
+### 4.6.18. Unit Tests — Missing Fields Gate
+
+**Table 4.20** extends the fail-closed missing-field checker with dose-personalization fields and multi-question prompt context (Chapter 3, §3.4.16).
+
+**Table 4.20. Missing fields gate test cases**
+
+| TC | Patient / intent | Expected |
+|----|------------------|---------|
+| TC-MF-01 | Dose-adjustment intent; eGFR present; no creatinine | Check status `complete`; creatinine not listed as missing |
+| TC-MF-02 | Start-medication intent; eGFR and creatinine both absent | `creatinine` (or renal lab) listed as missing |
+| TC-MF-03 | ARNI focus; patient on lisinopril (ACEi) | `acei_last_dose_hours_ago` missing; EN/VI prompt mentions washout |
+| TC-MF-04 | Missing eGFR; `question_index=1`, `total_questions=2`, active sub-question text | Prompt contains "question 1/2" and sub-question echo |
+
+**Implementation file:** `backend/app/tests/test_missing_fields.py`
+
+### 4.6.19. Integration Tests — Chat Audit API
+
+**Table 4.21** verifies searchable chat audit records exposed to the admin portal (Chapter 3, §3.4.19).
+
+**Table 4.21. Chat audit API test cases**
+
+| TC | Action | Expected |
+|----|--------|---------|
+| TC-AU-01 | Admin JWT; `GET /admin/audit/chat?q=ARNI` | HTTP 200; `items[0].event_type` is chat recommendation event; query matches payload |
+| TC-AU-02 | Same response item | Payload includes `user_question`, patient snapshot fields, and assistant answer metadata |
+
+**Implementation file:** `backend/app/tests/test_chat_audit_api.py`
+
 ## 4.7. Operations and Maintenance
 
 ### 4.7.1. Health Monitoring
@@ -605,13 +687,13 @@ This shape is why extraction must emit validated structured data. A beautiful pa
 
 ### 4.8.3. Chat SSE Payload Sequence
 
-The streaming protocol is easiest to understand as a timeline. After the browser sends a chat request, the server may emit status frames such as received, extracting patient, building recommendation, verifying evidence, and generating answer. Structured milestones then appear as typed events. The patient draft event carries merged draft and clinical state. The missing check reports whether required fields are absent. If the pipeline continues, recommendation events carry GDMT items, interactions, dose plans, and risk flags. Verification events carry agent verdicts and citation checks. Answer frames append narrative text. A done event closes the turn with the full response object.
+The streaming protocol is easiest to understand as a timeline. After the browser sends a chat request, the server resolves locale from message text, then may emit status frames such as received, planning question, extracting patient, building recommendation, verifying evidence, and generating answer. Structured milestones then appear as typed events. The question plan event carries split sub-questions when the planner runs. The patient draft event carries merged draft and clinical state. The missing check reports whether required fields are absent (with sub-question index when applicable). The multi-question ready event exposes pending batches. If the pipeline continues, recommendation events carry GDMT items, interactions, dose plans, and risk flags. Verification events carry agent verdicts and citation checks. Answer frames append narrative text. A done event closes the turn with the full response object.
 
 The frontend does not wait for the final event to become useful. As soon as recommendations arrive, cards render. That is the practical benefit of streaming compared with a single response at the end of a multi-second pipeline.
 
 ### 4.8.4. Parallelism Inside One Chat Turn
 
-Two concurrency tools matter in the chat service. First, asynchronous tasks start graph-augmented retrieval while reasoning runs. Second, thread offload moves synchronous rule evaluation off the event loop. Without the thread offload, a long rule scan would block unrelated API requests such as health checks or admin list queries. Without retrieval prefetch, verification would wait for retrieval to start only after reasoning finished, adding avoidable latency. The fork-join point is verification: it awaits both the recommendation object and the prefetched context before streaming safety outcomes.
+Three concurrency tools matter in the chat service. On the first draft of a conversation, question planning and patient intake may run in parallel via `asyncio.gather`. Asynchronous tasks start graph-augmented retrieval while reasoning runs in a worker thread. Thread offload moves synchronous rule evaluation off the event loop. Without thread offload, a long rule scan would block unrelated API requests such as health checks or admin list queries. Without retrieval prefetch, verification would wait for retrieval to start only after reasoning finished, adding avoidable latency. The fork-join point is verification: it awaits both the recommendation object and the prefetched context before streaming safety outcomes.
 
 ### 4.8.5. Dose Calculation Module
 
@@ -655,4 +737,4 @@ Several engineering lessons emerged while building the system. Separating author
 
 ## 4.11. Chapter Summary
 
-This chapter mapped system design to concrete implementation. The ingestion pipeline acquires FDA labels and guidelines, filters sections with a three-tier cascade, extracts governed artifacts across specialized phases, and synchronizes PostgreSQL, ChromaDB, and Neo4j. The FastAPI backend implements the modular monolith. The SSE pipeline encodes Osheroff's timing principle in software: patient drafts arrive before recommendations; structured cards precede narrative. Concurrent design keeps the event loop free for concurrent clinical traffic. Each module has a dedicated test file. Section 4.6 documents test files covering every module in the clinical pipeline. The test infrastructure uses fixture data and session-level mocking so all tests run without live databases or GPU hardware. The end-to-end walkthrough and implementation lessons show how these pieces cooperate on a real HFrEF vignette. Chapter 5 reports how this implementation behaved under curated evaluation.
+This chapter mapped system design to concrete implementation. The ingestion pipeline acquires FDA labels and guidelines, filters sections with a three-tier cascade, extracts governed artifacts across specialized phases, and synchronizes PostgreSQL, ChromaDB, and Neo4j. The FastAPI backend implements the modular monolith. The SSE pipeline encodes Osheroff's timing principle in software: patient drafts arrive before recommendations; structured cards precede narrative. Concurrent design keeps the event loop free for concurrent clinical traffic. Each module has a dedicated test file. Section 4.6 documents pytest specifications for every module in the clinical pipeline, using the same TC identifiers as Chapter 3. Tables 4.3–4.16 cover the baseline pipeline; Tables 4.17–4.21 cover chat language detection, question planning, extended missing-field gates, multi-question SSE, dose-calculation integration, and chat audit search. The test infrastructure uses fixture data and session-level mocking so all 69 test files run without live databases or GPU hardware. The end-to-end walkthrough and implementation lessons show how these pieces cooperate on a real HFrEF vignette. Chapter 5 reports how this implementation behaved under curated evaluation.
