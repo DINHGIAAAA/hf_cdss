@@ -84,6 +84,7 @@ def extract_structured_gdmt_policies_from_section(record: dict) -> list[dict]:
     payload = call_llm_json(
         system_prompt=STRUCTURED_GDMT_POLICY_EXTRACTION_SYSTEM_PROMPT,
         user_prompt=user_prompt,
+        timeout_seconds=config.INGESTION_LLM_TIMEOUT_SECONDS,
     )
     if not payload or not isinstance(payload, dict):
         return []

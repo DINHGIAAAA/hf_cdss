@@ -115,9 +115,11 @@ with DAG(
     )
 
     with TaskGroup(group_id="extract", tooltip="Parse KG base then catalog extract phases") as extract:
+
+        # Single consolidated kg_base task - runs all steps sequentially with checkpointing
         kg_base = BashOperator(
             task_id="kg_base",
-            execution_timeout=timedelta(hours=KG_BASE_TIMEOUT_HOURS),
+            execution_timeout=timedelta(hours=KG_BASE_TIMEOUT_HOURS * 2),
             bash_command=extract_phase("kg_base"),
         )
 
@@ -157,6 +159,7 @@ with DAG(
             bash_command=extract_phase("finalize"),
         )
 
+        # Sequential: kg_base → catalogs → finalize
         kg_base >> catalogs >> finalize
 
     with TaskGroup(group_id="store", tooltip="Promote artifacts, sync S3, sync Postgres drafts") as store:

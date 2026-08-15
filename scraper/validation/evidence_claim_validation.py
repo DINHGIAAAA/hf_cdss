@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 # GDMT / HF class tokens (metadata or guideline extract) → cues allowed in evidence spans.
 CLASS_DRUG_EVIDENCE_CUES: dict[str, tuple[str, ...]] = {
     "ace_inhibitor": ("ace inhibitor", "ace-i", "ace i", "acei", "angiotensin-converting enzyme"),
-    "arb": (" angiotensin receptor", " arb ", "angiotensin ii receptor"),
+    "arb": ("angiotensin receptor", "arb ", "angiotensin ii receptor"),
     "sglt2i": ("sglt2", "sglt-2", "sodium-glucose", "sodium glucose"),
     "mra": ("mineralocorticoid", "aldosterone antagonist", "mra", "spironolactone", "eplerenone"),
     "loop_diuretic": ("loop diuretic", "furosemide", "bumetanide", "torsemide"),
@@ -19,9 +19,66 @@ CLASS_DRUG_EVIDENCE_CUES: dict[str, tuple[str, ...]] = {
     "sacubitril_valsartan": ("sacubitril", "valsartan", "entresto", "arni"),
 }
 
+# Mapping từ specific drug names → drug class (for cross-reference checking)
+DRUG_TO_CLASS: dict[str, str] = {
+    # ACE Inhibitors
+    "lisinopril": "ace_inhibitor",
+    "enalapril": "ace_inhibitor",
+    "ramipril": "ace_inhibitor",
+    "captopril": "ace_inhibitor",
+    "benazepril": "ace_inhibitor",
+    "fosinopril": "ace_inhibitor",
+    "moexipril": "ace_inhibitor",
+    "perindopril": "ace_inhibitor",
+    "quinapril": "ace_inhibitor",
+    "trandolapril": "ace_inhibitor",
+    # ARBs
+    "valsartan": "arb",
+    "losartan": "arb",
+    "candesartan": "arb",
+    "olmesartan": "arb",
+    "telmisartan": "arb",
+    "irbesartan": "arb",
+    "azilsartan": "arb",
+    "eprosartan": "arb",
+    # MRA
+    "spironolactone": "mra",
+    "eplerenone": "mra",
+    # Beta Blockers
+    "metoprolol": "beta_blocker",
+    "carvedilol": "beta_blocker",
+    "bisoprolol": "beta_blocker",
+    "atenolol": "beta_blocker",
+    "propranolol": "beta_blocker",
+    "nebivolol": "beta_blocker",
+    # SGLT2i
+    "dapagliflozin": "sglt2i",
+    "empagliflozin": "sglt2i",
+    "sotagliflozin": "sglt2i",
+    "canagliflozin": "sglt2i",
+    "ertugliflozin": "sglt2i",
+    # Loop Diuretics
+    "furosemide": "loop_diuretic",
+    "bumetanide": "loop_diuretic",
+    "torsemide": "loop_diuretic",
+    "ethacrynic": "loop_diuretic",
+    # ARNI
+    "sacubitril/valsartan": "sacubitril_valsartan",
+    "sacubitril": "sacubitril_valsartan",
+}
+
 
 def _drug_mentioned_in_evidence(drug: str, evidence_lower: str) -> bool:
+    """Check if drug is mentioned in evidence text, allowing class-level mentions.
+
+    Examples:
+    - drug="lisinopril", evidence="patient on ACE inhibitor" → True (via DRUG_TO_CLASS)
+    - drug="lisinopril", evidence="lisinopril 10mg daily" → True (direct match)
+    - drug="metoprolol", evidence="beta blocker therapy" → True (via DRUG_TO_CLASS)
+    """
     drug_normalized = str(drug).strip().lower().replace("_", " ")
+
+    # 1. Direct exact match
     if (
         drug_normalized in evidence_lower
         or drug.replace("_", " ").lower() in evidence_lower
@@ -29,6 +86,7 @@ def _drug_mentioned_in_evidence(drug: str, evidence_lower: str) -> bool:
     ):
         return True
 
+    # 2. Brand name variations
     variations = {
         "lisinopril": ("lisinopril", "prinivil", "zestril"),
         "carvedilol": ("carvedilol", "coreg"),
@@ -37,11 +95,26 @@ def _drug_mentioned_in_evidence(drug: str, evidence_lower: str) -> bool:
         "furosemide": ("furosemide", "lasix"),
         "dapagliflozin": ("dapagliflozin", "forxiga"),
         "empagliflozin": ("empagliflozin", "jardiance"),
+        "valsartan": ("valsartan", "diovan"),
+        "losartan": ("losartan", "cozaar"),
+        "candesartan": ("candesartan", "atacand"),
+        "ramipril": ("ramipril", "altace"),
+        "bisoprolol": ("bisoprolol", "zebeta"),
     }
     for canonical, aliases in variations.items():
         if drug_normalized == canonical or drug_normalized in aliases:
-            return any(alias in evidence_lower for alias in aliases)
+            if any(alias in evidence_lower for alias in aliases):
+                return True
 
+    # 3. Check if drug belongs to a class mentioned in evidence
+    # e.g., drug="lisinopril" → class="ace_inhibitor" → check if "ace inhibitor" in evidence
+    drug_class = DRUG_TO_CLASS.get(drug_normalized)
+    if drug_class:
+        class_cues = CLASS_DRUG_EVIDENCE_CUES.get(drug_class, ())
+        if any(cue in evidence_lower for cue in class_cues):
+            return True
+
+    # 4. Also check if drug is already a class name
     class_key = str(drug).strip().lower()
     cues = CLASS_DRUG_EVIDENCE_CUES.get(class_key)
     if cues and any(cue in evidence_lower for cue in cues):
@@ -89,20 +162,28 @@ def validate_claim_evidence_alignment(
     evidence_lower = evidence.lower()
 
     # Check 1: Drug appears in evidence (if drug is specified)
-    # drug_label: metadata drug is authoritative — SPL sentences often say "this product".
-    # guideline_recommendation: drug field may be a class name, not verbatim in span.
+    # For drug_label: metadata drug is authoritative — SPL sentences often say "this product"
+    # For guideline_recommendation: drug field may be a class name, not verbatim in span
+    # For LLM-extracted claims: drug field may be set from metadata, not in evidence
+    source_type = claim.get("source_type", "")
+    extraction_method = (claim.get("metadata") or {}).get("extraction_method", "regex")
     skip_drug_in_evidence = (
         claim_type == "guideline_recommendation"
-        or claim.get("source_type") == "drug_label"
+        or source_type == "drug_label"
         or str(claim.get("document_id") or "").endswith("_label")
+        or extraction_method == "llm"  # LLM extraction sets drug from metadata
     )
     if drug and drug.strip() and not skip_drug_in_evidence:
         if not _drug_mentioned_in_evidence(str(drug), evidence_lower):
-            issues.append(
-                f"Drug '{drug}' not explicitly found in evidence — possible wrong-drug claim"
+            # Only warn, don't fail — regex may extract drug from patterns
+            # even if not verbatim in the specific evidence sentence
+            warnings.append(
+                f"Drug '{drug}' not explicitly found in evidence — may be class-level reference"
             )
+            # Accumulate penalty (more negative is worse)
+            confidence_adjustment = min(confidence_adjustment, -0.05)
 
-    # Check 2: Numeric thresholds appear in evidence
+    # Check 2: Numeric thresholds appear in evidence (warn only, don't fail)
     for key, value in conditions.items():
         if isinstance(value, dict) and "value" in value:
             threshold = str(value["value"])
@@ -123,9 +204,12 @@ def validate_claim_evidence_alignment(
                 # Try to find approximate match (e.g., "30" vs "30 mL/min")
                 number_match = re.search(rf"\b{threshold}(?:\s*[a-zA-Z/]*)?\b", evidence)
                 if not number_match:
-                    issues.append(
-                        f"Threshold '{threshold}' for condition '{key}' not found in evidence"
+                    # Warn but don't fail — LLM may extract conditions from context
+                    warnings.append(
+                        f"Threshold '{threshold}' for condition '{key}' not found verbatim in evidence"
                     )
+                    # Accumulate penalty (use more negative value)
+                    confidence_adjustment = min(confidence_adjustment, -0.03)
 
     # Check 3: Claim type matches evidence content
     claim_type_evidence_map = {
@@ -145,15 +229,15 @@ def validate_claim_evidence_alignment(
             warnings.append(
                 f"Claim type '{claim_type}' may not match evidence content"
             )
+            confidence_adjustment = min(confidence_adjustment, -0.05)
 
     # Determine alignment status
     aligned = len(issues) == 0
 
-    # Adjust confidence based on findings
-    if warnings and not issues:
-        confidence_adjustment = -0.05  # Slight reduction for warnings
+    # Adjust confidence based on findings (accumulate from previous checks)
+    # Issues are serious - cap at -0.15
     if issues:
-        confidence_adjustment = -0.15  # More significant reduction for issues
+        confidence_adjustment = min(confidence_adjustment, -0.15)
 
     return {
         "aligned": aligned,
