@@ -19,9 +19,9 @@ from app.schemas.recommendation import RecommendationResponse
 # Drug-specific warnings — NOT class-wide.
 # Appearing in text for a drug that doesn't have them in its payload warnings = hallucination.
 _DRUG_SPECIFIC_WARNINGS_TEXT: dict[str, list[str]] = {
-    "sglt2i": ["amputation", "cắt cụt", "lower extremity amputation", "leg amputation"],
-    "dapagliflozin": ["amputation", "cắt cụt", "lower extremity amputation", "leg amputation"],
-    "empagliflozin": ["amputation", "cắt cụt", "lower extremity amputation", "leg amputation"],
+    "sglt2i": ["amputation", "lower extremity amputation", "leg amputation"],
+    "dapagliflozin": ["amputation", "lower extremity amputation", "leg amputation"],
+    "empagliflozin": ["amputation", "lower extremity amputation", "leg amputation"],
 }
 
 
@@ -77,7 +77,6 @@ def _text_hallucination_check(text: str, compact_payload: dict) -> list[Citation
     return supports
 
 
-_AVOID_PHRASES_VI = ("chong chi dinh", "tranh", "khong nen", "hoan", "ngung")
 _AVOID_PHRASES_EN = ("contraindicated", "avoid", "do not use", "should not")
 _SGLT2_MENTION = ("sglt2", "dapagliflozin", "empagliflozin", "forxiga", "jardiance")
 
@@ -103,7 +102,7 @@ def _status_consistency_check(text: str, compact_payload: dict) -> list[Citation
     if status == "avoid":
         return supports
 
-    has_avoid_language = any(p in normalized for p in _AVOID_PHRASES_VI + _AVOID_PHRASES_EN)
+    has_avoid_language = any(p in normalized for p in _AVOID_PHRASES_EN)
     if has_avoid_language:
         supports.append(
             CitationSupport(
@@ -111,7 +110,7 @@ def _status_consistency_check(text: str, compact_payload: dict) -> list[Citation
                 target_type="status_mismatch",
                 evidence_status="unsupported",
                 message="Answer implies SGLT2i is avoided/contraindicated but CDSS status is not avoid.",
-                required_terms=list(_AVOID_PHRASES_VI[:2]),
+                required_terms=list(_AVOID_PHRASES_EN[:2]),
                 matched_terms=[],
                 evidence_refs=[],
                 source_links=[],
@@ -123,14 +122,8 @@ def _status_consistency_check(text: str, compact_payload: dict) -> list[Citation
     return supports
 
 
-_CJK_ALLOWED_LANGUAGES = frozenset({"zh", "zh-cn", "zh-tw", "ja", "ko"})
-
-
 def _cjk_leak_check(text: str, compact_payload: dict) -> list[CitationSupport]:
-    """Fail when response_language is not CJK-targeted but the answer contains CJK script."""
-    language = (compact_payload.get("response_language") or "vi").lower().strip()
-    if language in _CJK_ALLOWED_LANGUAGES:
-        return []
+    """Fail when the answer contains CJK script — output is always expected in English."""
     if not _contains_cjk(text):
         return []
     return [
@@ -138,11 +131,8 @@ def _cjk_leak_check(text: str, compact_payload: dict) -> list[CitationSupport]:
             target_id="text:locale",
             target_type="locale_compliance",
             evidence_status="unsupported",
-            message=(
-                f"Answer contains CJK characters but response_language is '{language}'. "
-                "Use fallback or regenerate without Chinese/Japanese/Korean script."
-            ),
-            required_terms=["latin_or_vietnamese_only"],
+            message="Answer contains CJK characters. Use fallback or regenerate in English.",
+            required_terms=["english_only"],
             matched_terms=[],
             evidence_refs=[],
             source_links=[],

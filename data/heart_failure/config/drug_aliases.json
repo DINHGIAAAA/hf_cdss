@@ -1883,5 +1883,53 @@
     "aliases": [
       "sacubitril"
     ]
+  },
+  "ibuprofen": {
+    "pipeline_id": "ibuprofen",
+    "gdmt_class": "nsaid",
+    "display_name": "ibuprofen",
+    "aliases": [
+      "ibuprofen",
+      "advil",
+      "motrin"
+    ]
+  },
+  "naproxen": {
+    "pipeline_id": "naproxen",
+    "gdmt_class": "nsaid",
+    "display_name": "naproxen",
+    "aliases": [
+      "naproxen",
+      "aleve",
+      "naprosyn"
+    ]
+  },
+  "diclofenac": {
+    "pipeline_id": "diclofenac",
+    "gdmt_class": "nsaid",
+    "display_name": "diclofenac",
+    "aliases": [
+      "diclofenac",
+      "voltaren",
+      "cataflam"
+    ]
+  },
+  "celecoxib": {
+    "pipeline_id": "celecoxib",
+    "gdmt_class": "nsaid",
+    "display_name": "celecoxib",
+    "aliases": [
+      "celecoxib",
+      "celebrex"
+    ]
+  },
+  "indomethacin": {
+    "pipeline_id": "indomethacin",
+    "gdmt_class": "nsaid",
+    "display_name": "indomethacin",
+    "aliases": [
+      "indomethacin",
+      "indocin"
+    ]
   }
 }

@@ -6,6 +6,7 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from app.modules.chat.clinical_intent import should_include_dose_in_llm_payload
+from app.core.config import settings
 from app.core.http_client import get_async_client
 from app.core.llm_runtime import chat_completions_url, llm_auth_headers, llm_chat_completions_enabled
 from app.core.metrics import increment, observe
@@ -23,8 +24,6 @@ from app.prompts.explanation import (
 from app.modules.explanation.card_summarizer import (
     _contains_cjk,
     _needs_locale_fallback,
-    _translate_bullet_vi,
-    _vi_detail_lines,
     deterministic_card_summary,
 )
 from app.modules.gdmt_policy.policy_engine import _normalized_constraint_target
@@ -37,24 +36,20 @@ from app.schemas.llm import LLMAnswerRequest, LLMAnswerResponse
 from app.core.redis_client import redis_client
 
 
-SAFETY_NOTE = "Đây là hỗ trợ quyết định lâm sàng dựa trên dữ liệu cung cấp. Quyết định điều trị cuối cùng thuộc về bác sĩ điều trị sau khi đánh giá toàn diện bệnh nhân."
+SAFETY_NOTE = (
+    "This is clinical decision support based on the data provided. Final treatment "
+    "decisions remain with the treating physician after a full patient assessment."
+)
 
-_CJK_TARGET_LANGUAGES = frozenset({"zh", "zh-cn", "zh-tw", "ja", "ko"})
 _LLM_ANSWER_MAX_TOKENS = 600
 _HAN_SCRIPT_RE = re.compile(r"[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]")
-
-
-def _should_strip_cjk_script(lang: str) -> bool:
-    return (lang or "vi").lower() not in _CJK_TARGET_LANGUAGES
 
 
 def _strip_han_script(text: str) -> str:
     return _HAN_SCRIPT_RE.sub("", text or "").strip()
 
 
-def _sanitize_stream_token(content: str, lang: str) -> str:
-    if not _should_strip_cjk_script(lang):
-        return content
+def _sanitize_stream_token(content: str) -> str:
     return _strip_han_script(content)
 
 
@@ -94,40 +89,34 @@ def _compact_constraints(payload: LLMAnswerRequest, focus: set[str]) -> list[dic
     return filtered if filtered else rows
 
 
-def _lines_for_llm_payload(lines: list | None, *, lang: str) -> list[str]:
-    lang_l = (lang or "vi").lower()
-    strip_cjk = _should_strip_cjk_script(lang_l)
+def _lines_for_llm_payload(lines: list | None) -> list[str]:
     out: list[str] = []
     for raw in lines or []:
         text = str(raw or "").strip()
         if not text:
             continue
-        if strip_cjk and _contains_cjk(text):
+        if _contains_cjk(text):
             continue
         if text not in out:
             out.append(text)
     return out
 
 
-def _text_for_llm_payload(text: str | None, item: Any, lang: str) -> str | None:
+def _text_for_llm_payload(text: str | None, item: Any) -> str | None:
     if not text or not str(text).strip():
         return None
     cleaned = str(text).strip()
-    lang_l = (lang or "vi").lower()
-    strip_cjk = _should_strip_cjk_script(lang_l)
-    if strip_cjk and _contains_cjk(cleaned):
-        cleaned = deterministic_card_summary(item, lang_l) or ""
-    elif _needs_locale_fallback(cleaned, lang_l):
-        cleaned = deterministic_card_summary(item, lang_l) or cleaned
-    if strip_cjk and _contains_cjk(cleaned):
+    if _contains_cjk(cleaned):
+        cleaned = deterministic_card_summary(item) or ""
+    elif _needs_locale_fallback(cleaned):
+        cleaned = deterministic_card_summary(item) or cleaned
+    if _contains_cjk(cleaned):
         cleaned = _strip_han_script(cleaned)
     return cleaned.strip() or None
 
 
-def _per_class_fact_sheet(items: list, *, lang: str = "vi") -> dict[str, dict[str, Any]]:
+def _per_class_fact_sheet(items: list) -> dict[str, dict[str, Any]]:
     sheet: dict[str, dict[str, Any]] = {}
-    lang_l = (lang or "vi").lower()
-    strip_cjk = _should_strip_cjk_script(lang_l)
     for item in items:
         class_id = (item.class_id or "").lower()
         if not class_id:
@@ -136,7 +125,7 @@ def _per_class_fact_sheet(items: list, *, lang: str = "vi") -> dict[str, dict[st
         for field in ("rationale", "plain_language_summary"):
             value = getattr(item, field, None)
             if isinstance(value, str) and value.strip():
-                phrase = _text_for_llm_payload(value, item, lang_l)
+                phrase = _text_for_llm_payload(value, item)
                 if phrase:
                     allowed.append(phrase)
         for collection in ("clinical_reasoning", "action_items", "monitoring", "warnings"):
@@ -144,7 +133,7 @@ def _per_class_fact_sheet(items: list, *, lang: str = "vi") -> dict[str, dict[st
                 text = str(raw or "").strip()
                 if not text:
                     continue
-                if strip_cjk and _contains_cjk(text):
+                if _contains_cjk(text):
                     continue
                 allowed.append(text)
         sheet[class_id] = {
@@ -180,7 +169,6 @@ def _compact_recommendation(payload: LLMAnswerRequest) -> dict[str, Any]:
     verification = payload.verification
     focus = focus_class_ids_for_payload(payload)
     narrowed_items = _items_for_clinician_question(payload)
-    lang = payload.language or "vi"
     intent = (payload.clinical_state or {}).get("intent")
     compact: dict[str, Any] = {
         "user_input": payload.user_input,
@@ -190,7 +178,7 @@ def _compact_recommendation(payload: LLMAnswerRequest) -> dict[str, Any]:
         "choice_question": payload.clinical_state.get("intent") == "choice_question"
         if payload.clinical_state
         else False,
-        "response_language": payload.language,
+        "response_language": "en",
         "patient": {
             "lvef": payload.patient.lvef,
             "egfr": payload.patient.egfr,
@@ -214,34 +202,24 @@ def _compact_recommendation(payload: LLMAnswerRequest) -> dict[str, Any]:
             for risk in payload.recommendation.risk_flags
         ],
         "constraints": _compact_constraints(payload, focus),
-        "per_class_fact_sheet": _per_class_fact_sheet(narrowed_items, lang=lang),
+        "per_class_fact_sheet": _per_class_fact_sheet(narrowed_items),
         "candidate_medication_classes": [
             {
                 "class_id": item.class_id,
                 "drug_class": item.drug_class,
                 "status": item.status,
-                "rationale": _text_for_llm_payload(item.rationale, item, lang),
-                "plain_language_summary": _text_for_llm_payload(
-                    item.plain_language_summary, item, lang
-                )
-                or _item_summary_for_locale(item, lang),
+                "rationale": _text_for_llm_payload(item.rationale, item),
+                "plain_language_summary": _text_for_llm_payload(item.plain_language_summary, item)
+                or _item_summary_for_locale(item),
                 "plain_language_details": (
                     item.plain_language_details.model_dump()
                     if item.plain_language_details
                     else None
                 ),
-                "clinical_reasoning": _vi_detail_lines(item.clinical_reasoning[:3], fallback=item.clinical_reasoning[:3])
-                if lang == "vi"
-                else _lines_for_llm_payload(item.clinical_reasoning[:3], lang=lang),
-                "action_items": _vi_detail_lines(item.action_items[:3], fallback=item.action_items[:3])
-                if lang == "vi"
-                else _lines_for_llm_payload(item.action_items[:3], lang=lang),
-                "monitoring": _vi_detail_lines(item.monitoring[:2], fallback=item.monitoring[:2])
-                if lang == "vi"
-                else _lines_for_llm_payload(item.monitoring[:2], lang=lang),
-                "warnings": _vi_detail_lines(item.warnings[:3], fallback=item.warnings[:3])
-                if lang == "vi"
-                else _lines_for_llm_payload(item.warnings[:3], lang=lang),
+                "clinical_reasoning": _lines_for_llm_payload(item.clinical_reasoning[:3]),
+                "action_items": _lines_for_llm_payload(item.action_items[:3]),
+                "monitoring": _lines_for_llm_payload(item.monitoring[:2]),
+                "warnings": _lines_for_llm_payload(item.warnings[:3]),
             }
             for item in narrowed_items
         ],
@@ -256,124 +234,37 @@ def _compact_recommendation(payload: LLMAnswerRequest) -> dict[str, Any]:
     return compact
 
 
-# Multi-language fallback templates for graceful degradation
-FALLBACK_TEMPLATES: dict[str, dict[str, str]] = {
-    "vi": {
-        "conclusion": "Kết luận",
-        "medications": "Thuốc và liều gợi ý",
-        "evidence": "Bằng chứng và lý do",
-        "available_data": "Thông tin hiện có",
-        "system_warning": "Cảnh báo hệ thống",
-        "dose_check": "Cách tính/kiểm tra liều",
-        "monitoring": "Theo dõi và cảnh báo",
-        "avoid_msg": "Cần tránh hoặc hoãn {drugs} cho đến khi xử lý được yếu tố rủi ro.",
-        "caution_msg": "Cần thận trọng với {drugs}; vui lòng kiểm tra kỹ chống chỉ định.",
-        "consider_msg": "Có thể cân nhắc {drugs} nếu đủ điều kiện lâm sàng.",
-        "no_recommendations": "Không có khuyến nghị thuốc mới nổi bật từ đầu ra CDSS có cấu trúc.",
-        "no_medications": "Chưa có nhóm thuốc mới được CDSS đề xuất từ dữ liệu hiện tại.",
-        "missing_data": "Bổ sung dữ liệu còn thiếu",
-        "default_monitoring": "Theo dõi triệu chứng, huyết áp, nhịp tim, điện giải đồ và chức năng thận sau mỗi lần thay đổi liều.",
-        "safety_note": "Đây là dự phòng an toàn khi dịch vụ sinh giải thích AI đang bận. Quyết định cuối cùng luôn cần được bác sĩ xác nhận.",
-        "context_fallback": "dữ liệu lâm sàng đã nhập",
-    },
-    "en": {
-        "conclusion": "Conclusion",
-        "medications": "Medications and Dosages",
-        "evidence": "Evidence and Rationale",
-        "available_data": "Available data",
-        "system_warning": "System warnings",
-        "dose_check": "Dose Calculation/Review",
-        "monitoring": "Monitoring and Alerts",
-        "avoid_msg": "Avoid or delay {drugs} until risk factors are addressed.",
-        "caution_msg": "Use caution with {drugs}; verify contraindications carefully.",
-        "consider_msg": "Consider {drugs} if clinically appropriate.",
-        "no_recommendations": "No notable new medication recommendations from structured CDSS output.",
-        "no_medications": "No new medication classes recommended by CDSS from current data.",
-        "missing_data": "Missing data to supplement",
-        "default_monitoring": "Monitor symptoms, blood pressure, heart rate, electrolytes, and renal function after each dose change.",
-        "safety_note": "This is a safety fallback while AI explanation service is unavailable. Final decisions always require physician confirmation.",
-        "context_fallback": "available clinical data",
-    },
-    "zh": {
-        "conclusion": "结论",
-        "medications": "药物和剂量建议",
-        "evidence": "证据和理由",
-        "available_data": "现有数据",
-        "system_warning": "系统警告",
-        "dose_check": "剂量计算/检查",
-        "monitoring": "监测和警示",
-        "avoid_msg": "需要避免或延迟 {drugs}，直至风险因素得到处理。",
-        "caution_msg": "使用 {drugs} 需谨慎；请仔细核实禁忌症。",
-        "consider_msg": "如临床适用，可考虑 {drugs}。",
-        "no_recommendations": "结构化 CDSS 输出中无新的重要药物建议。",
-        "no_medications": "当前数据尚无 CDSS 推荐的新药物类别。",
-        "missing_data": "补充缺失数据",
-        "default_monitoring": "每次剂量调整后，监测症状、血压、心率、电解质和肾功能。",
-        "safety_note": "这是 AI 解释服务不可用时的安全备用方案。最终决定必须由医生确认。",
-        "context_fallback": "现有临床数据",
-    },
-    "ja": {
-        "conclusion": "結論",
-        "medications": "薬剤と用量推奨",
-        "evidence": "根拠と理由",
-        "available_data": "利用可能なデータ",
-        "system_warning": "システム警告",
-        "dose_check": "用量計算/確認",
-        "monitoring": "モニタリングとアラート",
-        "avoid_msg": "{drugs} はリスク因子が解決されるまで回避または延期する必要があります。",
-        "caution_msg": "{drugs} の使用には注意が必要 です。禁忌を慎重に確認してください。",
-        "consider_msg": "臨床的に適切であれば、{drugs} を検討できます。",
-        "no_recommendations": "構造化 CDSS 出力からの新しい重要な薬剤推奨はありません。",
-        "no_medications": "現在のデータから CDSS が推奨する新しい薬剤クラスはありません。",
-        "missing_data": "補足する欠落データ",
-        "default_monitoring": "用量変更後は、症状、血圧、心拍数、電解質、腎機能をモニタリングしてください。",
-        "safety_note": "これは AI 説明サービスが利用できない場合の安全フォールバックです。最終決定は常に医師の確認が必要です。",
-        "context_fallback": "利用可能な臨床データ",
-    },
+# Fallback template for graceful degradation when the LLM is unavailable.
+FALLBACK_TEMPLATE: dict[str, str] = {
+    "conclusion": "Conclusion",
+    "medications": "Medications and Dosages",
+    "evidence": "Evidence and Rationale",
+    "available_data": "Available data",
+    "system_warning": "System warnings",
+    "dose_check": "Dose Calculation/Review",
+    "monitoring": "Monitoring and Alerts",
+    "avoid_msg": "Avoid or delay {drugs} until risk factors are addressed.",
+    "caution_msg": "Use caution with {drugs}; verify contraindications carefully.",
+    "consider_msg": "Consider {drugs} if clinically appropriate.",
+    "no_recommendations": "No notable new medication recommendations from structured CDSS output.",
+    "no_medications": "No new medication classes recommended by CDSS from current data.",
+    "missing_data": "Missing data to supplement",
+    "default_monitoring": "Monitor symptoms, blood pressure, heart rate, electrolytes, and renal function after each dose change.",
+    "safety_note": "This is a safety fallback while AI explanation service is unavailable. Final decisions always require physician confirmation.",
+    "context_fallback": "available clinical data",
 }
 
 
-def _get_fallback_template(language: str) -> dict[str, str]:
-    """Get fallback template for the specified language, defaulting to English."""
-    return FALLBACK_TEMPLATES.get(language, FALLBACK_TEMPLATES["en"])
-
-
-def _localized_safety_note(language: str | None) -> str:
-    lang = (language or "vi").lower().strip()
-    if lang not in FALLBACK_TEMPLATES:
-        lang = "vi"
-    return FALLBACK_TEMPLATES[lang]["safety_note"]
-
-
-def _item_summary_for_locale(item: Any, lang: str) -> str:
+def _item_summary_for_locale(item: Any) -> str:
     summary = (item.plain_language_summary or item.rationale or item.status or "").strip()
-    if _needs_locale_fallback(summary, lang):
-        return deterministic_card_summary(item, lang)
+    if _needs_locale_fallback(summary):
+        return deterministic_card_summary(item)
     return summary
 
 
-def _monitoring_lines_for_locale(items: list, lang: str, *, limit: int = 2) -> list[str]:
+def _monitoring_lines_for_locale(items: list, *, limit: int = 2) -> list[str]:
     raw = _short_clinical_lines(items, "monitoring", limit=limit)
-    strip_cjk = _should_strip_cjk_script(lang)
-    if strip_cjk:
-        return [line for line in raw if not _contains_cjk(line)]
-    lines: list[str] = []
-    for line in raw:
-        if _contains_cjk(line):
-            continue
-        if _looks_english_monitoring(line):
-            line = _translate_bullet_vi(line)
-        if line.strip():
-            lines.append(line.strip())
-    return lines
-
-
-def _looks_english_monitoring(text: str) -> bool:
-    lowered = f" {text.lower()} "
-    return any(
-        token in lowered
-        for token in ("monitor ", "creatinine", "blood pressure", "heart rate", "potassium", "renal")
-    )
+    return [line for line in raw if not _contains_cjk(line)]
 
 
 def _fallback_recommendation_items(payload: LLMAnswerRequest):
@@ -432,7 +323,6 @@ def fallback_answer(payload: LLMAnswerRequest) -> str:
         recommendation=payload.recommendation,
         message=payload.user_input or "",
         clinical_state=payload.clinical_state,
-        language=payload.language,
     )
     if comparative:
         return comparative
@@ -444,8 +334,7 @@ def fallback_answer(payload: LLMAnswerRequest) -> str:
     continue_items = [item for item in items if item.status == "continue"]
     missing = [risk.name.replace("missing_", "") for risk in payload.recommendation.risk_flags if risk.name.startswith("missing_")]
 
-    lang = payload.language or "vi"
-    t = _get_fallback_template(lang)
+    t = FALLBACK_TEMPLATE
     question = (payload.user_input or "").strip()
 
     facts = [
@@ -461,40 +350,30 @@ def fallback_answer(payload: LLMAnswerRequest) -> str:
 
     paragraphs: list[str] = []
     if question:
-        if lang == "vi":
-            paragraphs.append(
-                f"Dựa trên hồ sơ ({context})"
-                + (f" và thuốc đang dùng ({med_line})" if med_line else "")
-                + f", gợi ý cho câu hỏi: «{question}»."
-            )
-        else:
-            paragraphs.append(
-                f"For this profile ({context})"
-                + (f" on {med_line}" if med_line else "")
-                + f", regarding: “{question}”."
-            )
+        paragraphs.append(
+            f"For this profile ({context})"
+            + (f" on {med_line}" if med_line else "")
+            + f", regarding: “{question}”."
+        )
     else:
         paragraphs.append(context)
 
-    def _item_paragraph(group: list, prefix_vi: str, prefix_en: str) -> None:
+    def _item_paragraph(group: list) -> None:
         if not group:
             return
         for item in group[:3]:
             label = display_label_for_class_id(item.class_id, item.drug_class)
-            summary = _item_summary_for_locale(item, lang)
-            if lang == "vi":
-                paragraphs.append(f"- **{label}** ({item.status}): {summary}")
-            else:
-                paragraphs.append(f"- **{label}** ({item.status}): {summary}")
+            summary = _item_summary_for_locale(item)
+            paragraphs.append(f"- **{label}** ({item.status}): {summary}")
 
     if blocked:
-        _item_paragraph(blocked, t["avoid_msg"], t["avoid_msg"])
+        _item_paragraph(blocked)
     if caution:
-        _item_paragraph(caution, t["caution_msg"], t["caution_msg"])
+        _item_paragraph(caution)
     if consider:
-        _item_paragraph(consider, t["consider_msg"], t["consider_msg"])
+        _item_paragraph(consider)
     if continue_items:
-        _item_paragraph(continue_items, "continue", "continue")
+        _item_paragraph(continue_items)
 
     if not blocked and not caution and not consider and not continue_items:
         paragraphs.append(t["no_recommendations"])
@@ -509,23 +388,14 @@ def fallback_answer(payload: LLMAnswerRequest) -> str:
         )
     ][:2]
     if relevant_constraints:
-        if lang == "vi":
-            paragraphs.append(
-                "**Ràng buộc an toàn:** "
-                + "; ".join(f"{c.target_drug_class}: {c.reason}" for c in relevant_constraints)
-            )
-        else:
-            paragraphs.append(
-                "**Safety constraints:** "
-                + "; ".join(f"{c.target_drug_class}: {c.reason}" for c in relevant_constraints)
-            )
+        paragraphs.append(
+            "**Safety constraints:** "
+            + "; ".join(f"{c.target_drug_class}: {c.reason}" for c in relevant_constraints)
+        )
 
-    monitoring = _monitoring_lines_for_locale([*blocked, *caution, *consider, *continue_items], lang, limit=2)
+    monitoring = _monitoring_lines_for_locale([*blocked, *caution, *consider, *continue_items], limit=2)
     if monitoring:
-        if lang == "vi":
-            paragraphs.append("**Theo dõi:** " + " ".join(monitoring))
-        else:
-            paragraphs.append("**Monitoring:** " + " ".join(monitoring))
+        paragraphs.append("**Monitoring:** " + " ".join(monitoring))
 
     intent = (payload.clinical_state or {}).get("intent")
     if should_include_dose_in_llm_payload(intent) and payload.recommendation.dose_plans:
@@ -540,8 +410,7 @@ def fallback_answer(payload: LLMAnswerRequest) -> str:
             elif plan.rationale:
                 dose_lines.append(f"- **{label}**: {plan.rationale}")
         if dose_lines:
-            heading = t["dose_check"] if lang != "vi" else t["dose_check"]
-            paragraphs.append(f"**{heading}:**\n" + "\n".join(dose_lines))
+            paragraphs.append(f"**{t['dose_check']}:**\n" + "\n".join(dose_lines))
 
     if missing:
         paragraphs.append(f"{t['missing_data']}: {', '.join(missing)}.")
@@ -649,7 +518,7 @@ def _fallback_response(payload: LLMAnswerRequest, model: str) -> LLMAnswerRespon
         answer=fallback_answer(payload),
         model=model,
         used_llm=False,
-        safety_note=_localized_safety_note(payload.language),
+        safety_note=FALLBACK_TEMPLATE["safety_note"],
     )
 
 
@@ -679,7 +548,6 @@ async def stream_llm_answer(payload: LLMAnswerRequest) -> AsyncIterator[dict[str
     parts: list[str] = []
     finish_reason: str | None = None
     emitted_token = False
-    response_lang = (payload.language or "vi").lower()
     try:
         client = get_async_client("llm_answer_stream", settings.llm_timeout_seconds)
         async with client.stream(
@@ -714,7 +582,7 @@ async def stream_llm_answer(payload: LLMAnswerRequest) -> AsyncIterator[dict[str
                 finish_reason = choices[0].get("finish_reason") or finish_reason
                 content = choices[0].get("delta", {}).get("content")
                 if isinstance(content, str) and content:
-                    sanitized = _sanitize_stream_token(content, response_lang)
+                    sanitized = _sanitize_stream_token(content)
                     if not sanitized:
                         continue
                     parts.append(sanitized)

@@ -23,100 +23,33 @@ from app.schemas.recommendation import (
 logger = logging.getLogger(__name__)
 
 _STATUS_LABELS = {
-    "vi": {
-        "avoid": "Nên tránh hoặc hoãn",
-        "consider_with_caution": "Cân nhắc thận trọng",
-        "consider": "Có thể cân nhắc",
-        "continue": "Tiếp tục",
-        "blocked": "Bị chặn",
-    },
-    "en": {
-        "avoid": "Avoid or delay",
-        "consider_with_caution": "Use with caution",
-        "consider": "Consider",
-        "continue": "Continue",
-        "blocked": "Blocked",
-    },
+    "avoid": "Avoid or delay",
+    "consider_with_caution": "Use with caution",
+    "consider": "Consider",
+    "continue": "Continue",
+    "blocked": "Blocked",
 }
 
 # Drug class to plain language mapping
 _DRUG_CLASS_PLAIN = {
-    "vi": {
-        "ACE inhibitor": "Thuốc hạ huyết áp",
-        "ACE inhibitors": "Thuốc hạ huyết áp",
-        "ARB": "Thuốc hạ huyết áp (ARB)",
-        "ARBs": "Thuốc hạ huyết áp (ARB)",
-        "ACEi/ARB": "Thuốc hạ huyết áp",
-        "ARNI": "Thuốc tim mạch (ARNI)",
-        "ARNIs": "Thuốc tim mạch (ARNI)",
-        "SGLT2 inhibitor": "Thuốc đái tháo đường, bảo vệ thận",
-        "SGLT2 inhibitors": "Thuốc đái tháo đường, bảo vệ thận",
-        "Beta blocker": "Thuốc giảm nhịp tim, bảo vệ tim",
-        "Beta blockers": "Thuốc giảm nhịp tim, bảo vệ tim",
-        "MRA": "Thuốc lợi tiểu giữ kali",
-        "MRAs": "Thuốc lợi tiểu giữ kali",
-        "Mineralocorticoid receptor antagonist": "Thuốc lợi tiểu giữ kali",
-        "Mineralocorticoid receptor antagonists": "Thuốc lợi tiểu giữ kali",
-        "RAAS inhibitor": "Thuốc ức chế RAAS",
-        "RAAS inhibitors": "Thuốc ức chế RAAS",
-    },
-    "en": {
-        "ACE inhibitor": "Blood pressure medication",
-        "ACE inhibitors": "Blood pressure medication",
-        "ARB": "Blood pressure medication (ARB)",
-        "ARBs": "Blood pressure medication (ARB)",
-        "ACEi/ARB": "Blood pressure medication",
-        "ARNI": "Heart medication (ARNI)",
-        "ARNIs": "Heart medication (ARNI)",
-        "SGLT2 inhibitor": "Diabetes & kidney protection medication",
-        "SGLT2 inhibitors": "Diabetes & kidney protection medication",
-        "Beta blocker": "Heart rate & heart protection medication",
-        "Beta blockers": "Heart rate & heart protection medication",
-        "MRA": "Potassium-sparing diuretic",
-        "MRAs": "Potassium-sparing diuretic",
-        "Mineralocorticoid receptor antagonist": "Potassium-sparing diuretic",
-        "Mineralocorticoid receptor antagonists": "Potassium-sparing diuretic",
-        "RAAS inhibitor": "RAAS inhibitor",
-        "RAAS inhibitors": "RAAS inhibitors",
-    },
+    "ACE inhibitor": "Blood pressure medication",
+    "ACE inhibitors": "Blood pressure medication",
+    "ARB": "Blood pressure medication (ARB)",
+    "ARBs": "Blood pressure medication (ARB)",
+    "ACEi/ARB": "Blood pressure medication",
+    "ARNI": "Heart medication (ARNI)",
+    "ARNIs": "Heart medication (ARNI)",
+    "SGLT2 inhibitor": "Diabetes & kidney protection medication",
+    "SGLT2 inhibitors": "Diabetes & kidney protection medication",
+    "Beta blocker": "Heart rate & heart protection medication",
+    "Beta blockers": "Heart rate & heart protection medication",
+    "MRA": "Potassium-sparing diuretic",
+    "MRAs": "Potassium-sparing diuretic",
+    "Mineralocorticoid receptor antagonist": "Potassium-sparing diuretic",
+    "Mineralocorticoid receptor antagonists": "Potassium-sparing diuretic",
+    "RAAS inhibitor": "RAAS inhibitor",
+    "RAAS inhibitors": "RAAS inhibitors",
 }
-
-# Phrase-level English → Vietnamese for common CDSS bullets (deterministic fallback).
-_VI_BULLET_MAP: list[tuple[str, str]] = [
-    ("core disease-modifying therapy for hfref", "Là nhóm thuốc nền tảng làm thay đổi diễn tiến bệnh trong HFrEF."),
-    (
-        "abnormal potassium increases risk when raas-inhibiting therapy is intensified",
-        "Kali máu bất thường làm tăng nguy cơ khi tăng cường thuốc ức chế RAAS.",
-    ),
-    (
-        "review whether the patient is already on acei/arb/arni and avoid duplicate raas blockade",
-        "Kiểm tra bệnh nhân đã dùng ACEi/ARB/ARNI chưa để tránh ức chế RAAS trùng lặp.",
-    ),
-    (
-        "if clinically stable, consider low-dose initiation or cautious titration rather than escalation at full dose",
-        "Nếu ổn định lâm sàng, cân nhắc khởi trị liều thấp hoặc chỉnh liều thận trọng, không tăng nhanh lên liều đầy đủ.",
-    ),
-    (
-        "bp and symptoms after initiation/titration",
-        "Theo dõi huyết áp và triệu chứng sau khi khởi trị hoặc chỉnh liều.",
-    ),
-    (
-        "creatinine/egfr and potassium within 1-2 weeks",
-        "Xét nghiệm creatinine/eGFR và kali trong 1–2 tuần.",
-    ),
-    (
-        "no clear current arni/acei/arb therapy detected in the medication list",
-        "Chưa thấy ARNI/ACEi/ARB rõ ràng trong danh sách thuốc hiện tại.",
-    ),
-    (
-        "no evidence-based beta blocker detected in the medication list",
-        "Chưa thấy beta blocker nền tảng bằng chứng trong danh sách thuốc.",
-    ),
-    (
-        "no current sglt2 inhibitor detected in the medication list",
-        "Chưa thấy thuốc ức chế SGLT2 trong danh sách thuốc.",
-    ),
-]
 
 
 def _summary_model() -> str:
@@ -148,141 +81,28 @@ def compact_recommendation_items(items: list[MedicationRecommendation]) -> list[
 
 
 def _contains_cjk(text: str) -> bool:
-    return bool(re.search(r"[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]", text or ""))
+    return bool(re.search(r"[一-鿿㐀-䶿豈-﫿]", text or ""))
 
 
-def _needs_locale_fallback(text: str, language: str) -> bool:
-    """True when LLM text is empty or not usable for the requested locale."""
+def _needs_locale_fallback(text: str) -> bool:
+    """True when LLM text is empty, unusable, or contains a wrong script (CJK)."""
     stripped = (text or "").strip()
     if not stripped:
         return True
-    if _contains_cjk(stripped):
-        return True
-    if language == "vi" and _looks_english(stripped):
-        return True
-    return False
+    return _contains_cjk(stripped)
 
 
-def _looks_english(text: str) -> bool:
-    lowered = text.lower()
-    markers = (
-        " no ",
-        "detected",
-        "consider ",
-        "avoid ",
-        "current ",
-        "medication list",
-        "therapy",
-        "inhibitor",
-        "blocker",
-        "titration",
-        "monitor ",
-        "creatinine",
-        "disease-modifying",
-    )
-    return any(marker in f" {lowered} " or marker in lowered for marker in markers)
-
-
-def _vi_class_phrase(drug_class: str) -> str:
-    name = (drug_class or "").strip()
-    lowered = name.lower()
-    if "arni" in lowered or "raas" in lowered:
-        return "thuốc ức chế RAAS/ARNI (ví dụ sacubitril/valsartan, ACEi hoặc ARB)"
-    if "beta" in lowered:
-        return "beta blocker nền tảng bằng chứng (bisoprolol, carvedilol, nebivolol…)"
-    if "mineralocorticoid" in lowered or "mra" in lowered:
-        return "thuốc kháng thụ thể mineralocorticoid (MRA)"
-    if "sglt2" in lowered:
-        return "thuốc ức chế SGLT2"
-    return name
-
-
-def _translate_bullet_vi(text: str) -> str:
-    cleaned = str(text or "").strip()
-    if not cleaned:
-        return ""
-    if not _looks_english(cleaned):
-        return cleaned
-    key = re.sub(r"\s+", " ", cleaned.lower()).strip(" .")
-    for eng, vie in _VI_BULLET_MAP:
-        if eng in key or key in eng:
-            return vie
-    # Generic soft paraphrase when no exact map: keep meaning cue without dumping jargon.
-    if "dose" in key or "titrat" in key or "initiat" in key:
-        return "Điều chỉnh/khởi trị liều theo tình trạng lâm sàng, ưu tiên an toàn."
-    if "monitor" in key or "follow" in key or "creatinine" in key or "potassium" in key or "egfr" in key:
-        return "Theo dõi huyết áp, triệu chứng, chức năng thận và điện giải theo kế hoạch."
-    if "avoid" in key or "duplicate" in key or "review" in key:
-        return "Rà soát thuốc đang dùng và tránh phối hợp không an toàn."
-    if "risk" in key or "warning" in key:
-        return "Có yếu tố nguy cơ cần thận trọng khi điều trị."
-    return "Xem nội dung gốc trong hệ thống nếu cần chi tiết kỹ thuật."
-
-
-def _vi_meaning_from_rationale(item: MedicationRecommendation) -> str:
-    # Build blob from English-only fields; strip CJK so it doesn't poison keyword checks.
-    blob = " ".join(
-        [
-            str(item.rationale or ""),
-            " ".join(item.clinical_reasoning[:2]),
-        ]
-    )
-    # Strip CJK characters before keyword matching to avoid false matches.
-    import re
-    blob = re.sub(r"[一-鿿㐀-䶿豈-﫿]", "", blob).lower()
-    drug = _vi_class_phrase(item.drug_class)
-    status = item.status
-
-    if "no clear current" in blob or "no evidence-based" in blob or "no current" in blob or "not detected" in blob:
-        if status == "consider":
-            return f"Hiện chưa thấy {drug} trong danh sách thuốc; có thể cân nhắc khởi trị nếu đủ điều kiện lâm sàng."
-        if status == "consider_with_caution":
-            return f"Hiện chưa thấy {drug} trong danh sách thuốc; chỉ cân nhắc khởi trị khi đã kiểm soát yếu tố nguy cơ."
-        return f"Hiện chưa thấy {drug} trong danh sách thuốc."
-
-    if "current" in blob and "detected" in blob:
-        if status == "avoid":
-            return f"Bệnh nhân đang dùng {drug}; không nên tăng cường/tiếp tục hướng này cho đến khi xử lý yếu tố an toàn."
-        if status == "consider_with_caution":
-            return f"Bệnh nhân đang dùng {drug}; tiếp tục thận trọng và theo dõi sát."
-        if status == "continue":
-            return f"Bệnh nhân đang dùng {drug}; có thể duy trì nếu dung nạp tốt."
-        return f"Bệnh nhân đang dùng {drug}."
-
-    if status == "avoid":
-        return f"Nên tránh hoặc tạm hoãn {drug} với bối cảnh hiện tại."
-    if status == "consider_with_caution":
-        return f"Có thể cân nhắc {drug} nhưng cần thận trọng và theo dõi sát."
-    if status == "consider":
-        return f"Có thể cân nhắc {drug} nếu phù hợp lâm sàng."
-    if status == "continue":
-        return f"Có thể tiếp tục {drug} nếu dung nạp tốt."
-    return f"Khuyến nghị cho {drug}: {status.replace('_', ' ')}."
-
-
-def deterministic_card_details(item: MedicationRecommendation, language: str = "vi") -> PlainLanguageDetails:
-    if language != "vi":
-        return PlainLanguageDetails(
-            reasoning=[str(x).strip() for x in item.clinical_reasoning[:3] if str(x).strip()],
-            next_steps=[str(x).strip() for x in item.action_items[:3] if str(x).strip()],
-            monitoring=[str(x).strip() for x in item.monitoring[:3] if str(x).strip()],
-            warnings=[str(x).strip() for x in item.warnings[:3] if str(x).strip()],
-        )
+def deterministic_card_details(item: MedicationRecommendation) -> PlainLanguageDetails:
     return PlainLanguageDetails(
-        reasoning=[_translate_bullet_vi(x) for x in item.clinical_reasoning[:3] if str(x).strip()],
-        next_steps=[_translate_bullet_vi(x) for x in item.action_items[:3] if str(x).strip()],
-        monitoring=[_translate_bullet_vi(x) for x in item.monitoring[:3] if str(x).strip()],
-        warnings=[_translate_bullet_vi(x) for x in item.warnings[:3] if str(x).strip()],
+        reasoning=[str(x).strip() for x in item.clinical_reasoning[:3] if str(x).strip()],
+        next_steps=[str(x).strip() for x in item.action_items[:3] if str(x).strip()],
+        monitoring=[str(x).strip() for x in item.monitoring[:3] if str(x).strip()],
+        warnings=[str(x).strip() for x in item.warnings[:3] if str(x).strip()],
     )
 
 
-def deterministic_card_summary(item: MedicationRecommendation, language: str = "vi") -> str:
-    lang = language if language in _STATUS_LABELS else "en"
-    if lang == "vi":
-        return _vi_meaning_from_rationale(item)
-
-    labels = _STATUS_LABELS["en"]
-    status_label = labels.get(item.status, item.status.replace("_", " "))
+def deterministic_card_summary(item: MedicationRecommendation) -> str:
+    status_label = _STATUS_LABELS.get(item.status, item.status.replace("_", " "))
     lead = str(item.rationale or "").strip() or next(
         (str(line).strip() for line in item.clinical_reasoning if str(line).strip()),
         "",
@@ -297,46 +117,23 @@ def deterministic_card_summary(item: MedicationRecommendation, language: str = "
     return " ".join(parts)
 
 
-def _vi_detail_lines(lines: list[str] | None, *, fallback: list[str]) -> list[str]:
-    cleaned: list[str] = []
-    for line in lines or []:
-        text = str(line or "").strip()
-        if not text or _needs_locale_fallback(text, "vi"):
-            continue
-        cleaned.append(_translate_bullet_vi(text) if _looks_english(text) else text)
-    # When falling back, strip CJK lines so nothing leaks through.
-    if not cleaned:
-        cleaned = [line for line in fallback if not _contains_cjk(line)]
-    return cleaned
-
-
-def _card_update_fields(item: MedicationRecommendation, language: str, *, summary: str | None = None, details: PlainLanguageDetails | None = None) -> dict[str, Any]:
+def _card_update_fields(
+    item: MedicationRecommendation, *, summary: str | None = None, details: PlainLanguageDetails | None = None
+) -> dict[str, Any]:
     final_summary = (summary or "").strip()
-    if _needs_locale_fallback(final_summary, language):
-        final_summary = deterministic_card_summary(item, language)
+    if _needs_locale_fallback(final_summary):
+        final_summary = deterministic_card_summary(item)
 
-    final_details = details or deterministic_card_details(item, language)
-    if language == "vi":
-        det = deterministic_card_details(item, language)
-        # Ensure detail bullets are not left in English or wrong-script LLM output.
-        final_details = PlainLanguageDetails(
-            reasoning=_vi_detail_lines(final_details.reasoning, fallback=det.reasoning),
-            next_steps=_vi_detail_lines(final_details.next_steps, fallback=det.next_steps),
-            monitoring=_vi_detail_lines(final_details.monitoring, fallback=det.monitoring),
-            warnings=_vi_detail_lines(final_details.warnings, fallback=det.warnings),
-        )
+    final_details = details or deterministic_card_details(item)
     return {
         "plain_language_summary": final_summary,
         "plain_language_details": final_details,
     }
 
 
-def apply_deterministic_summaries(
-    recommendation: RecommendationResponse,
-    language: str = "vi",
-) -> RecommendationResponse:
+def apply_deterministic_summaries(recommendation: RecommendationResponse) -> RecommendationResponse:
     updated = [
-        item.model_copy(update=_card_update_fields(item, language))
+        item.model_copy(update=_card_update_fields(item))
         for item in recommendation.recommendations
     ]
     return recommendation.model_copy(update={"recommendations": updated})
@@ -413,7 +210,6 @@ def parse_summary_map(raw: str, expected_classes: list[str]) -> dict[str, str]:
 def merge_summaries(
     recommendation: RecommendationResponse,
     summary_map: dict[str, Any],
-    language: str = "vi",
 ) -> RecommendationResponse:
     updated: list[MedicationRecommendation] = []
     for item in recommendation.recommendations:
@@ -433,23 +229,20 @@ def merge_summaries(
             else:
                 details = None
             updated.append(
-                item.model_copy(
-                    update=_card_update_fields(item, language, summary=str(summary or ""), details=details)
-                )
+                item.model_copy(update=_card_update_fields(item, summary=str(summary or ""), details=details))
             )
         elif isinstance(entry, str):
-            updated.append(item.model_copy(update=_card_update_fields(item, language, summary=entry)))
+            updated.append(item.model_copy(update=_card_update_fields(item, summary=entry)))
         else:
-            updated.append(item.model_copy(update=_card_update_fields(item, language)))
+            updated.append(item.model_copy(update=_card_update_fields(item)))
     return recommendation.model_copy(update={"recommendations": updated})
 
 
-def _cache_key(compact: list[dict[str, Any]], language: str) -> str:
+def _cache_key(compact: list[dict[str, Any]]) -> str:
     raw = {
         "model": _summary_model(),
         "base_url": settings.llm_base_url,
-        "language": language,
-        "version": "card_summary_v2_details",
+        "version": "card_summary_v3_en_only",
         "items": compact,
     }
     encoded = json.dumps(raw, sort_keys=True, ensure_ascii=False, default=str).encode("utf-8")
@@ -496,30 +289,25 @@ async def _write_cache(key: str, summary_map: dict[str, Any]) -> None:
 async def attach_plain_language_summaries(
     recommendation: RecommendationResponse,
     *,
-    language: str = "vi",
     patient_context: dict[str, Any] | None = None,
 ) -> RecommendationResponse:
     """Attach plain_language_summary + details via one batch LLM call, with fallback."""
     if not recommendation.recommendations:
         return recommendation
 
-    lang = (language or "vi").lower().strip()
-    if lang not in {"vi", "en"}:
-        lang = "en"
-
     compact = compact_recommendation_items(recommendation.recommendations)
     expected = [item.drug_class for item in recommendation.recommendations]
-    cache_key = _cache_key(compact, lang)
+    cache_key = _cache_key(compact)
 
     cached = await _read_cache(cache_key)
     if cached:
-        return merge_summaries(recommendation, cached, lang)
+        return merge_summaries(recommendation, cached)
 
     if not llm_chat_completions_enabled():
-        return apply_deterministic_summaries(recommendation, lang)
+        return apply_deterministic_summaries(recommendation)
 
     payload = {
-        "response_language": lang,
+        "response_language": "en",
         "patient_context": patient_context or recommendation.patient_summary or {},
         "recommendations": compact,
     }
@@ -556,41 +344,36 @@ async def attach_plain_language_summaries(
                 if not isinstance(entry, dict):
                     continue
                 summary = str(entry.get("summary") or "")
-                if _needs_locale_fallback(summary, lang):
+                if _needs_locale_fallback(summary):
                     logger.warning(
-                        "card summarizer wrong language for %s (requested %s); dropping LLM row",
+                        "card summarizer returned unusable text for %s; dropping LLM row",
                         drug_class,
-                        lang,
                     )
                     del summary_map[drug_class]
         if not summary_map:
             logger.warning("card summarizer returned unusable payload; using deterministic fallback")
-            return apply_deterministic_summaries(recommendation, lang)
+            return apply_deterministic_summaries(recommendation)
         await _write_cache(cache_key, summary_map)
-        return merge_summaries(recommendation, summary_map, lang)
+        return merge_summaries(recommendation, summary_map)
     except Exception as exc:  # noqa: BLE001
         logger.warning("card summarizer failed (%s); using deterministic fallback", exc)
-        return apply_deterministic_summaries(recommendation, lang)
+        return apply_deterministic_summaries(recommendation)
 
 
 # ============================================================================
 # Simplified display fields generation
 # ============================================================================
 
-def simplify_structured_field(raw_value: str, field_type: str, language: str) -> str:
+def simplify_structured_field(raw_value: str, field_type: str) -> str:
     """Simplify structured fields using predefined mappings."""
-    lang = language if language in _STATUS_LABELS else "en"
-
     if field_type == "status":
-        return _STATUS_LABELS.get(lang, _STATUS_LABELS["en"]).get(raw_value, raw_value)
-
+        return _STATUS_LABELS.get(raw_value, raw_value)
     if field_type == "drug_class":
-        return _DRUG_CLASS_PLAIN.get(lang, _DRUG_CLASS_PLAIN["en"]).get(raw_value, raw_value)
-
+        return _DRUG_CLASS_PLAIN.get(raw_value, raw_value)
     return raw_value
 
 
-def simplify_text_preserve_clinical(text: str, language: str) -> str:
+def simplify_text_preserve_clinical(text: str) -> str:
     """
     Simplify free text while preserving clinical precision:
     - Thresholds, lab values, diagnoses are kept
@@ -599,75 +382,41 @@ def simplify_text_preserve_clinical(text: str, language: str) -> str:
     """
     if not text or not text.strip():
         return text
-
-    lang = language if language in {"vi", "en"} else "en"
-
-    # For English: do minimal processing, just clean up
-    if lang == "en":
-        return text.strip()
-
-    # For Vietnamese: use deterministic mapping as fallback
-    # (LLM-based simplification will be done separately for complex cases)
-    return _translate_bullet_vi(text)
+    # Minimal processing for now — just clean up whitespace.
+    return text.strip()
 
 
-def simplify_recommendation_fields(item: MedicationRecommendation, language: str = "vi") -> dict[str, Any]:
+def simplify_recommendation_fields(item: MedicationRecommendation) -> dict[str, Any]:
     """
     Generate simplified versions of recommendation fields.
 
     Returns a dict with:
-    - drug_class_plain: {"vi": "...", "en": "..."}
-    - status_plain: {"vi": "...", "en": "..."}
-    - rationale_plain: {"vi": "...", "en": "..."}
-    - reasoning_plain: [{"vi": "...", "en": "..."}]
-    - action_items_plain: [{"vi": "...", "en": "..."}]
-    - monitoring_plain: [{"vi": "...", "en": "..."}]
-    - warnings_plain: [{"vi": "...", "en": "..."}]
+    - drug_class_plain: str
+    - status_plain: str
+    - rationale_plain: str
+    - reasoning_plain / action_items_plain / monitoring_plain / warnings_plain: list[str]
     """
-    simplified: dict[str, Any] = {}
-
-    # Status - use predefined labels
-    simplified["status_plain"] = {
-        "vi": _STATUS_LABELS["vi"].get(item.status, item.status),
-        "en": _STATUS_LABELS["en"].get(item.status, item.status),
+    simplified: dict[str, Any] = {
+        "status_plain": _STATUS_LABELS.get(item.status, item.status),
+        "drug_class_plain": _DRUG_CLASS_PLAIN.get(item.drug_class, item.drug_class),
     }
 
-    # Drug class - use predefined mappings
-    simplified["drug_class_plain"] = {
-        "vi": _DRUG_CLASS_PLAIN["vi"].get(item.drug_class, item.drug_class),
-        "en": _DRUG_CLASS_PLAIN["en"].get(item.drug_class, item.drug_class),
-    }
-
-    # Rationale - deterministic processing
     if item.rationale:
-        simplified["rationale_plain"] = {
-            "vi": simplify_text_preserve_clinical(item.rationale, "vi"),
-            "en": simplify_text_preserve_clinical(item.rationale, "en"),
-        }
+        simplified["rationale_plain"] = simplify_text_preserve_clinical(item.rationale)
 
-    # List fields - simplify each item
     list_fields = ["reasoning", "action_items", "monitoring", "warnings"]
     for field in list_fields:
         raw_list = getattr(item, field, None) or []
         if raw_list:
-            simplified[f"{field}_plain"] = [
-                {
-                    "vi": simplify_text_preserve_clinical(text, "vi"),
-                    "en": simplify_text_preserve_clinical(text, "en"),
-                }
-                for text in raw_list[:5]  # Limit to 5 items
-            ]
+            simplified[f"{field}_plain"] = [simplify_text_preserve_clinical(text) for text in raw_list[:5]]
 
     return simplified
 
 
-def apply_simplified_fields(
-    recommendation: RecommendationResponse,
-    language: str = "vi",
-) -> RecommendationResponse:
+def apply_simplified_fields(recommendation: RecommendationResponse) -> RecommendationResponse:
     """Apply simplified fields to all recommendations in the response."""
     updated = [
-        item.model_copy(update={"simplified": simplify_recommendation_fields(item, language)})
+        item.model_copy(update={"simplified": simplify_recommendation_fields(item)})
         for item in recommendation.recommendations
     ]
     return recommendation.model_copy(update={"recommendations": updated})

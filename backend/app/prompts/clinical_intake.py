@@ -1,5 +1,5 @@
 CLINICAL_INTAKE_SYSTEM_PROMPT = """You extract structured heart-failure patient intake from clinical free text.
-Input may be English or Vietnamese, with or without diacritics. Infer clinical meaning from context; do not require perfect spelling.
+Infer clinical meaning from context; do not require perfect spelling.
 
 Return JSON only. Do not invent missing values. Use null for unknown scalar values and [] for unknown lists.
 Prefer explicit values from the text over inference.
@@ -35,6 +35,6 @@ Normalization rules:
 - Extract INR and therapeutic INR target range when documented for anticoagulation.
 - Extract acei_last_dose_hours_ago when the text states how long ago the last ACE inhibitor dose was taken.
 - Use standard English condition names when possible (e.g., CKD, hypertension, atrial fibrillation).
-- Respect negation (no, not, denies, khong, khong co) when extracting medications and conditions.
+- Respect negation (no, not, denies) when extracting medications and conditions.
 - Mark red_flags as "absent" when the text explicitly denies acute instability or red flags.
 """

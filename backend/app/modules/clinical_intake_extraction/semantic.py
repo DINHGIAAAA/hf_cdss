@@ -301,11 +301,16 @@ def _split_by_conjunction(raw: str) -> list[str]:
         r"should\s+I\s+(?:also|also\s+consider|add)\b",
         r"then\s+(?:what|how|about)\b",
         r"what\s+if\b",
-        r"does\s+it\b",
-        r"is\s+there\b",
-        r"can\s+(?:we|I)\b",
-        r"could\s+(?:we|I)\b",
-        r"would\s+(?:it|you)\b",
+        # "does it"/"is there"/"can we"/etc. only mark a NEW question when they
+        # continue a prior clause via a conjunction — bare, they're just how the
+        # message's one real question naturally opens (e.g. after a clinical
+        # presentation paragraph), and splitting there fabricates a false first
+        # "question" out of that non-question preamble.
+        r"and\s+does\s+it\b",
+        r"and\s+is\s+there\b",
+        r"and\s+can\s+(?:we|I)\b",
+        r"and\s+could\s+(?:we|I)\b",
+        r"and\s+would\s+(?:it|you)\b",
         r",\s*also\b",
     ]
 

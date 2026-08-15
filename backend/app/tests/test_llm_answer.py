@@ -34,8 +34,8 @@ def test_llm_answer_falls_back_when_ollama_unavailable(client) -> None:
     payload = response.json()
     assert payload["case_id"] == "LLM_CASE"
     assert payload["answer"]
-    # Fallback safety_note (when LLM unavailable) comes from FALLBACK_TEMPLATES
-    assert "bác sĩ" in payload["safety_note"]
+    # Fallback safety_note (when LLM unavailable) comes from FALLBACK_TEMPLATE
+    assert "physician" in payload["safety_note"]
 
 
 def test_llm_answer_uses_cache_for_repeated_payload(monkeypatch, client) -> None:
@@ -109,8 +109,8 @@ def test_compact_recommendation_includes_conversation_context(client) -> None:
 
     compact = _compact_recommendation(
         LLMAnswerRequest(
-            user_input="Co tang lieu duoc khong?",
-            conversation_context="[Previous] EF 30 eGFR 55\n[Current] Co tang lieu duoc khong?",
+            user_input="Should I increase the dose?",
+            conversation_context="[Previous] EF 30 eGFR 55\n[Current] Should I increase the dose?",
             clinical_state={"intent": "dose_adjustment", "hf_type": "HFrEF"},
             patient=patient,
             recommendation=recommendation,
@@ -120,4 +120,4 @@ def test_compact_recommendation_includes_conversation_context(client) -> None:
 
     assert compact["conversation_context"].startswith("[Previous]")
     assert compact["clinical_state"]["intent"] == "dose_adjustment"
-    assert compact["response_language"] == "vi"
+    assert compact["response_language"] == "en"

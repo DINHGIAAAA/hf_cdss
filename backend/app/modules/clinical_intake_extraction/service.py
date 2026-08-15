@@ -31,22 +31,19 @@ from app.schemas.patient import (
 MEDICATIONS: dict[str, tuple[str, tuple[str, ...]]] = medications_catalog_for_intake()
 
 CONDITIONS: dict[str, tuple[str, ...]] = {
-    "CKD": ("ckd", "chronic kidney", "suy than", "benh than man", "than man"),
-    "Diabetes": ("diabetes", "dm", "t2dm", "tieu duong", "dai thao duong"),
-    "Atrial fibrillation": ("atrial fibrillation", "afib", "af ", "rung nhi"),
-    "Hypertension": ("hypertension", "htn", "tang huyet ap"),
-    "COPD": ("copd", "asthma", "hen", "benh phoi tac nghen"),
+    "CKD": ("ckd", "chronic kidney"),
+    "Diabetes": ("diabetes", "dm", "t2dm"),
+    "Atrial fibrillation": ("atrial fibrillation", "afib", "af "),
+    "Hypertension": ("hypertension", "htn"),
+    "COPD": ("copd", "asthma"),
 }
 
 RED_FLAGS: dict[str, tuple[str, ...]] = {
-    "cardiogenic_shock": ("cardiogenic shock", "shock", "soc tim"),
-    "active_bleeding": ("active bleeding", "dang chay mau", "xuat huyet dang tien trien"),
+    "cardiogenic_shock": ("cardiogenic shock", "shock"),
+    "active_bleeding": ("active bleeding",),
     "acute_decompensated_hf": (
         "acute decompensated",
         "decompensated hf",
-        "kho tho tang",
-        "phu chan",
-        "suy tim mat bu",
     ),
 }
 
@@ -82,7 +79,7 @@ def _sanitize_llm_input(text: str) -> str:
     for pattern in _COMPILED_INJECTION_PATTERNS:
         sanitized = pattern.sub("[CONTENT REDACTED]", sanitized)
 
-    # Normalize Unicode characters (防止 homoglyph attacks)
+    # Normalize Unicode characters (guards against homoglyph attacks)
     sanitized = unicodedata.normalize("NFKC", sanitized)
 
     # Remove excessive whitespace that might be used for obfuscation
@@ -94,18 +91,14 @@ NO_RED_FLAG_TERMS = (
     "no acute instability",
     "no red flags",
     "stable",
-    "khong co dau hieu cap cuu",
-    "khong soc",
-    "khong chay mau",
 )
 
-NEGATION_PREFIXES = ("no", "not", "not on", "without", "denies", "khong", "khong co", "chua ghi nhan")
+NEGATION_PREFIXES = ("no", "not", "not on", "without", "denies")
 
 
 def normalize_text(text: str) -> str:
     decomposed = unicodedata.normalize("NFD", text)
-    ascii_text = "".join(char for char in decomposed if unicodedata.category(char) != "Mn")
-    return ascii_text.lower().replace("đ", "d")
+    return "".join(char for char in decomposed if unicodedata.category(char) != "Mn").lower()
 
 
 def extract_current_message(aggregated_message: str) -> str:
@@ -215,7 +208,7 @@ def _extract_medications(raw_text: str, normalized_text: str) -> list[Medication
         match = active_matches[0]
         window = normalized_text[match.start() : min(len(normalized_text), match.end() + 48)]
         dose = re.search(r"(\d+(?:[.,]\d+)?)\s*(mg|mcg|g|units?)", window)
-        frequency = re.search(r"\b(qd|daily|od|bid|tid|qhs|once daily|twice daily|hang ngay|moi ngay)\b", window)
+        frequency = re.search(r"\b(qd|daily|od|bid|tid|qhs|once daily|twice daily)\b", window)
         medications.append(
             MedicationStatement(
                 name=canonical_name,
@@ -236,8 +229,6 @@ def _extract_allergies(raw_text: str, normalized_text: str) -> list[AllergyState
         "no known drug allergies",
         "no allergies",
         "nkda",
-        "khong di ung",
-        "chua ghi nhan di ung",
     )
     if any(term in normalized_text for term in no_allergy_terms):
         return [
@@ -249,15 +240,15 @@ def _extract_allergies(raw_text: str, normalized_text: str) -> list[AllergyState
         ]
 
     patterns = (
-        r"(?:allergy|allergic to|di ung|di ung voi)\s*:?\s*([a-z0-9+/\- ]{2,80})",
-        r"(?:angioedema|phu mach|cough|ho)\s+(?:with|voi|do)\s+([a-z0-9+/\- ]{2,40})",
+        r"(?:allergy|allergic to)\s*:?\s*([a-z0-9+/\- ]{2,80})",
+        r"(?:angioedema|cough)\s+(?:with)\s+([a-z0-9+/\- ]{2,40})",
     )
     allergies: list[AllergyStatement] = []
     for pattern in patterns:
         match = re.search(pattern, normalized_text)
         if match:
             substance = re.split(r"[,.;]", match.group(1).strip())[0].strip()
-            substance = re.sub(r"^(?:voi|with|to)\s+", "", substance).strip()
+            substance = re.sub(r"^(?:with|to)\s+", "", substance).strip()
             if substance:
                 allergies.append(
                     AllergyStatement(
@@ -282,52 +273,51 @@ def _regex_extract_patient_from_message(message: str, conversation_id: str) -> P
 
     lvef, lvef_text = measured(
         (
-            r"\b(?:lvef|ef)\s*(?:is|was|=|:|con|khoang|about|around)?\s*(\d+(?:[.,]\d+)?)\s*%?",
-            r"\b(?:ejection fraction|phan suat tong mau)\s*(?:is|was|=|:|con|khoang)?\s*(\d+(?:[.,]\d+)?)",
+            r"\b(?:lvef|ef)\s*(?:is|was|=|:|about|around)?\s*(\d+(?:[.,]\d+)?)\s*%?",
+            r"\b(?:ejection fraction)\s*(?:is|was|=|:)?\s*(\d+(?:[.,]\d+)?)",
         ),
     )
     egfr, egfr_text = measured(
         (
-            r"\b(?:egfr|e-gfr)\s*(?:is|was|=|:|khoang|about)?\s*(\d+(?:[.,]\d+)?)",
-            r"\b(?:muc loc cau than|loc cau than)\s*(?:la|khoang|about)?\s*(\d+(?:[.,]\d+)?)",
+            r"\b(?:egfr|e-gfr)\s*(?:is|was|=|:|about)?\s*(\d+(?:[.,]\d+)?)",
         ),
     )
     potassium, potassium_text = measured(
         (
-            r"\b(?:potassium|serum k|kali)\s*(?:mau|is|was|=|:|la|khoang|now|vua|moi)?\s*(\d+(?:[.,]\d+)?)",
+            r"\b(?:potassium|serum k|kali)\s*(?:is|was|=|:|now)?\s*(\d+(?:[.,]\d+)?)",
+            r"\bK\+\s*(?:(?:is|was|now|=|:)\s*)*(\d+(?:[.,]\d+)?)",
             r"\bK\s*[+:]\s*(\d+(?:[.,]\d+)?)",
             r"\bK\s+(\d+(?:[.,]\d+)?)\b",
         ),
     )
     systolic_bp, sbp_text = measured(
         (
-            r"\b(?:sbp|systolic(?: bp)?|huyet ap tam thu)\s*(?:is|was|=|:|la|khoang)?\s*(\d+(?:[.,]\d+)?)",
-            r"\b(?:bp|blood pressure|huyet ap|ha)\s*(?:is|was|=|:|la|khoang)?\s*(\d{2,3})(?:/\d{2,3})?",
+            r"\b(?:sbp|systolic(?: bp)?)\s*(?:is|was|=|:)?\s*(\d+(?:[.,]\d+)?)",
+            r"\b(?:bp|blood pressure)\s*(?:is|was|=|:)?\s*(\d{2,3})(?:/\d{2,3})?",
         ),
     )
     heart_rate, hr_text = measured(
         (
-            r"\b(?:hr|heart rate|pulse|nhip tim|mach)\s*(?:is|was|=|:|la|khoang)?\s*(\d+(?:[.,]\d+)?)",
-            r"\b(\d+(?:[.,]\d+)?)\s*(?:bpm|lan/phut)\b",
+            r"\b(?:hr|heart rate|pulse)\s*(?:is|was|=|:)?\s*(\d+(?:[.,]\d+)?)",
+            r"\b(\d+(?:[.,]\d+)?)\s*(?:bpm)\b",
         ),
     )
     weight_kg, weight_text = measured(
         (
-            r"\b(?:weight|body weight|can nang|cn)\s*(?:is|was|=|:|la|khoang)?\s*(\d+(?:[.,]\d+)?)\s*kg?\b",
+            r"\b(?:weight|body weight)\s*(?:is|was|=|:)?\s*(\d+(?:[.,]\d+)?)\s*kg?\b",
             r"\b(\d+(?:[.,]\d+)?)\s*kg\b",
         ),
     )
     inr, inr_text = measured(
         (
-            r"\b(?:inr|prothrombin time|pt)\s*(?:is|was|=|:|la|khoang)?\s*(\d+(?:[.,]\d+)?)",
-            r"\b(?:muc inr|chi so inr)\s*(?:la|khoang)?\s*(\d+(?:[.,]\d+)?)",
+            r"\b(?:inr|prothrombin time|pt)\s*(?:is|was|=|:)?\s*(\d+(?:[.,]\d+)?)",
         ),
     )
 
     inr_target_low = None
     inr_target_high = None
     inr_target_match = re.search(
-        r"\b(?:inr\s*)?target(?:\s*inr)?\s*(?:is|was|=|:|la|khoang)?\s*(\d+(?:[.,]\d+)?)\s*(?:-|to|den|đến)\s*(\d+(?:[.,]\d+)?)",
+        r"\b(?:inr\s*)?target(?:\s*inr)?\s*(?:is|was|=|:)?\s*(\d+(?:[.,]\d+)?)\s*(?:-|to)\s*(\d+(?:[.,]\d+)?)",
         normalized,
     )
     if inr_target_match:
@@ -335,24 +325,26 @@ def _regex_extract_patient_from_message(message: str, conversation_id: str) -> P
         inr_target_high = float(inr_target_match.group(2).replace(",", "."))
 
     acei_last_dose_hours_ago = None
-    acei_hours_match = re.search(
-        r"\b(?:last\s+)?(?:acei|ace inhibitor|enalapril|lisinopril|ramipril|captopril)\s+"
-        r"(?:dose\s+)?(?:was\s+)?(\d+(?:[.,]\d+)?)\s*(?:hours?|h|gio|giờ)\s+ago",
-        normalized,
-        flags=re.IGNORECASE,
-    )
-    if acei_hours_match:
-        acei_last_dose_hours_ago = float(acei_hours_match.group(1).replace(",", "."))
+    # ponytail: word order between the ACEi mention and the "N hours ago" phrase is
+    # not fixed ("ACEi last dose 40 hours ago" vs "last dose was 40h ago for ACEi"),
+    # so the two are matched independently instead of one rigid sequential regex.
+    if re.search(r"\b(?:acei|ace inhibitor|enalapril|lisinopril|ramipril|captopril)\b", normalized):
+        acei_hours_match = re.search(
+            r"(\d+(?:[.,]\d+)?)\s*(?:hours?|h)\s+ago",
+            normalized,
+        )
+        if acei_hours_match:
+            acei_last_dose_hours_ago = float(acei_hours_match.group(1).replace(",", "."))
 
     age_match = re.search(
-        r"\b(?:age|tuoi)\s*(?:is|was|=|:|la|khoang)?\s*(\d{1,3})\b",
+        r"\b(?:age)\s*(?:is|was|=|:)?\s*(\d{1,3})\b",
         normalized,
     )
     age = int(age_match.group(1)) if age_match else None
     sex = None
-    if re.search(r"\b(?:male|nam|man)\b", normalized):
+    if re.search(r"\b(?:male|man)\b", normalized):
         sex = "male"
-    elif re.search(r"\b(?:female|nu|woman)\b", normalized):
+    elif re.search(r"\b(?:female|woman)\b", normalized):
         sex = "female"
 
     return PatientProfile(
@@ -621,6 +613,7 @@ async def extract_patient_from_message(
     *,
     conversation_history: list[str] | None = None,
     intake_status: Callable[[str], None] | None = None,
+    clinical_state: dict[str, Any] | None = None,
 ) -> PatientProfile:
     from app.modules.clinical_intake_extraction.semantic import aggregate_conversation_context, semantic_extract_patient
     from app.modules.clinical_intake_extraction.selective_llm import should_call_llm_extractor
@@ -645,6 +638,7 @@ async def extract_patient_from_message(
         regex_patient=regex_patient,
         semantic_patient=semantic_patient,
         merged=merged,
+        clinical_state=clinical_state,
     )
     if not decision.call_llm:
         return merged

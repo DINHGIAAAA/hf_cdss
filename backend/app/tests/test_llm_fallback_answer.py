@@ -28,7 +28,6 @@ def _payload(*items: MedicationRecommendation) -> LLMAnswerRequest:
         patient=patient,
         recommendation=recommendation,
         user_input="test",
-        language="en",
     )
 
 

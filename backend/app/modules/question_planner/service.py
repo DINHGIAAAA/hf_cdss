@@ -57,10 +57,10 @@ def _rule_based_required_fields(question: str, *, patient: PatientProfile | None
     if any(token in focus for token in ("arni",)) or any(
         token in normalized for token in ("arni", "sacubitril", "entresto")
     ):
-        if patient is None or patient_on_acei(patient):
+        if patient is not None and patient_on_acei(patient):
             fields.append("acei_last_dose_hours_ago")
 
-    if any(token in normalized for token in ("dose", "titrat", "titration", "liều", "lieu", "mg")):
+    if any(token in normalized for token in ("dose", "titrat", "titration")):
         fields.extend(["weight_kg", "sex", "age", "creatinine"])
 
     if patient is not None and patient_on_warfarin(patient) and any(
@@ -87,9 +87,7 @@ def fallback_question_plan(
     message: str,
     *,
     patient: PatientProfile | None = None,
-    language: str = "vi",
 ) -> QuestionPlan:
-    del language  # reserved for future localized reasoning strings
     texts = detect_multi_question(message)
     questions = [
         PlannedQuestion(
@@ -160,7 +158,6 @@ async def _call_llm_planner(
     message: str,
     patient: PatientProfile | None,
     conversation_history: list[str],
-    language: str,
 ) -> dict[str, Any] | None:
     if not llm_chat_completions_enabled():
         return None
@@ -179,7 +176,6 @@ async def _call_llm_planner(
 
     user_payload = {
         "clinician_message": message,
-        "response_language": language,
         "known_patient_snapshot": patient_summary,
         "prior_user_messages": conversation_history[-6:],
     }
@@ -224,11 +220,10 @@ async def plan_clinical_questions(
     *,
     patient: PatientProfile | None = None,
     conversation_history: list[str] | None = None,
-    language: str = "vi",
 ) -> QuestionPlan:
     """Plan how to handle the clinician message before running CDSS."""
     history = conversation_history or []
-    fallback = fallback_question_plan(message, patient=patient, language=language)
+    fallback = fallback_question_plan(message, patient=patient)
 
     if not settings.question_planner_enabled:
         return fallback
@@ -240,7 +235,6 @@ async def plan_clinical_questions(
         message=message,
         patient=patient,
         conversation_history=history,
-        language=language,
     )
     parsed = _parse_llm_plan(llm_data, patient=patient)
     if parsed is None:

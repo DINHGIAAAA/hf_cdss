@@ -43,7 +43,7 @@ def _recommendation(items: list[MedicationRecommendation] | None = None) -> Reco
     )
 
 
-def test_merge_summaries_replaces_chinese_llm_output_with_vietnamese() -> None:
+def test_merge_summaries_replaces_chinese_llm_output_with_deterministic_fallback() -> None:
     rec = _recommendation([_item(drug_class="SGLT2 inhibitor", status="consider")])
     chinese = "钠尿肽类似物应密切监测血糖和肾功能。"
     merged = merge_summaries(
@@ -56,47 +56,39 @@ def test_merge_summaries_replaces_chinese_llm_output_with_vietnamese() -> None:
                 },
             }
         },
-        language="vi",
     )
     summary = merged.recommendations[0].plain_language_summary or ""
     assert _contains_cjk(summary) is False
-    assert "SGLT2" in summary or "cân nhắc" in summary.lower() or "ức chế" in summary.lower()
+    assert "SGLT2" in summary or "Consider" in summary
 
 
-def test_deterministic_card_summary_vietnamese() -> None:
-    text = deterministic_card_summary(_item(), language="vi")
-    assert "chưa thấy" in text.lower() or "cân nhắc" in text.lower()
+def test_deterministic_card_summary_english() -> None:
+    text = deterministic_card_summary(_item())
+    assert "Consider" in text
     assert "ARNI" in text or "RAAS" in text
-    assert "No clear current" not in text
 
 
-def test_deterministic_card_details_vietnamese() -> None:
+def test_deterministic_card_details_english() -> None:
     from app.modules.explanation.card_summarizer import deterministic_card_details
 
-    details = deterministic_card_details(_item(), language="vi")
+    details = deterministic_card_details(_item())
     assert details.reasoning
-    assert all("disease-modifying" not in line.lower() for line in details.reasoning)
     assert details.next_steps
-    assert all(_looks_like_vietnamese_or_plain(line) for line in details.next_steps)
-
-
-def _looks_like_vietnamese_or_plain(line: str) -> bool:
-    lowered = line.lower()
-    return "clinically stable" not in lowered and "consider low-dose" not in lowered
+    assert details.reasoning == [line.strip() for line in _item().clinical_reasoning[:3]]
 
 
 def test_parse_summary_map_ignores_unknown_classes() -> None:
     raw = json_dumps(
         {
             "summaries": [
-                {"drug_class": "RAAS inhibition / ARNI", "summary": "Có thể cân nhắc ARNI."},
+                {"drug_class": "RAAS inhibition / ARNI", "summary": "Consider ARNI."},
                 {"drug_class": "Invented class", "summary": "should ignore"},
                 {"drug_class": "Evidence-based beta blocker", "summary": ""},
             ]
         }
     )
     mapping = parse_summary_map(raw, ["RAAS inhibition / ARNI", "Evidence-based beta blocker"])
-    assert mapping == {"RAAS inhibition / ARNI": "Có thể cân nhắc ARNI."}
+    assert mapping == {"RAAS inhibition / ARNI": "Consider ARNI."}
 
 
 def test_merge_summaries_falls_back_per_item() -> None:
@@ -106,8 +98,8 @@ def test_merge_summaries_falls_back_per_item() -> None:
             _item(drug_class="Evidence-based beta blocker", rationale="No beta blocker detected."),
         ]
     )
-    merged = merge_summaries(rec, {"RAAS inhibition / ARNI": "Tóm tắt LLM cho ARNI."}, language="vi")
-    assert merged.recommendations[0].plain_language_summary == "Tóm tắt LLM cho ARNI."
+    merged = merge_summaries(rec, {"RAAS inhibition / ARNI": "LLM summary for ARNI."})
+    assert merged.recommendations[0].plain_language_summary == "LLM summary for ARNI."
     assert merged.recommendations[1].plain_language_summary
     assert "beta blocker" in merged.recommendations[1].plain_language_summary.lower()
 
@@ -117,7 +109,7 @@ async def test_attach_summaries_uses_fallback_when_llm_disabled(monkeypatch) -> 
     from app.modules.explanation import card_summarizer
 
     monkeypatch.setattr(card_summarizer, "llm_chat_completions_enabled", lambda: False)
-    result = await attach_plain_language_summaries(_recommendation(), language="vi")
+    result = await attach_plain_language_summaries(_recommendation())
     assert result.recommendations[0].plain_language_summary
     assert "ARNI" in result.recommendations[0].plain_language_summary or "RAAS" in result.recommendations[0].plain_language_summary
 
@@ -140,7 +132,7 @@ async def test_attach_summaries_maps_llm_json(monkeypatch) -> None:
                                     "summaries": [
                                         {
                                             "drug_class": "RAAS inhibition / ARNI",
-                                            "summary": "Có thể cân nhắc khởi trị ARNI liều thấp.",
+                                            "summary": "Consider initiating low-dose ARNI.",
                                         }
                                     ]
                                 }
@@ -162,18 +154,17 @@ async def test_attach_summaries_maps_llm_json(monkeypatch) -> None:
     monkeypatch.setattr(card_summarizer, "_read_cache", _none)
     monkeypatch.setattr(card_summarizer, "_write_cache", _none)
 
-    result = await attach_plain_language_summaries(_recommendation(), language="vi")
-    assert result.recommendations[0].plain_language_summary == "Có thể cân nhắc khởi trị ARNI liều thấp."
+    result = await attach_plain_language_summaries(_recommendation())
+    assert result.recommendations[0].plain_language_summary == "Consider initiating low-dose ARNI."
 
 
 def test_compact_recommendation_includes_plain_language_summary() -> None:
     patient = PatientProfile(case_id="PL_CASE", lvef=30, egfr=55, potassium=4.2, systolic_bp=118, heart_rate=72)
-    rec = apply_deterministic_summaries(_recommendation(), language="vi")
+    rec = apply_deterministic_summaries(_recommendation())
     payload = LLMAnswerRequest(
-        user_input="Tóm tắt khuyến nghị",
+        user_input="Summarize the recommendation",
         patient=patient,
         recommendation=rec,
-        language="vi",
     )
     compact = _compact_recommendation(payload)
     assert compact["candidate_medication_classes"][0]["plain_language_summary"]
@@ -181,19 +172,19 @@ def test_compact_recommendation_includes_plain_language_summary() -> None:
 
 def test_fallback_answer_prefers_plain_language_summary() -> None:
     patient = PatientProfile(case_id="PL_FB", lvef=30, egfr=55, potassium=4.2, systolic_bp=118, heart_rate=72)
-    item = _item(plain_language_summary="Có thể cân nhắc khởi trị ARNI.")
+    item = _item(plain_language_summary="Consider initiating ARNI.")
     rec = _recommendation([item])
     text = fallback_answer(
-        LLMAnswerRequest(user_input="x", patient=patient, recommendation=rec, language="vi")
+        LLMAnswerRequest(user_input="x", patient=patient, recommendation=rec)
     )
-    assert "Có thể cân nhắc khởi trị ARNI." in text
+    assert "Consider initiating ARNI." in text
 
 
 def test_explanation_prompt_keeps_contract() -> None:
     assert "user_input" in CLINICAL_EXPLANATION_SYSTEM_PROMPT
     assert "plain_language_summary" in CLINICAL_EXPLANATION_SYSTEM_PROMPT
     assert "soft-pedal" in CLINICAL_EXPLANATION_SYSTEM_PROMPT
-    assert "Quyết định điều trị cuối cùng" in CLINICAL_EXPLANATION_SYSTEM_PROMPT
+    assert "Final treatment decisions" in CLINICAL_EXPLANATION_SYSTEM_PROMPT
     assert "No fixed section templates" in CLINICAL_EXPLANATION_SYSTEM_PROMPT
     assert "per_class_fact_sheet" in CLINICAL_EXPLANATION_SYSTEM_PROMPT
 

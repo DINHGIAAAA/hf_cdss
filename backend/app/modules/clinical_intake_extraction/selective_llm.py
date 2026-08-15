@@ -42,19 +42,10 @@ DECISION_KEYWORDS = (
     "continue",
     "evaluate",
     "assess",
-    "danh gia",
-    "co nen",
-    "nen them",
-    "nen tang",
-    "nen giam",
-    "ngung",
-    "an toan",
-    "thay the",
-    "lieu",
     "dose",
 )
 
-CONTRAST_MARKERS = ("but", "however", "although", "though", "nhung", "tuy nhien", "mac du", "nhung ma")
+CONTRAST_MARKERS = ("but", "however", "although", "though")
 
 MEDICATION_HINTS = (
     "mg",
@@ -64,9 +55,6 @@ MEDICATION_HINTS = (
     "tid",
     "taking",
     "on ",
-    "dung",
-    "uong",
-    "thuoc",
     "medication",
     "drug",
 )
@@ -203,8 +191,15 @@ def _low_confidence_present_fields(merged: PatientProfile, aggregated_message: s
     return low_confidence
 
 
-def _missing_field_ids(patient: PatientProfile) -> list[str]:
-    return [item.field for item in check_missing_fields(patient).missing_fields]
+def _missing_field_ids(patient: PatientProfile, clinical_state: dict | None = None) -> list[str]:
+    return [
+        item.field
+        for item in check_missing_fields(
+            patient,
+            clinical_intent=(clinical_state or {}).get("intent"),
+            clinical_state=clinical_state,
+        ).missing_fields
+    ]
 
 
 def _message_mentions_medications(aggregated_message: str) -> bool:
@@ -219,12 +214,6 @@ def _has_update_language(aggregated_message: str) -> bool:
         "now",
         "updated",
         "latest",
-        "vua",
-        "moi",
-        "cap nhat",
-        "hien tai",
-        "toi qua",
-        "hom nay",
     )
     return any(marker in current for marker in update_markers)
 
@@ -235,13 +224,18 @@ def should_call_llm_extractor(
     regex_patient: PatientProfile,
     semantic_patient: PatientProfile | None,
     merged: PatientProfile,
+    clinical_state: dict | None = None,
 ) -> SelectiveLlmDecision:
+    missing_kwargs = {
+        "clinical_intent": (clinical_state or {}).get("intent"),
+        "clinical_state": clinical_state,
+    }
     if not settings.clinical_intake_selective_llm_enabled:
-        if check_missing_fields(merged).status == "complete":
+        if check_missing_fields(merged, **missing_kwargs).status == "complete":
             return SelectiveLlmDecision(call_llm=False, reasons=["legacy_complete"])
         return SelectiveLlmDecision(call_llm=True, reasons=["legacy_incomplete"])
 
-    missing = check_missing_fields(merged)
+    missing = check_missing_fields(merged, **missing_kwargs)
     reasons: list[str] = []
     conflicts = _regex_semantic_conflicts(regex_patient, semantic_patient)
     reasons.extend(conflicts)
@@ -258,18 +252,16 @@ def should_call_llm_extractor(
 
     if missing.status == "complete":
         if reasons:
-            # Tighten: only escalate to LLM on real signals (conflicts, low confidence),
-            # not on minor care_context ambiguity once all required fields are present.
-            significant = [
-                r for r in reasons
-                if not r.startswith("ambiguous_care_context") and not r.startswith("complex_message")
-            ]
+            # Tighten: only escalate to LLM on real signals (conflicts, low confidence,
+            # complex phrasing), not on minor care_context ambiguity once all required
+            # fields are present.
+            significant = [r for r in reasons if not r.startswith("ambiguous_care_context")]
             if significant:
                 return SelectiveLlmDecision(call_llm=True, reasons=reasons)
             return SelectiveLlmDecision(call_llm=False, reasons=["complete_high_confidence"])
         return SelectiveLlmDecision(call_llm=False, reasons=["complete_high_confidence"])
 
-    missing_ids = _missing_field_ids(merged)
+    missing_ids = _missing_field_ids(merged, clinical_state)
     simple_missing = [field_id for field_id in missing_ids if field_id in SIMPLE_MISSING_FIELDS]
     complex_missing = [field_id for field_id in missing_ids if field_id not in SIMPLE_MISSING_FIELDS]
 

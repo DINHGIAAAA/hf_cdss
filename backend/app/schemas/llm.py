@@ -12,7 +12,6 @@ class LLMAnswerRequest(BaseModel):
     patient: PatientProfile
     recommendation: RecommendationResponse
     verification: VerificationResponse | None = None
-    language: str = "vi"
     conversation_context: str | None = None
     clinical_state: dict[str, Any] | None = Field(default=None)
 

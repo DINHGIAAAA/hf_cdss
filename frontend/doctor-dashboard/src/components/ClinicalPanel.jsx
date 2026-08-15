@@ -155,7 +155,7 @@ function RecommendationBullets({ items }) {
 }
 
 function RecommendationCard({ item, evidenceChunks = [], sharedVitals = [] }) {
-  const { t, language } = useLanguage();
+  const { t } = useLanguage();
   const linkedChunks = evidenceChunks.filter((chunk) => item.evidence?.includes(chunk.chunk_id));
   const lead = recommendationLead(item);
   const detailLines = recommendationDetailLines(item, sharedVitals);
@@ -166,21 +166,15 @@ function RecommendationCard({ item, evidenceChunks = [], sharedVitals = [] }) {
   const getSimplified = (field, fallback = []) => {
     const simplifiedList = simplified[field];
     if (Array.isArray(simplifiedList) && simplifiedList.length > 0) {
-      return simplifiedList.map((item) => item?.[language] || item?.vi || "").filter(Boolean);
+      return simplifiedList.map((line) => String(line || "").trim()).filter(Boolean);
     }
     return fallback;
   };
 
   // Simplified fields: use simplified_* if available, fallback to existing
-  const displayDrugClass =
-    simplified.drug_class_plain?.[language] ||
-    simplified.drug_class_plain?.vi ||
-    item.drug_class;
+  const displayDrugClass = simplified.drug_class_plain || item.drug_class;
 
-  const displayStatus =
-    simplified.status_plain?.[language] ||
-    simplified.status_plain?.vi ||
-    item.status;
+  const displayStatus = simplified.status_plain || item.status;
 
   const reasoningItems = getSimplified(
     "reasoning_plain",
@@ -205,14 +199,7 @@ function RecommendationCard({ item, evidenceChunks = [], sharedVitals = [] }) {
 
   const displayReasoning = reasoningItems.length > 0 ? reasoningItems : detailLines;
   const plainSummary = String(item.plain_language_summary || "").trim();
-  const displaySummary =
-    plainSummary ||
-    (language === "vi"
-      ? t("clinicalPanel.summaryFallback", {
-          status: titleCase(displayStatus),
-          drugClass: displayDrugClass,
-        })
-      : lead);
+  const displaySummary = plainSummary || lead;
   const hasStructuredDetails =
     displayReasoning.length > 0 ||
     warnings.length > 0 ||

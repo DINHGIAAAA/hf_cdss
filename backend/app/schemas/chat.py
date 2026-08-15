@@ -69,7 +69,6 @@ class ChatRequest(BaseModel):
     message: str
     conversation_id: str | None = None
     patient: PatientProfile | None = None
-    language: str = "vi"
     clinical_attachments: list[ClinicalAttachment] = Field(default_factory=list)
     idempotency_key: str | None = Field(
         default=None,

@@ -24,7 +24,7 @@ def _demo_like_patient(*, creatinine: float | None = None) -> PatientProfile:
             "medications": [{"name": "spironolactone", "status": "active"}],
             "allergy_statements": [{"substance": "no known drug allergies", "status": "active"}],
             "red_flags": [{"name": "stable", "status": "absent"}],
-            "care_context": {"clinician_question": "Co tang lieu MRA?"},
+            "care_context": {"clinician_question": "Should I increase MRA dose?"},
         }
     )
 
@@ -60,11 +60,9 @@ def test_arni_question_requires_acei_washout_when_on_acei() -> None:
         clinical_state={"focus_medication_classes": ["ARNI/ACEi/ARB"], "mentioned_medications": [{"name": "ARNI"}]},
     )
     assert any(item.field == "acei_last_dose_hours_ago" for item in check.missing_fields)
-    en_prompt = build_missing_fields_prompt(check, language="en")
+    en_prompt = build_missing_fields_prompt(check)
     assert "ACEi last dose timing" in en_prompt
     assert "ARNI" in en_prompt
-    vi_prompt = build_missing_fields_prompt(check, language="vi")
-    assert "ACEi" in vi_prompt or "ARNI" in vi_prompt
 
 
 def test_missing_fields_prompt_includes_multi_question_context() -> None:
@@ -77,7 +75,6 @@ def test_missing_fields_prompt_includes_multi_question_context() -> None:
     )
     prompt = build_missing_fields_prompt(
         check,
-        language="en",
         active_question="What about ARNI?",
         question_index=1,
         total_questions=2,
@@ -95,6 +92,9 @@ def test_merge_patient_persists_acei_last_dose_hours() -> None:
 
     extracted = _regex_extract_patient_from_message("Last ACEi dose was 48 hours ago", base.case_id)
     assert extracted.care_context.acei_last_dose_hours_ago == 48.0
+
+    reordered = _regex_extract_patient_from_message("ACEi last dose 40 hours ago", base.case_id)
+    assert reordered.care_context.acei_last_dose_hours_ago == 40.0
 
     merged = _merge_patient(base, extracted)
     assert merged.care_context.acei_last_dose_hours_ago == 48.0

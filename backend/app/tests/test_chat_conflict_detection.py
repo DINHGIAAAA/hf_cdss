@@ -131,7 +131,7 @@ def test_has_significant_conflict_false_when_only_age() -> None:
     assert chat_service._has_significant_conflict(conflicts) is False
 
 
-def test_build_confirmation_message_vi() -> None:
+def test_build_confirmation_message() -> None:
     conflicts = [
         chat_service.PatientConflict(
             field="potassium",
@@ -142,23 +142,7 @@ def test_build_confirmation_message_vi() -> None:
             requires_confirmation=True,
         )
     ]
-    msg = chat_service._build_confirmation_message(conflicts, "vi")
-    assert "4" in msg and "5.5" in msg
-    assert "K+" in msg or "potassium" in msg.lower()
-
-
-def test_build_confirmation_message_en() -> None:
-    conflicts = [
-        chat_service.PatientConflict(
-            field="potassium",
-            label="Serum potassium",
-            old_value=4.0,
-            new_value=5.5,
-            reason="change",
-            requires_confirmation=True,
-        )
-    ]
-    msg = chat_service._build_confirmation_message(conflicts, "en")
+    msg = chat_service._build_confirmation_message(conflicts)
     assert "4" in msg and "5.5" in msg
     assert "yes" in msg.lower() or "confirm" in msg.lower()
 

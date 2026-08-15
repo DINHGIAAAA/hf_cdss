@@ -17,7 +17,6 @@ import { ClinicalAnswerText } from "@/components/ClinicalAnswerText";
 import { ClinicalStreamProgress } from "@/components/ClinicalStreamProgress";
 import { ClinicalConversationContext } from "@/context/ClinicalConversationContext.jsx";
 import { StreamProgressProvider } from "@/context/StreamProgressContext.jsx";
-import { LanguageToggle } from "@/components/LanguageToggle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -84,7 +83,7 @@ export function ClinicalChatThread({
   streamStatus,
   streamProgress,
 }) {
-  const { language, languages, setLanguage, t } = useLanguage();
+  const { t } = useLanguage();
   const summary = patientSummary(active?.draft?.patient || active?.patient);
   const hasActive = Boolean(active);
   const showPanelTabs = hasActive && (evidenceCount > 0 || Boolean(active?.recommendation));
@@ -251,10 +250,6 @@ export function ClinicalChatThread({
           >
             <PanelRight size={18} />
           </Button>
-
-          <div className="hidden md:block">
-            <LanguageToggle language={language} languages={languages} onChange={setLanguage} variant="light" />
-          </div>
 
           <Button
             aria-label={t("chat.newChat")}

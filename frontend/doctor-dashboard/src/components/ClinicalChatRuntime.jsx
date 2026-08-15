@@ -78,7 +78,6 @@ function createClinicalAttachmentAdapter(getConversation, updateAttachments) {
 
 export function ClinicalChatRuntimeProvider({
   active,
-  language,
   patchConversation,
   updateActive,
   onStreamStatus,
@@ -143,7 +142,7 @@ export function ClinicalChatRuntimeProvider({
       const controller = new AbortController();
       abortRef.current = controller;
       setIsRunning(true);
-      const preparing = { step: "preparing", label: translate(language, "chat.stream.preparing") };
+      const preparing = { step: "preparing", label: translate("chat.stream.preparing") };
       onStreamProgress?.(preparing);
       onStreamStatus?.(preparing.label);
       onError?.("");
@@ -152,7 +151,6 @@ export function ClinicalChatRuntimeProvider({
         await streamClinicalChat({
           message: userText,
           active: activeRef.current,
-          language,
           signal: controller.signal,
           onStatus: onStreamStatus,
           onProgress: onStreamProgress,
@@ -210,7 +208,7 @@ export function ClinicalChatRuntimeProvider({
         });
       } catch (err) {
         if (err.name === "AbortError") return;
-        const content = translate(language, "chat.stream.apiError", { message: err.message });
+        const content = translate("chat.stream.apiError", { message: err.message });
         onError?.(err.message);
         patchConversation(conversationId, (current) => {
           const updated = [...(current.messages || [])];
@@ -228,7 +226,7 @@ export function ClinicalChatRuntimeProvider({
         abortRef.current = null;
       }
     },
-    [language, onError, onStreamStatus, onStreamProgress, patchConversation, handleConfirmationNeeded],
+    [onError, onStreamStatus, onStreamProgress, patchConversation, handleConfirmationNeeded],
   );
 
   const onNew = useCallback(
@@ -314,10 +312,10 @@ export function ClinicalChatRuntimeProvider({
   }, [onStreamStatus, onStreamProgress]);
 
   const suggestions = useMemo(() => {
-    const prompts = translate(language, "chat.suggestions");
+    const prompts = translate("chat.suggestions");
     const list = Array.isArray(prompts) ? prompts : [];
     return (messages.length <= 1 ? list : []).map((prompt) => ({ prompt }));
-  }, [language, messages.length]);
+  }, [messages.length]);
 
   const runtime = useExternalStoreRuntime({
     isDisabled: !active,

@@ -3,7 +3,7 @@ async def evaluate_faithfulness(
     answer: str,
     evidence_chunks: list[EvidenceChunk],
 ) -> float:
-    """Score 0-1: câu trả lời có chỉ dùng thông tin từ evidence không."""
+    """Score 0-1: does the answer use only information from the evidence?"""
     prompt = f"""
     Evidence: {[c.text for c in evidence_chunks]}
     Answer: {answer}

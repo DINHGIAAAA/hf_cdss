@@ -16,7 +16,7 @@ export function ChatPage() {
   const [streamProgress, setStreamProgress] = useState(null);
   const [error, setError] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(() => localStorage.getItem("hf_sidebar") !== "0");
-  const { language, t } = useLanguage();
+  const { t } = useLanguage();
   const { width: panelWidth, isOpen: panelOpen, setWidth, containerRef, onPointerDown } = useHorizontalResize({
     collapseThreshold: 56,
     edge: "right",
@@ -109,7 +109,6 @@ export function ChatPage() {
 
       <ClinicalChatRuntimeProvider
         active={active}
-        language={language}
         onError={setError}
         onStreamStatus={setStreamStatus}
         onStreamProgress={setStreamProgress}

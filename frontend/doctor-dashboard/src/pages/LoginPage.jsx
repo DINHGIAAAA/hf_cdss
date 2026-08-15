@@ -4,14 +4,13 @@ import { LoaderCircle } from "lucide-react";
 
 import { useAuth } from "../auth/AuthContext";
 import { resolvePostLoginPath } from "../auth/roles";
-import { LanguageToggle } from "../components/LanguageToggle";
 import { useLanguage } from "@/i18n/LanguageProvider.jsx";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 export function LoginPage() {
   const { isAuthenticated, user, login } = useAuth();
-  const { language, languages, setLanguage, t } = useLanguage();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const location = useLocation();
   const [username, setUsername] = useState("");
@@ -43,16 +42,6 @@ export function LoginPage() {
   return (
     <div className="login-page">
       <div className="login-shell">
-        <div className="login-lang">
-          <LanguageToggle
-            compact
-            language={language}
-            languages={languages}
-            onChange={setLanguage}
-            variant="light"
-          />
-        </div>
-
         <header className="login-hero">
           <div className="login-mark" aria-hidden>
             <span />

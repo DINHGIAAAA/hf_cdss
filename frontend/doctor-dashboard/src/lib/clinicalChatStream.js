@@ -7,7 +7,6 @@ import { STEP_ORDER } from "@/lib/clinicalStreamPipeline.js";
 export async function streamClinicalChat({
   message,
   active,
-  language,
   signal,
   onStatus,
   onProgress,
@@ -25,7 +24,6 @@ export async function streamClinicalChat({
     conversation_id: active.id,
     patient: compactPatientForRequest(active),
     clinical_attachments: active.attachments || [],
-    language,
   };
   if (active.confirmation_action || active.confirmationAction) {
     requestBody.confirmation_action = active.confirmation_action || active.confirmationAction;
@@ -76,7 +74,7 @@ export async function streamClinicalChat({
     throw new Error(messageText);
   }
   if (!response.body) {
-    throw new Error(translate(language, "chat.stream.noStream"));
+    throw new Error(translate("chat.stream.noStream"));
   }
 
   const reader = response.body.getReader();
@@ -95,12 +93,12 @@ export async function streamClinicalChat({
       const phase = typeof data?.phase === "string" ? data.phase : null;
       const labelKey = phase && rawStep === "extracting_patient" ? phase : step;
       if (!labelKey && !step) return;
-      onProgress?.({ step: step || rawStep, phase, label: streamStatusLabel(language, labelKey || step) });
-      onStatus?.(streamStatusLabel(language, labelKey || step));
+      onProgress?.({ step: step || rawStep, phase, label: streamStatusLabel(labelKey || step) });
+      onStatus?.(streamStatusLabel(labelKey || step));
     }
     if (eventName === "draft_ready") {
-      onProgress?.({ step: "draft_ready", label: streamStatusLabel(language, "draft_ready") });
-      onStatus?.(streamStatusLabel(language, "draft_ready"));
+      onProgress?.({ step: "draft_ready", label: streamStatusLabel("draft_ready") });
+      onStatus?.(streamStatusLabel("draft_ready"));
       onConfirmationNeeded?.({
         isInitialDraft: data.is_initial_draft ?? false,
         conflicts: data.conflicts || [],
@@ -110,17 +108,17 @@ export async function streamClinicalChat({
       onDraft?.(data);
     }
     if (eventName === "missing_check") {
-      onProgress?.({ step: "missing_check", label: streamStatusLabel(language, "missing_check") });
-      onStatus?.(streamStatusLabel(language, "missing_check"));
+      onProgress?.({ step: "missing_check", label: streamStatusLabel("missing_check") });
+      onStatus?.(streamStatusLabel("missing_check"));
     }
     if (eventName === "recommendation_ready") {
-      onProgress?.({ step: "recommendation_ready", label: streamStatusLabel(language, "recommendation_ready") });
-      onStatus?.(streamStatusLabel(language, "recommendation_ready"));
+      onProgress?.({ step: "recommendation_ready", label: streamStatusLabel("recommendation_ready") });
+      onStatus?.(streamStatusLabel("recommendation_ready"));
       onRecommendation?.(data);
     }
     if (eventName === "verification_ready") {
-      onProgress?.({ step: "verification_ready", label: streamStatusLabel(language, "verification_ready") });
-      onStatus?.(streamStatusLabel(language, "verification_ready"));
+      onProgress?.({ step: "verification_ready", label: streamStatusLabel("verification_ready") });
+      onStatus?.(streamStatusLabel("verification_ready"));
       onVerification?.(data);
     }
     if (eventName === "answer_delta" && typeof data?.content === "string" && data.content) {
@@ -133,7 +131,7 @@ export async function streamClinicalChat({
       donePayload = typeof data === "object" && data !== null ? data : donePayload;
     }
     if (eventName === "error") {
-      throw new Error(data?.message || translate(language, "chat.stream.streamFailed"));
+      throw new Error(data?.message || translate("chat.stream.streamFailed"));
     }
   };
 

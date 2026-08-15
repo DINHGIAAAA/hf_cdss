@@ -36,7 +36,7 @@ def _egfr42_patient() -> PatientProfile:
 
 def test_choice_question_intent_for_mra_or_dapa() -> None:
     patient = _egfr42_patient()
-    message = "Co nen tang MRA hoac bat dau dapagliflozin?"
+    message = "Should I increase MRA or start dapagliflozin?"
     state = build_clinical_state(patient, message)
     assert state["intent"] == "choice_question"
     assert is_choice_question(message)
@@ -46,7 +46,7 @@ def test_choice_question_intent_for_mra_or_dapa() -> None:
 
 def test_comparative_answer_strips_cjk_plain_language_summary() -> None:
     patient = _egfr42_patient()
-    message = "Co nen tang MRA hoac bat dau dapagliflozin?"
+    message = "Should I increase MRA or start dapagliflozin?"
     recommendation = build_recommendation(RecommendationRequest(patient=patient))
     sglt2 = next((r for r in recommendation.recommendations if r.class_id == "sglt2i"), None)
     assert sglt2 is not None
@@ -59,7 +59,6 @@ def test_comparative_answer_strips_cjk_plain_language_summary() -> None:
         recommendation=recommendation,
         message=message,
         clinical_state=build_clinical_state(patient, message),
-        language="vi",
     )
     assert text
     assert not any("\u4e00" <= ch <= "\u9fff" for ch in text)
@@ -67,7 +66,7 @@ def test_comparative_answer_strips_cjk_plain_language_summary() -> None:
 
 def test_comparative_answer_two_branches_no_amputation() -> None:
     patient = _egfr42_patient()
-    message = "Co nen tang MRA hoac bat dau dapagliflozin?"
+    message = "Should I increase MRA or start dapagliflozin?"
     recommendation = build_recommendation(RecommendationRequest(patient=patient))
     sglt2 = next((r for r in recommendation.recommendations if r.class_id == "sglt2i"), None)
     assert sglt2 is not None
@@ -78,18 +77,16 @@ def test_comparative_answer_two_branches_no_amputation() -> None:
         recommendation=recommendation,
         message=message,
         clinical_state=build_clinical_state(patient, message),
-        language="vi",
     )
     assert text
     assert "MRA" in text or "mra" in text.lower()
     assert "SGLT2" in text or "dapagliflozin" in text.lower()
     assert "amputation" not in text.lower()
-    assert "cắt cụt" not in text.lower()
 
 
 def test_comparative_answer_mra_uptitration_near_potassium_ceiling() -> None:
     patient = _egfr42_patient()
-    message = "Co nen tang MRA hoac bat dau dapagliflozin?"
+    message = "Should I increase MRA or start dapagliflozin?"
     recommendation = build_recommendation(RecommendationRequest(patient=patient))
     recommendation.recommendations.append(
         MedicationRecommendation(
@@ -104,10 +101,9 @@ def test_comparative_answer_mra_uptitration_near_potassium_ceiling() -> None:
         recommendation=recommendation,
         message=message,
         clinical_state=build_clinical_state(patient, message),
-        language="vi",
     )
     assert text
-    assert "50 mg" in text or "tăng dần" in text
+    assert "50 mg" in text
 
 
 def test_comparative_answer_english_for_mra_vs_sglt2() -> None:
@@ -119,13 +115,11 @@ def test_comparative_answer_english_for_mra_vs_sglt2() -> None:
         recommendation=recommendation,
         message=message,
         clinical_state=build_clinical_state(patient, message),
-        language="en",
     )
     assert text
     assert "MRA" in text
     assert "SGLT2" in text
     assert "CDSS status" in text
-    assert "Câu hỏi đặt hai hướng" not in text
 
 
 def test_validate_explanation_rejects_amputation_hallucination() -> None:
@@ -141,17 +135,15 @@ def test_validate_explanation_rejects_amputation_hallucination() -> None:
         ]
     }
     bad = (
-        "Nên tránh dapagliflozin vì nguy cơ cắt cụt chi. "
-        "⚠️ Đây là hỗ trợ quyết định lâm sàng dựa trên dữ liệu cung cấp. "
-        "Quyết định điều trị cuối cùng thuộc về bác sĩ điều trị sau khi đánh giá toàn diện bệnh nhân."
+        "Should avoid dapagliflozin due to amputation risk. "
+        f"{REQUIRED_CLINICAL_DISCLAIMER}"
     )
     validation = validate_explanation_answer(bad, compact)
     assert explanation_validation_failed(validation)
 
 
-def test_validate_explanation_rejects_cjk_in_vietnamese_answer() -> None:
+def test_validate_explanation_rejects_cjk_in_answer() -> None:
     compact = {
-        "response_language": "vi",
         "candidate_medication_classes": [
             {
                 "class_id": "sglt2i",
@@ -163,7 +155,7 @@ def test_validate_explanation_rejects_cjk_in_vietnamese_answer() -> None:
         ],
     }
     mixed = (
-        "Có thể cân nhắc empagliflozin. "
+        "Consider empagliflozin. "
         "钠钾肽类似物（如恩格列净）用于治疗心力衰竭时，应密切监测患者的血糖和肾功能。 "
         f"{REQUIRED_CLINICAL_DISCLAIMER}"
     )
@@ -179,15 +171,14 @@ def test_validate_explanation_accepts_paraphrase_with_disclaimer() -> None:
                 "class_id": "sglt2i",
                 "status": "consider",
                 "warnings": [],
-                "rationale": "SGLT2i có lợi ích ở HFrEF với eGFR đủ ngưỡng",
+                "rationale": "SGLT2i has benefit in HFrEF when eGFR meets threshold",
                 "clinical_reasoning": [],
             }
         ]
     }
     good = (
-        "Có thể cân nhắc SGLT2i vì lợi ích ở HFrEF khi eGFR đủ ngưỡng. "
-        "⚠️ Đây là hỗ trợ quyết định lâm sàng dựa trên dữ liệu cung cấp. "
-        "Quyết định điều trị cuối cùng thuộc về bác sĩ điều trị sau khi đánh giá toàn diện bệnh nhân."
+        "Consider SGLT2i given benefit in HFrEF when eGFR meets threshold. "
+        f"{REQUIRED_CLINICAL_DISCLAIMER}"
     )
     validation = validate_explanation_answer(good, compact)
     assert not explanation_validation_failed(validation)
@@ -210,7 +201,6 @@ def test_cache_key_includes_explanation_versions() -> None:
         patient=patient,
         recommendation=recommendation,
         user_input="test",
-        language="vi",
     )
     compact = _compact_recommendation(payload)
     key_a = _cache_key(compact)
@@ -252,7 +242,7 @@ def test_all_gdmt_requires_class_effect() -> None:
 
 def test_compact_recommendation_strips_cjk_from_llm_payload() -> None:
     patient = _egfr42_patient()
-    message = "Co nen tang MRA hoac bat dau dapagliflozin?"
+    message = "Should I increase MRA or start dapagliflozin?"
     recommendation = build_recommendation(RecommendationRequest(patient=patient))
     sglt2 = next((r for r in recommendation.recommendations if r.class_id == "sglt2i"), None)
     assert sglt2 is not None
@@ -262,7 +252,6 @@ def test_compact_recommendation_strips_cjk_from_llm_payload() -> None:
         recommendation=recommendation,
         user_input=message,
         clinical_state=build_clinical_state(patient, message),
-        language="vi",
     )
     compact = _compact_recommendation(payload)
     blob = json.dumps(compact, ensure_ascii=False)
@@ -271,14 +260,13 @@ def test_compact_recommendation_strips_cjk_from_llm_payload() -> None:
 
 def test_fallback_uses_comparative_for_mra_dapa_question() -> None:
     patient = _egfr42_patient()
-    message = "Co nen tang MRA hoac bat dau dapagliflozin?"
+    message = "Should I increase MRA or start dapagliflozin?"
     recommendation = build_recommendation(RecommendationRequest(patient=patient))
     payload = LLMAnswerRequest(
         patient=patient,
         recommendation=recommendation,
         user_input=message,
         clinical_state=build_clinical_state(patient, message),
-        language="vi",
     )
     text = fallback_answer(payload)
     assert "amputation" not in text.lower()
@@ -323,43 +311,13 @@ def test_multi_question_detect_single_returns_unchanged() -> None:
     assert qs[0] == "MRA or SGLT2i?"
 
 
-def test_multi_question_build_confirm_message_vi_with_next() -> None:
-    from app.modules.chat.service import _build_multi_question_confirm_message
-
-    msg = _build_multi_question_confirm_message(
-        "MRA hay SGLT2i?",
-        "Co can them ARNI khong?",
-        next_q_index=1,
-        language="vi",
-    )
-    assert "Câu hỏi 1" in msg
-    assert "MRA hay SGLT2i" in msg
-    assert "Câu hỏi tiếp theo" in msg
-    assert "ARNI" in msg
-    assert "tiếp tục" in msg.lower()
-
-
-def test_multi_question_build_confirm_message_vi_last_question() -> None:
-    from app.modules.chat.service import _build_multi_question_confirm_message
-
-    msg = _build_multi_question_confirm_message(
-        "Co can them ARNI khong?",
-        None,
-        next_q_index=2,
-        language="vi",
-    )
-    assert "Câu hỏi 2" in msg
-    assert "Đã trả lời tất cả" in msg
-
-
-def test_multi_question_build_confirm_message_en_with_next() -> None:
+def test_multi_question_build_confirm_message_with_next() -> None:
     from app.modules.chat.service import _build_multi_question_confirm_message
 
     msg = _build_multi_question_confirm_message(
         "MRA or SGLT2i?",
         "Should I add ARNI?",
         next_q_index=1,
-        language="en",
     )
     assert "Question 1" in msg
     assert "MRA or SGLT2i" in msg
@@ -367,14 +325,13 @@ def test_multi_question_build_confirm_message_en_with_next() -> None:
     assert "continue" in msg.lower()
 
 
-def test_multi_question_build_confirm_message_en_last_question() -> None:
+def test_multi_question_build_confirm_message_last_question() -> None:
     from app.modules.chat.service import _build_multi_question_confirm_message
 
     msg = _build_multi_question_confirm_message(
         "Should I add ARNI?",
         None,
         next_q_index=2,
-        language="en",
     )
     assert "Question 2" in msg
     assert "All questions have been answered" in msg
@@ -408,7 +365,6 @@ def test_smoke_single_question_no_cjk_in_answer() -> None:
         recommendation=recommendation,
         user_input="Should I start SGLT2i?",
         clinical_state=build_clinical_state(patient, "Should I start SGLT2i?"),
-        language="en",
     )
     text = fallback_answer(payload)
     assert text
@@ -426,7 +382,6 @@ def test_smoke_single_question_answer_matches_topic() -> None:
         recommendation=recommendation,
         user_input="Should I start SGLT2i?",
         clinical_state=build_clinical_state(patient, "Should I start SGLT2i?"),
-        language="en",
     )
     text = fallback_answer(payload)
     assert text
@@ -442,7 +397,6 @@ def test_smoke_single_question_answer_matches_topic_mra() -> None:
         recommendation=recommendation,
         user_input="Should I uptitate MRA dose?",
         clinical_state=build_clinical_state(patient, "Should I uptitrate MRA dose?"),
-        language="en",
     )
     text = fallback_answer(payload)
     assert text
@@ -470,7 +424,6 @@ def test_smoke_multi_question_only_first_question_in_context() -> None:
         recommendation=recommendation,
         user_input=q1,  # Q1 only, not full message
         clinical_state=build_clinical_state(patient, q1),
-        language="en",
     )
     text = fallback_answer(payload)
     assert text
@@ -486,7 +439,6 @@ def test_smoke_multi_question_confirm_message_shows_both() -> None:
         current_q="Should I start SGLT2i?",
         next_q="What about ARNI?",
         next_q_index=1,
-        language="en",
     )
     assert "Question 1" in confirm
     assert "SGLT2i" in confirm
@@ -503,7 +455,6 @@ def test_smoke_multi_question_3qs_confirm_message_shows_third() -> None:
         current_q="Should I add ARNI?",
         next_q="Should I also add a beta blocker?",
         next_q_index=2,
-        language="en",
     )
     assert "Question 2" in confirm
     assert "ARNI" in confirm
@@ -522,7 +473,6 @@ def test_combine_answer_with_multi_question_confirm() -> None:
         current_q="MRA or SGLT2i?",
         next_q="What about ARNI?",
         next_q_index=1,
-        language="en",
     )
     combined = _combine_answer_with_multi_question_confirm(answer, confirm)
     assert answer in combined
@@ -540,7 +490,7 @@ def test_combine_answer_with_multi_question_confirm_empty_answer() -> None:
 def test_sanitize_stream_token_strips_han_for_english() -> None:
     from app.modules.explanation.llm_service import _sanitize_stream_token
 
-    assert _sanitize_stream_token("Consider 考虑 ARNI", "en") == "Consider  ARNI"
+    assert _sanitize_stream_token("Consider 考虑 ARNI") == "Consider  ARNI"
 
 
 def test_clinical_state_merges_prior_assistant_focus() -> None:
@@ -550,7 +500,7 @@ def test_clinical_state_merges_prior_assistant_focus() -> None:
     patient = hfref_patient()
     state = build_clinical_state(
         patient,
-        "chi tiet hon",
+        "tell me more",
         has_prior_assistant=True,
         last_assistant_message="SGLT2i is appropriate when eGFR allows.",
     )

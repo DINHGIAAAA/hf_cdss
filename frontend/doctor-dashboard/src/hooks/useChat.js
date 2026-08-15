@@ -4,7 +4,7 @@ import { apiFetch } from "@shared/api/client.js";
 import { assistantTextFromChatDone, parseSseBlock } from "../utils";
 import { compactPatientForRequest } from "./patientPayload.js";
 
-export function useChat({ active, patchConversation, language }) {
+export function useChat({ active, patchConversation }) {
   const [chatInput, setChatInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [streamStatus, setStreamStatus] = useState("");
@@ -45,7 +45,6 @@ export function useChat({ active, patchConversation, language }) {
             conversation_id: conversationId,
             patient: compactPatientForRequest(active),
             clinical_attachments: active.attachments || [],
-            language,
           }),
         });
 
@@ -167,7 +166,7 @@ export function useChat({ active, patchConversation, language }) {
         setStreamStatus("");
       }
     },
-    [chatInput, active, loading, patchConversation, language],
+    [chatInput, active, loading, patchConversation],
   );
 
   return { chatInput, setChatInput, loading, streamStatus, error, setError, submitChat };

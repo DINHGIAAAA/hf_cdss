@@ -45,7 +45,7 @@ _KEYWORD_TO_CLASS_ID: dict[str, str] = {
 }
 
 _CHOICE_CONNECTOR_RE = re.compile(
-    r"\b(hoac|hay|hoặc|or|va\/|và\/|lua chon|lựa chọn)\b",
+    r"\b(or)\b",
     re.IGNORECASE,
 )
 

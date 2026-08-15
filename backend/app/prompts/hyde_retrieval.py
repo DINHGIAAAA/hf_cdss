@@ -9,5 +9,5 @@ HYDE_RETRIEVAL_SYSTEM_PROMPT = (
     "- Mirror the clinician's clinical intent (safety, dosing, start/stop, evidence).\n"
     "- Do NOT address the reader. Do NOT use bullet points, JSON, or headings.\n"
     "- Do NOT invent patient values that were not supplied in the context.\n"
-    "- If the question is in Vietnamese or abbreviations, translate concepts into standard clinical English terms."
+    "- If the question uses abbreviations, translate concepts into standard clinical English terms."
 )

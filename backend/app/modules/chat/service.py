@@ -203,7 +203,6 @@ def _chat_audit_payload(
     payload: dict[str, Any] = {
         "user_question": request.message,
         "conversation_id": request.conversation_id,
-        "language": request.language,
         "attachments": [item.model_dump(mode="json") for item in request.clinical_attachments],
     }
     if clinical_state is not None:
@@ -218,25 +217,16 @@ def _chat_audit_payload(
 
 
 def _build_multi_question_confirm_message(
-    current_q: str, next_q: str | None, *, next_q_index: int, language: str
+    current_q: str, next_q: str | None, *, next_q_index: int
 ) -> str:
     """Build the confirmation footer shown after answering one question in a multi-question flow."""
-    if language == "vi":
-        msg = f"**Câu hỏi {next_q_index}:** {current_q}\n\n"
-        msg += "Tôi đã trả lời câu hỏi trên."
-        if next_q:
-            msg += f"\n\n**Câu hỏi tiếp theo ({next_q_index + 1}):** {next_q}\n\n"
-            msg += "Bạn có muốn tôi tiếp tục trả lời câu tiếp theo không?"
-        else:
-            msg += "\n\n_Đã trả lời tất cả câu hỏi._"
+    msg = f"**Question {next_q_index}:** {current_q}\n\n"
+    msg += "I've answered the above question."
+    if next_q:
+        msg += f"\n\n**Next question ({next_q_index + 1}):** {next_q}\n\n"
+        msg += "Would you like me to continue?"
     else:
-        msg = f"**Question {next_q_index}:** {current_q}\n\n"
-        msg += "I've answered the above question."
-        if next_q:
-            msg += f"\n\n**Next question ({next_q_index + 1}):** {next_q}\n\n"
-            msg += "Would you like me to continue?"
-        else:
-            msg += "\n\n_All questions have been answered._"
+        msg += "\n\n_All questions have been answered._"
     return msg
 
 
@@ -250,7 +240,7 @@ def _combine_answer_with_multi_question_confirm(answer: str, confirm: str) -> st
 
 
 _MULTI_QUESTION_CONTINUE_PATTERN = re.compile(
-    r"^(yes|y|continue|ok|okay|tiếp|tiep|tiếp tục|tiep tuc|đồng ý|dong y)$",
+    r"^(yes|y|continue|ok|okay)$",
     re.IGNORECASE,
 )
 
@@ -677,19 +667,14 @@ def _has_significant_conflict(conflicts: list[PatientConflict]) -> bool:
     return any(c.requires_confirmation for c in conflicts)
 
 
-def _build_confirmation_message(conflicts: list[PatientConflict], language: str) -> str:
+def _build_confirmation_message(conflicts: list[PatientConflict]) -> str:
     """Build a short assistant message listing the conflicts that need user confirmation."""
     items = [c for c in conflicts if c.requires_confirmation]
     if not items:
         return ""
-    if language == "vi":
-        head = "Phát hiện thay đổi giá trị quan trọng. Bạn có muốn cập nhật không?"
-        lines = [f"- {item.label}: {item.old_value} → {item.new_value}" for item in items[:5]]
-        tail = "Trả lời 'có' để cập nhật, 'không' để giữ giá trị cũ."
-    else:
-        head = "Detected changes to important values. Confirm to update?"
-        lines = [f"- {item.label}: {item.old_value} → {item.new_value}" for item in items[:5]]
-        tail = "Reply 'yes' to apply, 'no' to keep the previous value."
+    head = "Detected changes to important values. Confirm to update?"
+    lines = [f"- {item.label}: {item.old_value} → {item.new_value}" for item in items[:5]]
+    tail = "Reply 'yes' to apply, 'no' to keep the previous value."
     return "\n".join([head, *lines, tail])
 
 
@@ -700,7 +685,14 @@ def _prefilled_patient_complete(
 ) -> bool:
     prefill = _merge_patient(base_patient, supplied_patient) if supplied_patient else base_patient
     prefill = _with_turn_message_context(prefill, message)
-    return check_missing_fields(prefill).status == "complete"
+    # Preliminary clinical_state so context-only-required fields (e.g. ARNI washout)
+    # are counted as missing even before this turn's patient data is extracted.
+    preliminary_state = build_clinical_state(prefill, message) if message else None
+    return check_missing_fields(
+        prefill,
+        clinical_intent=(preliminary_state or {}).get("intent"),
+        clinical_state=preliminary_state,
+    ).status == "complete"
 
 
 async def _resolve_patient_for_chat_turn(
@@ -743,7 +735,15 @@ async def _resolve_patient_for_chat_turn(
     prefill = _merge_patient(base_patient, supplied_patient) if supplied_patient else base_patient
     prefill = _with_turn_message_context(prefill, turn_message)
 
-    if check_missing_fields(prefill).status == "complete":
+    # Preliminary clinical_state so context-only-required fields (e.g. ARNI washout)
+    # are visible to the completeness/LLM-escalation checks below, before this
+    # turn's patient data has actually been extracted.
+    preliminary_state = build_clinical_state(prefill, turn_message) if turn_message else None
+    if check_missing_fields(
+        prefill,
+        clinical_intent=(preliminary_state or {}).get("intent"),
+        clinical_state=preliminary_state,
+    ).status == "complete":
         logger.info("Skipping LLM clinical intake for conversation %s (profile complete)", conversation_id)
         if intake_status:
             intake_status("profile_complete_regex")
@@ -757,6 +757,7 @@ async def _resolve_patient_for_chat_turn(
         conversation_id,
         conversation_history=conversation_history,
         intake_status=intake_status,
+        clinical_state=preliminary_state,
     )
     merged = _merge_patient(base_patient, extracted)
     if supplied_patient:
@@ -855,15 +856,6 @@ async def _resolve_patient_with_intake_status_events(
             pass
 
 
-def _resolve_request_language(request: ChatRequest) -> ChatRequest:
-    from app.modules.chat.language import resolve_chat_language
-
-    resolved = resolve_chat_language(request.message, request.language)
-    if resolved == (request.language or "vi"):
-        return request
-    return request.model_copy(update={"language": resolved})
-
-
 def _missing_fields_prompt_kwargs(conversation_id: str) -> dict[str, Any]:
     pending = _pending_multi.get(conversation_id) or {}
     if not _is_multi_question_thread(pending):
@@ -921,7 +913,6 @@ async def _plan_and_intake_parallel(
             request.message,
             patient=plan_patient,
             conversation_history=_prior_user_messages(conversation_id),
-            language=request.language or "vi",
         ),
         _intake_for_turn(request, conversation_id, extraction_message, base_patient),
     )
@@ -970,7 +961,6 @@ async def _drain_intake_status_events(
 
 async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
     conversation_id = request.conversation_id or str(uuid.uuid4())
-    request = _resolve_request_language(request)
     yield _sse("status", {"step": "received", "conversation_id": conversation_id})
     _append_message(_message(conversation_id, "user", request.message))
 
@@ -991,7 +981,10 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
 
     if _can_parallel_plan_and_intake(request, is_initial_draft=is_initial_draft):
         yield _sse("status", {"step": "planning_question"})
-        yield _sse("status", {"step": "extracting_patient"})
+        if _prefilled_patient_complete(base_patient, request.patient, request.message):
+            yield _sse("status", {"step": "using_supplied_profile"})
+        else:
+            yield _sse("status", {"step": "extracting_patient"})
         question_plan, merged, conflicts = await _plan_and_intake_parallel(
             request,
             conversation_id,
@@ -1015,7 +1008,6 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
                 request.message,
                 patient=plan_patient,
                 conversation_history=_prior_user_messages(conversation_id),
-                language=request.language or "vi",
             )
             _question_plans[conversation_id] = question_plan
             yield _sse("question_plan_ready", question_plan.model_dump(mode="json"))
@@ -1110,7 +1102,7 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
 
     # Conflict confirmation path — pause before running recommendation.
     if _has_significant_conflict(conflicts) and request.confirmation_action is None:
-        content = _build_confirmation_message(conflicts, request.language or "vi")
+        content = _build_confirmation_message(conflicts)
         assistant_message = _message(
             conversation_id,
             "assistant",
@@ -1150,7 +1142,6 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
     if missing_check.missing_fields:
         content = build_missing_fields_prompt(
             missing_check,
-            language=request.language or "vi",
             **_missing_fields_prompt_kwargs(conversation_id),
         )
         assistant_message = _message(conversation_id, "assistant", content, {"status": "needs_more_information"})
@@ -1200,12 +1191,9 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
         prefetched_context=graphrag_context,
     )
     recommendation = enrich_recommendation_evidence(recommendation, verification.citation_validation)
-    recommendation = await attach_plain_language_summaries(
-        recommendation,
-        language=request.language or "vi",
-    )
+    recommendation = await attach_plain_language_summaries(recommendation)
     # Apply simplified fields for display (deterministic, no LLM)
-    recommendation = apply_simplified_fields(recommendation, language=request.language or "vi")
+    recommendation = apply_simplified_fields(recommendation)
     tool_outputs.append({"tool": "recommendation", "result": recommendation.model_dump(mode="json")})
     yield _sse("recommendation_ready", recommendation.model_dump(mode="json"))
     tool_outputs.append({"tool": "verification", "result": verification.model_dump(mode="json")})
@@ -1223,7 +1211,6 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
         patient=merged,
         recommendation=recommendation,
         verification=verification,
-        language=request.language,
     )
     answer_parts: list[str] = []
     llm_answer = None
@@ -1270,7 +1257,6 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
             pending["answered"][-1],
             next_q,
             next_q_index=len(pending["answered"]),
-            language=request.language or "vi",
         )
         combined_content = _combine_answer_with_multi_question_confirm(final_answer, confirm_content)
         assistant_message = _message(
@@ -1336,7 +1322,6 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
 
 async def process_chat(request: ChatRequest) -> ChatResponse:
     conversation_id = request.conversation_id or str(uuid.uuid4())
-    request = _resolve_request_language(request)
 
     # Check idempotency key to prevent duplicate processing
     if request.idempotency_key:
@@ -1381,7 +1366,6 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
                 request.message,
                 patient=plan_patient,
                 conversation_history=_prior_user_messages(conversation_id),
-                language=request.language or "vi",
             )
             _question_plans[conversation_id] = question_plan
 
@@ -1440,7 +1424,7 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
 
     # Conflict confirmation path — pause before running recommendation.
     if _has_significant_conflict(conflicts) and request.confirmation_action is None:
-        content = _build_confirmation_message(conflicts, request.language or "vi")
+        content = _build_confirmation_message(conflicts)
         assistant_message = _message(conversation_id, "assistant", content, {"status": "needs_confirmation"})
         _append_message(assistant_message)
         write_audit_event(
@@ -1474,7 +1458,6 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
     if missing_check.missing_fields:
         content = build_missing_fields_prompt(
             missing_check,
-            language=request.language or "vi",
             **_missing_fields_prompt_kwargs(conversation_id),
         )
         assistant_message = _message(conversation_id, "assistant", content, {"status": "needs_more_information"})
@@ -1521,12 +1504,9 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
         prefetched_context=graphrag_context,
     )
     recommendation = enrich_recommendation_evidence(recommendation, verification.citation_validation)
-    recommendation = await attach_plain_language_summaries(
-        recommendation,
-        language=request.language or "vi",
-    )
+    recommendation = await attach_plain_language_summaries(recommendation)
     # Apply simplified fields for display (deterministic, no LLM)
-    recommendation = apply_simplified_fields(recommendation, language=request.language or "vi")
+    recommendation = apply_simplified_fields(recommendation)
     llm_answer = await build_llm_answer(
         LLMAnswerRequest(
             user_input=request.message,
@@ -1539,7 +1519,6 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
             patient=merged,
             recommendation=recommendation,
             verification=verification,
-            language=request.language,
         )
     )
     tool_outputs.extend(
@@ -1571,7 +1550,6 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
             pending["answered"][-1],
             next_q,
             next_q_index=len(pending["answered"]),
-            language=request.language or "vi",
         )
         combined_content = _combine_answer_with_multi_question_confirm(llm_answer.answer, confirm_content)
         assistant_message = _message(

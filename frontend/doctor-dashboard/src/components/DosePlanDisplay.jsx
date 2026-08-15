@@ -12,7 +12,6 @@ import {
   ShieldAlert,
   TrendingUp,
 } from "lucide-react";
-import { useLanguage } from "@/i18n/LanguageProvider.jsx";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,37 +23,37 @@ const STATUS_CONFIG = {
     class: "bg-emerald-50 border-emerald-200 text-emerald-800",
     badge: "bg-emerald-100 text-emerald-700 border-emerald-300",
     icon: TrendingUp,
-    label: { en: "Recommended", vi: "Khuyến nghị" },
+    label: "Recommended",
   },
   maintain: {
     class: "bg-blue-50 border-blue-200 text-blue-800",
     badge: "bg-blue-100 text-blue-700 border-blue-300",
     icon: Minus,
-    label: { en: "Maintain", vi: "Duy trì" },
+    label: "Maintain",
   },
   hold: {
     class: "bg-amber-50 border-amber-200 text-amber-800",
     badge: "bg-amber-100 text-amber-700 border-amber-300",
     icon: AlertTriangle,
-    label: { en: "Hold", vi: "Tạm dừng" },
+    label: "Hold",
   },
   needs_data: {
     class: "bg-slate-50 border-slate-200 text-slate-800",
     badge: "bg-slate-100 text-slate-700 border-slate-300",
     icon: Info,
-    label: { en: "Needs Data", vi: "Cần dữ liệu" },
+    label: "Needs Data",
   },
   not_recommended: {
     class: "bg-red-50 border-red-200 text-red-800",
     badge: "bg-red-100 text-red-700 border-red-300",
     icon: ShieldAlert,
-    label: { en: "Not Recommended", vi: "Không khuyến khích" },
+    label: "Not Recommended",
   },
   review: {
     class: "bg-purple-50 border-purple-200 text-purple-800",
     badge: "bg-purple-100 text-purple-700 border-purple-300",
     icon: Clock,
-    label: { en: "Review", vi: "Cần xem xét" },
+    label: "Review",
   },
 };
 
@@ -65,32 +64,28 @@ function formatDoseAmount(amount) {
 }
 
 function DoseStatusBadge({ status }) {
-  const { language } = useLanguage();
   const config = STATUS_CONFIG[status] || STATUS_CONFIG.review;
   const Icon = config.icon;
-  const label = config.label[language] || config.label.en;
 
   return (
     <Badge className={cn("gap-1 border", config.badge)} variant="outline">
       <Icon size={12} />
-      {label}
+      {config.label}
     </Badge>
   );
 }
 
 function DoseComparison({ current, recommended, target }) {
-  const { language } = useLanguage();
-
   const items = [
-    { label: language === "vi" ? "Liều hiện tại" : "Current", amount: current, color: "text-slate-600" },
-    { label: language === "vi" ? "Liều đề xuất" : "Recommended", amount: recommended, color: "text-emerald-600 font-semibold" },
-    { label: language === "vi" ? "Liều mục tiêu" : "Target", amount: target, color: "text-blue-600" },
+    { label: "Current", amount: current, color: "text-slate-600" },
+    { label: "Recommended", amount: recommended, color: "text-emerald-600 font-semibold" },
+    { label: "Target", amount: target, color: "text-blue-600" },
   ].filter((item) => item.amount && item.amount.value != null);
 
   if (items.length === 0) {
     return (
       <div className="text-sm text-muted-foreground">
-        {language === "vi" ? "Không có thông tin liều lượng" : "No dose information available"}
+        No dose information available
       </div>
     );
   }
@@ -115,7 +110,6 @@ function DoseComparison({ current, recommended, target }) {
 }
 
 function HoldCriteriaAlert({ criteria }) {
-  const { language } = useLanguage();
   if (!criteria || criteria.length === 0) return null;
 
   return (
@@ -123,9 +117,7 @@ function HoldCriteriaAlert({ criteria }) {
       <div className="flex items-start gap-2">
         <AlertTriangle size={16} className="mt-0.5 shrink-0 text-amber-600" />
         <div>
-          <p className="text-xs font-semibold text-amber-800">
-            {language === "vi" ? "Cảnh báo tạm dừng tăng liều" : "Hold Criteria Active"}
-          </p>
+          <p className="text-xs font-semibold text-amber-800">Hold Criteria Active</p>
           <ul className="mt-1 space-y-0.5 text-xs text-amber-700">
             {criteria.map((item, i) => (
               <li key={i}>{item}</li>
@@ -138,13 +130,12 @@ function HoldCriteriaAlert({ criteria }) {
 }
 
 function TitrationSteps({ plan }) {
-  const { language } = useLanguage();
   if (!plan?.titration_plan || plan.titration_plan.length === 0) return null;
 
   return (
     <div className="space-y-2">
       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        {language === "vi" ? "Kế hoạch tăng liều" : "Titration Plan"}
+        Titration Plan
       </p>
       <div className="space-y-1.5">
         {plan.titration_plan.map((step, index) => (
@@ -161,7 +152,6 @@ function TitrationSteps({ plan }) {
 }
 
 function CalculationSteps({ steps }) {
-  const { language } = useLanguage();
   const [expanded, setExpanded] = useState(false);
 
   if (!steps || steps.length === 0) return null;
@@ -176,7 +166,7 @@ function CalculationSteps({ steps }) {
       >
         <span className="flex items-center gap-1">
           <Info size={12} />
-          {language === "vi" ? "Chi tiết tính toán" : "Calculation Details"}
+          Calculation Details
         </span>
         {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
       </Button>
@@ -186,12 +176,8 @@ function CalculationSteps({ steps }) {
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b border-border/60">
-                <th className="pb-1 text-left font-medium text-muted-foreground">
-                  {language === "vi" ? "Bước" : "Step"}
-                </th>
-                <th className="pb-1 text-left font-medium text-muted-foreground">
-                  {language === "vi" ? "Kết quả" : "Result"}
-                </th>
+                <th className="pb-1 text-left font-medium text-muted-foreground">Step</th>
+                <th className="pb-1 text-left font-medium text-muted-foreground">Result</th>
               </tr>
             </thead>
             <tbody className="space-y-1">
@@ -210,13 +196,12 @@ function CalculationSteps({ steps }) {
 }
 
 function MonitoringList({ items }) {
-  const { language } = useLanguage();
   if (!items || items.length === 0) return null;
 
   return (
     <div className="space-y-1.5">
       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        {language === "vi" ? "Theo dõi" : "Monitoring"}
+        Monitoring
       </p>
       <ul className="space-y-1">
         {items.slice(0, 3).map((item, index) => (
@@ -231,7 +216,6 @@ function MonitoringList({ items }) {
 }
 
 function MissingInputsAlert({ inputs }) {
-  const { language } = useLanguage();
   if (!inputs || inputs.length === 0) return null;
 
   return (
@@ -239,14 +223,8 @@ function MissingInputsAlert({ inputs }) {
       <div className="flex items-start gap-2">
         <Info size={16} className="mt-0.5 shrink-0 text-slate-600" />
         <div>
-          <p className="text-xs font-semibold text-slate-800">
-            {language === "vi" ? "Thông tin còn thiếu" : "Missing Information"}
-          </p>
-          <p className="mt-0.5 text-xs text-slate-600">
-            {language === "vi"
-              ? `Cần cung cấp: ${inputs.join(", ")}`
-              : `Required: ${inputs.join(", ")}`}
-          </p>
+          <p className="text-xs font-semibold text-slate-800">Missing Information</p>
+          <p className="mt-0.5 text-xs text-slate-600">Required: {inputs.join(", ")}</p>
         </div>
       </div>
     </div>
@@ -255,7 +233,6 @@ function MissingInputsAlert({ inputs }) {
 
 function DosePlanCard({ plan }) {
   const [expanded, setExpanded] = useState(false);
-  const { language } = useLanguage();
   const statusConfig = STATUS_CONFIG[plan.status] || STATUS_CONFIG.review;
 
   return (
@@ -317,7 +294,7 @@ function DosePlanCard({ plan }) {
           {plan.guideline_notes && plan.guideline_notes.length > 0 && (
             <div className="space-y-1.5">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {language === "vi" ? "Ghi chú guideline" : "Guideline Notes"}
+                Guideline Notes
               </p>
               <ul className="space-y-1">
                 {plan.guideline_notes.map((note, index) => (
@@ -334,7 +311,7 @@ function DosePlanCard({ plan }) {
           {plan.evidence_refs && plan.evidence_refs.length > 0 && (
             <div className="space-y-1.5">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {language === "vi" ? "Tài liệu tham khảo" : "Evidence"}
+                Evidence
               </p>
               <div className="flex flex-wrap gap-1">
                 {plan.evidence_refs.map((ref, index) => (
@@ -352,7 +329,6 @@ function DosePlanCard({ plan }) {
 }
 
 function DosePlanSummaryTable({ plans }) {
-  const { language } = useLanguage();
   const [showAll, setShowAll] = useState(false);
 
   if (!plans || plans.length === 0) return null;
@@ -368,19 +344,19 @@ function DosePlanSummaryTable({ plans }) {
             <thead>
               <tr className="border-b border-border bg-muted/50">
                 <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  {language === "vi" ? "Thuốc" : "Drug"}
+                  Drug
                 </th>
                 <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  {language === "vi" ? "Liều hiện tại" : "Current"}
+                  Current
                 </th>
                 <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  {language === "vi" ? "Liều đề xuất" : "Recommended"}
+                  Recommended
                 </th>
                 <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  {language === "vi" ? "Liều mục tiêu" : "Target"}
+                  Target
                 </th>
                 <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  {language === "vi" ? "Trạng thái" : "Status"}
+                  Status
                 </th>
               </tr>
             </thead>
@@ -419,13 +395,7 @@ function DosePlanSummaryTable({ plans }) {
           className="w-full"
           onClick={() => setShowAll(!showAll)}
         >
-          {showAll
-            ? language === "vi"
-              ? "Thu gọn"
-              : "Show Less"
-            : language === "vi"
-              ? `Xem thêm ${plans.length - 5} thuốc`
-              : `Show ${plans.length - 5} more drugs`}
+          {showAll ? "Show Less" : `Show ${plans.length - 5} more drugs`}
         </Button>
       )}
     </div>
@@ -433,8 +403,6 @@ function DosePlanSummaryTable({ plans }) {
 }
 
 export function DosePlanDisplay({ dosePlans, version }) {
-  const { language } = useLanguage();
-
   if (!dosePlans || dosePlans.length === 0) {
     return null;
   }
@@ -455,11 +423,9 @@ export function DosePlanDisplay({ dosePlans, version }) {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Pill size={18} className="text-primary" />
-          <h3 className="text-sm font-semibold">
-            {language === "vi" ? "Kế hoạch liều lượng" : "Dose Plans"}
-          </h3>
+          <h3 className="text-sm font-semibold">Dose Plans</h3>
           <Badge variant="secondary" className="text-xs">
-            {dosePlans.length} {language === "vi" ? "thuốc" : "drugs"}
+            {dosePlans.length} drugs
           </Badge>
         </div>
         {version && (
@@ -476,7 +442,7 @@ export function DosePlanDisplay({ dosePlans, version }) {
       {activePlans.length > 0 && (
         <div className="space-y-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            {language === "vi" ? "Chi tiết liều lượng" : "Detailed Dose Information"}
+            Detailed Dose Information
           </p>
           {activePlans.map((plan) => (
             <DosePlanCard key={plan.plan_id} plan={plan} />
@@ -490,7 +456,7 @@ export function DosePlanDisplay({ dosePlans, version }) {
           <div className="flex items-center gap-2">
             <AlertTriangle size={14} className="text-amber-600" />
             <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
-              {language === "vi" ? "Tạm dừng tăng liều" : "Hold Titration"}
+              Hold Titration
             </p>
           </div>
           {holdPlans.map((plan) => (

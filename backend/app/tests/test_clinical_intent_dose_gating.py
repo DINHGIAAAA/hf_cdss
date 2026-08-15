@@ -131,7 +131,6 @@ def test_compact_payload_omits_dose_plans_for_non_dose_intent() -> None:
         recommendation=recommendation,
         verification=_verification_stub(),
         clinical_state={"intent": "start_medication"},
-        language="en",
     )
     compact = _compact_recommendation(payload)
     assert "dose_plans" not in compact
@@ -152,7 +151,6 @@ def test_compact_payload_includes_dose_plans_for_dose_intent() -> None:
         recommendation=recommendation,
         verification=_verification_stub(),
         clinical_state={"intent": "dose_adjustment"},
-        language="en",
     )
     compact = _compact_recommendation(payload)
     assert compact.get("dose_plans")

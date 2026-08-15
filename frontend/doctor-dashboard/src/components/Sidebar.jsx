@@ -13,7 +13,6 @@ import {
 import { Link, useNavigate } from "react-router-dom";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { patientSummary } from "../utils";
-import { LanguageToggle } from "./LanguageToggle";
 import { useAuth } from "../auth/AuthContext";
 import { isAdminUser } from "../auth/roles";
 import { useLanguage } from "@/i18n/LanguageProvider.jsx";
@@ -191,7 +190,7 @@ export function Sidebar({
   open,
 }) {
   const { user, logout } = useAuth();
-  const { language, languages, setLanguage, t } = useLanguage();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const showAdminLink = isAdminUser(user);
 
@@ -338,14 +337,6 @@ export function Sidebar({
             {open && <span className="truncate">{t("sidebar.adminDashboard")}</span>}
           </Link>
         )}
-
-        <LanguageToggle
-          className={open ? "w-full" : undefined}
-          compact={!open}
-          language={language}
-          languages={languages}
-          onChange={setLanguage}
-        />
 
         <Separator className="bg-sidebar-border" />
 

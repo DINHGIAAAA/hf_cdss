@@ -11,18 +11,17 @@ def _async_llm_recorder(calls: list[str]):
     return _fake
 
 
-def test_extracts_vietnamese_vitals_labs_medications_and_allergy() -> None:
+def test_extracts_vitals_labs_medications_and_allergy() -> None:
     patient = extract_patient_from_message(
         (
-            "Benh nhan nam 64 tuoi suy tim EF con 32%, muc loc cau than 78, "
-            "kali mau 4.4, huyet ap 118/74 va mach 74 lan/phut. "
-            "Tang huyet ap, dang dung metoprolol 25 mg bid va dapagliflozin 10mg daily. "
-            "Di ung voi lisinopril gay ho. Khong co dau hieu cap cuu."
+            "Age 64, male, heart failure. EF 32%, eGFR 78, potassium 4.4, BP 118/74, HR 74 bpm. "
+            "Hypertension. Taking metoprolol 25 mg bid and dapagliflozin 10mg daily. "
+            "Allergic to lisinopril causing cough. No acute instability."
         ),
-        "INTAKE_VI",
+        "INTAKE_EN",
     )
 
-    assert patient.case_id == "INTAKE_VI"
+    assert patient.case_id == "INTAKE_EN"
     assert patient.lvef == 32
     assert patient.egfr == 78
     assert patient.potassium == 4.4
@@ -34,7 +33,7 @@ def test_extracts_vietnamese_vitals_labs_medications_and_allergy() -> None:
     assert metoprolol.dose_value == 25
     assert metoprolol.dose_unit == "mg"
     assert metoprolol.frequency == "bid"
-    assert patient.allergies == ["lisinopril gay ho"]
+    assert patient.allergies == ["lisinopril causing cough"]
     assert patient.red_flags[0].status == "absent"
     assert patient.heart_failure_profile.lvef.source.confidence == 0.9
 
@@ -72,10 +71,9 @@ def test_skips_llm_intake_when_required_fields_are_complete(monkeypatch) -> None
 
     extract_patient_from_message(
         (
-            "Benh nhan nam 64 tuoi suy tim EF con 32%, muc loc cau than 78, "
-            "kali mau 4.4, huyet ap 118/74 va mach 74 lan/phut. "
-            "Tang huyet ap, dang dung metoprolol 25 mg bid va dapagliflozin 10mg daily. "
-            "Di ung voi lisinopril gay ho. Khong co dau hieu cap cuu."
+            "Age 64, male, heart failure. EF 32%, eGFR 78, potassium 4.4, BP 118/74, HR 74 bpm. "
+            "Hypertension. Taking metoprolol 25 mg bid and dapagliflozin 10mg daily. "
+            "Allergic to lisinopril causing cough. No acute instability."
         ),
         "SKIP_LLM_INTAKE",
     )

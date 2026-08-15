@@ -30,7 +30,7 @@ def _demo_patient() -> PatientProfile:
 
 def test_fallback_plan_splits_multi_question() -> None:
     message = "MRA or SGLT2i? What about ARNI? Should I add beta blocker?"
-    plan = fallback_question_plan(message, patient=_demo_patient(), language="en")
+    plan = fallback_question_plan(message, patient=_demo_patient())
     assert plan.is_multi_question
     assert len(plan.questions) == 3
     assert "MRA" in plan.questions[0].text
@@ -40,7 +40,7 @@ def test_fallback_plan_splits_multi_question() -> None:
 
 
 def test_fallback_plan_arni_requires_acei_washout() -> None:
-    plan = fallback_question_plan("What about ARNI?", patient=_demo_patient(), language="en")
+    plan = fallback_question_plan("What about ARNI?", patient=_demo_patient())
     assert len(plan.questions) == 1
     assert "acei_last_dose_hours_ago" in plan.questions[0].required_data_fields
 
@@ -53,7 +53,6 @@ async def test_plan_clinical_questions_uses_fallback_when_llm_disabled(monkeypat
     plan = await plan_clinical_questions(
         "MRA or SGLT2i? What about ARNI?",
         patient=_demo_patient(),
-        language="en",
     )
     assert plan.source == "fallback"
     assert len(plan.questions) >= 2
@@ -63,7 +62,7 @@ def test_planner_prefers_rule_split_when_llm_under_splits() -> None:
     from app.modules.question_planner.service import _parse_llm_plan
 
     message = "What about ARNI? Should I add beta blocker?"
-    fallback = fallback_question_plan(message, patient=_demo_patient(), language="en")
+    fallback = fallback_question_plan(message, patient=_demo_patient())
     merged = _parse_llm_plan(
         {
             "reasoning": "single combined question",
@@ -120,6 +119,6 @@ async def test_plan_skips_llm_for_obvious_single_question(monkeypatch) -> None:
         return None
 
     monkeypatch.setattr(qp_service, "_call_llm_planner", fake_llm)
-    plan = await plan_clinical_questions("What about ARNI?", patient=_demo_patient(), language="en")
+    plan = await plan_clinical_questions("What about ARNI?", patient=_demo_patient())
     assert plan.source == "fallback"
     assert called["llm"] is False
