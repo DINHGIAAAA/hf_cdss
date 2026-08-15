@@ -138,7 +138,12 @@ def extract_claims_from_section(record: dict) -> tuple[list[dict], bool]:
     # Combine Chain-of-Thought with system prompt for better extraction
     combined_prompt = CHAIN_OF_THOUGHT_PROMPT + "\n\n" + CLAIM_EXTRACTION_SYSTEM_PROMPT
 
-    payload = call_llm_json(combined_prompt, user_prompt)
+    payload = call_llm_json(
+        combined_prompt,
+        user_prompt,
+        num_ctx=8192,
+        timeout_seconds=config.INGESTION_LLM_TIMEOUT_SECONDS,
+    )
     if payload is None:
         return [], True
     if not payload:

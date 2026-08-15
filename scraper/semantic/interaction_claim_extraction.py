@@ -119,7 +119,11 @@ def extract_structured_interaction_claims_from_section(record: dict) -> list[dic
         ensure_ascii=False,
     )
 
-    payload = call_llm_json(STRUCTURED_INTERACTION_EXTRACTION_SYSTEM_PROMPT, user_prompt)
+    payload = call_llm_json(
+        STRUCTURED_INTERACTION_EXTRACTION_SYSTEM_PROMPT,
+        user_prompt,
+        timeout_seconds=config.INGESTION_LLM_TIMEOUT_SECONDS,
+    )
     if not payload:
         return []
 

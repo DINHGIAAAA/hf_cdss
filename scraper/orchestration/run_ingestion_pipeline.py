@@ -317,6 +317,7 @@ def run_load(python: str, args: argparse.Namespace, step_kwargs: dict) -> None:
 
 def run_extract_kg_base(python: str, args: argparse.Namespace, step_kwargs: dict) -> None:
     """Parse sources → chunks → entities → claims."""
+    import gc  # Memory cleanup
     from scraper.orchestration.data_quality_report import report_kg_base
 
     labels_path = drug_labels_dir()
@@ -354,6 +355,7 @@ def run_extract_kg_base(python: str, args: argparse.Namespace, step_kwargs: dict
     labels = str(labels_path)
     guidelines = str(guidelines_path)
 
+    # Parse guidelines - these can run in parallel if both input dirs exist
     if not args.skip_guideline_parse:
         run_step(
             "parse_guideline_pdf",
@@ -372,7 +374,7 @@ def run_extract_kg_base(python: str, args: argparse.Namespace, step_kwargs: dict
                 "--tables-dir",
                 "processed/tables",
                 "--workers",
-                "1",
+                "2",
             ],
             **step_kwargs,
         )
@@ -391,7 +393,9 @@ def run_extract_kg_base(python: str, args: argparse.Namespace, step_kwargs: dict
             ],
             **step_kwargs,
         )
+        gc.collect()  # Free memory after parsing
 
+    # Sequential steps with memory cleanup between heavy tasks
     for name, command in [
         (
             "parse_drug_label_xml",
@@ -415,6 +419,7 @@ def run_extract_kg_base(python: str, args: argparse.Namespace, step_kwargs: dict
         ("create_claims", [python, "-m", "scraper.process.create_claims"]),
     ]:
         run_step(name, command, **step_kwargs)
+        gc.collect()  # Free memory after each step
 
     if not args.dry_run:
         report_kg_base(ROOT)

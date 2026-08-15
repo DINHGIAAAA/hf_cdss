@@ -170,6 +170,22 @@ def _cache_dir() -> Path | None:
     return path
 
 
+def _enforce_cache_size_limit(cache_root: Path, max_entries: int = 5000) -> None:
+    """Evict oldest cache entries if cache exceeds max_entries."""
+    try:
+        cache_files = sorted(
+            cache_root.glob("*.json"),
+            key=lambda f: f.stat().st_mtime,
+        )
+        if len(cache_files) > max_entries:
+            # Remove oldest 20% of entries
+            evict_count = max(100, len(cache_files) - int(max_entries * 0.8))
+            for cache_file in cache_files[:evict_count]:
+                cache_file.unlink(missing_ok=True)
+    except OSError:
+        pass  # Ignore errors during cleanup
+
+
 def _cache_key(system_prompt: str, user_prompt: str, *, max_tokens: int, model: str) -> str:
     raw = f"{model}|{max_tokens}|{system_prompt}|||{user_prompt}"
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()
@@ -193,6 +209,8 @@ def _write_cache(key: str, payload: dict[str, Any]) -> None:
     cache_root = _cache_dir()
     if cache_root is None or not config.INGESTION_LLM_CACHE_ENABLED:
         return
+    # Enforce size limit before writing
+    _enforce_cache_size_limit(cache_root, config.LLM_CACHE_MAX_ENTRIES)
     cache_file = cache_root / f"{key}.json"
     cache_file.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
 
@@ -392,13 +410,13 @@ def call_llm_json(
 ) -> dict[str, Any] | None:
     max_tokens = max_tokens or config.LLM_MAX_TOKENS
     resolved_model = model or config.INGESTION_LLM_MODEL
-    resolved_timeout = (
-        float(timeout_seconds)
-        if timeout_seconds is not None
-        else float(config.CONDITION_REFINE_LLM_TIMEOUT_SECONDS)
-        if model == config.CONDITION_REFINE_LLM_MODEL
-        else float(config.LLM_TIMEOUT_SECONDS)
-    )
+    # If explicit timeout_seconds passed, use it directly
+    if timeout_seconds is not None:
+        resolved_timeout = float(timeout_seconds)
+    elif model == config.CONDITION_REFINE_LLM_MODEL:
+        resolved_timeout = float(config.CONDITION_REFINE_LLM_TIMEOUT_SECONDS)
+    else:
+        resolved_timeout = float(config.INGESTION_LLM_TIMEOUT_SECONDS)
     cache_key = _cache_key(system_prompt, user_prompt, max_tokens=max_tokens, model=resolved_model)
     cached = _read_cache(cache_key)
     if cached is not None:

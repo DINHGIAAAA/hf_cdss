@@ -401,7 +401,11 @@ def extract_structured_dose_claims_from_section(record: dict) -> list[dict]:
         ensure_ascii=False,
     )
 
-    payload = call_llm_json(STRUCTURED_DOSE_EXTRACTION_SYSTEM_PROMPT, user_prompt)
+    payload = call_llm_json(
+        STRUCTURED_DOSE_EXTRACTION_SYSTEM_PROMPT,
+        user_prompt,
+        timeout_seconds=config.INGESTION_LLM_TIMEOUT_SECONDS,
+    )
     if not payload:
         return []
 
