@@ -12,7 +12,7 @@ from app.core.llm_runtime import chat_completions_url, llm_auth_headers, llm_cha
 from app.modules.chat.clinical_state import build_clinical_state
 from app.modules.clinical_intake_extraction.semantic import detect_multi_question
 from app.modules.clinical_intake_extraction.service import _extract_json_object, _sanitize_llm_input
-from app.modules.explanation.question_focus import focus_class_ids_from_message, is_choice_question
+from app.modules.explanation.question_focus import focus_class_ids_from_message
 from app.modules.medication_presence import patient_on_acei, patient_on_warfarin
 from app.modules.missing_fields.service import REQUIRED_CHAT_FIELDS
 from app.prompts.question_planner import QUESTION_PLANNER_SYSTEM_PROMPT
@@ -78,16 +78,9 @@ def _rule_based_required_fields(question: str, *, patient: PatientProfile | None
 
 
 def _infer_intent(question: str) -> str:
-    if is_choice_question(question):
-        return "choice_question"
-    normalized = (question or "").lower()
-    if any(token in normalized for token in ("dose", "titrat", "titration", "liều", "lieu")):
-        return "dose_adjustment"
-    if any(token in normalized for token in ("start", "initiate", "add", "bắt đầu", "bat dau", "khởi trị")):
-        return "start_medication"
-    if any(token in normalized for token in ("safe", "contraind", "avoid", "washout")):
-        return "safety_check"
-    return "general"
+    from app.modules.chat.clinical_state import _intent
+
+    return _intent(question)
 
 
 def fallback_question_plan(

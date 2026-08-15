@@ -5,7 +5,7 @@ import time
 from collections.abc import AsyncIterator
 from typing import Any
 
-from app.core.config import settings
+from app.modules.chat.clinical_intent import should_include_dose_in_llm_payload
 from app.core.http_client import get_async_client
 from app.core.llm_runtime import chat_completions_url, llm_auth_headers, llm_chat_completions_enabled
 from app.core.metrics import increment, observe
@@ -155,12 +155,34 @@ def _per_class_fact_sheet(items: list, *, lang: str = "vi") -> dict[str, dict[st
     return sheet
 
 
+def _compact_dose_plans(payload: LLMAnswerRequest) -> list[dict[str, Any]]:
+    return [
+        {
+            "drug_name": plan.drug_name,
+            "drug_class": plan.drug_class,
+            "status": plan.status,
+            "intent": plan.intent,
+            "rationale": plan.rationale,
+            "current_dose": plan.current_dose.model_dump() if plan.current_dose else None,
+            "recommended_dose": plan.recommended_dose.model_dump() if plan.recommended_dose else None,
+            "target_dose": plan.target_dose.model_dump() if plan.target_dose else None,
+            "titration_plan": plan.titration_plan[:4],
+            "calculation_steps": [step.model_dump() for step in plan.calculation_steps[:5]],
+            "hold_criteria": plan.hold_criteria[:3],
+            "missing_inputs": plan.missing_inputs,
+            "evidence_refs": plan.evidence_refs[:4],
+        }
+        for plan in payload.recommendation.dose_plans
+    ]
+
+
 def _compact_recommendation(payload: LLMAnswerRequest) -> dict[str, Any]:
     verification = payload.verification
     focus = focus_class_ids_for_payload(payload)
     narrowed_items = _items_for_clinician_question(payload)
     lang = payload.language or "vi"
-    return {
+    intent = (payload.clinical_state or {}).get("intent")
+    compact: dict[str, Any] = {
         "user_input": payload.user_input,
         "conversation_context": payload.conversation_context,
         "clinical_state": payload.clinical_state,
@@ -223,30 +245,15 @@ def _compact_recommendation(payload: LLMAnswerRequest) -> dict[str, Any]:
             }
             for item in narrowed_items
         ],
-        "dose_plans": [
-            {
-                "drug_name": plan.drug_name,
-                "drug_class": plan.drug_class,
-                "status": plan.status,
-                "intent": plan.intent,
-                "rationale": plan.rationale,
-                "current_dose": plan.current_dose.model_dump() if plan.current_dose else None,
-                "recommended_dose": plan.recommended_dose.model_dump() if plan.recommended_dose else None,
-                "target_dose": plan.target_dose.model_dump() if plan.target_dose else None,
-                "titration_plan": plan.titration_plan[:4],
-                "calculation_steps": [step.model_dump() for step in plan.calculation_steps[:5]],
-                "hold_criteria": plan.hold_criteria[:3],
-                "missing_inputs": plan.missing_inputs,
-                "evidence_refs": plan.evidence_refs[:4],
-            }
-            for plan in payload.recommendation.dose_plans
-        ],
         "verification": {
             "final_verdict": verification.final_verdict if verification else None,
             "retrieved_graph_facts": len(verification.context.graph_facts) if verification else 0,
             "retrieved_evidence_chunks": len(verification.context.evidence_chunks) if verification else 0,
         },
     }
+    if should_include_dose_in_llm_payload(intent):
+        compact["dose_plans"] = _compact_dose_plans(payload)
+    return compact
 
 
 # Multi-language fallback templates for graceful degradation
@@ -519,6 +526,22 @@ def fallback_answer(payload: LLMAnswerRequest) -> str:
             paragraphs.append("**Theo dõi:** " + " ".join(monitoring))
         else:
             paragraphs.append("**Monitoring:** " + " ".join(monitoring))
+
+    intent = (payload.clinical_state or {}).get("intent")
+    if should_include_dose_in_llm_payload(intent) and payload.recommendation.dose_plans:
+        dose_lines: list[str] = []
+        for plan in payload.recommendation.dose_plans[:6]:
+            label = plan.drug_name or plan.drug_class or "Medication"
+            recommended = plan.recommended_dose
+            if recommended and recommended.value is not None:
+                unit = recommended.unit or "mg"
+                freq = recommended.frequency or ""
+                dose_lines.append(f"- **{label}**: {recommended.value} {unit}{f' {freq}' if freq else ''}")
+            elif plan.rationale:
+                dose_lines.append(f"- **{label}**: {plan.rationale}")
+        if dose_lines:
+            heading = t["dose_check"] if lang != "vi" else t["dose_check"]
+            paragraphs.append(f"**{heading}:**\n" + "\n".join(dose_lines))
 
     if missing:
         paragraphs.append(f"{t['missing_data']}: {', '.join(missing)}.")

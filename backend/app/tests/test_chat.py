@@ -87,7 +87,8 @@ def test_chat_builds_clinical_state_for_followup_intent(client) -> None:
         json={
             "message": (
                 "EF 35, eGFR 55, K 4.8, BP 110/70, HR 68. "
-                "Dang dung Entresto 49/51 mg bid. NKDA. Stable. Co tang lieu Entresto duoc khong?"
+                "On Entresto 49/51 mg bid. NKDA. Stable. "
+                "Can I uptitrate Entresto dose?"
             )
         },
     )

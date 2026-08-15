@@ -17,6 +17,7 @@ import {
 import { DosePlanDisplay } from "@/components/DosePlanDisplay";
 import { MedicationPathway } from "@/components/MedicationPathway";
 import { useLanguage } from "@/i18n/LanguageProvider.jsx";
+import { shouldShowDosePlans } from "@/lib/clinicalIntent.js";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -362,6 +363,9 @@ export function ClinicalPanel({ active, error, open, panelTab: panelTabProp, onP
   const { t } = useLanguage();
   const summary = patientSummary(active?.draft?.patient || active?.patient);
   const evidenceChunks = active?.verification?.context?.evidence_chunks || [];
+  const clinicalState = active?.draft?.clinical_state ?? null;
+  const showDosePlans =
+    shouldShowDosePlans(clinicalState) && active?.recommendation?.dose_plans?.length > 0;
   const [internalTab, setInternalTab] = useState("clinical");
   const panelTab = panelTabProp ?? internalTab;
   const setPanelTab = onPanelTabChange ?? setInternalTab;
@@ -482,7 +486,8 @@ export function ClinicalPanel({ active, error, open, panelTab: panelTabProp, onP
                           <Separator />
                           <MedicationPathway pathway={active.recommendation.medication_pathway} />
                         </>
-                      ) : active.recommendation.dose_plans?.length > 0 ? (
+                      ) : null}
+                      {showDosePlans ? (
                         <>
                           <Separator />
                           <DosePlanDisplay

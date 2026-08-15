@@ -3,6 +3,7 @@ import { createContext, useContext } from "react";
 export const ClinicalConversationContext = createContext({
   recommendation: null,
   verification: null,
+  clinicalState: null,
   onOpenEvidencePanel: null,
 });
 

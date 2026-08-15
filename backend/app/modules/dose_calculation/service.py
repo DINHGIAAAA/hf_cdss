@@ -12,6 +12,7 @@ from app.modules.dose_calculation.rule_loader import (
     list_available_drugs,
     load_dose_tables,
 )
+from app.modules.chat.clinical_intent import should_compute_dose_plans
 from app.modules.medication_presence import patient_on_acei, patient_on_arni
 from app.modules.graphrag.query_decomposition import normalize_drug_class
 from app.modules.recommendation.drug_class_keys import CANONICAL_GDMT_CLASS_IDS
@@ -134,7 +135,13 @@ def _candidate_drug_keys(
             keys.append(key)
 
     focus_classes = [str(c) for c in (state.get("focus_medication_classes") or []) if c]
-    if recommendation is not None:
+    intent = str(state.get("intent") or "recommendation")
+    has_explicit_focus = bool(
+        state.get("focus_drugs")
+        or state.get("mentioned_medications")
+        or state.get("focus_medication_classes")
+    )
+    if recommendation is not None and intent == "dose_adjustment" and not has_explicit_focus:
         for item in getattr(recommendation, "recommendations", []) or []:
             if getattr(item, "status", None) in {"consider", "consider_with_caution", "review"}:
                 focus_classes.append(str(getattr(item, "drug_class", "") or ""))
@@ -206,14 +213,7 @@ def build_dose_plans(
     """Build dose plans from FDA drug labels for relevant candidate drugs."""
     state = clinical_state or {}
     intent = str(state.get("intent") or "recommendation")
-    always_compute = bool(patient.current_medications) or intent in {
-        "dose_adjustment",
-        "start_medication",
-        "safety_check",
-    }
-    focus_drugs = state.get("focus_drugs") or state.get("mentioned_medications") or []
-    focus_classes = state.get("focus_medication_classes") or []
-    if not always_compute and not focus_drugs and not focus_classes and recommendation is None:
+    if not should_compute_dose_plans(intent):
         return []
 
     plans: list[SuggestedDosePlan] = []

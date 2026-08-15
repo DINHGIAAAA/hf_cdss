@@ -97,7 +97,7 @@ def _fields_for_intent(
     clinical_state: dict[str, Any] | None = None,
 ) -> list[tuple[str, str, str, Callable[[PatientProfile], bool]]]:
     fields = list(REQUIRED_CHAT_FIELDS)
-    if clinical_intent in {"dose_adjustment", "start_medication"}:
+    if clinical_intent == "dose_adjustment":
         fields.extend(DOSE_PERSONALIZATION_FIELDS)
     if patient_on_warfarin(patient) and clinical_intent in {"dose_adjustment", "safety_check"}:
         fields.extend(WARFARIN_DOSE_FIELDS)

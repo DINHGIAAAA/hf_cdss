@@ -11,6 +11,7 @@ from typing import Any
 from app.core.config import settings
 from app.core.redis_client import redis_client
 from app.modules.chat.clinical_state import build_clinical_state, state_query_text
+from app.modules.chat.clinical_intent import merge_planned_question_intent
 from app.modules.datastores.postgres import (
     append_chat_message,
     read_chat_messages,
@@ -927,6 +928,14 @@ async def _plan_and_intake_parallel(
     return question_plan, merged, conflicts
 
 
+def _finalize_clinical_state(
+    clinical_state: dict[str, Any],
+    *,
+    conversation_id: str,
+) -> dict[str, Any]:
+    return merge_planned_question_intent(clinical_state, _active_planned_question(conversation_id))
+
+
 def _missing_check_for_turn(
     patient: PatientProfile,
     *,
@@ -1061,6 +1070,7 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
         has_prior_assistant=bool(prior_last_assistant := _last_assistant_message(conversation_id)),
         last_assistant_message=prior_last_assistant,
     )
+    clinical_state = _finalize_clinical_state(clinical_state, conversation_id=conversation_id)
     if state_text := state_query_text(clinical_state):
         merged.care_context.decision_context = " ".join(
             value for value in [merged.care_context.decision_context, state_text] if value
@@ -1398,6 +1408,7 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
         has_prior_assistant=bool(prior_last_assistant := _last_assistant_message(conversation_id)),
         last_assistant_message=prior_last_assistant,
     )
+    clinical_state = _finalize_clinical_state(clinical_state, conversation_id=conversation_id)
     if state_text := state_query_text(clinical_state):
         merged.care_context.decision_context = " ".join(
             value for value in [merged.care_context.decision_context, state_text] if value

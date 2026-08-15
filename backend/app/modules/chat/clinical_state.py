@@ -8,38 +8,91 @@ from app.modules.explanation.question_focus import focus_class_ids_from_message,
 from app.schemas.patient import PatientProfile
 
 
-INTENT_PATTERNS = {
-    "dose_adjustment": (
-        "increase",
-        "decrease",
-        "uptitrate",
-        "titrate",
-        "dose",
-        "tang lieu",
-        "giam lieu",
-        "chinh lieu",
+# English-only intent patterns (ordered via INTENT_CHECK_ORDER).
+INTENT_PATTERNS: dict[str, tuple[str, ...]] = {
+    "definition": (
+        "what is ",
+        "what are ",
+        "define ",
+        "definition of",
+        "mechanism of",
+        "how does ",
+        "explain what",
     ),
-    "start_medication": ("start", "initiate", "add", "bat dau", "them thuoc"),
-    "stop_or_avoid": ("stop", "avoid", "hold", "ngung", "tranh", "tam dung"),
-    "safety_check": ("safe", "contraindication", "warning", "an toan", "chong chi dinh"),
-    "evidence_question": ("evidence", "guideline", "source", "citation", "bang chung", "khuyen cao"),
-    "choice_question": ("hoac", "hay la", "lua chon", " or ", "either"),
+    "dose_adjustment": (
+        "calculate dose",
+        "dosing for",
+        "dosing schedule",
+        "dosage",
+        " dose ",
+        "dose?",
+        "doses",
+        "titrat",
+        "uptitrat",
+        "how much ",
+        "increase dose",
+        "decrease dose",
+        "adjust dose",
+        "target dose",
+        "starting dose",
+    ),
+    "safety_check": (
+        "safe to add",
+        "safe to start",
+        "safe to use",
+        "is it safe",
+        "contraindication",
+        "contraindicated",
+        "contraindications",
+        "warning",
+        "warnings",
+    ),
+    "start_medication": (
+        "can i add",
+        "should i add",
+        "can we add",
+        "should we add",
+        "can i start",
+        "should i start",
+        "initiate ",
+        "begin ",
+        " start ",
+    ),
+    "stop_or_avoid": (
+        " stop ",
+        " avoid ",
+        " hold ",
+        "discontinue",
+        "withdraw",
+    ),
+    "evidence_question": (
+        "evidence",
+        "guideline",
+        "guidelines",
+        "source",
+        "citation",
+        "reference",
+        "trial data",
+    ),
     "follow_up_detail": (
-        "giai thich them",
-        "noi ro hon",
-        "chi tiet hon",
-        "cu the hon",
-        "sau hon",
-        "vi sao",
-        "tai sao",
-        "con gi nua",
         "elaborate",
         "explain more",
         "in detail",
         "more detail",
         "go deeper",
+        "tell me more",
+        "why ",
     ),
 }
+
+INTENT_CHECK_ORDER: tuple[str, ...] = (
+    "definition",
+    "dose_adjustment",
+    "safety_check",
+    "start_medication",
+    "stop_or_avoid",
+    "evidence_question",
+)
 
 
 def _hf_type(patient: PatientProfile) -> str | None:
@@ -79,11 +132,10 @@ def _intent(message: str, *, has_prior_assistant: bool = False) -> str:
         for term in INTENT_PATTERNS.get("follow_up_detail", ()):
             if term in normalized:
                 return "follow_up_detail"
-    for intent, terms in INTENT_PATTERNS.items():
-        if intent in {"choice_question", "follow_up_detail"}:
-            continue
-        if any(term in normalized for term in terms):
-            return intent
+    for intent in INTENT_CHECK_ORDER:
+        for term in INTENT_PATTERNS.get(intent, ()):
+            if term in normalized:
+                return intent
     return "recommendation"
 
 
@@ -104,6 +156,7 @@ def build_clinical_state(
     has_prior_assistant: bool = False,
     last_assistant_message: str | None = None,
 ) -> dict[str, Any]:
+    intent = _intent(message, has_prior_assistant=has_prior_assistant)
     mentioned = _mentioned_medications(message)
     focus_classes = sorted({item["drug_class"] for item in mentioned})
     message_focus = focus_class_ids_from_message(message)
@@ -113,12 +166,12 @@ def build_clinical_state(
         prior_focus = focus_class_ids_from_message(last_assistant_message)
         if prior_focus:
             focus_classes = sorted(set(focus_classes) | prior_focus)
-    if not focus_classes and patient.current_medications:
+    if not focus_classes and patient.current_medications and intent == "dose_adjustment":
         focus_classes = _active_classes(patient)
 
     state = {
         "case_id": patient.case_id,
-        "intent": _intent(message, has_prior_assistant=has_prior_assistant),
+        "intent": intent,
         "hf_type": _hf_type(patient),
         "key_values": {
             "lvef": patient.lvef,

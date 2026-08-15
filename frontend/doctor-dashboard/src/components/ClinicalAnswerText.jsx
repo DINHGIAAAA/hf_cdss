@@ -1,9 +1,15 @@
 import { useAuiState } from "@assistant-ui/react";
 
+import { ClinicalStructuredAnswer } from "@/components/ClinicalAnswerTables";
+import { DosePlanDisplay } from "@/components/DosePlanDisplay";
 import { MarkdownText } from "@/components/markdown-text";
 import { Button } from "@/components/ui/button";
 import { useClinicalConversation } from "@/context/ClinicalConversationContext.jsx";
 import { useLanguage } from "@/i18n/LanguageProvider.jsx";
+import {
+  shouldShowDosePlans,
+  shouldShowStructuredRecommendation,
+} from "@/lib/clinicalIntent.js";
 
 function messagePlainText(state) {
   const parts = state.message.parts;
@@ -26,7 +32,8 @@ function messagePlainText(state) {
 
 export function ClinicalAnswerText() {
   const { t } = useLanguage();
-  const { recommendation, verification, onOpenEvidencePanel } = useClinicalConversation();
+  const { recommendation, verification, clinicalState, onOpenEvidencePanel } =
+    useClinicalConversation();
   const isRunning = useAuiState((s) => s.thread.isRunning);
   const answerText = useAuiState(messagePlainText);
   const isLastAssistant = useAuiState((s) => {
@@ -37,6 +44,15 @@ export function ClinicalAnswerText() {
   const trimmed = (answerText || "").trim();
   const hasRecommendation = Boolean(recommendation?.recommendations?.length);
   const evidenceCount = verification?.context?.evidence_chunks?.length || 0;
+  const showDosePlans =
+    !isRunning &&
+    isLastAssistant &&
+    shouldShowDosePlans(clinicalState) &&
+    recommendation?.dose_plans?.length > 0;
+  const showStructured =
+    !isRunning &&
+    isLastAssistant &&
+    shouldShowStructuredRecommendation(clinicalState, recommendation);
 
   if (!isRunning && isLastAssistant && !trimmed && !hasRecommendation) {
     return (
@@ -49,6 +65,15 @@ export function ClinicalAnswerText() {
       {trimmed ? <MarkdownText /> : null}
       {!isRunning && isLastAssistant && hasRecommendation && !trimmed ? (
         <p className="text-sm text-muted-foreground">{t("clinicalAnswer.seeClinicalPanel")}</p>
+      ) : null}
+      {showDosePlans ? (
+        <DosePlanDisplay
+          dosePlans={recommendation.dose_plans}
+          version={recommendation.dose_rules_version}
+        />
+      ) : null}
+      {showStructured ? (
+        <ClinicalStructuredAnswer recommendation={recommendation} verification={verification} />
       ) : null}
       {!isRunning && isLastAssistant && evidenceCount > 0 && onOpenEvidencePanel ? (
         <Button

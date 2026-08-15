@@ -327,6 +327,7 @@ export function ClinicalChatThread({
           value={{
             recommendation: active?.recommendation ?? null,
             verification: active?.verification ?? null,
+            clinicalState: active?.draft?.clinical_state ?? null,
             onOpenEvidencePanel: () => onOpenPanel?.("evidence"),
           }}
         >

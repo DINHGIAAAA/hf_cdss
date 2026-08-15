@@ -39,7 +39,7 @@ def test_dose_intent_does_not_require_creatinine_when_egfr_present() -> None:
 def test_dose_intent_still_requires_renal_lab_without_egfr_or_creatinine() -> None:
     patient = _demo_like_patient()
     patient.labs.egfr = None
-    check = check_missing_fields(patient, clinical_intent="start_medication")
+    check = check_missing_fields(patient, clinical_intent="dose_adjustment")
     assert any(item.field == "creatinine" for item in check.missing_fields)
 
 
