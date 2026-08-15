@@ -120,27 +120,34 @@ def _candidate_drug_keys(
 ) -> list[str]:
     state = clinical_state or {}
     names: list[str] = []
-    names.extend(str(x) for x in (state.get("focus_drugs") or []) if x)
-    names.extend(
-        str(item.get("name"))
-        for item in (state.get("mentioned_medications") or [])
-        if isinstance(item, dict) and item.get("name")
-    )
+    explicit_names: set[str] = set()
+    for x in (state.get("focus_drugs") or []):
+        if x:
+            names.append(str(x))
+            explicit_names.add(str(x))
+    for item in (state.get("mentioned_medications") or []):
+        if isinstance(item, dict) and item.get("name"):
+            names.append(str(item["name"]))
+            explicit_names.add(str(item["name"]))
     names.extend(patient.current_medications or [])
 
     keys: list[str] = []
+    explicit_keys: set[str] = set()
     for name in names:
         key = resolve_drug_key(name)
         if key:
             keys.append(key)
+            if name in explicit_names:
+                explicit_keys.add(key)
 
-    focus_classes = [str(c) for c in (state.get("focus_medication_classes") or []) if c]
+    clinician_focus_classes = [str(c) for c in (state.get("focus_medication_classes") or []) if c]
     intent = str(state.get("intent") or "recommendation")
     has_explicit_focus = bool(
         state.get("focus_drugs")
         or state.get("mentioned_medications")
         or state.get("focus_medication_classes")
     )
+    focus_classes = list(clinician_focus_classes)
     if recommendation is not None and intent == "dose_adjustment" and not has_explicit_focus:
         for item in getattr(recommendation, "recommendations", []) or []:
             if getattr(item, "status", None) in {"consider", "consider_with_caution", "review"}:
@@ -157,7 +164,20 @@ def _candidate_drug_keys(
                     keys.append(str(dk))
                     break
 
-    return _dedupe_keys_one_per_class(list(dict.fromkeys(keys)), patient)
+    keys = _dedupe_keys_one_per_class(list(dict.fromkeys(keys)), patient)
+
+    if intent == "dose_adjustment" and clinician_focus_classes:
+        # Clinician named a specific class/drug in the question — only show
+        # dose data for that, not every medication the patient happens to be
+        # on. Explicitly named drugs (focus_drugs/mentioned_medications)
+        # always stay even if their class differs.
+        wanted = {
+            normalize_drug_class(c) or c.lower().replace(" ", "_").replace("-", "_")
+            for c in clinician_focus_classes
+        }
+        keys = [k for k in keys if k in explicit_keys or _canonical_class_for_drug_key(k) in wanted]
+
+    return keys
 
 
 def _canonical_class_for_drug_key(drug_key: str) -> str:

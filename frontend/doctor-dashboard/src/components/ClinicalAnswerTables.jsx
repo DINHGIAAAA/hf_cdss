@@ -77,9 +77,9 @@ function groupByStatus(items) {
   return groups;
 }
 
-function collectBullets(recommendation, limit = 4) {
+function collectBullets(items, limit = 4) {
   const lines = [];
-  for (const item of recommendation?.recommendations || []) {
+  for (const item of items || []) {
     for (const raw of [
       ...(item.simplified_monitoring || []),
       ...(item.monitoring || []),
@@ -95,11 +95,24 @@ function collectBullets(recommendation, limit = 4) {
 }
 
 /** Prose + tables only for GDMT matrix and dose plans. */
-export function ClinicalStructuredAnswer({ recommendation, verification }) {
+export function ClinicalStructuredAnswer({ recommendation, verification, focusClassIds }) {
   const { t } = useLanguage();
   if (!recommendation) return null;
 
-  const items = recommendation.recommendations || [];
+  const allItems = recommendation.recommendations || [];
+  const hasFocus = Boolean(focusClassIds?.length);
+  // Clinician asked about a specific class (e.g. "MRA dose") — only show
+  // that class's row, not the full unrelated GDMT checklist.
+  const items = hasFocus
+    ? allItems.filter((item) => focusClassIds.includes((item.class_id || "").toLowerCase()))
+    : allItems;
+  const allPathway = recommendation.medication_pathway || [];
+  const pathway = hasFocus
+    ? allPathway.filter((step) => focusClassIds.includes((step.class_id || "").toLowerCase()))
+    : allPathway;
+
+  if (hasFocus && items.length === 0 && pathway.length === 0) return null;
+
   const summary = recommendation.patient_summary || {};
   const groups = groupByStatus(items);
   const evidenceCount = verification?.context?.evidence_chunks?.length || 0;
@@ -183,8 +196,7 @@ export function ClinicalStructuredAnswer({ recommendation, verification }) {
       );
     })
     .slice(0, 4);
-  const monitoring = collectBullets(recommendation);
-  const pathway = recommendation.medication_pathway || [];
+  const monitoring = collectBullets(items);
 
   return (
     <div className="aui-clinical-structured-answer space-y-4 text-sm leading-relaxed">

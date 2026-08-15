@@ -53,6 +53,9 @@ export function ClinicalAnswerText() {
     !isRunning &&
     isLastAssistant &&
     shouldShowStructuredRecommendation(clinicalState, recommendation);
+  const focusClassIds = (clinicalState?.focus_medication_classes || [])
+    .map((c) => String(c || "").toLowerCase())
+    .filter(Boolean);
 
   if (!isRunning && isLastAssistant && !trimmed && !hasRecommendation) {
     return (
@@ -73,7 +76,11 @@ export function ClinicalAnswerText() {
         />
       ) : null}
       {showStructured ? (
-        <ClinicalStructuredAnswer recommendation={recommendation} verification={verification} />
+        <ClinicalStructuredAnswer
+          recommendation={recommendation}
+          verification={verification}
+          focusClassIds={focusClassIds}
+        />
       ) : null}
       {!isRunning && isLastAssistant && evidenceCount > 0 && onOpenEvidencePanel ? (
         <Button

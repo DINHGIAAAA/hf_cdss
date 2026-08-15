@@ -248,6 +248,7 @@ FALLBACK_TEMPLATE: dict[str, str] = {
     "consider_msg": "Consider {drugs} if clinically appropriate.",
     "no_recommendations": "No notable new medication recommendations from structured CDSS output.",
     "no_medications": "No new medication classes recommended by CDSS from current data.",
+    "no_focus_data": "**The system has not been updated with data for this.**",
     "missing_data": "Missing data to supplement",
     "default_monitoring": "Monitor symptoms, blood pressure, heart rate, electrolytes, and renal function after each dose change.",
     "safety_note": "This is a safety fallback while AI explanation service is unavailable. Final decisions always require physician confirmation.",
@@ -281,10 +282,10 @@ def _items_for_clinician_question(payload: LLMAnswerRequest):
     focus = _question_focus_class_ids(payload)
     if not focus:
         return items[:8]
-    narrowed = [item for item in items if (item.class_id or "").lower() in focus]
-    if narrowed:
-        return narrowed
-    return items[:6]
+    # Question named a specific drug class (e.g. "increase MRA dose") — only
+    # answer about that class. Falling back to unrelated classes here would
+    # silently answer a different question than the one asked.
+    return [item for item in items if (item.class_id or "").lower() in focus]
 
 
 def _display_drug_labels(items, *, limit: int = 8) -> list[str]:
@@ -328,35 +329,38 @@ def fallback_answer(payload: LLMAnswerRequest) -> str:
         return comparative
 
     items = _items_for_clinician_question(payload)
+    focus = _question_focus_class_ids(payload)
+    t = FALLBACK_TEMPLATE
+    question = (payload.user_input or "").strip()
+
+    # Patient labs/meds already render as chips in the clinical-context panel —
+    # restating them in the answer text is pure noise. Only fall back to a
+    # facts summary when there is no question to anchor the reply to.
+    if question:
+        intro = f"Regarding: “{question}”."
+    else:
+        facts = [
+            f"LVEF {payload.patient.lvef}%" if payload.patient.lvef is not None else None,
+            f"eGFR {payload.patient.egfr} mL/min/1.73 m2" if payload.patient.egfr is not None else None,
+            f"K+ {payload.patient.potassium} mmol/L" if payload.patient.potassium is not None else None,
+            f"SBP {payload.patient.systolic_bp} mmHg" if payload.patient.systolic_bp is not None else None,
+            f"HR {payload.patient.heart_rate} bpm" if payload.patient.heart_rate is not None else None,
+        ]
+        intro = ", ".join(item for item in facts if item) or t["context_fallback"]
+
+    if focus and not items:
+        # Question named a specific drug class but the CDSS has no structured
+        # data for it — say so plainly instead of guessing or padding with
+        # unrelated classes.
+        return "\n\n".join([intro, t["no_focus_data"], f"\n{t['safety_note']}"])
+
     blocked = [item for item in items if item.status == "avoid"]
     caution = [item for item in items if item.status == "consider_with_caution"]
     consider = [item for item in items if item.status == "consider"]
     continue_items = [item for item in items if item.status == "continue"]
     missing = [risk.name.replace("missing_", "") for risk in payload.recommendation.risk_flags if risk.name.startswith("missing_")]
 
-    t = FALLBACK_TEMPLATE
-    question = (payload.user_input or "").strip()
-
-    facts = [
-        f"LVEF {payload.patient.lvef}%" if payload.patient.lvef is not None else None,
-        f"eGFR {payload.patient.egfr} mL/min/1.73 m2" if payload.patient.egfr is not None else None,
-        f"K+ {payload.patient.potassium} mmol/L" if payload.patient.potassium is not None else None,
-        f"SBP {payload.patient.systolic_bp} mmHg" if payload.patient.systolic_bp is not None else None,
-        f"HR {payload.patient.heart_rate} bpm" if payload.patient.heart_rate is not None else None,
-    ]
-    context = ", ".join(item for item in facts if item) or t["context_fallback"]
-    meds = payload.patient.current_medications or []
-    med_line = ", ".join(meds[:8]) if meds else ""
-
-    paragraphs: list[str] = []
-    if question:
-        paragraphs.append(
-            f"For this profile ({context})"
-            + (f" on {med_line}" if med_line else "")
-            + f", regarding: “{question}”."
-        )
-    else:
-        paragraphs.append(context)
+    paragraphs: list[str] = [intro]
 
     def _item_paragraph(group: list) -> None:
         if not group:

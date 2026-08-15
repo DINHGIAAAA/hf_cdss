@@ -119,7 +119,14 @@ const defaultComponents = memoizeMarkdownComponents({
   ),
   p: ({ className, ...props }) => (
     <p
-      className={cn("aui-md-p my-3 leading-relaxed first:mt-0 last:mb-0", className)}
+      className={cn(
+        "aui-md-p my-3 leading-relaxed first:mt-0 last:mb-0",
+        // The clinical answer always ends with a mandatory safety disclaimer
+        // paragraph — de-emphasize it so it reads as a footnote, not as more
+        // clinical content competing with the actual answer above it.
+        "last:border-border/60 last:text-muted-foreground last:mt-4 last:border-t last:pt-3 last:text-xs last:leading-normal",
+        className
+      )}
       {...props} />
   ),
   a: ({ className, ...props }) => (
