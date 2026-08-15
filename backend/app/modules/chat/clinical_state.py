@@ -162,7 +162,19 @@ def build_clinical_state(
     message_focus = focus_class_ids_from_message(message)
     if message_focus:
         focus_classes = sorted(set(focus_classes) | message_focus)
-    if has_prior_assistant and last_assistant_message:
+    # A standalone new clinical question (start/stop/dose/safety/choice) about a
+    # named class shouldn't also inherit whatever class the previous, unrelated
+    # answer happened to mention — that reads as still discussing the old topic.
+    # A generic "tell me more" follow-up SHOULD inherit it, since there's nothing
+    # else to anchor the question to.
+    _STANDALONE_INTENTS = {
+        "dose_adjustment",
+        "start_medication",
+        "stop_or_avoid",
+        "safety_check",
+        "choice_question",
+    }
+    if has_prior_assistant and last_assistant_message and intent not in _STANDALONE_INTENTS:
         prior_focus = focus_class_ids_from_message(last_assistant_message)
         if prior_focus:
             focus_classes = sorted(set(focus_classes) | prior_focus)
