@@ -143,7 +143,7 @@ Extracted rows enter draft or refinement states by default when conditions are i
 
 ## 3.4. Functional Module Design
 
-This section describes how the online CDSS is decomposed into functional modules. Each subsection states what the module is responsible for, how it fits into the end-to-end chat flow, and which implementation files and test suites verify its behavior. Paths refer to code under `backend/app/`.
+This section describes how the online CDSS is decomposed into functional modules. Each subsection states what the module is responsible for, how it fits into the end-to-end chat flow, and which implementation files and test suites verify its behavior. Paths refer to code under `backend/app/`. **Key test case IDs** below are design contracts; full input/expected specifications appear in **Chapter 4, Section 4.6** (Tables 4.3–4.21).
 
 The modules form a pipeline rather than a flat list. A clinician message first becomes a typed patient profile (intake and schema), then normalized observations and risk flags (normalization and risk extraction). Language is resolved from message text; a question planner may split multi-part queries and declare per-question data requirements. Drug names are canonicalized so catalogs can match free text. Deterministic reasoning applies governed constraints, dose-safety rules, interactions, and GDMT policies, optionally enriched with label-derived dose plans. In parallel, GraphRAG retrieves evidence; linking and citation validation connect recommendations to passages. Verification agents cross-check outcomes before bilingual explanation and SSE streaming deliver the answer. Governance and auth modules surround this path so only approved rules execute and only authorized users can change them.
 
@@ -797,15 +797,15 @@ Section 3.4 detailed 19 functional modules with implementation references and te
 - **3.4.7** Dose safety: `evaluate_dose_safety_warnings` with condition operators; TC-DS-01 through TC-DS-07
 - **3.4.8** Interaction checking: `/dose/check` and `/interaction/check` endpoints
 - **3.4.9** Reasoning service: `build_recommendation` with 9-step pipeline; no LLM in critical path; TC-REC-01 through TC-REC-04
-- **3.4.10** Dose calculation: `build_dose_plans`, `dose_source_version`
+- **3.4.10** Dose calculation: `build_dose_plans`, `dose_source_version`; TC-DC-01 through TC-DC-02 (Table 4.17)
 - **3.4.11** GraphRAG: four-signal hybrid retrieval with RRF fusion and evidence filtering
 - **3.4.12** Evidence linking: `enrich_recommendation_evidence`, `prioritize_context_chunks`
 - **3.4.13** Citation validation: `validate_citations`, `source_link_for_chunk` with `#page=N` fragments; TC-CV-01 through TC-CV-03
 - **3.4.14** Verification agents: six-agent pipeline with fail-closed behavior; TC-G-01 through TC-G-04
-- **3.4.15** Explanation: deterministic card summarizer + LLM service with Redis cache, CJK strip for vi/en, `question_focus` follow-up anchoring; TC-CS-01 through TC-CS-08
-- **3.4.16** Chat orchestration: language auto-detect, parallel question planner + intake, clinical state, multi-question SSE, missing-field gate; TC-LG/QP/MF/CH series
-- **3.4.17** Governance: diff engine, status transitions, role enforcement, chat audit search; TC-AD-01 through TC-AD-08
+- **3.4.15** Explanation: deterministic card summarizer + LLM service with Redis cache, CJK strip for vi/en, `question_focus` follow-up anchoring; TC-CS-01 through TC-CS-10 (Table 4.12)
+- **3.4.16** Chat orchestration: language auto-detect, parallel question planner + intake, clinical state, multi-question SSE, missing-field gate; TC-LG/QP/MF/CH series (Tables 4.13, 4.18–4.20)
+- **3.4.17** Governance: diff engine, status transitions, role enforcement, chat audit search; TC-AD-01 through TC-AD-08 (Table 4.15); TC-AD-09 in Table 4.15 only
 - **3.4.18** Auth: JWT + API key + cookie, RBAC, rate limiting, PHI echo prevention
-- **3.4.19** Chat persistence and audit: PostgreSQL conversations, drafts, `search_chat_audit_events`; TC-AU-01 through TC-AU-02
+- **3.4.19** Chat persistence and audit: PostgreSQL conversations, drafts, `search_chat_audit_events`; TC-AU-01 through TC-AU-02 (Table 4.21)
 
 Section 3.5 documented all 19 API route modules registered under `/api/v1`. Sections 3.6–3.10 cover storage design (PostgreSQL governance catalogs, Redis cache, ChromaDB, Neo4j, S3), interface design (doctor dashboard, admin portal), deployment (Docker Compose, Nginx), and security (JWT, RBAC, threat model). Chapter 4 maps this design to concrete implementation, pipelines, and the full test case suite.
