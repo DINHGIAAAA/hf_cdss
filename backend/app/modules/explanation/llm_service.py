@@ -1,5 +1,6 @@
 import hashlib
 import json
+import logging
 import re
 import time
 from collections.abc import AsyncIterator
@@ -8,7 +9,12 @@ from typing import Any
 from app.modules.chat.clinical_intent import should_include_dose_in_llm_payload
 from app.core.config import settings
 from app.core.http_client import get_async_client
-from app.core.llm_runtime import chat_completions_url, llm_auth_headers, llm_chat_completions_enabled
+from app.core.llm_runtime import (
+    chat_completions_url,
+    llm_auth_headers,
+    llm_chat_completions_enabled,
+    llm_requires_api_key,
+)
 from app.core.metrics import increment, observe
 from app.modules.citation_validation.service import (
     explanation_validation_failed,
@@ -34,6 +40,8 @@ from app.modules.recommendation.drug_class_keys import (
 )
 from app.schemas.llm import LLMAnswerRequest, LLMAnswerResponse
 from app.core.redis_client import redis_client
+
+logger = logging.getLogger(__name__)
 
 
 SAFETY_NOTE = (
@@ -447,9 +455,24 @@ def _looks_truncated(answer: str, finish_reason: str | None) -> bool:
     return stripped[-1] not in ".!?:;\n"
 
 
-def _answer_passes_validation(text: str, compact_payload: dict[str, Any]) -> bool:
+def _answer_passes_validation(
+    text: str, compact_payload: dict[str, Any], *, context: str = ""
+) -> bool:
     validation = validate_explanation_answer(text, compact_payload)
-    return not explanation_validation_failed(validation)
+    failed = explanation_validation_failed(validation)
+    if failed:
+        reasons = [
+            f"{s.target_type}/{s.evidence_verdict}: {s.message}"
+            for s in validation.supports
+            if s.evidence_status == "unsupported"
+        ]
+        logger.warning(
+            "LLM answer rejected by explanation validation (%s): %s | answer_preview=%r",
+            context or "unknown",
+            reasons,
+            text[:300],
+        )
+    return not failed
 
 
 def _stable(value: Any) -> Any:
@@ -532,6 +555,11 @@ async def stream_llm_answer(payload: LLMAnswerRequest) -> AsyncIterator[dict[str
     cache_key = _cache_key(compact_payload)
 
     if not llm_chat_completions_enabled():
+        logger.warning(
+            "LLM chat completions disabled by config (llm_api_type=%r, requires_api_key=%s) — using fallback",
+            settings.llm_api_type,
+            llm_requires_api_key(),
+        )
         response = _fallback_response(payload, "fallback")
         for chunk in _chunk_text(response.answer):
             yield {"type": "token", "content": chunk}
@@ -595,7 +623,20 @@ async def stream_llm_answer(payload: LLMAnswerRequest) -> AsyncIterator[dict[str
 
         answer = "".join(parts).strip()
         streamed_answer = answer
-        if not answer or _looks_truncated(answer, finish_reason) or not _answer_passes_validation(answer, compact_payload):
+        if not answer:
+            logger.warning("LLM stream produced empty answer (finish_reason=%s)", finish_reason)
+        elif _looks_truncated(answer, finish_reason):
+            logger.warning(
+                "LLM stream answer looks truncated (finish_reason=%s): %r",
+                finish_reason,
+                answer[-200:],
+            )
+        rejected = (
+            not answer
+            or _looks_truncated(answer, finish_reason)
+            or not _answer_passes_validation(answer, compact_payload, context="stream_first_pass")
+        )
+        if rejected:
             response_model = _fallback_response(payload, "fallback_after_llm_stream_error")
             if not emitted_token:
                 for chunk in _chunk_text(response_model.answer):
@@ -611,6 +652,7 @@ async def stream_llm_answer(payload: LLMAnswerRequest) -> AsyncIterator[dict[str
                 safety_note=SAFETY_NOTE,
             )
     except Exception:
+        logger.exception("LLM stream call raised an exception; falling back")
         response_model = _fallback_response(payload, "fallback_after_llm_stream_error")
         if not emitted_token:
             for chunk in _chunk_text(response_model.answer):
@@ -622,7 +664,9 @@ async def stream_llm_answer(payload: LLMAnswerRequest) -> AsyncIterator[dict[str
             for chunk in _chunk_text(response_model.answer):
                 yield {"type": "token", "content": chunk}
 
-    if response_model.used_llm and not _answer_passes_validation(response_model.answer, compact_payload):
+    if response_model.used_llm and not _answer_passes_validation(
+        response_model.answer, compact_payload, context="stream_second_pass"
+    ):
         prior_answer = response_model.answer
         response_model = _fallback_response(payload, "fallback_validation_failed")
         if emitted_token and response_model.answer.strip() != prior_answer.strip():
@@ -639,6 +683,11 @@ async def stream_llm_answer(payload: LLMAnswerRequest) -> AsyncIterator[dict[str
 async def build_llm_answer(payload: LLMAnswerRequest) -> LLMAnswerResponse:
     started = time.perf_counter()
     if not llm_chat_completions_enabled():
+        logger.warning(
+            "LLM chat completions disabled by config (llm_api_type=%r, requires_api_key=%s) — using fallback",
+            settings.llm_api_type,
+            llm_requires_api_key(),
+        )
         increment("hf_cdss_llm_requests_total", {"model": "fallback", "status": "missing_api_key"})
         observe("hf_cdss_llm_latency", time.perf_counter() - started, {"model": "fallback", "status": "missing_api_key"})
         return _fallback_response(payload, "fallback")
@@ -669,14 +718,24 @@ async def build_llm_answer(payload: LLMAnswerRequest) -> LLMAnswerResponse:
         response.raise_for_status()
         data = response.json()
         answer = _extract_chat_completion_text(data)
+        finish_reason = _finish_reason(data)
+        if not answer:
+            logger.warning("LLM answer (non-stream) was empty (finish_reason=%s)", finish_reason)
+        elif _looks_truncated(answer, finish_reason):
+            logger.warning(
+                "LLM answer (non-stream) looks truncated (finish_reason=%s): %r",
+                finish_reason,
+                answer[-200:],
+            )
         llm_answer_ok = bool(answer) and not _looks_truncated(
-            answer, _finish_reason(data)
-        ) and _answer_passes_validation(answer, compact_payload)
+            answer, finish_reason
+        ) and _answer_passes_validation(answer, compact_payload, context="build_llm_answer")
         if not llm_answer_ok:
             # Real LLM output was empty/truncated/failed validation — fall
             # back, but the result below must NOT be mislabeled as used_llm.
             answer = fallback_answer(payload)
     except Exception:
+        logger.exception("LLM call (non-stream) raised an exception; falling back")
         fallback_response = _fallback_response(payload, "fallback_after_llm_error")
         await _write_cache(cache_key, fallback_response)
         increment("hf_cdss_llm_requests_total", {"model": "fallback_after_llm_error", "status": "error"})
