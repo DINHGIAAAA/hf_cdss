@@ -138,6 +138,7 @@ services:
       HF_CDSS_JWT_ALGORITHM: ${HF_CDSS_JWT_ALGORITHM:-HS256}
       HF_CDSS_JWT_ACCESS_TOKEN_EXPIRE_MINUTES: ${HF_CDSS_JWT_ACCESS_TOKEN_EXPIRE_MINUTES:-60}
       HF_CDSS_AUTH_SEED_USERS_JSON: ${HF_CDSS_AUTH_SEED_USERS_JSON:-${HF_CDSS_AUTH_DEV_USERS_JSON:-}}
+      HF_CDSS_LOG_LEVEL: ${HF_CDSS_LOG_LEVEL:-DEBUG}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health')"]
       interval: 10s
