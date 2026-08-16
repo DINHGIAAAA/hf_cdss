@@ -142,6 +142,46 @@ def test_validate_explanation_rejects_amputation_hallucination() -> None:
     assert explanation_validation_failed(validation)
 
 
+def test_validate_explanation_rejects_angioedema_hallucination_for_arni() -> None:
+    # Same hallucination-guard mechanism as SGLT2i/amputation, but for ARNI —
+    # the validator must not be hardcoded to a single drug class.
+    compact = {
+        "candidate_medication_classes": [
+            {
+                "class_id": "arni",
+                "status": "consider",
+                "warnings": ["Monitor blood pressure"],
+                "rationale": "ARNI benefit in HFrEF",
+                "clinical_reasoning": [],
+            }
+        ]
+    }
+    bad = f"Consider sacubitril/valsartan; watch for angioedema. {REQUIRED_CLINICAL_DISCLAIMER}"
+    validation = validate_explanation_answer(bad, compact)
+    assert explanation_validation_failed(validation)
+
+
+def test_validate_explanation_rejects_status_mismatch_for_beta_blocker() -> None:
+    # Same status-mismatch guard as SGLT2i, but for a different class — the
+    # LLM claiming "avoid" for a class the CDSS actually lists as "consider"
+    # must be caught regardless of which class it is.
+    compact = {
+        "candidate_medication_classes": [
+            {
+                "class_id": "beta_blocker",
+                "status": "consider",
+                "warnings": [],
+                "rationale": "Beta blocker benefit in HFrEF",
+                "clinical_reasoning": [],
+            }
+        ]
+    }
+    bad = f"Beta blocker should be avoided in this patient. {REQUIRED_CLINICAL_DISCLAIMER}"
+    validation = validate_explanation_answer(bad, compact)
+    assert explanation_validation_failed(validation)
+    assert any(s.evidence_verdict == "status_mismatch" for s in validation.supports)
+
+
 def test_validate_explanation_rejects_cjk_in_answer() -> None:
     compact = {
         "candidate_medication_classes": [

@@ -16,12 +16,52 @@ from app.schemas.patient import PatientProfile
 from app.schemas.recommendation import RecommendationResponse
 
 
-# Drug-specific warnings — NOT class-wide.
+# Drug/class-specific warnings — NOT shared across other GDMT classes.
 # Appearing in text for a drug that doesn't have them in its payload warnings = hallucination.
+# Covers all core HF-GDMT classes, not just SGLT2i — a warning below is only
+# included when it's a well-established, class-distinctive FDA-labeled effect
+# (not something also seen with the other classes), so any mention of it can
+# be checked against the one class it belongs to without needing to parse
+# which class the surrounding sentence is actually about.
 _DRUG_SPECIFIC_WARNINGS_TEXT: dict[str, list[str]] = {
     "sglt2i": ["amputation", "lower extremity amputation", "leg amputation"],
     "dapagliflozin": ["amputation", "lower extremity amputation", "leg amputation"],
     "empagliflozin": ["amputation", "lower extremity amputation", "leg amputation"],
+    "arni": ["angioedema"],
+    "sacubitril": ["angioedema"],
+    "acei_arb": ["angioedema"],
+    "lisinopril": ["angioedema"],
+    "enalapril": ["angioedema"],
+    "ramipril": ["angioedema"],
+    "beta_blocker": ["heart block", "av block"],
+    "bisoprolol": ["heart block", "av block"],
+    "metoprolol": ["heart block", "av block"],
+    "carvedilol": ["heart block", "av block"],
+    "mra": ["gynecomastia"],
+    "spironolactone": ["gynecomastia"],
+    "loop_diuretic": ["ototoxicity"],
+    "furosemide": ["ototoxicity"],
+}
+
+# Aliases/brand-ish keys above map back to their canonical payload class_id.
+_AGENT_TO_CLASS_ID: dict[str, str] = {
+    "sglt2i": "sglt2i",
+    "dapagliflozin": "sglt2i",
+    "empagliflozin": "sglt2i",
+    "arni": "arni",
+    "sacubitril": "arni",
+    "acei_arb": "acei_arb",
+    "lisinopril": "acei_arb",
+    "enalapril": "acei_arb",
+    "ramipril": "acei_arb",
+    "beta_blocker": "beta_blocker",
+    "bisoprolol": "beta_blocker",
+    "metoprolol": "beta_blocker",
+    "carvedilol": "beta_blocker",
+    "mra": "mra",
+    "spironolactone": "mra",
+    "loop_diuretic": "loop_diuretic",
+    "furosemide": "loop_diuretic",
 }
 
 
@@ -35,14 +75,11 @@ def _text_hallucination_check(text: str, compact_payload: dict) -> list[Citation
     text_lower = text.lower()
     candidates = compact_payload.get("candidate_medication_classes", [])
 
-    # Check sglt2i agents
-    for agent in ("sglt2i", "dapagliflozin", "empagliflozin"):
-        keywords = _DRUG_SPECIFIC_WARNINGS_TEXT.get(agent, [])
+    for agent, keywords in _DRUG_SPECIFIC_WARNINGS_TEXT.items():
+        class_id = _AGENT_TO_CLASS_ID.get(agent, agent)
         for kw in keywords:
             if kw.lower() not in text_lower:
                 continue
-            # Find class item
-            class_id = "sglt2i" if agent != "sglt2i" else agent
             class_item = next(
                 (item for item in candidates if (item.get("class_id") or "").lower() == class_id),
                 None,
@@ -78,38 +115,40 @@ def _text_hallucination_check(text: str, compact_payload: dict) -> list[Citation
 
 
 _AVOID_PHRASES_EN = ("contraindicated", "avoid", "do not use", "should not")
-_SGLT2_MENTION = ("sglt2", "dapagliflozin", "empagliflozin", "forxiga", "jardiance")
 
 
 def _status_consistency_check(text: str, compact_payload: dict) -> list[CitationSupport]:
-    """Fail if prose claims avoid/contraindication for a class whose CDSS status is not avoid."""
+    """Fail if prose claims avoid/contraindication for a class whose CDSS status is not avoid.
+
+    Checked for every class in the payload, not just one hardcoded class —
+    the same LLM can just as easily invent avoid-language for an ACEi/ARB,
+    beta blocker, MRA, or loop diuretic as it can for an SGLT2i.
+    """
     supports: list[CitationSupport] = []
     normalized = normalize_text(text)
-    if not any(term in normalized for term in _SGLT2_MENTION):
-        return supports
-
-    class_item = next(
-        (
-            item
-            for item in compact_payload.get("candidate_medication_classes", [])
-            if (item.get("class_id") or "").lower() == "sglt2i"
-        ),
-        None,
-    )
-    if not class_item:
-        return supports
-    status = (class_item.get("status") or "").lower()
-    if status == "avoid":
-        return supports
-
     has_avoid_language = any(p in normalized for p in _AVOID_PHRASES_EN)
-    if has_avoid_language:
+    if not has_avoid_language:
+        return supports
+
+    for class_item in compact_payload.get("candidate_medication_classes", []):
+        class_id = (class_item.get("class_id") or "").lower()
+        if not class_id:
+            continue
+        status = (class_item.get("status") or "").lower()
+        if status == "avoid":
+            continue
+        mention_terms = _class_terms(class_item.get("drug_class") or class_id)
+        if not any(term in normalized for term in mention_terms):
+            continue
         supports.append(
             CitationSupport(
-                target_id="text:sglt2i_status",
+                target_id=f"text:{class_id}_status",
                 target_type="status_mismatch",
                 evidence_status="unsupported",
-                message="Answer implies SGLT2i is avoided/contraindicated but CDSS status is not avoid.",
+                message=(
+                    f"Answer implies {class_item.get('drug_class') or class_id} is "
+                    "avoided/contraindicated but CDSS status is not avoid."
+                ),
                 required_terms=list(_AVOID_PHRASES_EN[:2]),
                 matched_terms=[],
                 evidence_refs=[],
