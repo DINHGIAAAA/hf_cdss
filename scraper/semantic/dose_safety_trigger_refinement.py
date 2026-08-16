@@ -8,7 +8,7 @@ from typing import Any
 
 from scraper.prompts.dose_safety_trigger_refinement import DOSE_SAFETY_TRIGGER_REFINEMENT_SYSTEM_PROMPT
 from scraper.semantic import config
-from scraper.semantic.dose_safety_constants import trigger_is_always_only
+from scraper.semantic.dose_safety_constants import EVALUATOR_FIELDS, trigger_is_always_only
 from scraper.semantic.dose_safety_trigger_builder import related_observation_fields_from_groups
 from scraper.semantic.llm_client import call_llm_json, llm_available
 
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 MIN_REFINE_CONFIDENCE = 0.7
 
-_EVALUATOR_FIELDS = frozenset({"egfr", "crcl", "creatinine", "potassium", "systolic_bp", "heart_rate"})
+_EVALUATOR_FIELDS = EVALUATOR_FIELDS
 _EVALUATOR_OPS = frozenset({"lt", "lte", "gt", "gte", "missing", "present", "missing_or_lt", "missing_or_lte"})
 
 

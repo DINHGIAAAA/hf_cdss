@@ -27,6 +27,18 @@ def test_reduction_criteria_uses_missing_or_lt_for_renal():
     assert groups == [[{"field": "egfr", "operator": "missing_or_lt", "value": 30.0}]]
 
 
+def test_reduction_criteria_rejects_unevaluable_field():
+    # "age" is not something the runtime dose-safety evaluator can read —
+    # an LLM-hallucinated criterion on it must never reach the catalog.
+    groups = reduction_criteria_to_condition_groups(
+        [
+            {"field": "age", "operator": "gte", "value": 80, "label": "Age >= 80"},
+            {"field": "creatinine", "operator": "gte", "value": 1.5, "label": "Creatinine >= 1.5"},
+        ]
+    )
+    assert groups == [[{"field": "creatinine", "operator": "gte", "value": 1.5}]]
+
+
 def test_evidence_regex_extracts_egfr_threshold():
     groups = evidence_to_condition_groups("Reduce dose when eGFR < 45 mL/min/1.73 m2.")
     assert groups == [[{"field": "egfr", "operator": "missing_or_lt", "value": 45.0}]]

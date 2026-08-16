@@ -302,7 +302,16 @@ def is_dose_relevant_section(record: dict) -> bool:
     if any(re.search(r"dose|dosage|titration|administration|heart failure", str(topic), flags=re.I) for topic in topics):
         return True
 
-    # Check for specific HF drug mentions
+    # Bare drug-name mention, with no other dosing signal, is too weak a check
+    # for FDA drug labels: sections like "CLINICAL STUDIES / ATRIAL FIBRILLATION"
+    # mention the drug name throughout while describing trial efficacy, not
+    # dosing — feeding that to the LLM extractor produces hallucinated dose
+    # criteria "grounded" in an evidence quote that never contained them.
+    # Non-label sources (e.g. guideline text) lack a reliable FDA section title
+    # to lean on, so the drug-name fallback still applies there.
+    if record.get("source_type") == "drug_label":
+        return False
+
     hf_drugs = (
         "metoprolol", "carvedilol", "bisoprolol",
         "lisinopril", "enalapril", "ramipril", "captopril",

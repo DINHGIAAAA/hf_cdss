@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from scraper.semantic.dose_safety_constants import EVALUATOR_FIELDS
+
 # Maps hold_if dict keys from dose extraction prompt to evaluator fields/operators.
 _HOLD_IF_KEY_MAP: dict[str, tuple[str, str]] = {
     "systolic_bp_lt": ("systolic_bp", "lt"),
@@ -109,6 +111,12 @@ def reduction_criteria_to_condition_groups(criteria: list[Any] | None) -> list[l
         field = str(item.get("field") or "").strip().lower()
         operator = str(item.get("operator") or "").strip().lower()
         if not field or not operator:
+            continue
+        if field not in EVALUATOR_FIELDS:
+            # LLM-proposed field the runtime evaluator can't read (e.g. "age") —
+            # would silently never fire, or worse, be treated as evaluable when
+            # it isn't grounded in the evidence at all. Drop it here rather
+            # than letting an unreviewable trigger reach the catalog.
             continue
         if operator == "between":
             low = _coerce_number(item.get("value_low"))

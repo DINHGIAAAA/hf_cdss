@@ -5,6 +5,13 @@ from __future__ import annotations
 import re
 from typing import Any
 
+# Patient fields the runtime dose-safety evaluator actually knows how to read.
+# A condition field outside this set (e.g. an LLM-hallucinated "age" or
+# "weight_kg") can never fire safely and must not reach the catalog.
+EVALUATOR_FIELDS = frozenset(
+    {"egfr", "crcl", "creatinine", "potassium", "systolic_bp", "heart_rate"}
+)
+
 # LLM refusal / non-informative patterns
 _REFUSAL_RE = re.compile(
     r"(does not contain|no specific evidence|no dosage|not contain any dosage|"
