@@ -136,3 +136,38 @@ def test_compact_constraints_omits_mra_ci_when_status_not_avoid() -> None:
     payload = LLMAnswerRequest(patient=patient, recommendation=recommendation, user_input="tang MRA?")
     rows = _compact_constraints(payload, {"mra"})
     assert rows == []
+
+
+def test_filter_constraints_drops_unrelated_drug_when_scoped() -> None:
+    # Regression: build_constraints() matches the whole constraint_rules
+    # catalog by (risk_name, severity) alone, so a patient with renal
+    # impairment gets constraints for every drug with a renal rule —
+    # including ones they aren't on and that aren't a GDMT candidate for
+    # this case (e.g. rivaroxaban). filter_constraints_for_profile must drop
+    # those once given the classes actually relevant to this recommendation.
+    profile = _hfref_profile()
+    profile.normalized_current_medications = ["lisinopril", "bisoprolol"]
+    constraints = [
+        Constraint(
+            constraint_id="riva_renal",
+            case_id="t1",
+            target_drug_class="rivaroxaban",
+            action="review",
+            reason="Renal function constraint from source evidence",
+            constraint_type="soft",
+        ),
+        Constraint(
+            constraint_id="acei_renal",
+            case_id="t1",
+            target_drug_class="lisinopril",
+            action="review",
+            reason="Renal function constraint from source evidence",
+            constraint_type="soft",
+        ),
+    ]
+    filtered = filter_constraints_for_profile(
+        constraints, profile, relevant_class_ids={"acei", "beta_blocker"}
+    )
+    targets = {c.target_drug_class for c in filtered}
+    assert "rivaroxaban" not in targets
+    assert "lisinopril" in targets

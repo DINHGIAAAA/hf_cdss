@@ -190,11 +190,34 @@ def _filter_constraints_by_lab_eligibility(
 def filter_constraints_for_profile(
     constraints: list[Constraint],
     profile: NormalizedPatientProfile,
+    *,
+    relevant_class_ids: set[str] | None = None,
 ) -> list[Constraint]:
-    """Remove soft avoid/CI rows from the top-level constraint list when lab gates show eligibility."""
+    """Remove soft avoid/CI rows from the top-level constraint list when lab gates show eligibility.
+
+    When relevant_class_ids is provided, also drops constraints for a drug
+    that is neither a GDMT class actually being recommended for this patient
+    nor something the patient is currently on. build_constraints() matches
+    the full constraint_rules catalog (the whole drug formulary — anticoagulants,
+    statins, antiarrhythmics, ...) purely by (risk_name, severity) pair, with no
+    check upstream that the target drug has anything to do with this case —
+    e.g. a rivaroxaban renal-dosing constraint has no business appearing in an
+    HF-GDMT answer for a patient who isn't on rivaroxaban.
+    """
+    current_meds = [str(m).lower() for m in (profile.normalized_current_medications or [])]
+
+    def _relevant(target: str) -> bool:
+        if relevant_class_ids is None or not target:
+            return True
+        if target in relevant_class_ids:
+            return True
+        return any(target in med or med in target for med in current_meds)
+
     kept: list[Constraint] = []
     for constraint in constraints:
         target = _normalized_constraint_target(constraint.target_drug_class)
+        if target and target != "all_gdmt" and not _relevant(target):
+            continue
         if not target or target == "all_gdmt":
             kept.append(constraint)
             continue

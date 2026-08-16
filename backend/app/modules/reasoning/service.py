@@ -72,7 +72,10 @@ def build_recommendation(payload: RecommendationRequest) -> RecommendationRespon
             for policy in policies
         ]
     )
-    display_constraints = filter_constraints_for_profile(constraints, profile)
+    relevant_class_ids = {item.class_id for item in recommendations if item.class_id}
+    display_constraints = filter_constraints_for_profile(
+        constraints, profile, relevant_class_ids=relevant_class_ids
+    )
     response = RecommendationResponse(
         case_id=profile.case_id,
         patient_summary=_patient_summary(profile),

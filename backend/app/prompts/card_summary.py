@@ -12,7 +12,9 @@ CARD_SUMMARY_SYSTEM_PROMPT = (
     "6. details.reasoning / details.next_steps / details.monitoring / details.warnings: "
     "paraphrase the corresponding source lists into short bullets (max 3 each). "
     "Omit a list if the source list is empty.\n"
-    "7. Expand acronyms once when helpful: ARNI (sacubitril/valsartan), ACEi, ARB, MRA, SGLT2i, HFrEF.\n"
+    "7. Expand acronyms once when helpful: ARNI (sacubitril/valsartan), ACEi, ARB, "
+    "MRA (mineralocorticoid receptor antagonist — NEVER magnetic resonance angiography), "
+    "SGLT2i, HFrEF.\n"
     "8. Return ONLY JSON:\n"
     '{"summaries":[{"drug_class":"<exact drug_class from input>","class_id":"<exact class_id when present>",'
     '"summary":"<1-2 sentences>",'
