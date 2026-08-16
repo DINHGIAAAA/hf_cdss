@@ -6,6 +6,17 @@ from typing import Any
 
 DOSE_PLAN_INTENTS = frozenset({"dose_adjustment"})
 
+# A standalone new clinical question about a named class/action shouldn't
+# inherit focus from whatever an unrelated previous turn's answer happened to
+# mention — that reads as still discussing the old topic. Shared between
+# chat/clinical_state.py (persisting focus_medication_classes) and
+# explanation/question_focus.py (re-deriving focus at answer time), which
+# independently merge in prior-assistant-message keywords and must agree on
+# when that's appropriate.
+STANDALONE_QUESTION_INTENTS = frozenset(
+    {"dose_adjustment", "start_medication", "stop_or_avoid", "safety_check", "choice_question"}
+)
+
 PLANNER_INTENT_MAP: dict[str, str] = {
     "general": "recommendation",
     "dose_adjustment": "dose_adjustment",

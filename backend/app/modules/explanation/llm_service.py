@@ -669,9 +669,12 @@ async def build_llm_answer(payload: LLMAnswerRequest) -> LLMAnswerResponse:
         response.raise_for_status()
         data = response.json()
         answer = _extract_chat_completion_text(data)
-        if not answer or _looks_truncated(answer, _finish_reason(data)) or not _answer_passes_validation(
-            answer, compact_payload
-        ):
+        llm_answer_ok = bool(answer) and not _looks_truncated(
+            answer, _finish_reason(data)
+        ) and _answer_passes_validation(answer, compact_payload)
+        if not llm_answer_ok:
+            # Real LLM output was empty/truncated/failed validation — fall
+            # back, but the result below must NOT be mislabeled as used_llm.
             answer = fallback_answer(payload)
     except Exception:
         fallback_response = _fallback_response(payload, "fallback_after_llm_error")
@@ -686,10 +689,10 @@ async def build_llm_answer(payload: LLMAnswerRequest) -> LLMAnswerResponse:
 
     response = LLMAnswerResponse(
         case_id=payload.patient.case_id,
-        answer=answer or fallback_answer(payload),
-        model=settings.llm_model,
-        used_llm=bool(answer),
-        safety_note=SAFETY_NOTE,
+        answer=answer,
+        model=settings.llm_model if llm_answer_ok else "fallback",
+        used_llm=llm_answer_ok,
+        safety_note=SAFETY_NOTE if llm_answer_ok else FALLBACK_TEMPLATE["safety_note"],
     )
     if response.used_llm:
         await _write_cache(cache_key, response)

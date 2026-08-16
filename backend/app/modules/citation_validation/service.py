@@ -115,6 +115,7 @@ def _text_hallucination_check(text: str, compact_payload: dict) -> list[Citation
 
 
 _AVOID_PHRASES_EN = ("contraindicated", "avoid", "do not use", "should not")
+_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?;\n])\s+")
 
 
 def _status_consistency_check(text: str, compact_payload: dict) -> list[CitationSupport]:
@@ -123,11 +124,17 @@ def _status_consistency_check(text: str, compact_payload: dict) -> list[Citation
     Checked for every class in the payload, not just one hardcoded class —
     the same LLM can just as easily invent avoid-language for an ACEi/ARB,
     beta blocker, MRA, or loop diuretic as it can for an SGLT2i.
+
+    Scoped to the same sentence, not whole-text co-occurrence: a normal
+    multi-class answer often legitimately avoids one class while continuing
+    another (e.g. "MRA should be avoided given hyperkalemia. Continue beta
+    blocker as tolerated.") — checking the whole text would wrongly flag
+    beta_blocker as a status mismatch because "avoid" appears somewhere in
+    the same answer, just not near beta_blocker's own mention.
     """
     supports: list[CitationSupport] = []
-    normalized = normalize_text(text)
-    has_avoid_language = any(p in normalized for p in _AVOID_PHRASES_EN)
-    if not has_avoid_language:
+    sentences = [normalize_text(s) for s in _SENTENCE_SPLIT_RE.split(text) if s.strip()]
+    if not sentences:
         return supports
 
     for class_item in compact_payload.get("candidate_medication_classes", []):
@@ -138,7 +145,11 @@ def _status_consistency_check(text: str, compact_payload: dict) -> list[Citation
         if status == "avoid":
             continue
         mention_terms = _class_terms(class_item.get("drug_class") or class_id)
-        if not any(term in normalized for term in mention_terms):
+        has_mismatch_sentence = any(
+            any(p in sentence for p in _AVOID_PHRASES_EN) and any(term in sentence for term in mention_terms)
+            for sentence in sentences
+        )
+        if not has_mismatch_sentence:
             continue
         supports.append(
             CitationSupport(

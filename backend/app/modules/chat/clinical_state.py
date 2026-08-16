@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from app.modules.chat.clinical_intent import STANDALONE_QUESTION_INTENTS
 from app.modules.clinical_intake_extraction.service import MEDICATIONS, normalize_text
 from app.modules.explanation.question_focus import focus_class_ids_from_message, is_choice_question
 from app.schemas.patient import PatientProfile
@@ -167,14 +168,7 @@ def build_clinical_state(
     # answer happened to mention — that reads as still discussing the old topic.
     # A generic "tell me more" follow-up SHOULD inherit it, since there's nothing
     # else to anchor the question to.
-    _STANDALONE_INTENTS = {
-        "dose_adjustment",
-        "start_medication",
-        "stop_or_avoid",
-        "safety_check",
-        "choice_question",
-    }
-    if has_prior_assistant and last_assistant_message and intent not in _STANDALONE_INTENTS:
+    if has_prior_assistant and last_assistant_message and intent not in STANDALONE_QUESTION_INTENTS:
         prior_focus = focus_class_ids_from_message(last_assistant_message)
         if prior_focus:
             focus_classes = sorted(set(focus_classes) | prior_focus)

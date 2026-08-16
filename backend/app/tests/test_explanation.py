@@ -161,6 +161,37 @@ def test_validate_explanation_rejects_angioedema_hallucination_for_arni() -> Non
     assert explanation_validation_failed(validation)
 
 
+def test_validate_explanation_accepts_mixed_avoid_and_continue_classes() -> None:
+    # Regression: a legitimate multi-class answer that avoids one class while
+    # continuing another must not be rejected just because "avoid" appears
+    # somewhere in the same answer as a different class's mention.
+    compact = {
+        "candidate_medication_classes": [
+            {
+                "class_id": "mra",
+                "status": "avoid",
+                "warnings": [],
+                "rationale": "Hyperkalemia risk",
+                "clinical_reasoning": [],
+            },
+            {
+                "class_id": "beta_blocker",
+                "status": "consider",
+                "warnings": [],
+                "rationale": "Beta blocker benefit in HFrEF",
+                "clinical_reasoning": [],
+            },
+        ]
+    }
+    good = (
+        "MRA should be avoided given the current hyperkalemia. "
+        "Continue beta blocker as tolerated. "
+        f"{REQUIRED_CLINICAL_DISCLAIMER}"
+    )
+    validation = validate_explanation_answer(good, compact)
+    assert not explanation_validation_failed(validation)
+
+
 def test_validate_explanation_rejects_status_mismatch_for_beta_blocker() -> None:
     # Same status-mismatch guard as SGLT2i, but for a different class — the
     # LLM claiming "avoid" for a class the CDSS actually lists as "consider"

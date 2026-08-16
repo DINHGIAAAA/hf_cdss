@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from app.modules.chat.clinical_intent import STANDALONE_QUESTION_INTENTS
 from app.modules.clinical_intake_extraction.service import normalize_text
 from app.modules.recommendation.drug_class_keys import canonical_gdmt_class_id
 from app.schemas.llm import LLMAnswerRequest
@@ -73,12 +74,6 @@ def focus_class_ids_from_state(clinical_state: dict[str, Any] | None) -> set[str
     return focus
 
 
-def merged_focus_class_ids(*, message: str, clinical_state: dict[str, Any] | None) -> set[str]:
-    focus = focus_class_ids_from_state(clinical_state)
-    focus.update(focus_class_ids_from_message(message))
-    return focus
-
-
 def merged_focus_class_ids(
     *,
     message: str,
@@ -86,8 +81,16 @@ def merged_focus_class_ids(
     last_assistant_message: str | None = None,
 ) -> set[str]:
     focus = focus_class_ids_from_state(clinical_state)
-    focus.update(focus_class_ids_from_message(message))
-    if last_assistant_message:
+    message_focus = focus_class_ids_from_message(message)
+    focus.update(message_focus)
+    # A standalone new question about a named class shouldn't also pull in
+    # whatever the previous, unrelated answer happened to mention — e.g. an
+    # SGLT2i answer's own text leaking "sglt2i" focus onto an unrelated
+    # follow-up about insulin/HbA1c. Mirrors the same gate in
+    # chat/clinical_state.py, which is the other place that independently
+    # re-derives focus from last_assistant_message.
+    intent = str((clinical_state or {}).get("intent") or "")
+    if last_assistant_message and not message_focus and intent not in STANDALONE_QUESTION_INTENTS:
         focus.update(focus_class_ids_from_message(last_assistant_message))
     return focus
 
