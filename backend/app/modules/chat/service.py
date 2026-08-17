@@ -14,6 +14,7 @@ from app.modules.chat.clinical_state import build_clinical_state, state_query_te
 from app.modules.chat.clinical_intent import merge_planned_question_intent
 from app.modules.datastores.postgres import (
     append_chat_message,
+    delete_chat_conversation,
     read_chat_messages,
     read_patient_draft,
     upsert_patient_draft,
@@ -1798,3 +1799,21 @@ def get_chat_history(conversation_id: str) -> tuple[list[ChatMessage], PatientDr
     except Exception:
         messages = _messages.get(conversation_id, [])
     return messages, _load_draft(conversation_id)
+
+
+def delete_chat_history(conversation_id: str) -> None:
+    """Delete a conversation server-side (messages, draft, multi-question state).
+
+    Without this, "delete" only ever removed the client's local list entry —
+    the backend kept the full history forever, so recreating a conversation
+    with the same id (e.g. the demo case, which always uses a fixed id)
+    silently resurrected the "deleted" messages via syncConversationFromServer.
+    """
+    _messages.pop(conversation_id, None)
+    _drafts.pop(conversation_id, None)
+    _pending_multi.pop(conversation_id, None)
+    _question_plans.pop(conversation_id, None)
+    try:
+        delete_chat_conversation(conversation_id)
+    except Exception:
+        logger.exception("Failed to delete conversation %s from postgres", conversation_id)

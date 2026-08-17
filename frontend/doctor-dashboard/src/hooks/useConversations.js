@@ -176,6 +176,12 @@ export function useConversations() {
       });
       return next;
     });
+    // Local-only removal previously left the server's copy intact, so
+    // reopening a conversation that reuses the same id (e.g. the demo case,
+    // which always has a fixed id) resurrected the "deleted" history via
+    // syncConversationFromServer. Best-effort — the local list is already
+    // the source of truth for what the user sees.
+    chatApi.deleteHistory(conversationId).catch(() => {});
   }, []);
 
   const clearConversation = useCallback((conversationId) => {

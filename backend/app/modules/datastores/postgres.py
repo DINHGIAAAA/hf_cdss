@@ -712,6 +712,16 @@ def read_patient_draft(conversation_id: str) -> dict[str, Any] | None:
             }
 
 
+def delete_chat_conversation(conversation_id: str) -> None:
+    """Delete a conversation and all its messages/draft (ON DELETE CASCADE)."""
+    with postgres_pool().connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "DELETE FROM chat_conversations WHERE conversation_id = %s",
+                (conversation_id,),
+            )
+
+
 # Constraint Rules Management (Pipeline-Generated)
 
 

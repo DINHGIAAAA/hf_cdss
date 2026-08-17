@@ -3,7 +3,7 @@ from starlette.responses import StreamingResponse
 import json
 import logging
 
-from app.modules.chat.service import get_chat_history, process_chat, stream_chat
+from app.modules.chat.service import delete_chat_history, get_chat_history, process_chat, stream_chat
 from app.schemas.chat import ChatHistoryResponse, ChatRequest, ChatResponse
 
 logger = logging.getLogger(__name__)
@@ -46,3 +46,9 @@ async def chat_stream(payload: ChatRequest) -> StreamingResponse:
 def chat_history(conversation_id: str) -> ChatHistoryResponse:
     messages, draft = get_chat_history(conversation_id)
     return ChatHistoryResponse(conversation_id=conversation_id, messages=messages, patient_draft=draft)
+
+
+@router.delete("/chat/{conversation_id}")
+def delete_chat(conversation_id: str) -> dict:
+    delete_chat_history(conversation_id)
+    return {"status": "ok", "conversation_id": conversation_id}
