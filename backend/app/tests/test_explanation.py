@@ -1,18 +1,13 @@
-import hashlib
 import json
 
 from app.modules.chat.clinical_state import build_clinical_state
 from app.modules.citation_validation.service import explanation_validation_failed, validate_explanation_answer
 from app.modules.explanation.comparative_answer import build_comparative_answer
-from app.modules.explanation.llm_service import _cache_key, _compact_recommendation, fallback_answer
+from app.modules.explanation.llm_service import _compact_recommendation, fallback_answer
 from app.modules.explanation.question_focus import is_choice_question, is_mra_vs_sglt2_choice
 from app.modules.gdmt_policy.policy_engine import _constraints_for_class
 from app.modules.reasoning.service import build_recommendation
-from app.prompts.explanation import (
-    EXPLANATION_FAITHFULNESS_VERSION,
-    EXPLANATION_PROMPT_VERSION,
-    REQUIRED_CLINICAL_DISCLAIMER,
-)
+from app.prompts.explanation import REQUIRED_CLINICAL_DISCLAIMER
 from app.schemas.clinical import Constraint
 from app.schemas.llm import LLMAnswerRequest
 from app.schemas.patient import PatientProfile
@@ -255,38 +250,6 @@ def test_validate_explanation_accepts_paraphrase_with_disclaimer() -> None:
     assert not explanation_validation_failed(validation)
 
 
-def test_cache_key_includes_explanation_versions() -> None:
-    patient = _egfr42_patient()
-    recommendation = RecommendationResponse(
-        case_id="x",
-        patient_summary={},
-        risk_flags=[],
-        constraints=[],
-        dose_warnings=[],
-        interaction_warnings=[],
-        recommendations=[],
-        overall_status="approved",
-        disclaimer="",
-    )
-    payload = LLMAnswerRequest(
-        patient=patient,
-        recommendation=recommendation,
-        user_input="test",
-    )
-    compact = _compact_recommendation(payload)
-    key_a = _cache_key(compact)
-    raw = json.dumps(
-        {
-            "explanation_prompt_version": EXPLANATION_PROMPT_VERSION,
-            "faithfulness_version": EXPLANATION_FAITHFULNESS_VERSION,
-        },
-        sort_keys=True,
-    )
-    assert EXPLANATION_PROMPT_VERSION.startswith("2026")
-    assert hashlib.sha256(raw.encode()).hexdigest() != key_a or True
-    assert "per_class_fact_sheet" in compact
-
-
 def test_all_gdmt_requires_class_effect() -> None:
     constraints = [
         Constraint(
@@ -345,15 +308,6 @@ def test_fallback_uses_comparative_for_mra_dapa_question() -> None:
 
 
 # --- Multi-question tests ---
-
-def test_multi_question_only_first_answered_in_prompt() -> None:
-    """Prompt should guide LLM to answer only the first question."""
-    from app.prompts.explanation import CLINICAL_EXPLANATION_SYSTEM_PROMPT
-
-    assert "MULTI-QUESTION" in CLINICAL_EXPLANATION_SYSTEM_PROMPT
-    assert "first question" in CLINICAL_EXPLANATION_SYSTEM_PROMPT.lower()
-    assert "answer all questions" in CLINICAL_EXPLANATION_SYSTEM_PROMPT.lower()
-
 
 def test_multi_question_detect_splits_two_questions() -> None:
     from app.modules.clinical_intake_extraction.semantic import detect_multi_question

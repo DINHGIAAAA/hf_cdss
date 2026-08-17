@@ -109,7 +109,7 @@ export function useConversations() {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-    setConversations((items) => [conversation, ...items]);
+    setConversations((items) => [conversation, ...items.filter((item) => item.id !== patientId)]);
     setActiveId(patientId);
   }, []);
 
@@ -123,10 +123,21 @@ export function useConversations() {
     if (!demo?.id) {
       throw new Error("Invalid demo conversation");
     }
-    setConversations((items) => [demo, ...items.filter((item) => item.id !== demo.id)]);
+
+    // The demo file always ships the same fixed id, so opening it a second
+    // time is meant to be idempotent — reopen whatever conversation is
+    // already there (keeping any chat done in it) instead of overwriting it
+    // with a fresh copy from disk every time this is clicked.
+    const existing = conversations.find((item) => item.id === demo.id);
+    if (existing) {
+      setActiveId(existing.id);
+      return existing;
+    }
+
+    setConversations((items) => [demo, ...items]);
     setActiveId(demo.id);
     return demo;
-  }, []);
+  }, [conversations]);
 
   const renameConversation = useCallback((conversationId, newName) => {
     if (!newName?.trim()) return;

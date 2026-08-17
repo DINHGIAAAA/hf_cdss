@@ -51,7 +51,18 @@ export function clinicalValue(value, unit) {
 }
 
 export function makePatientId(fullName) {
-  return `${slugify(fullName)}_${Date.now().toString(36).slice(-6)}`;
+  // A Date.now()-derived suffix isn't guaranteed unique — PatientModal memoizes
+  // this per fullName, so two rapid/duplicate submits (or two conversations
+  // created in the same session with the same patient name) can reuse the
+  // exact same id. Two conversations sharing an id then collide on every
+  // id-keyed lookup (find/map by id) and on localStorage persistence,
+  // silently overwriting one with the other. crypto.randomUUID() removes the
+  // collision risk entirely.
+  const unique =
+    typeof crypto !== "undefined" && crypto.randomUUID
+      ? crypto.randomUUID().slice(0, 8)
+      : `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+  return `${slugify(fullName)}_${unique}`;
 }
 
 export function buildPatient(patientForm, patientId) {
