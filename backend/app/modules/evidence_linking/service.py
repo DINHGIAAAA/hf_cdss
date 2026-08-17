@@ -93,11 +93,30 @@ def enrich_recommendation_evidence(
     return response.model_copy(update={"recommendations": recommendations})
 
 
+def _chunk_mentions_unrelated_class(chunk: EvidenceChunk, focus_class_ids: set[str]) -> bool:
+    """True if the chunk is clearly about a *different* GDMT drug class than
+    the one(s) the clinician is asking about right now.
+
+    Chunks aren't tagged with a drug class in their metadata, so this reuses
+    the same keyword detector the LLM prompt already uses to compute focus
+    (question_focus.focus_class_ids_from_message) — applied to chunk text
+    instead of the user's message. A chunk mentioning no recognizable class
+    (e.g. general monitoring advice) is kept; only chunks that name a class
+    outside the current focus are dropped.
+    """
+    from app.modules.explanation.question_focus import focus_class_ids_from_message
+
+    mentioned = focus_class_ids_from_message(chunk.text)
+    return bool(mentioned) and mentioned.isdisjoint(focus_class_ids)
+
+
 def prioritize_context_chunks(
     context: GraphRAGContextResponse,
     chunk_ids: list[str],
+    *,
+    focus_class_ids: set[str] | None = None,
 ) -> GraphRAGContextResponse:
-    if not chunk_ids:
+    if not chunk_ids and not focus_class_ids:
         return context
 
     prioritized: list[EvidenceChunk] = []
@@ -116,10 +135,18 @@ def prioritize_context_chunks(
             prioritized.append(evidence_chunk_from_record(record))
             seen.add(chunk_id)
 
+    # Constraint-linked chunks above are already class-scoped (they came from
+    # a specific recommendation's constraint_ids) and are always kept. The
+    # rest of the semantically-retrieved chunks aren't — filter out any that
+    # clearly name an unrelated GDMT class so a PAD/AF-guideline chunk can't
+    # ride along into an MRA question just because the wording is similar.
     for chunk in context.evidence_chunks:
-        if chunk.chunk_id not in seen:
-            prioritized.append(chunk)
-            seen.add(chunk.chunk_id)
+        if chunk.chunk_id in seen:
+            continue
+        if focus_class_ids and _chunk_mentions_unrelated_class(chunk, focus_class_ids):
+            continue
+        prioritized.append(chunk)
+        seen.add(chunk.chunk_id)
 
     return context.model_copy(update={"evidence_chunks": prioritized[:12]})
 
@@ -128,10 +155,14 @@ def attach_linked_evidence(
     response: RecommendationResponse,
     context: GraphRAGContextResponse,
     citation_validation: CitationValidation | None = None,
+    *,
+    focus_class_ids: set[str] | None = None,
 ) -> tuple[RecommendationResponse, GraphRAGContextResponse]:
     enriched = enrich_recommendation_evidence(response, citation_validation)
     chunk_ids = collect_constraint_chunk_ids(enriched)
     for item in enriched.recommendations:
         chunk_ids.extend(ref for ref in item.evidence if _is_chunk_id(ref))
-    prioritized_context = prioritize_context_chunks(context, list(dict.fromkeys(chunk_ids)))
+    prioritized_context = prioritize_context_chunks(
+        context, list(dict.fromkeys(chunk_ids)), focus_class_ids=focus_class_ids
+    )
     return enriched, prioritized_context
