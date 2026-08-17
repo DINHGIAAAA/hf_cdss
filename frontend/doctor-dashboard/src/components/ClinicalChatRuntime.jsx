@@ -206,10 +206,6 @@ export function ClinicalChatRuntimeProvider({
               return { messages: updated };
             });
           },
-          onMultiQuestionReady: (data) => {
-            console.log("onMultiQuestionReady called with:", data);
-            patchConversation(conversationId, { pendingMultiQuestion: data });
-          },
           onDone: (donePayload) => {
             if (!donePayload || typeof donePayload !== "object") return;
             const assistantContent = assistantTextFromChatDone(donePayload);

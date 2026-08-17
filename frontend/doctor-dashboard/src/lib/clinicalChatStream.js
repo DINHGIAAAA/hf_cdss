@@ -17,7 +17,6 @@ export async function streamClinicalChat({
   onAnswerReplace,
   onDone,
   onConfirmationNeeded,
-  onMultiQuestionReady,
 }) {
   // Build the request body, including confirmation parameters when present.
   const requestBody = {
@@ -132,10 +131,6 @@ export async function streamClinicalChat({
     }
     if (eventName === "done") {
       donePayload = typeof data === "object" && data !== null ? data : donePayload;
-    }
-    if (eventName === "multi_question_ready") {
-      console.log("multi_question_ready event received:", data);
-      onMultiQuestionReady?.(data);
     }
     if (eventName === "error") {
       throw new Error(data?.message || translate("chat.stream.streamFailed"));

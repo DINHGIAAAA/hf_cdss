@@ -107,12 +107,6 @@ const ThreadRoot = ({ isEmpty, pendingMultiQuestion, onContinueMulti, onStopMult
             <Welcome />
           </AuiIf>
 
-          <PendingQuestionsBanner
-            pendingMultiQuestion={pendingMultiQuestion}
-            onContinue={onContinueMulti}
-            onStop={onStopMulti}
-          />
-
           <div
             data-slot="aui_message-group"
             className="mb-14 flex flex-col gap-y-6 empty:hidden">
@@ -127,6 +121,11 @@ const ThreadRoot = ({ isEmpty, pendingMultiQuestion, onContinueMulti, onStopMult
               !isEmpty &&
                 "sticky bottom-0 mt-auto rounded-t-(--composer-radius)"
             )}>
+            <PendingQuestionsBanner
+              pendingMultiQuestion={pendingMultiQuestion}
+              onContinue={onContinueMulti}
+              onStop={onStopMulti}
+            />
             <ThreadScrollToBottom />
             <ThreadFollowupSuggestions />
             <Composer />
