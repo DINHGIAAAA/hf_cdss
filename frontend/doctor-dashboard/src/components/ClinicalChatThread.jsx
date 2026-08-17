@@ -336,6 +336,9 @@ export function ClinicalChatThread({
               pendingMultiQuestion={active?.pendingMultiQuestion}
               onContinueMulti={() => patchConversation(active?.id, { multiQuestionAction: "continue" })}
               onStopMulti={() => patchConversation(active?.id, { multiQuestionAction: "stop" })}
+              valueConflicts={active?.conflicts}
+              onConfirmValueConflict={() => patchConversation(active?.id, { confirmationAction: "confirm" })}
+              onCancelValueConflict={() => patchConversation(active?.id, { confirmationAction: "cancel" })}
             />
           </StreamProgressProvider>
         </ClinicalConversationContext.Provider>

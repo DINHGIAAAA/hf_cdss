@@ -678,6 +678,38 @@ def _build_confirmation_message(conflicts: list[PatientConflict]) -> str:
     return "\n".join([head, *lines, tail])
 
 
+def _get_confirmed_fields(merged: PatientProfile, base: PatientProfile) -> list[dict[str, str]]:
+    """Get list of fields that were changed and confirmed."""
+    confirmed = []
+    if merged.labs.potassium != base.labs.potassium:
+        confirmed.append({"field": "potassium", "old": str(base.labs.potassium), "new": str(merged.labs.potassium)})
+    if merged.labs.egfr != base.labs.egfr:
+        confirmed.append({"field": "egfr", "old": str(base.labs.egfr), "new": str(merged.labs.egfr)})
+    if merged.vitals.systolic_bp != base.vitals.systolic_bp:
+        confirmed.append({"field": "sbp", "old": str(base.vitals.systolic_bp), "new": str(merged.vitals.systolic_bp)})
+    if merged.vitals.heart_rate != base.vitals.heart_rate:
+        confirmed.append({"field": "hr", "old": str(base.vitals.heart_rate), "new": str(merged.vitals.heart_rate)})
+    if merged.labs.sodium != base.labs.sodium:
+        confirmed.append({"field": "sodium", "old": str(base.labs.sodium), "new": str(merged.labs.sodium)})
+    if merged.labs.creatinine != base.labs.creatinine:
+        confirmed.append({"field": "creatinine", "old": str(base.labs.creatinine), "new": str(merged.labs.creatinine)})
+    if merged.labs.bnp != base.labs.bnp:
+        confirmed.append({"field": "bnp", "old": str(base.labs.bnp), "new": str(merged.labs.bnp)})
+    if merged.labs.hba1c != base.labs.hba1c:
+        confirmed.append({"field": "hba1c", "old": str(base.labs.hba1c), "new": str(merged.labs.hba1c)})
+    return confirmed
+
+
+def _build_confirmation_success_message(confirmed_fields: list[dict[str, str]]) -> str:
+    """Build a short confirmation message showing updated values."""
+    if not confirmed_fields:
+        return "Values updated. Anything else you'd like to ask?"
+    lines = [f"{f['field']}: {f['old']} → {f['new']}" for f in confirmed_fields[:5]]
+    head = "Updated:"
+    tail = "Anything else you'd like to ask?"
+    return " | ".join([f"{f['field'].upper()}: {f['new']}" for f in confirmed_fields[:3]]) + ". " + tail
+
+
 def _prefilled_patient_complete(
     base_patient: PatientProfile,
     supplied_patient: PatientProfile | None,
@@ -724,6 +756,7 @@ async def _resolve_patient_for_chat_turn(
 
     # Handle confirmation responses first — bypass normal extraction.
     if confirmation_action == "confirm":
+        logger.info("Confirmation action 'confirm' received. Applying pending values.")
         # Apply the pending (unconfirmed) values on top of the base patient.
         merged = _merge_patient(base_patient, pending_patient) if pending_patient else base_patient
         merged = _with_turn_message_context(merged, turn_message)
@@ -1137,6 +1170,31 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
         draft.patient = merged
         yield _sse("answer_delta", {"content": content})
         yield _sse("done", response.model_dump(mode="json"))
+        return
+
+    # When confirmation_action is "confirm", we've already merged the pending values.
+    # Return a simple confirmation message without running the full recommendation pipeline.
+    if request.confirmation_action == "confirm":
+        confirmed_fields = _get_confirmed_fields(merged, base_patient)
+        content = _build_confirmation_success_message(confirmed_fields)
+        assistant_message = _message(
+            conversation_id,
+            "assistant",
+            content,
+            {"status": "confirmation_applied"},
+        )
+        await asyncio.to_thread(_append_message, assistant_message)
+        yield _sse("answer_delta", {"content": content})
+        yield _sse("done", {
+            "conversation_id": conversation_id,
+            "status": "confirmation_applied",
+            "assistant_message": {
+                "message_id": assistant_message.message_id,
+                "role": "assistant",
+                "content": content,
+            },
+            "patient_draft": draft.model_dump(mode="json"),
+        })
         return
 
     if missing_check.missing_fields:

@@ -1,7 +1,8 @@
+import asyncio
 import threading
 
 from app.core.config import settings
-from app.core.middleware import _is_admin_rate_limited
+from app.core.middleware import _is_admin_rate_limited, _admin_rate_windows
 from app.modules.clinical_intake_extraction import semantic
 from app.modules.governance.bulk_approve import bulk_approve_constraint_rules
 from starlette.requests import Request
@@ -35,8 +36,13 @@ def test_catalog_cache_uses_lock_for_concurrent_build(monkeypatch) -> None:
 
 
 def test_admin_rate_limit_blocks_after_threshold(monkeypatch) -> None:
+    """Test that admin rate limiting blocks after threshold is reached."""
+    # Lower the threshold for testing
     monkeypatch.setattr(settings, "admin_rate_limit_requests", 2)
     monkeypatch.setattr(settings, "admin_rate_limit_window_seconds", 60)
+
+    # Clear the in-memory rate limit state to ensure clean test
+    _admin_rate_windows.clear()
 
     scope = {
         "type": "http",
@@ -47,9 +53,20 @@ def test_admin_rate_limit_blocks_after_threshold(monkeypatch) -> None:
     }
     request = Request(scope)
 
-    assert _is_admin_rate_limited(request) is False
-    assert _is_admin_rate_limited(request) is False
-    assert _is_admin_rate_limited(request) is True
+    # Mock Redis to always fail, forcing in-memory fallback
+    async def mock_redis_fail(*args, **kwargs):
+        raise Exception("Redis unavailable")
+
+    monkeypatch.setattr(
+        "app.core.middleware.redis_client.incr_with_expiry",
+        mock_redis_fail,
+    )
+
+    # First two requests should be allowed
+    assert asyncio.get_event_loop().run_until_complete(_is_admin_rate_limited(request)) is False
+    assert asyncio.get_event_loop().run_until_complete(_is_admin_rate_limited(request)) is False
+    # Third request should be blocked
+    assert asyncio.get_event_loop().run_until_complete(_is_admin_rate_limited(request)) is True
 
 
 def test_bulk_approve_constraint_rules_dry_run(monkeypatch) -> None:

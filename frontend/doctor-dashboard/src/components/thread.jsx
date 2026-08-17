@@ -39,6 +39,7 @@ import {
   ThreadPrimitive,
   useAuiState,
 } from "@assistant-ui/react";
+import { ValueConflictBanner } from "@/components/ValueConflictBanner";
 import {
   ArrowDownIcon,
   ArrowUpIcon,

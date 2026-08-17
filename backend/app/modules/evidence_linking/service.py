@@ -24,10 +24,6 @@ def _chunk_index() -> dict[str, dict]:
     return {chunk["chunk_id"]: chunk for chunk in load_chunks() if chunk.get("chunk_id")}
 
 
-def chunk_by_id(chunk_id: str) -> dict | None:
-    return _chunk_index().get(chunk_id)
-
-
 def evidence_chunk_from_record(record: dict) -> EvidenceChunk:
     metadata = record.get("metadata") or {}
     chunk = EvidenceChunk(
@@ -49,7 +45,7 @@ def hydrate_constraint(constraint: Constraint, rule_metadata: dict | None = None
     source_locator = metadata.get("source_locator")
     chunk_id = constraint.evidence_ref if _is_chunk_id(constraint.evidence_ref) else metadata.get("chunk_id")
     if not source_locator and chunk_id:
-        record = chunk_by_id(chunk_id)
+        record = _chunk_index().get(chunk_id)
         if record:
             metadata = record.get("metadata") or {}
             source_locator = metadata.get("source_locator") or metadata.get("source_url")
@@ -115,7 +111,7 @@ def prioritize_context_chunks(
             prioritized.append(by_id[chunk_id])
             seen.add(chunk_id)
             continue
-        record = chunk_by_id(chunk_id)
+        record = _chunk_index().get(chunk_id)
         if record:
             prioritized.append(evidence_chunk_from_record(record))
             seen.add(chunk_id)

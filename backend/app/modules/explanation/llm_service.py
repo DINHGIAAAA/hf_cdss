@@ -73,7 +73,7 @@ def _fix_spacing(text: str) -> str:
 
 
 def _strip_han_script(text: str) -> str:
-    return _HAN_SCRIPT_RE.sub("", text or "").strip()
+    return _HAN_SCRIPT_RE.sub("", text or "")
 
 
 def _sanitize_stream_token(content: str) -> str:
@@ -116,6 +116,35 @@ def _compact_constraints(payload: LLMAnswerRequest, focus: set[str]) -> list[dic
     return filtered if filtered else rows
 
 
+def _truncate_for_payload(text: str | None, *, max_len: int = 150) -> str | None:
+    """Truncate text to max length for LLM payload optimization."""
+    if not text:
+        return None
+    text = text.strip()
+    if len(text) <= max_len:
+        return text
+    return text[:max_len - 1].rstrip() + "…"
+
+
+# Canonical drug names for each HF-GDMT class (NOT sotagliflozin/INPEFA, canagliflozin, etc.)
+_CANONICAL_DRUG_NAMES: dict[str, list[str]] = {
+    "sglt2i": ["dapagliflozin", "empagliflozin"],
+    "mra": ["spironolactone", "eplerenone"],
+    "beta_blocker": ["bisoprolol", "carvedilol", "metoprolol succinate"],
+    "acei_arb": ["ramipril", "lisinopril", "enalapril", "losartan", "valsartan", "candesartan"],
+    "arni": ["sacubitril/valsartan (Entresto)"],
+    "loop_diuretic": ["furosemide", "bumetanide", "torsemide"],
+    "hydral_nitrate": ["hydralazine", "isosorbide dinitrate"],
+}
+
+
+def _canonical_drug_names(class_id: str | None) -> list[str]:
+    """Return canonical drug names for a drug class to prevent hallucinations."""
+    if not class_id:
+        return []
+    return _CANONICAL_DRUG_NAMES.get(class_id.lower(), [])
+
+
 def _lines_for_llm_payload(lines: list | None) -> list[str]:
     out: list[str] = []
     for raw in lines or []:
@@ -142,122 +171,61 @@ def _text_for_llm_payload(text: str | None, item: Any) -> str | None:
     return cleaned.strip() or None
 
 
-def _per_class_fact_sheet(items: list) -> dict[str, dict[str, Any]]:
-    sheet: dict[str, dict[str, Any]] = {}
-    for item in items:
-        class_id = (item.class_id or "").lower()
-        if not class_id:
-            continue
-        allowed: list[str] = []
-        for field in ("rationale", "plain_language_summary"):
-            value = getattr(item, field, None)
-            if isinstance(value, str) and value.strip():
-                phrase = _text_for_llm_payload(value, item)
-                if phrase:
-                    allowed.append(phrase)
-        for collection in ("clinical_reasoning", "action_items", "monitoring", "warnings"):
-            for raw in (getattr(item, collection, None) or [])[:4]:
-                text = str(raw or "").strip()
-                if not text:
-                    continue
-                if _contains_cjk(text):
-                    continue
-                allowed.append(text)
-        sheet[class_id] = {
-            "status": item.status,
-            "drug_class": item.drug_class,
-            "allowed_phrases": allowed[:12],
-        }
-    return sheet
-
-
-def _compact_dose_plans(payload: LLMAnswerRequest) -> list[dict[str, Any]]:
-    return [
-        {
-            "drug_name": plan.drug_name,
-            "drug_class": plan.drug_class,
-            "status": plan.status,
-            "intent": plan.intent,
-            "rationale": plan.rationale,
-            "current_dose": plan.current_dose.model_dump() if plan.current_dose else None,
-            "recommended_dose": plan.recommended_dose.model_dump() if plan.recommended_dose else None,
-            "target_dose": plan.target_dose.model_dump() if plan.target_dose else None,
-            "titration_plan": plan.titration_plan[:4],
-            "calculation_steps": [step.model_dump() for step in plan.calculation_steps[:5]],
-            "hold_criteria": plan.hold_criteria[:3],
-            "missing_inputs": plan.missing_inputs,
-            "evidence_refs": plan.evidence_refs[:4],
-        }
-        for plan in payload.recommendation.dose_plans
-    ]
-
-
 def _compact_recommendation(payload: LLMAnswerRequest) -> dict[str, Any]:
     verification = payload.verification
     focus = focus_class_ids_for_payload(payload)
     narrowed_items = _items_for_clinician_question(payload)
     intent = (payload.clinical_state or {}).get("intent")
+
+    # Minimal patient object - only essential HF-GDMT decision making fields
+    patient_fields: dict[str, Any] = {}
+    if payload.patient.lvef is not None:
+        patient_fields["lvef"] = payload.patient.lvef
+    if payload.patient.egfr is not None:
+        patient_fields["egfr"] = payload.patient.egfr
+    if payload.patient.potassium is not None:
+        patient_fields["k"] = payload.patient.potassium  # shorter key
+    if payload.patient.systolic_bp is not None:
+        patient_fields["sbp"] = payload.patient.systolic_bp  # shorter key
+    if payload.patient.heart_rate is not None:
+        patient_fields["hr"] = payload.patient.heart_rate  # shorter key
+    if payload.patient.current_medications:
+        patient_fields["meds"] = payload.patient.current_medications  # shorter key
+
+    # Compact constraints to minimal text format
+    constraints = []
+    for c in _compact_constraints(payload, focus)[:3]:  # max 3 constraints
+        constraints.append(f"{c['target_drug_class']}: {c['action']}")
+
     compact: dict[str, Any] = {
-        "user_input": payload.user_input,
-        "conversation_context": payload.conversation_context,
-        "clinical_state": payload.clinical_state,
-        "focus_class_ids": sorted(focus),
-        "choice_question": payload.clinical_state.get("intent") == "choice_question"
-        if payload.clinical_state
-        else False,
-        "response_language": "en",
-        "patient": {
-            "lvef": payload.patient.lvef,
-            "egfr": payload.patient.egfr,
-            "potassium": payload.patient.potassium,
-            "systolic_bp": payload.patient.systolic_bp,
-            "heart_rate": payload.patient.heart_rate,
-            "age": payload.patient.age,
-            "sex": payload.patient.sex,
-            "weight_kg": payload.patient.weight_kg,
-            "creatinine": payload.patient.creatinine,
-            "inr": payload.patient.inr,
-            "inr_target_low": payload.patient.inr_target_low,
-            "inr_target_high": payload.patient.inr_target_high,
-            "comorbidities": payload.patient.comorbidities,
-            "current_medications": payload.patient.current_medications,
-            "allergies": payload.patient.allergies,
-        },
-        "overall_status": payload.recommendation.overall_status,
-        "risk_flags": [
-            {"name": risk.name, "severity": risk.severity, "evidence": risk.evidence}
-            for risk in payload.recommendation.risk_flags
-        ],
-        "constraints": _compact_constraints(payload, focus),
-        "per_class_fact_sheet": _per_class_fact_sheet(narrowed_items),
-        "candidate_medication_classes": [
+        "q": payload.user_input,  # shorter key
+        "focus": sorted(focus) if focus else None,  # shorter key, omit if empty
+        "pt": patient_fields,  # shorter key
+        "classes": [
             {
-                "class_id": item.class_id,
-                "drug_class": item.drug_class,
-                "status": item.status,
-                "rationale": _text_for_llm_payload(item.rationale, item),
-                "plain_language_summary": _text_for_llm_payload(item.plain_language_summary, item)
-                or _item_summary_for_locale(item),
-                "plain_language_details": (
-                    item.plain_language_details.model_dump()
-                    if item.plain_language_details
-                    else None
-                ),
-                "clinical_reasoning": _lines_for_llm_payload(item.clinical_reasoning[:3]),
-                "action_items": _lines_for_llm_payload(item.action_items[:3]),
-                "monitoring": _lines_for_llm_payload(item.monitoring[:2]),
-                "warnings": _lines_for_llm_payload(item.warnings[:3]),
+                "id": item.class_id,  # shorter key
+                "drug": item.drug_class,  # shorter key
+                "names": _canonical_drug_names(item.class_id),  # canonical names
+                "s": item.status,  # status
+                "r": _truncate_for_payload(_text_for_llm_payload(item.rationale, item), max_len=120),  # rationale
+                "w": _lines_for_llm_payload(item.warnings[:1]),  # only top warning
             }
-            for item in narrowed_items
+            for item in narrowed_items[:4]  # max 4 classes
         ],
-        "verification": {
-            "final_verdict": verification.final_verdict if verification else None,
-            "retrieved_graph_facts": len(verification.context.graph_facts) if verification else 0,
-            "retrieved_evidence_chunks": len(verification.context.evidence_chunks) if verification else 0,
-        },
+        "ver": verification.final_verdict if verification else None,  # short key
     }
-    if should_include_dose_in_llm_payload(intent):
-        compact["dose_plans"] = _compact_dose_plans(payload)
+
+    # Only add dose plans if specifically requested
+    if should_include_dose_in_llm_payload(intent) and payload.recommendation.dose_plans:
+        compact["doses"] = [
+            {
+                "d": plan.drug_name,
+                "cur": plan.current_dose.model_dump() if plan.current_dose else None,
+                "rec": plan.recommended_dose.model_dump() if plan.recommended_dose else None,
+            }
+            for plan in payload.recommendation.dose_plans[:2]  # max 2 plans
+        ]
+
     return compact
 
 
@@ -313,20 +281,6 @@ def _items_for_clinician_question(payload: LLMAnswerRequest):
     # answer about that class. Falling back to unrelated classes here would
     # silently answer a different question than the one asked.
     return [item for item in items if (item.class_id or "").lower() in focus]
-
-
-def _display_drug_labels(items, *, limit: int = 8) -> list[str]:
-    labels: list[str] = []
-    for item in items:
-        label = display_label_for_class_id(item.class_id, item.drug_class)
-        if is_placeholder_drug_label(label):
-            continue
-        if label in labels:
-            continue
-        labels.append(label)
-        if len(labels) >= limit:
-            break
-    return labels
 
 
 def _short_clinical_lines(items, field: str, *, limit: int = 4, max_len: int = 220) -> list[str]:
@@ -474,26 +428,6 @@ def _looks_truncated(answer: str, finish_reason: str | None) -> bool:
     return stripped[-1] not in ".!?:;\n"
 
 
-def _answer_passes_validation(
-    text: str, compact_payload: dict[str, Any], *, context: str = ""
-) -> bool:
-    validation = validate_explanation_answer(text, compact_payload)
-    failed = explanation_validation_failed(validation)
-    if failed:
-        reasons = [
-            f"{s.target_type}/{s.evidence_verdict}: {s.message}"
-            for s in validation.supports
-            if s.evidence_status == "unsupported"
-        ]
-        logger.warning(
-            "LLM answer rejected by explanation validation (%s): %s | answer_preview=%r",
-            context or "unknown",
-            reasons,
-            text[:300],
-        )
-    return not failed
-
-
 def _stable(value: Any) -> Any:
     if isinstance(value, dict):
         return {key: _stable(value[key]) for key in sorted(value)}
@@ -590,16 +524,23 @@ async def stream_llm_answer(payload: LLMAnswerRequest) -> AsyncIterator[dict[str
 
     if not llm_chat_completions_enabled():
         logger.warning(
-            "[LLM_DEBUG] LLM disabled — using fallback | llm_api_type=%r, requires_api_key=%s",
+            "[LLM_DEBUG] LLM disabled | llm_api_type=%r, requires_api_key=%s",
             settings.llm_api_type,
             llm_requires_api_key(),
         )
-        response = _fallback_response(payload, "fallback")
-        for chunk in _chunk_text(response.answer):
+        # NEVER use fallback - return error for medical safety
+        error_response = LLMAnswerResponse(
+            case_id=payload.patient.case_id,
+            answer="⚠️ AI explanation service is not configured. Please contact system administrator.",
+            model="error",
+            used_llm=False,
+            safety_note="This is clinical decision support. Final decisions require physician confirmation.",
+        )
+        for chunk in _chunk_text(error_response.answer):
             yield {"type": "token", "content": chunk}
-        yield {"type": "final", "llm_answer": response}
-        increment("hf_cdss_llm_requests_total", {"model": response.model, "status": "missing_api_key"})
-        observe("hf_cdss_llm_latency", time.perf_counter() - started, {"model": response.model, "status": "missing_api_key"})
+        yield {"type": "final", "llm_answer": error_response}
+        increment("hf_cdss_llm_requests_total", {"model": "disabled", "status": "error"})
+        observe("hf_cdss_llm_latency", time.perf_counter() - started, {"model": "disabled", "status": "error"})
         return
 
     cached = await _read_cache(cache_key)
@@ -669,7 +610,9 @@ async def stream_llm_answer(payload: LLMAnswerRequest) -> AsyncIterator[dict[str
         streamed_answer = answer
 
         # Fix spacing issues in LLM output (e.g., "Dapagliflozinisa" -> "Dapagliflozin is a")
-        answer = _fix_spacing(answer)
+        # _fix_spacing disabled - was breaking medical abbreviations like eGFR, mL, mmHg
+        # Original streaming bug (tokens without spaces) was fixed, this heuristic caused more harm
+        # answer = _fix_spacing(answer)
 
         logger.info(
             "[LLM_DEBUG] Stream complete | answer_len=%d | finish_reason=%s | emitted_tokens=%s | spacing_fixed=%s",
@@ -681,92 +624,73 @@ async def stream_llm_answer(payload: LLMAnswerRequest) -> AsyncIterator[dict[str
 
         if not answer:
             logger.warning("[LLM_DEBUG] LLM stream produced EMPTY answer (finish_reason=%s)", finish_reason)
-        elif _looks_truncated(answer, finish_reason):
+            # Emit error for empty answer
+            error_response = LLMAnswerResponse(
+                case_id=payload.patient.case_id,
+                answer="⚠️ AI explanation service produced empty response. Please try again.",
+                model="error",
+                used_llm=False,
+                safety_note="This is clinical decision support. Final decisions require physician confirmation.",
+            )
+            yield {"type": "final", "llm_answer": error_response}
+            return
+
+        if _looks_truncated(answer, finish_reason):
             logger.warning(
                 "[LLM_DEBUG] LLM stream answer TRUNCATED (finish_reason=%s): %r",
                 finish_reason,
                 answer[-200:],
             )
 
-        # Validate answer first to capture detailed validation failure reasons
-        validation_passed = True
-        validation_details = ""
-        validation_has_critical_errors = False
+        # Emit final response IMMEDIATELY for UX - user sees answer now
+        logger.info("[LLM_DEBUG] Emitting final response immediately for UX")
+        response_model = LLMAnswerResponse(
+            case_id=payload.patient.case_id,
+            answer=answer,
+            model=settings.llm_model,
+            used_llm=True,
+            safety_note=SAFETY_NOTE,
+        )
+        yield {"type": "final", "llm_answer": response_model}
+
+        # Background validation - run AFTER emitting response
+        # This doesn't block user from seeing the answer
         if answer:
             try:
                 validation = validate_explanation_answer(answer, compact_payload)
                 if explanation_validation_failed(validation):
-                    # Only fail for CRITICAL errors (hallucination, status mismatch)
-                    # Allow if only missing disclaimer (format issue) - this is not a safety problem
                     critical_failures = [
                         s for s in validation.supports
                         if s.evidence_status == "unsupported"
-                        and s.target_type in ("text_hallucination", "status_mismatch", "locale_compliance")
+                        and s.target_type in ("text_hallucination", "status_mismatch", "locale_compliance", "clinical_fact")
                     ]
                     if critical_failures:
-                        validation_passed = False
-                        validation_has_critical_errors = True
                         failed_items = [
                             f"{s.target_type}/{s.evidence_verdict}: {s.message}"
                             for s in critical_failures
                         ]
                         validation_details = "; ".join(failed_items[:5])
                         logger.warning(
-                            "[LLM_DEBUG] Validation FAILED (CRITICAL) | reasons=%s | answer_preview=%r",
+                            "[LLM_DEBUG] Background validation FAILED (CRITICAL) | reasons=%s | answer_preview=%r",
                             validation_details,
                             answer[:300],
                         )
+                        # Emit warning event after final
+                        yield {
+                            "type": "validation_warning",
+                            "message": f"⚠️ AI response validation found issues: {validation_details}. Please review carefully.",
+                            "issues": [
+                                {"type": s.target_type, "message": s.message}
+                                for s in critical_failures[:3]
+                            ],
+                        }
                     else:
-                        # Only disclaimer/format issues - accept with warning
-                        logger.warning(
-                            "[LLM_DEBUG] Validation has non-critical issues (missing disclaimer) - accepting answer anyway"
-                        )
+                        logger.info("[LLM_DEBUG] Background validation passed (non-critical issues only)")
                 else:
-                    logger.info("[LLM_DEBUG] Validation PASSED")
+                    logger.info("[LLM_DEBUG] Background validation PASSED")
             except Exception as e:
-                validation_passed = False
-                validation_details = f"validation_exception: {e}"
-                logger.warning("[LLM_DEBUG] Validation raised exception: %s", e)
-
-        # Only reject for truly problematic issues: empty, truncated, or critical validation errors
-        # Do NOT use fallback for format issues like missing disclaimer
-        rejected = (
-            not answer
-            or _looks_truncated(answer, finish_reason)
-            or validation_has_critical_errors
-        )
-        if rejected:
-            reject_reasons = []
-            if not answer:
-                reject_reasons.append("empty_answer")
-            if _looks_truncated(answer, finish_reason):
-                reject_reasons.append("truncated")
-            if validation_has_critical_errors:
-                reject_reasons.append(f"critical_validation_failed({validation_details})")
-            logger.warning("[LLM_DEBUG] Rejecting LLM answer | reasons=%s", reject_reasons)
-            # Use empty/error response instead of meaningless fallback
-            error_response = LLMAnswerResponse(
-                case_id=payload.patient.case_id,
-                answer=f"⚠️ AI explanation service encountered an issue: {', '.join(reject_reasons)}. Please try again or contact support.",
-                model="error",
-                used_llm=False,
-                safety_note="This is clinical decision support. Final decisions require physician confirmation.",
-            )
-            if not emitted_token:
-                for chunk in _chunk_text(error_response.answer):
-                    yield {"type": "token", "content": chunk}
-            elif error_response.answer.strip() != streamed_answer:
-                yield {"type": "replace", "content": error_response.answer}
-            return  # Exit early with error
-        else:
-            logger.info("[LLM_DEBUG] LLM answer accepted | len=%d", len(answer))
-            response_model = LLMAnswerResponse(
-                case_id=payload.patient.case_id,
-                answer=answer,
-                model=settings.llm_model,
-                used_llm=True,
-                safety_note=SAFETY_NOTE,
-            )
+                logger.warning("[LLM_DEBUG] Background validation raised exception: %s", e)
+        return
     except httpx.TimeoutException as e:
         logger.error(
             "[LLM_DEBUG] LLM TIMEOUT | timeout=%s | error=%s",
@@ -818,68 +742,6 @@ async def stream_llm_answer(payload: LLMAnswerRequest) -> AsyncIterator[dict[str
         yield {"type": "final", "llm_answer": error_response}
         return
 
-    if not (response_model.answer or "").strip():
-        logger.warning("[LLM_DEBUG] Response answer is empty")
-        error_response = LLMAnswerResponse(
-            case_id=payload.patient.case_id,
-            answer="⚠️ AI explanation service returned an empty response. Please try again.",
-            model="error",
-            used_llm=False,
-            safety_note="This is clinical decision support. Final decisions require physician confirmation.",
-        )
-        if not emitted_token:
-            for chunk in _chunk_text(error_response.answer):
-                yield {"type": "token", "content": chunk}
-        yield {"type": "final", "llm_answer": error_response}
-        return
-
-    # Second-pass validation for answers that made it through first pass
-    if response_model.used_llm:
-        try:
-            validation = validate_explanation_answer(response_model.answer, compact_payload)
-            if explanation_validation_failed(validation):
-                # Only fail for CRITICAL errors
-                critical_failures = [
-                    s for s in validation.supports
-                    if s.evidence_status == "unsupported"
-                    and s.target_type in ("text_hallucination", "status_mismatch", "locale_compliance")
-                ]
-                if critical_failures:
-                    failed_items = [
-                        f"{s.target_type}/{s.evidence_verdict}: {s.message}"
-                        for s in critical_failures
-                    ]
-                    logger.warning(
-                        "[LLM_DEBUG] Second-pass validation FAILED (CRITICAL) | reasons=%s",
-                        "; ".join(failed_items[:5]),
-                    )
-                    error_response = LLMAnswerResponse(
-                        case_id=payload.patient.case_id,
-                        answer=f"⚠️ AI explanation validation failed: {', '.join(failed_items[:2])}. Please try again.",
-                        model="error",
-                        used_llm=False,
-                        safety_note="This is clinical decision support. Final decisions require physician confirmation.",
-                    )
-                    if emitted_token and error_response.answer.strip() != response_model.answer.strip():
-                        yield {"type": "replace", "content": error_response.answer}
-                    response_model = error_response
-        except Exception as e:
-            logger.warning("[LLM_DEBUG] Second-pass validation exception: %s", e)
-
-    if response_model.used_llm:
-        await _write_cache(cache_key, response_model)
-    status = "ok" if response_model.used_llm else "error"
-    logger.info(
-        "[LLM_DEBUG] stream_llm_answer END | used_llm=%s | model=%s | status=%s | latency=%.2fs",
-        response_model.used_llm,
-        response_model.model,
-        status,
-        time.perf_counter() - started,
-    )
-    increment("hf_cdss_llm_requests_total", {"model": response_model.model, "status": status})
-    observe("hf_cdss_llm_latency", time.perf_counter() - started, {"model": response_model.model, "status": status})
-    yield {"type": "final", "llm_answer": response_model}
-
 
 async def build_llm_answer(payload: LLMAnswerRequest) -> LLMAnswerResponse:
     started = time.perf_counter()
@@ -898,13 +760,21 @@ async def build_llm_answer(payload: LLMAnswerRequest) -> LLMAnswerResponse:
 
     if not llm_chat_completions_enabled():
         logger.warning(
-            "[LLM_DEBUG] LLM disabled — using fallback | llm_api_type=%r, requires_api_key=%s",
+            "[LLM_DEBUG] LLM disabled | llm_api_type=%r, requires_api_key=%s",
             settings.llm_api_type,
             llm_requires_api_key(),
         )
-        increment("hf_cdss_llm_requests_total", {"model": "fallback", "status": "missing_api_key"})
-        observe("hf_cdss_llm_latency", time.perf_counter() - started, {"model": "fallback", "status": "missing_api_key"})
-        return _fallback_response(payload, "fallback")
+        # NEVER use fallback - return error for medical safety
+        error_response = LLMAnswerResponse(
+            case_id=payload.patient.case_id,
+            answer="⚠️ AI explanation service is not configured. Please contact system administrator.",
+            model="error",
+            used_llm=False,
+            safety_note="This is clinical decision support. Final decisions require physician confirmation.",
+        )
+        increment("hf_cdss_llm_requests_total", {"model": "disabled", "status": "error"})
+        observe("hf_cdss_llm_latency", time.perf_counter() - started, {"model": "disabled", "status": "error"})
+        return error_response
 
     compact_payload = _compact_recommendation(payload)
     cache_key = _cache_key(compact_payload)
@@ -955,7 +825,9 @@ async def build_llm_answer(payload: LLMAnswerRequest) -> LLMAnswerResponse:
         finish_reason = _finish_reason(data)
 
         # Fix spacing issues in LLM output (e.g., "Dapagliflozinisa" -> "Dapagliflozin is a")
-        answer = _fix_spacing(answer)
+        # _fix_spacing disabled - was breaking medical abbreviations like eGFR, mL, mmHg
+        # Original streaming bug (tokens without spaces) was fixed, this heuristic caused more harm
+        # answer = _fix_spacing(answer)
 
         logger.info(
             "[LLM_DEBUG] LLM response | answer_len=%d | finish_reason=%s",
@@ -975,22 +847,34 @@ async def build_llm_answer(payload: LLMAnswerRequest) -> LLMAnswerResponse:
         # Validate answer with detailed failure logging
         validation_passed = True
         validation_details = ""
+        validation_has_critical_errors = False
         if answer:
             try:
                 validation = validate_explanation_answer(answer, compact_payload)
                 if explanation_validation_failed(validation):
-                    validation_passed = False
-                    failed_items = [
-                        f"{s.target_type}/{s.evidence_verdict}: {s.message}"
-                        for s in validation.supports
+                    # Only fail for CRITICAL errors (hallucination, status mismatch)
+                    critical_failures = [
+                        s for s in validation.supports
                         if s.evidence_status == "unsupported"
+                        and s.target_type in ("text_hallucination", "status_mismatch", "locale_compliance", "clinical_fact")
                     ]
-                    validation_details = "; ".join(failed_items[:5])
-                    logger.warning(
-                        "[LLM_DEBUG] Validation FAILED | reasons=%s | answer_preview=%r",
-                        validation_details,
-                        answer[:300],
-                    )
+                    if critical_failures:
+                        validation_passed = False
+                        validation_has_critical_errors = True
+                        failed_items = [
+                            f"{s.target_type}/{s.evidence_verdict}: {s.message}"
+                            for s in critical_failures
+                        ]
+                        validation_details = "; ".join(failed_items[:5])
+                        logger.warning(
+                            "[LLM_DEBUG] Validation FAILED (CRITICAL) | reasons=%s | answer_preview=%r",
+                            validation_details,
+                            answer[:300],
+                        )
+                    else:
+                        logger.warning(
+                            "[LLM_DEBUG] Validation has non-critical issues (missing disclaimer) - accepting answer"
+                        )
                 else:
                     logger.info("[LLM_DEBUG] Validation PASSED")
             except Exception as e:
@@ -1000,7 +884,7 @@ async def build_llm_answer(payload: LLMAnswerRequest) -> LLMAnswerResponse:
 
         llm_answer_ok = bool(answer) and not _looks_truncated(
             answer, finish_reason
-        ) and validation_passed
+        ) and not validation_has_critical_errors
 
         if not llm_answer_ok:
             reject_reasons = []
@@ -1008,53 +892,67 @@ async def build_llm_answer(payload: LLMAnswerRequest) -> LLMAnswerResponse:
                 reject_reasons.append("empty_answer")
             if _looks_truncated(answer, finish_reason):
                 reject_reasons.append("truncated")
-            if not validation_passed:
+            if validation_has_critical_errors:
                 reject_reasons.append(f"validation_failed({validation_details})")
-            logger.warning("[LLM_DEBUG] LLM answer rejected, using fallback | reasons=%s", reject_reasons)
-            # Real LLM output was empty/truncated/failed validation — fall
-            # back, but the result below must NOT be mislabeled as used_llm.
-            answer = fallback_answer(payload)
+            logger.warning("[LLM_DEBUG] LLM answer rejected | reasons=%s", reject_reasons)
+            # NEVER use fallback - return error for medical safety
+            return LLMAnswerResponse(
+                case_id=payload.patient.case_id,
+                answer=f"⚠️ AI explanation service encountered an issue: {', '.join(reject_reasons)}. Please try again.",
+                model="error",
+                used_llm=False,
+                safety_note="This is clinical decision support. Final decisions require physician confirmation.",
+            )
     except httpx.TimeoutException as e:
         logger.error(
             "[LLM_DEBUG] LLM TIMEOUT | timeout=%s | error=%s",
             settings.llm_timeout_seconds,
             e,
         )
-        fallback_response = _fallback_response(payload, "fallback_after_timeout")
-        await _write_cache(cache_key, fallback_response)
-        increment("hf_cdss_llm_requests_total", {"model": "fallback_after_timeout", "status": "error"})
-        observe(
-            "hf_cdss_llm_latency",
-            time.perf_counter() - started,
-            {"model": "fallback_after_timeout", "status": "error"},
+        # NEVER use fallback - return error for medical safety
+        error_response = LLMAnswerResponse(
+            case_id=payload.patient.case_id,
+            answer=f"⚠️ AI explanation service timed out after {settings.llm_timeout_seconds}s. Please try again.",
+            model="error",
+            used_llm=False,
+            safety_note="This is clinical decision support. Final decisions require physician confirmation.",
         )
-        return fallback_response
+        await _write_cache(cache_key, error_response)
+        increment("hf_cdss_llm_requests_total", {"model": "timeout", "status": "error"})
+        observe("hf_cdss_llm_latency", time.perf_counter() - started, {"model": "timeout", "status": "error"})
+        return error_response
     except httpx.HTTPStatusError as e:
         logger.error(
             "[LLM_DEBUG] LLM HTTP ERROR | status=%d | response=%s",
             e.response.status_code,
             e.response.text[:500] if e.response.text else "N/A",
         )
-        fallback_response = _fallback_response(payload, f"fallback_after_http_error_{e.response.status_code}")
-        await _write_cache(cache_key, fallback_response)
-        increment("hf_cdss_llm_requests_total", {"model": f"fallback_after_http_error_{e.response.status_code}", "status": "error"})
-        observe(
-            "hf_cdss_llm_latency",
-            time.perf_counter() - started,
-            {"model": f"fallback_after_http_error_{e.response.status_code}", "status": "error"},
+        # NEVER use fallback - return error for medical safety
+        error_response = LLMAnswerResponse(
+            case_id=payload.patient.case_id,
+            answer=f"⚠️ AI explanation service returned error {e.response.status_code}. Please try again.",
+            model="error",
+            used_llm=False,
+            safety_note="This is clinical decision support. Final decisions require physician confirmation.",
         )
-        return fallback_response
+        await _write_cache(cache_key, error_response)
+        increment("hf_cdss_llm_requests_total", {"model": f"http_error_{e.response.status_code}", "status": "error"})
+        observe("hf_cdss_llm_latency", time.perf_counter() - started, {"model": f"http_error_{e.response.status_code}", "status": "error"})
+        return error_response
     except Exception:
-        logger.exception("[LLM_DEBUG] LLM call (non-stream) EXCEPTION; falling back")
-        fallback_response = _fallback_response(payload, "fallback_after_llm_error")
-        await _write_cache(cache_key, fallback_response)
-        increment("hf_cdss_llm_requests_total", {"model": "fallback_after_llm_error", "status": "error"})
-        observe(
-            "hf_cdss_llm_latency",
-            time.perf_counter() - started,
-            {"model": "fallback_after_llm_error", "status": "error"},
+        logger.exception("[LLM_DEBUG] LLM call (non-stream) EXCEPTION")
+        # NEVER use fallback - return error for medical safety
+        error_response = LLMAnswerResponse(
+            case_id=payload.patient.case_id,
+            answer="⚠️ AI explanation service encountered an error. Please try again.",
+            model="error",
+            used_llm=False,
+            safety_note="This is clinical decision support. Final decisions require physician confirmation.",
         )
-        return fallback_response
+        await _write_cache(cache_key, error_response)
+        increment("hf_cdss_llm_requests_total", {"model": "exception", "status": "error"})
+        observe("hf_cdss_llm_latency", time.perf_counter() - started, {"model": "exception", "status": "error"})
+        return error_response
 
     response = LLMAnswerResponse(
         case_id=payload.patient.case_id,

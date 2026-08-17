@@ -163,9 +163,7 @@ def semantic_catalog_matches(text: str, *, threshold: float | None = None) -> li
         if score < match_threshold:
             continue
         literal_ok = _alias_match_allowed(normalized, entry.aliases) if entry.aliases else False
-        if literal_ok:
-            pass
-        elif score >= STRONG_SEMANTIC_MATCH:
+        if literal_ok or score >= STRONG_SEMANTIC_MATCH:
             if entry.aliases and _alias_mentioned_only_negated(normalized, entry.aliases):
                 continue
         else:

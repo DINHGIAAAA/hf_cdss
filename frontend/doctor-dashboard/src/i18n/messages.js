@@ -67,6 +67,12 @@ export const MESSAGES = {
       continue: "Continue",
       stop: "Stop here",
     },
+    conflict: {
+      title: "Detected changes to important values",
+      confirm: "Confirm",
+      cancel: "Keep original",
+      hint: "Reply 'yes' to apply, 'no' to keep previous value.",
+    },
     streamPhases: {
       intake: "Patient profile",
       recommendation: "Safety & GDMT",

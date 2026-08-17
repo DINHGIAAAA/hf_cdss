@@ -357,9 +357,15 @@ class PatientProfile(BaseModel):
             ("heart_rate", self.vitals.heart_rate, 20, 300),
             ("systolic_bp", self.vitals.systolic_bp, 40, 300),
             ("diastolic_bp", self.vitals.diastolic_bp, 20, 200),
+            ("spo2", self.vitals.spo2, 50, 100),
+            ("respiratory_rate", self.vitals.respiratory_rate, 4, 60),
+            ("weight_kg", self.vitals.weight_kg, 1.0, 500.0),
+            ("height_cm", self.vitals.height_cm, 20, 300),
             ("potassium", self.labs.potassium, 1.0, 10.0),
             ("creatinine", self.labs.creatinine, 0.1, 30.0),
             ("egfr", self.labs.egfr, 0, 200),
+            ("sodium", self.labs.sodium, 100.0, 180.0),
+            ("hemoglobin", self.labs.hemoglobin, 1.0, 25.0),
         ]:
             if cv is None or cv.value is None:
                 continue
@@ -387,10 +393,14 @@ class PatientProfile(BaseModel):
 
     @property
     def lvef(self) -> float | None:
-        value = _value(self.heart_failure_profile.lvef) or _value(
-            self.echocardiography.lvef if self.echocardiography else None
-        )
-        return float(value) if value is not None else None
+        value = _value(self.heart_failure_profile.lvef)
+        if value is not None:
+            return float(value)
+        if self.echocardiography:
+            value = _value(self.echocardiography.lvef)
+            if value is not None:
+                return float(value)
+        return None
 
     @property
     def egfr(self) -> float | None:

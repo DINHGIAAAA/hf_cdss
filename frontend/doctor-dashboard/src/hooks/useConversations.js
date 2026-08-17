@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { chatApi } from "@shared/api/chat.js";
 import { useAuth } from "../auth/AuthContext.jsx";
@@ -30,13 +30,16 @@ export function useConversations() {
     persistConversations(conversations);
   }, [conversations]);
 
-  const patchConversation = useCallback((conversationId, updater) => {
+  const patchConversation = useCallback((conversationId, patchOrUpdater) => {
     setConversations((items) =>
-      items.map((item) =>
-        item.id === conversationId
-          ? { ...item, ...updater(item), updatedAt: new Date().toISOString() }
-          : item,
-      ),
+      items.map((item) => {
+        if (item.id !== conversationId) return item;
+        // Support both function updater and plain object
+        const patch = typeof patchOrUpdater === "function"
+          ? patchOrUpdater(item)
+          : patchOrUpdater;
+        return { ...item, ...patch, updatedAt: new Date().toISOString() };
+      }),
     );
   }, []);
 
@@ -203,9 +206,16 @@ export function useConversations() {
     syncConversationFromServer(activeId);
   }, [activeId, syncConversationFromServer, bootstrapping, isAuthenticated]);
 
+  // Derive the active conversation from conversations + activeId
+  const active = useMemo(
+    () => conversations.find((c) => c.id === activeId) || null,
+    [conversations, activeId]
+  );
+
   return {
     conversations,
     activeId,
+    active,
     selectConversation,
     patchConversation,
     updateActive,

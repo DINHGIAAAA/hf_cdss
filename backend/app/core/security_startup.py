@@ -55,8 +55,3 @@ def validate_security_configuration() -> None:
             len(errors),
         )
         os._exit(1)  # noqa: PLW6091
-
-
-def check_security_startup() -> None:
-    """Alias for validate_security_configuration() for backward compatibility."""
-    validate_security_configuration()

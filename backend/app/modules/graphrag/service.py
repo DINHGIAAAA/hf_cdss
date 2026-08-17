@@ -493,11 +493,8 @@ def retrieve_evidence_chunks(
     *,
     published: bool = True,
     patient: PatientProfile | None = None,
-    use_hybrid: bool = True,
-    bm25_top_k: int = 100,
 ) -> list[EvidenceChunk]:
     """Retrieve evidence via the unified ChromaDB + BM25 hybrid flow."""
-    del use_hybrid, bm25_top_k
     chunks, _ = retrieve_hybrid_evidence_chunks(
         terms,
         top_k,

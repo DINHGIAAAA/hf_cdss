@@ -1,23 +1,28 @@
 export function compactPatientForRequest(active) {
   const draftPatient = active.draft?.patient;
   const intakePatient = active.patient;
-  if (!draftPatient) return intakePatient;
-  if (!intakePatient) return draftPatient;
+  // If there's a pending confirmation (unconfirmed value changes), use it as the base
+  // This ensures confirmation requests include the new values, not the old ones
+  const pendingPatient = active.pending_confirmation || active.pendingConfirmation;
+  const effectiveDraft = pendingPatient || draftPatient;
+
+  if (!effectiveDraft) return intakePatient;
+  if (!intakePatient) return effectiveDraft;
 
   return {
-    ...draftPatient,
-    patient_identity: { ...intakePatient.patient_identity, ...draftPatient.patient_identity },
-    demographics: { ...intakePatient.demographics, ...draftPatient.demographics },
-    heart_failure_profile: { ...intakePatient.heart_failure_profile, ...draftPatient.heart_failure_profile },
-    labs: { ...intakePatient.labs, ...draftPatient.labs },
-    vitals: { ...intakePatient.vitals, ...draftPatient.vitals },
-    care_context: { ...intakePatient.care_context, ...draftPatient.care_context },
-    conditions: draftPatient.conditions?.length ? draftPatient.conditions : intakePatient.conditions,
-    medications: draftPatient.medications?.length ? draftPatient.medications : intakePatient.medications,
-    allergy_statements: draftPatient.allergy_statements?.length
-      ? draftPatient.allergy_statements
+    ...effectiveDraft,
+    patient_identity: { ...intakePatient.patient_identity, ...effectiveDraft.patient_identity },
+    demographics: { ...intakePatient.demographics, ...effectiveDraft.demographics },
+    heart_failure_profile: { ...intakePatient.heart_failure_profile, ...effectiveDraft.heart_failure_profile },
+    labs: { ...intakePatient.labs, ...effectiveDraft.labs },
+    vitals: { ...intakePatient.vitals, ...effectiveDraft.vitals },
+    care_context: { ...intakePatient.care_context, ...effectiveDraft.care_context },
+    conditions: effectiveDraft.conditions?.length ? effectiveDraft.conditions : intakePatient.conditions,
+    medications: effectiveDraft.medications?.length ? effectiveDraft.medications : intakePatient.medications,
+    allergy_statements: effectiveDraft.allergy_statements?.length
+      ? effectiveDraft.allergy_statements
       : intakePatient.allergy_statements,
-    red_flags: draftPatient.red_flags?.length ? draftPatient.red_flags : intakePatient.red_flags,
+    red_flags: effectiveDraft.red_flags?.length ? effectiveDraft.red_flags : intakePatient.red_flags,
   };
 }
 

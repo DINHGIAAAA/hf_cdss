@@ -27,9 +27,11 @@ export async function streamClinicalChat({
   };
   if (active.confirmation_action || active.confirmationAction) {
     requestBody.confirmation_action = active.confirmation_action || active.confirmationAction;
+    console.log("Sending confirmation_action:", requestBody.confirmation_action);
   }
   if (active.pending_confirmation || active.pendingConfirmation) {
     requestBody.pending_confirmation = active.pending_confirmation || active.pendingConfirmation;
+    console.log("Sending pending_confirmation:", !!requestBody.pending_confirmation);
   }
   if (active.multi_question_action || active.multiQuestionAction) {
     requestBody.multi_question_action =

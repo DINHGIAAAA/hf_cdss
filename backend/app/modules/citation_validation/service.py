@@ -16,6 +16,50 @@ from app.schemas.patient import PatientProfile
 from app.schemas.recommendation import RecommendationResponse
 
 
+def _extract_clinical_values(text: str) -> dict[str, float | None]:
+    """Extract clinical values from text using semantic regex patterns.
+
+    Returns dict with extracted values like {egfr: 42.0, potassium: 5.7, lvef: 28}
+    This is used to compare what LLM said vs actual patient values.
+    """
+    values: dict[str, float | None] = {"egfr": None, "potassium": None, "lvef": None, "sbp": None}
+
+    # eGFR patterns: "eGFR of 42", "eGFR 42", "42 mL/min"
+    egfr_match = re.search(r'eGFR[:\s]+(\d+(?:\.\d+)?)', text, re.IGNORECASE)
+    if egfr_match:
+        values["egfr"] = float(egfr_match.group(1))
+
+    # Potassium patterns: "K+ 5.7", "potassium 5.7", "5.7 mmol/L"
+    k_match = re.search(r'K\+\s*[:=]?\s*(\d+(?:\.\d+)?)', text, re.IGNORECASE)
+    if k_match:
+        values["potassium"] = float(k_match.group(1))
+    elif re.search(r'potassium[:\s]+(\d+(?:\.\d+)?)', text, re.IGNORECASE):
+        values["potassium"] = float(re.search(r'potassium[:\s]+(\d+(?:\.\d+)?)', text, re.IGNORECASE).group(1))
+
+    # LVEF patterns: "LVEF 28%", "ejection fraction of 28"
+    lvef_match = re.search(r'LVEF[:\s]+(\d+)%?', text, re.IGNORECASE)
+    if lvef_match:
+        values["lvef"] = float(lvef_match.group(1))
+
+    # SBP patterns: "SBP 120", "blood pressure 120/80"
+    sbp_match = re.search(r'SBP[:\s]+(\d+)', text, re.IGNORECASE)
+    if sbp_match:
+        values["sbp"] = float(sbp_match.group(1))
+
+    return values
+
+
+# Known wrong/irrelevant drug names that should NOT appear for each class.
+# If a drug from this list appears in text about a class, it's a hallucination.
+_WRONG_DRUG_NAMES_FOR_CLASS: dict[str, list[str]] = {
+    "sglt2i": [
+        "inpefa", "sotagliflozin",  # Wrong SGLT2i (different mechanism)
+        "canagliflozin",  # Has amputation warning not in HF payload
+        "ertugliflozin",  # Not in HF guidelines
+    ],
+}
+
+
 # Drug/class-specific warnings — NOT shared across other GDMT classes.
 # Appearing in text for a drug that doesn't have them in its payload warnings = hallucination.
 # Covers all core HF-GDMT classes, not just SGLT2i — a warning below is only
@@ -111,6 +155,241 @@ def _text_hallucination_check(text: str, compact_payload: dict) -> list[Citation
                         quality_score=0.0,
                     )
                 )
+    return supports
+
+
+def _wrong_drug_name_check(text: str, compact_payload: dict) -> list[CitationSupport]:
+    """Check for wrong or hallucinated drug names in generated text.
+
+    Verifies that if a specific drug is mentioned, it actually belongs to a
+    class in candidate_medication_classes or current_medications.
+    """
+    supports: list[CitationSupport] = []
+    text_lower = text.lower()
+    candidates = compact_payload.get("candidate_medication_classes", [])
+    patient = compact_payload.get("patient", {})
+
+    # Collect all valid drug names from payload
+    valid_drug_names: set[str] = set()
+    for item in candidates:
+        valid_drug_names.add((item.get("class_id") or "").lower())
+        valid_drug_names.add((item.get("drug_class") or "").lower())
+
+    # Check current medications
+    current_meds = patient.get("current_medications", [])
+    if isinstance(current_meds, list):
+        for med in current_meds:
+            if isinstance(med, str):
+                valid_drug_names.add(med.lower())
+
+    # Check for known wrong drug names
+    for class_id, wrong_names in _WRONG_DRUG_NAMES_FOR_CLASS.items():
+        for wrong_name in wrong_names:
+            if wrong_name.lower() in text_lower:
+                # This drug should NOT appear in HF context
+                supports.append(
+                    CitationSupport(
+                        target_id=f"text:drug_name:{wrong_name}",
+                        target_type="text_hallucination",
+                        evidence_status="unsupported",
+                        message=f"Hallucinated drug name '{wrong_name}' — not in CDSS payload for {class_id}.",
+                        required_terms=[wrong_name],
+                        matched_terms=[wrong_name],
+                        evidence_refs=[],
+                        source_links=[],
+                        evidence_verdict="hallucination",
+                        confidence=0.0,
+                        quality_score=0.0,
+                    )
+                )
+
+    return supports
+
+
+def _clinical_eligibility_check(text: str, compact_payload: dict) -> list[CitationSupport]:
+    """Semantic check for clinical eligibility hallucinations.
+
+    Extracts clinical values from text and compares with actual patient values.
+    Uses patterns to detect eligibility claims that contradict actual data.
+    """
+    supports: list[CitationSupport] = []
+    text_lower = text.lower()
+    patient = compact_payload.get("patient", {})
+    candidates = compact_payload.get("candidate_medication_classes", [])
+    classes = compact_payload.get("classes", candidates)  # Support both old and new key names
+
+    # Get patient lab values from payload
+    egfr = patient.get("egfr")
+    potassium = patient.get("k") or patient.get("potassium")
+
+    # Extract clinical values from text using semantic extraction
+    extracted = _extract_clinical_values(text)
+
+    # === SGLT2i eligibility check ===
+    if egfr is not None and egfr >= 20:
+        sglt2i_mentioned = any(term in text_lower for term in ["sglt2", "dapagliflozin", "empagliflozin"])
+        if sglt2i_mentioned and "egfr" in text_lower:
+            # Extract eGFR from text if mentioned
+            text_egfr = extracted.get("egfr")
+            if text_egfr is not None:
+                # Compare extracted value with actual
+                if abs(text_egfr - egfr) > 10:
+                    supports.append(
+                        CitationSupport(
+                            target_id="text:egfr_mismatch",
+                            target_type="clinical_fact",
+                            evidence_status="unsupported",
+                            message=f"eGFR value mismatch. Text: {text_egfr}, Actual: {egfr}",
+                            required_terms=["egfr"],
+                            matched_terms=["egfr", str(text_egfr)],
+                            evidence_refs=[],
+                            source_links=[],
+                            evidence_verdict="value_mismatch",
+                            confidence=0.0,
+                            quality_score=0.0,
+                        )
+                    )
+
+            # Check for negation patterns in same sentence as SGLT2i + eGFR
+            sentences = [s.strip() for s in re.split(r'[.!?\n]', text) if s.strip()]
+            for sentence in sentences:
+                sentence_lower = sentence.lower()
+                has_sglt2i = any(t in sentence_lower for t in ["sglt2", "dapagliflozin", "empagliflozin"])
+                has_egfr = "egfr" in sentence_lower
+                if has_sglt2i and has_egfr:
+                    # Semantic negation detection using dependency-like patterns
+                    negation_patterns = [
+                        r'\bnot\s+\w+\s+(approved|indicated|appropriate)',
+                        r'\bnot\s+(approved|indicated|appropriate)',
+                        r'\bdoesn\'?t\s+\w+\s+(qualify|meet)',
+                        r'\bcan\s+not\s+be',
+                        r'\bshould\s+not\s+be\s+used',
+                        r'\brequire[sd]?\s+(further|additional|more)',
+                        r'\bneed[s]?\s+careful',
+                        r'\bneeds\s+careful\s+consideration',
+                        r'\bwould\s+need\s+careful',
+                        r'\bcareful\s+consideration',
+                        r'\bcaution\b',
+                    ]
+                    for pattern in negation_patterns:
+                        if re.search(pattern, sentence_lower):
+                            supports.append(
+                                CitationSupport(
+                                    target_id="text:sglt2i_eligibility",
+                                    target_type="clinical_fact",
+                                    evidence_status="unsupported",
+                                    message=f"SGLT2i eligibility misrepresented. eGFR {egfr} >= 20 = APPROVED. Sentence implies negation.",
+                                    required_terms=["sglt2i", "egfr"],
+                                    matched_terms=["sglt2i", "egfr", str(egfr)],
+                                    evidence_refs=[],
+                                    source_links=[],
+                                    evidence_verdict="eligibility_hallucination",
+                                    confidence=0.0,
+                                    quality_score=0.0,
+                                )
+                            )
+                            break  # Only flag once per sentence
+
+    # === MRA hyperkalemia check ===
+    if potassium is not None and potassium > 5.0:
+        mra_mentioned = any(
+            term in text_lower for term in ["mra", "spironolactone", "eplerenone", "mineralocorticoid"]
+        )
+        if mra_mentioned and potassium >= 5.5:
+            # Semantic check: if mentions potassium, was it extracted?
+            if extracted["potassium"] is not None:
+                # Check if the extracted value is close to actual
+                if abs(extracted["potassium"] - potassium) > 0.5:
+                    supports.append(
+                        CitationSupport(
+                            target_id="text:mra_k_mismatch",
+                            target_type="clinical_fact",
+                            evidence_status="unsupported",
+                            message=f"Potassium value mismatch for MRA. Text: {extracted['potassium']}, Actual: {potassium} mmol/L",
+                            required_terms=["mra", "potassium"],
+                            matched_terms=["mra", str(potassium)],
+                            evidence_refs=[],
+                            source_links=[],
+                            evidence_verdict="value_mismatch",
+                            confidence=0.0,
+                            quality_score=0.0,
+                        )
+                    )
+            else:
+                # No potassium value mentioned - flag if hyperkalemia is severe
+                if "caution" not in text_lower and "monitor" not in text_lower and "hyperkalemia" not in text_lower:
+                    supports.append(
+                        CitationSupport(
+                            target_id="text:mra_hyperkalemia",
+                            target_type="clinical_fact",
+                            evidence_status="unsupported",
+                            message=f"MRA mentioned but K+ {potassium} mmol/L (hyperkalemia) not addressed. Should warn about monitoring.",
+                            required_terms=["mra"],
+                            matched_terms=["mra", str(potassium)],
+                            evidence_refs=[],
+                            source_links=[],
+                            evidence_verdict="missing_warning",
+                            confidence=0.0,
+                            quality_score=0.0,
+                        )
+                    )
+
+    return supports
+
+
+def _potassium_claim_without_number_check(text: str, compact_payload: dict) -> list[CitationSupport]:
+    """Semantic check: if potassium mentioned but no specific value extracted, flag it.
+
+    Extracts any potassium value mentioned in text and compares with payload.
+    If text mentions potassium but extracts no number, and patient has K+ > 5.0, flag it.
+    """
+    supports: list[CitationSupport] = []
+    patient = compact_payload.get("patient", {})
+    potassium = patient.get("k") or patient.get("potassium")
+
+    # Extract clinical values from text
+    extracted = _extract_clinical_values(text)
+
+    mentions_potassium = "potassium" in text.lower() or "k+" in text.lower()
+
+    if mentions_potassium and potassium is not None:
+        # Semantic check: if potassium mentioned but NOT extracted any number, and patient has actual value
+        if extracted["potassium"] is None and potassium > 5.0:
+            supports.append(
+                CitationSupport(
+                    target_id="text:potassium_vague",
+                    target_type="clinical_fact",
+                    evidence_status="unsupported",
+                    message=f"Potassium mentioned without specific value. Patient K+ is {potassium} mmol/L. Should state actual value.",
+                    required_terms=["potassium"],
+                    matched_terms=["potassium"],
+                    evidence_refs=[],
+                    source_links=[],
+                    evidence_verdict="missing_specific_value",
+                    confidence=0.0,
+                    quality_score=0.0,
+                )
+            )
+        # Check if extracted value differs significantly from actual
+        elif extracted["potassium"] is not None:
+            diff = abs(extracted["potassium"] - potassium)
+            if diff > 0.5:  # More than 0.5 mmol/L difference
+                supports.append(
+                    CitationSupport(
+                        target_id="text:potassium_mismatch",
+                        target_type="clinical_fact",
+                        evidence_status="unsupported",
+                        message=f"Potassium value mismatch. Text: {extracted['potassium']}, Actual: {potassium} mmol/L.",
+                        required_terms=["potassium"],
+                        matched_terms=["potassium", str(extracted["potassium"])],
+                        evidence_refs=[],
+                        source_links=[],
+                        evidence_verdict="value_mismatch",
+                        confidence=0.0,
+                        quality_score=0.0,
+                    )
+                )
+
     return supports
 
 
@@ -219,6 +498,9 @@ def validate_text_answer(text: str, compact_payload: dict) -> CitationValidation
     Returns a CitationValidation with hallucination flags as unsupported items.
     """
     hallucination_supports = _text_hallucination_check(text, compact_payload)
+    wrong_drug_supports = _wrong_drug_name_check(text, compact_payload)
+    clinical_supports = _clinical_eligibility_check(text, compact_payload)
+    potassium_supports = _potassium_claim_without_number_check(text, compact_payload)
     status_supports = _status_consistency_check(text, compact_payload)
     cjk_supports = _cjk_leak_check(text, compact_payload)
 
@@ -261,7 +543,7 @@ def validate_text_answer(text: str, compact_payload: dict) -> CitationValidation
                 )
             )
 
-    all_supports = hallucination_supports + status_supports + cjk_supports + disclaimer_supports
+    all_supports = hallucination_supports + wrong_drug_supports + clinical_supports + potassium_supports + status_supports + cjk_supports + disclaimer_supports
     status = "strong"
     if any(s.evidence_status == "unsupported" for s in all_supports):
         status = "weak"

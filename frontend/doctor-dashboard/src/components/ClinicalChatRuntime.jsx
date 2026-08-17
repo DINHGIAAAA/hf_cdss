@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AssistantRuntimeProvider,
   CompositeAttachmentAdapter,
@@ -10,6 +10,7 @@ import {
 import { streamClinicalChat } from "@/lib/clinicalChatStream";
 import { translate } from "@/i18n/messages.js";
 import { assistantTextFromChatDone, readClinicalFiles } from "@/utils";
+import { confirmationTrigger } from "./ClinicalAnswerText.jsx";
 
 function extractText(message) {
   const part = message.content?.find?.((item) => item.type === "text");
@@ -138,7 +139,7 @@ export function ClinicalChatRuntimeProvider({
   );
 
   const runClinicalStream = useCallback(
-    async ({ conversationId, userText, assistantId }) => {
+    async ({ conversationId, userText, assistantId, confirmationAction, pendingConfirmation }) => {
       const controller = new AbortController();
       abortRef.current = controller;
       setIsRunning(true);
@@ -147,10 +148,16 @@ export function ClinicalChatRuntimeProvider({
       onStreamStatus?.(preparing.label);
       onError?.("");
 
+      // Build active object with explicit confirmation data if provided
+      // Backend expects confirmation_action (snake_case)
+      const activeWithConfirmation = confirmationAction
+        ? { ...activeRef.current, confirmation_action: confirmationAction, pending_confirmation: pendingConfirmation }
+        : activeRef.current;
+
       try {
         await streamClinicalChat({
           message: userText,
-          active: activeRef.current,
+          active: activeWithConfirmation,
           signal: controller.signal,
           onStatus: onStreamStatus,
           onProgress: onStreamProgress,
@@ -191,14 +198,23 @@ export function ClinicalChatRuntimeProvider({
                   content: assistantContent,
                 };
               }
+              const isNeedsConfirmation = donePayload.status === "needs_confirmation";
+              // For needs_confirmation, preserve conflicts/pendingConfirmation from prior callback
+              // to avoid race conditions between onConfirmationNeeded and onDone
+              const preservedConflicts = isNeedsConfirmation
+                ? (donePayload.conflicts || current.conflicts)
+                : donePayload.conflicts;
+              const preservedPendingConfirmation = isNeedsConfirmation
+                ? (donePayload.patient_draft?.patient || current.pendingConfirmation)
+                : null;
               return {
                 draft: donePayload.patient_draft,
                 recommendation: donePayload.recommendation,
                 verification: donePayload.verification,
                 messages: updated,
-                pendingConfirmation: null,
+                pendingConfirmation: preservedPendingConfirmation,
                 confirmationAction: null,
-                conflicts: donePayload.conflicts || null,
+                conflicts: preservedConflicts,
                 pendingMultiQuestion:
                   donePayload.pending_multi_question ?? current.pendingMultiQuestion ?? null,
                 multiQuestionAction: null,
@@ -228,6 +244,44 @@ export function ClinicalChatRuntimeProvider({
     },
     [onError, onStreamStatus, onStreamProgress, patchConversation, handleConfirmationNeeded],
   );
+
+  // Handle confirmation trigger from ValueConflictInline buttons
+  useEffect(() => {
+    const unsubscribe = confirmationTrigger.subscribe((action, pendingPatient) => {
+      if (!activeRef.current) return;
+      const convId = activeRef.current.id;
+      const assistantId = `${convId}-assistant-${Date.now()}`;
+      const confirmationAction = action;
+      const pendingConfirmation = pendingPatient || activeRef.current.pendingConfirmation;
+
+      // Clear conflicts immediately - we'll show a simple confirmation message
+      patchConversation(convId, {
+        conflicts: null,
+        pendingConfirmation: null,
+      });
+
+      // Add confirmation message with simple confirmation
+      patchConversation(convId, (current) => ({
+        messages: [
+          ...(current.messages || []),
+          { id: `${convId}-user-confirm-${Date.now()}`, role: "user", content: action === "confirm" ? "yes" : "no" },
+          { id: assistantId, role: "assistant", content: "" },
+        ],
+        confirmationAction,
+        pendingConfirmation,
+      }));
+
+      // Run the stream with explicit confirmation data
+      runClinicalStream({
+        conversationId: convId,
+        userText: action === "confirm" ? "yes" : "no",
+        assistantId,
+        confirmationAction,
+        pendingConfirmation,
+      });
+    });
+    return unsubscribe;
+  }, [patchConversation, runClinicalStream]);
 
   const onNew = useCallback(
     async (message) => {

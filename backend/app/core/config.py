@@ -24,10 +24,9 @@ class Settings(BaseSettings):
     llm_base_url: str = "http://localhost:11434/v1"
     llm_model: str = "qwen2.5:7b"
     llm_api_type: str = "chat_completions"
-    llm_timeout_seconds: float = 90.0
+    llm_timeout_seconds: float = 180.0  # Increased for large prompts with qwen2.5:7b
     llm_cache_enabled: bool = True
     llm_cache_ttl_seconds: int = 600
-    llm_cache_max_entries: int = 128
     redis_url: str = "redis://localhost:6379/0"
     jwt_secret_key: str = "change-me-in-production"
     jwt_algorithm: str = "HS256"

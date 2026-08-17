@@ -1,9 +1,11 @@
 from fastapi import APIRouter
 from starlette.responses import StreamingResponse
+import logging
 
 from app.modules.chat.service import get_chat_history, process_chat, stream_chat
 from app.schemas.chat import ChatHistoryResponse, ChatRequest, ChatResponse
 
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -15,6 +17,7 @@ async def chat(payload: ChatRequest) -> ChatResponse:
 
 @router.post("/chat/stream")
 async def chat_stream(payload: ChatRequest) -> StreamingResponse:
+    logger.info(f"chat/stream received: message='{payload.message}', confirmation_action='{payload.confirmation_action}'")
     return StreamingResponse(
         stream_chat(payload),
         media_type="text/event-stream",
