@@ -389,6 +389,7 @@ def calculate_dose(
     # Weight-based doses (e.g. digoxin mcg/kg)
     rationale_weight: str | None = None
     status_early_insufficient = False
+    needed_for_starting_dose: list[str] = []
     if (
         recommended_value is not None
         and isinstance(recommended_unit, str)
@@ -397,11 +398,31 @@ def calculate_dose(
         if weight is None:
             missing_inputs.append("weight_kg")
             status_early_insufficient = True
+            needed_for_starting_dose.append("weight (kg)")
         else:
             base_unit = recommended_unit.replace("/kg", "")
             recommended_value = round(float(recommended_value) * float(weight), 2)
             recommended_unit = base_unit
             rationale_weight = f"Weight-based dose × {weight} kg"
+
+    # The FDA label defines dose-adjustment criteria tied to these factors —
+    # if the patient's value is unknown, we can't tell which starting-dose
+    # tier applies (e.g. standard vs. renally-reduced), so don't silently
+    # fall back to the unadjusted dose as if the value were confirmed normal.
+    if egfr_adjustments and egfr is None:
+        missing_inputs.append("egfr")
+        needed_for_starting_dose.append("renal function (eGFR)")
+    if potassium_adj and potassium is None:
+        missing_inputs.append("potassium")
+        needed_for_starting_dose.append("serum potassium")
+    if hr_adj and hr is None:
+        missing_inputs.append("heart_rate")
+        needed_for_starting_dose.append("heart rate")
+    if bp_adj and sbp is None:
+        missing_inputs.append("systolic_bp")
+        needed_for_starting_dose.append("systolic blood pressure")
+    if needed_for_starting_dose:
+        status_early_insufficient = True
 
     recommended_dose_obj = None
     target_dose_obj = None
@@ -409,8 +430,10 @@ def calculate_dose(
     rationale_parts = []
     if rationale_weight:
         rationale_parts.append(rationale_weight)
-    if status_early_insufficient:
-        rationale_parts.append("Weight (kg) required for weight-based FDA dosing")
+    if needed_for_starting_dose:
+        rationale_parts.append(
+            f"{', '.join(needed_for_starting_dose)} required to confirm the correct starting dose"
+        )
 
     # Check for avoid conditions
     if status_early_insufficient:

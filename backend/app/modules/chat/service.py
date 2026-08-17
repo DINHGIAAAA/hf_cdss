@@ -35,6 +35,7 @@ from app.schemas.chat import (
     ChatMessage,
     ChatRequest,
     ChatResponse,
+    MissingFieldCheck,
     PatientConflict,
     PatientDraft,
     PendingMultiQuestion,
@@ -1041,6 +1042,30 @@ def _finalize_clinical_state(
     return merge_planned_question_intent(clinical_state, _active_planned_question(conversation_id))
 
 
+def _dose_plan_missing_check(recommendation: RecommendationResponse, patient: PatientProfile) -> MissingFieldCheck | None:
+    """Surface calculate_dose()'s per-drug data gaps as a chat follow-up question.
+
+    calculate_dose() flags missing weight/age/renal-lab inputs independently via
+    dose_plans[].status == "insufficient_data" — a signal separate from (and not
+    gated by) the clinical_intent == "dose_adjustment" check in check_missing_fields.
+    Without reading it here, a dose plan could sit at "insufficient_data" forever:
+    the chat never asks for the value, so it's never filled in and never recalculated.
+    Returns None when there's nothing to ask for.
+    """
+    dose_missing_inputs = sorted(
+        {
+            field
+            for plan in recommendation.dose_plans
+            if plan.status == "insufficient_data"
+            for field in plan.missing_inputs
+        }
+    )
+    if not dose_missing_inputs:
+        return None
+    check = check_required_field_ids(patient, dose_missing_inputs)
+    return check if check.missing_fields else None
+
+
 def _missing_check_for_turn(
     patient: PatientProfile,
     *,
@@ -1351,6 +1376,39 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
         message=request.message,
         conversation_id=conversation_id,
     )
+
+    dose_missing_check = _dose_plan_missing_check(recommendation, merged)
+    if dose_missing_check is not None:
+        content = build_missing_fields_prompt(
+            dose_missing_check,
+            **_missing_fields_prompt_kwargs(conversation_id),
+        )
+        assistant_message = _message(conversation_id, "assistant", content, {"status": "needs_more_information"})
+        await asyncio.to_thread(_append_message, assistant_message)
+        await asyncio.to_thread(
+            write_audit_event,
+            merged.case_id,
+            "chat_dose_missing_fields",
+            _chat_audit_payload(
+                request,
+                clinical_state=clinical_state,
+                patient=merged,
+                question_plan=question_plan,
+                extra={"missing_check": dose_missing_check.model_dump(mode="json")},
+            ),
+        )
+        response = ChatResponse(
+            conversation_id=conversation_id,
+            status="needs_more_information",
+            assistant_message=assistant_message,
+            patient_draft=draft,
+            missing_check=dose_missing_check,
+            tool_outputs=tool_outputs,
+            pending_multi_question=_pending_multi_question_model(conversation_id, merged, clinical_state),
+        )
+        yield _sse("answer_replace", {"content": content})
+        yield _sse("done", response.model_dump(mode="json"))
+        return
 
     yield _sse("status", {"step": "verifying_evidence"})
     verification = await verify_recommendation(
@@ -1681,6 +1739,39 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
         message=request.message,
         conversation_id=conversation_id,
     )
+
+    dose_missing_check = _dose_plan_missing_check(recommendation, merged)
+    if dose_missing_check is not None:
+        content = build_missing_fields_prompt(
+            dose_missing_check,
+            **_missing_fields_prompt_kwargs(conversation_id),
+        )
+        assistant_message = _message(conversation_id, "assistant", content, {"status": "needs_more_information"})
+        _append_message(assistant_message)
+        write_audit_event(
+            merged.case_id,
+            "chat_dose_missing_fields",
+            _chat_audit_payload(
+                request,
+                clinical_state=clinical_state,
+                patient=merged,
+                question_plan=question_plan,
+                extra={"missing_check": dose_missing_check.model_dump(mode="json")},
+            ),
+        )
+        response = ChatResponse(
+            conversation_id=conversation_id,
+            status="needs_more_information",
+            assistant_message=assistant_message,
+            patient_draft=draft,
+            missing_check=dose_missing_check,
+            tool_outputs=tool_outputs,
+            pending_multi_question=_pending_multi_question_model(conversation_id, merged, clinical_state),
+        )
+        if request.idempotency_key:
+            _cache_idempotent_response(request.idempotency_key, response)
+        return response
+
     verification = await verify_recommendation(
         VerificationRequest(
             patient=merged,

@@ -502,3 +502,75 @@ def test_continue_updates_question_plans_so_active_question_is_current(client) -
     assert "arni" in (active.text or "").lower() or "titration" in (active.text or "").lower()
 
 
+def test_dose_plan_missing_check_asks_for_weight_when_dose_insufficient() -> None:
+    """A weight-based dose plan flagged insufficient_data must turn into a
+    real follow-up question, even outside the dose_adjustment intent gate."""
+    from app.schemas.dosing import SuggestedDosePlan
+    from app.schemas.patient import PatientProfile
+    from app.schemas.recommendation import RecommendationResponse
+
+    patient = PatientProfile(case_id="dose_missing_weight_test")  # no weight_kg set
+    recommendation = RecommendationResponse(
+        case_id=patient.case_id,
+        patient_summary={},
+        risk_flags=[],
+        constraints=[],
+        dose_warnings=[],
+        interaction_warnings=[],
+        recommendations=[],
+        overall_status="approved",
+        disclaimer="",
+        dose_plans=[
+            SuggestedDosePlan(
+                plan_id="dose_digoxin_test",
+                drug_name="digoxin",
+                drug_class="DIGOXIN",
+                intent="dose_adjustment",
+                status="insufficient_data",
+                rationale="Weight (kg) required for weight-based FDA dosing",
+                missing_inputs=["weight_kg"],
+            )
+        ],
+    )
+
+    check = chat_service._dose_plan_missing_check(recommendation, patient)
+    assert check is not None
+    assert any(item.field == "weight_kg" for item in check.missing_fields)
+
+    # Once weight is filled in, there's nothing left to ask for.
+    from app.schemas.patient import ClinicalValue
+
+    patient_with_weight = patient.model_copy(deep=True)
+    patient_with_weight.vitals.weight_kg = ClinicalValue(value=80, unit="kg")
+    assert chat_service._dose_plan_missing_check(recommendation, patient_with_weight) is None
+
+
+def test_dose_plan_missing_check_ignores_recommended_plans() -> None:
+    from app.schemas.dosing import SuggestedDosePlan
+    from app.schemas.patient import PatientProfile
+    from app.schemas.recommendation import RecommendationResponse
+
+    patient = PatientProfile(case_id="dose_no_gap_test")
+    recommendation = RecommendationResponse(
+        case_id=patient.case_id,
+        patient_summary={},
+        risk_flags=[],
+        constraints=[],
+        dose_warnings=[],
+        interaction_warnings=[],
+        recommendations=[],
+        overall_status="approved",
+        disclaimer="",
+        dose_plans=[
+            SuggestedDosePlan(
+                plan_id="dose_enalapril_test",
+                drug_name="enalapril",
+                drug_class="ACE INHIBITOR",
+                intent="dose_adjustment",
+                status="recommended",
+                rationale="Target ACEi dose for HFrEF.",
+            )
+        ],
+    )
+    assert chat_service._dose_plan_missing_check(recommendation, patient) is None
+

@@ -1,6 +1,7 @@
 """Tests for FDA-label dose_calculation wiring used by recommendations."""
 
 from app.modules.dose_calculation import build_dose_plans, dose_source_version
+from app.modules.dose_calculation.evaluator import calculate_dose
 from app.modules.dose_calculation.rule_loader import load_dose_tables
 from app.modules.reasoning.service import build_recommendation
 from app.schemas.patient import PatientProfile
@@ -44,3 +45,22 @@ def test_recommendation_includes_label_dose_plans() -> None:
     )
     assert response.dose_rules_version == dose_source_version()
     assert response.dose_plans
+
+
+def test_starting_dose_flags_insufficient_data_when_renal_function_unknown() -> None:
+    """torsemide's FDA label defines an eGFR-based starting-dose adjustment —
+    if eGFR is unknown we can't tell which tier applies, so the plan must be
+    insufficient_data (not silently the unadjusted standard dose)."""
+    load_dose_tables.cache_clear()
+    plan = calculate_dose(_patient(egfr=None), "torsemide")
+    assert plan is not None
+    assert plan.status == "insufficient_data"
+    assert "egfr" in plan.missing_inputs
+
+
+def test_starting_dose_recommended_once_renal_function_known() -> None:
+    load_dose_tables.cache_clear()
+    plan = calculate_dose(_patient(egfr=55), "torsemide")
+    assert plan is not None
+    assert plan.status != "insufficient_data"
+    assert "egfr" not in plan.missing_inputs
