@@ -203,7 +203,7 @@ def initialize_chroma() -> dict[str, Any]:
         )
     collection.modify(
         metadata={
-            "index_version": INDEX_VERSION,
+            "index_version": _index_version_str(),
             "embedding_provider": settings.embedding_provider,
             "embedding_model": settings.embedding_model,
             "source_sha256": source_sha256,

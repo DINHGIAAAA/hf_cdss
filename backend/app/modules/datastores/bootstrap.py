@@ -77,11 +77,29 @@ async def _bootstrap_worker() -> None:
     await asyncio.to_thread(_execute_bootstrap)
 
 
+def _chroma_already_booted() -> bool:
+    """Check if Chroma collection is already indexed to skip bootstrap on restart."""
+    try:
+        from app.modules.datastores.chroma import chroma_status
+
+        status = chroma_status()
+        return status.get("status") == "ok" and status.get("chunks", 0) > 0
+    except Exception:
+        return False
+
+
 async def start_background_bootstrap() -> None:
-    global _bootstrap_task
+    global _bootstrap_task, _bootstrap_phase
     if _bootstrap_done.is_set():
         return
     if _bootstrap_task is not None and not _bootstrap_task.done():
+        return
+
+    # Check if Chroma is already indexed (survives backend restart)
+    if _chroma_already_booted():
+        logger.info("Chroma already indexed, skipping datastore bootstrap")
+        _bootstrap_phase = "completed"
+        _bootstrap_done.set()
         return
 
     from app.core.config import settings
