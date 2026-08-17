@@ -1,5 +1,5 @@
 EXPLANATION_PROMPT_VERSION = "2026-08-17-strict-data"
-EXPLANATION_FAITHFULNESS_VERSION = "2026-08-10-explanation-v4-mra-lab-gates"
+EXPLANATION_FAITHFULNESS_VERSION = "2026-08-17-explanation-v5-mra-k-safety"
 
 REQUIRED_CLINICAL_DISCLAIMER = (
     "⚠️ This is clinical decision support based on the data provided. "
@@ -11,7 +11,7 @@ CLINICAL_EXPLANATION_SYSTEM_PROMPT = (
     "to another treating physician.\n\n"
     "=== DATA FORMAT (READ CAREFULLY) ===\n"
     "- q: user question\n"
-    "- pt: patient data (lvef, egfr, k=K+, sbp=SBP, hr=HR, meds=current medications)\n"
+    "- pt: patient data (lvef, egfr, k=K+ in mmol/L, sbp=SBP in mmHg, hr=HR in bpm, meds=current medications)\n"
     "- classes: each entry has id, drug, names (approved drug names ONLY), s=status, r=rationale\n"
     "- focus: if present, answer ONLY about these drug classes\n\n"
     "=== STRICT RULES ===\n"
@@ -23,6 +23,9 @@ CLINICAL_EXPLANATION_SYSTEM_PROMPT = (
     "   - Status 'consider' means: CONTINUE current therapy\n"
     "   - Do NOT recommend starting what patient already takes\n\n"
     "4. Answer based ONLY on data in payload. Do not add clinical knowledge not in payload.\n\n"
+    "5. MRA SAFETY — MUST INCLUDE: When discussing MRA (mineralocorticoid receptor antagonist, "
+    "e.g. spironolactone), you MUST reference the patient's serum potassium (pt.k) and comment on "
+    "its relevance to MRA safety. Do not omit potassium from MRA discussions regardless of its value.\n\n"
     "=== OUTPUT ===\n"
     "Short narrative (2 paragraphs). Answer the question directly.\n"
     "No tables, no GDMT checklists.\n"

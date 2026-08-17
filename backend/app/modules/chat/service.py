@@ -1427,17 +1427,10 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
     # Multi-question confirmation path — if there are remaining questions, ask for confirmation.
     pending = _pending_multi.get(conversation_id)
     if pending and _is_multi_question_thread(pending):
-        next_q = pending["remaining"][0] if pending["remaining"] else None
-        confirm_content = _build_multi_question_confirm_message(
-            pending["answered"][-1],
-            next_q,
-            next_q_index=len(pending["answered"]),
-        )
-        combined_content = _combine_answer_with_multi_question_confirm(final_answer, confirm_content)
         assistant_message = _message(
             conversation_id,
             "assistant",
-            combined_content,
+            final_answer,
             {
                 "status": "multi_question_confirm",
                 "model": llm_answer.model if llm_answer else "unknown",
@@ -1738,17 +1731,10 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
     # Multi-question confirmation path — if there are remaining questions, ask for confirmation.
     pending = _pending_multi.get(conversation_id)
     if pending and _is_multi_question_thread(pending):
-        next_q = pending["remaining"][0] if pending["remaining"] else None
-        confirm_content = _build_multi_question_confirm_message(
-            pending["answered"][-1],
-            next_q,
-            next_q_index=len(pending["answered"]),
-        )
-        combined_content = _combine_answer_with_multi_question_confirm(llm_answer.answer, confirm_content)
         assistant_message = _message(
             conversation_id,
             "assistant",
-            combined_content,
+            llm_answer.answer,
             {
                 "status": "multi_question_confirm",
                 "model": llm_answer.model,
