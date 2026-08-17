@@ -249,6 +249,43 @@ def _is_multi_question_continue_text(message: str) -> bool:
     return bool(_MULTI_QUESTION_CONTINUE_PATTERN.match((message or "").strip()))
 
 
+def _is_unrelated_message(new_message: str, active_question: str) -> bool:
+    """Check if a new message is likely a new unrelated question, not a supplemental note.
+
+    Uses simple heuristics:
+    - Contains '?' → likely a new question
+    - Low word overlap with active question → likely unrelated
+    """
+    new_msg = (new_message or "").strip()
+    active_q = (active_question or "").strip()
+
+    if not new_msg or not active_q:
+        return False
+
+    # If it contains '?', it's likely a new question (not just a supplemental note)
+    if "?" in new_msg:
+        return True
+
+    # Check word overlap - if very little overlap, consider it unrelated
+    new_words = set(new_msg.lower().split())
+    active_words = set(active_q.lower().split())
+
+    # Remove common stopwords
+    stopwords = {"the", "a", "an", "is", "are", "was", "were", "about", "should", "would", "could", "what", "about"}
+    new_words -= stopwords
+    active_words -= stopwords
+
+    if not new_words or not active_words:
+        return False
+
+    overlap = len(new_words & active_words) / len(new_words | active_words)
+    # If less than 30% overlap, consider it unrelated
+    if overlap < 0.3:
+        return True
+
+    return False
+
+
 def _pending_multi_question_model(
     conversation_id: str,
     merged: Any,
@@ -327,20 +364,27 @@ def _apply_multi_question_handling(
                             break
                 except Exception:
                     active_planned = stored.get("active_planned_question")
-            _pending_multi[conversation_id] = {
-                "remaining": remaining,
-                "answered": answered,
-                "current_index": pending.current_index + 1,
-                "total_questions": len(answered) + len(remaining),
-                "active_planned_question": active_planned,
-                "plan": plan_data,
-            }
-            # Keep _question_plans in sync so _active_planned_question() returns the current question.
-            if active_planned and isinstance(plan_data, dict):
-                try:
-                    _question_plans[conversation_id] = QuestionPlan.model_validate(plan_data)
-                except Exception:
-                    pass
+
+            # Auto-clear when all questions are answered
+            if not remaining:
+                logger.info(f"All questions answered for conversation {conversation_id}, clearing state")
+                _pending_multi.pop(conversation_id, None)
+                _question_plans.pop(conversation_id, None)
+            else:
+                _pending_multi[conversation_id] = {
+                    "remaining": remaining,
+                    "answered": answered,
+                    "current_index": pending.current_index + 1,
+                    "total_questions": len(answered) + len(remaining),
+                    "active_planned_question": active_planned,
+                    "plan": plan_data,
+                }
+                # Keep _question_plans in sync so _active_planned_question() returns the current question.
+                if active_planned and isinstance(plan_data, dict):
+                    try:
+                        _question_plans[conversation_id] = QuestionPlan.model_validate(plan_data)
+                    except Exception:
+                        pass
         return request, None
 
     if request.multi_question_action == "stop" and request.pending_multi_question:
@@ -355,6 +399,15 @@ def _apply_multi_question_handling(
     ):
         pending = request.pending_multi_question
         active_q = pending.answered_qs[-1] if pending.answered_qs else original_message
+
+        # Check if the new message is unrelated (likely a new question, not a supplemental note)
+        is_unrelated = _is_unrelated_message(original_message, active_q)
+        if is_unrelated:
+            logger.info(f"Unrelated message detected, clearing multi-question state: '{original_message}'")
+            _pending_multi.pop(conversation_id, None)
+            _question_plans.pop(conversation_id, None)
+            return request, None
+
         _pending_multi[conversation_id] = {
             "remaining": list(pending.remaining_qs),
             "answered": list(pending.answered_qs),
