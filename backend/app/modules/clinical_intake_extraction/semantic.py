@@ -349,7 +349,7 @@ def detect_multi_question(message: str) -> list[str]:
 
     # Strategy 1: split on '?' (explicit delimiters)
     parts = [s.strip() for s in raw.split("?") if s.strip()]
-    MIN_QUESTION_LEN = 10
+    MIN_QUESTION_LEN = 5  # Allow short abbreviations like "SGLT2i?" (7 chars after strip)
     questions = [s for s in parts if len(normalize_text(s)) >= MIN_QUESTION_LEN]
     if len(questions) > 1:
         return [f"{q}?" for q in questions]

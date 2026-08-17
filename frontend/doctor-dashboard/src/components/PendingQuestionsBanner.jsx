@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/i18n/LanguageProvider.jsx";
 import { CheckCircle2, Circle, ChevronRight } from "lucide-react";
+import { multiQuestionTrigger } from "./ClinicalChatRuntime.jsx";
 
 function QuestionItem({ text, status, index }) {
   const isAnswered = status === "answered";
@@ -50,6 +51,14 @@ export function PendingQuestionsBanner({ pendingMultiQuestion, onContinue, onSto
     })),
   ];
 
+  const handleContinue = () => {
+    multiQuestionTrigger.trigger("continue");
+  };
+
+  const handleStop = () => {
+    multiQuestionTrigger.trigger("stop");
+  };
+
   return (
     <div className="border-b border-[var(--color-rule)] bg-[var(--color-paper-2)] px-4 py-3">
       <div className="mx-auto max-w-3xl">
@@ -62,7 +71,7 @@ export function PendingQuestionsBanner({ pendingMultiQuestion, onContinue, onSto
               size="sm"
               variant="outline"
               className="h-7 text-xs"
-              onClick={onStop}
+              onClick={handleStop}
               disabled={disabled}
               type="button"
             >
@@ -71,7 +80,7 @@ export function PendingQuestionsBanner({ pendingMultiQuestion, onContinue, onSto
             <Button
               size="sm"
               className="h-7 text-xs"
-              onClick={onContinue}
+              onClick={handleContinue}
               disabled={disabled}
               type="button"
             >

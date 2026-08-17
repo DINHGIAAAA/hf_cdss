@@ -307,9 +307,11 @@ def _apply_multi_question_handling(
     original_message = request.message
 
     if request.multi_question_action == "continue" and request.pending_multi_question:
+        logger.info(f"Multi-question 'continue' action received for conversation {conversation_id}")
         pending = request.pending_multi_question
         if pending.remaining_qs:
             next_q = pending.remaining_qs[0]
+            logger.info(f"Processing next question: '{next_q}'")
             remaining = pending.remaining_qs[1:]
             answered = pending.answered_qs + [next_q]
             request = request.model_copy(update={"message": next_q})
@@ -1080,6 +1082,7 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
     # Emit the pending questions list to the frontend.
     pending = _pending_multi.get(conversation_id)
     if pending and _is_multi_question_thread(pending):
+        logger.info(f"Yielding multi_question_ready for conversation {conversation_id}: {pending}")
         yield _sse("multi_question_ready", {
             "answered": pending["answered"],
             "remaining": pending["remaining"],

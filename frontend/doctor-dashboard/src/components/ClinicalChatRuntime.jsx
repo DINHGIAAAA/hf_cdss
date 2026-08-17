@@ -12,6 +12,18 @@ import { translate } from "@/i18n/messages.js";
 import { assistantTextFromChatDone, readClinicalFiles } from "@/utils";
 import { confirmationTrigger } from "./ClinicalAnswerText.jsx";
 
+// Event emitter for multi-question continue/stop actions
+export const multiQuestionTrigger = {
+  listeners: new Set(),
+  trigger(action) {
+    this.listeners.forEach((cb) => cb(action));
+  },
+  subscribe(cb) {
+    this.listeners.add(cb);
+    return () => this.listeners.delete(cb);
+  },
+};
+
 function extractText(message) {
   const part = message.content?.find?.((item) => item.type === "text");
   return part?.text?.trim() || "";
@@ -139,7 +151,7 @@ export function ClinicalChatRuntimeProvider({
   );
 
   const runClinicalStream = useCallback(
-    async ({ conversationId, userText, assistantId, confirmationAction, pendingConfirmation }) => {
+    async ({ conversationId, userText, assistantId, confirmationAction, pendingConfirmation, multiQuestionAction }) => {
       const controller = new AbortController();
       abortRef.current = controller;
       setIsRunning(true);
@@ -148,16 +160,24 @@ export function ClinicalChatRuntimeProvider({
       onStreamStatus?.(preparing.label);
       onError?.("");
 
-      // Build active object with explicit confirmation data if provided
-      // Backend expects confirmation_action (snake_case)
-      const activeWithConfirmation = confirmationAction
-        ? { ...activeRef.current, confirmation_action: confirmationAction, pending_confirmation: pendingConfirmation }
-        : activeRef.current;
+      // Build active object with explicit action data if provided
+      // Backend expects snake_case: confirmation_action, pending_confirmation, multi_question_action
+      let activeWithActions = activeRef.current;
+      if (confirmationAction || multiQuestionAction) {
+        activeWithActions = { ...activeRef.current };
+        if (confirmationAction) {
+          activeWithActions.confirmation_action = confirmationAction;
+          activeWithActions.pending_confirmation = pendingConfirmation;
+        }
+        if (multiQuestionAction) {
+          activeWithActions.multi_question_action = multiQuestionAction;
+        }
+      }
 
       try {
         await streamClinicalChat({
           message: userText,
-          active: activeWithConfirmation,
+          active: activeWithActions,
           signal: controller.signal,
           onStatus: onStreamStatus,
           onProgress: onStreamProgress,
@@ -186,9 +206,20 @@ export function ClinicalChatRuntimeProvider({
               return { messages: updated };
             });
           },
+          onMultiQuestionReady: (data) => {
+            console.log("onMultiQuestionReady called with:", data);
+            patchConversation(conversationId, { pendingMultiQuestion: data });
+          },
           onDone: (donePayload) => {
             if (!donePayload || typeof donePayload !== "object") return;
             const assistantContent = assistantTextFromChatDone(donePayload);
+
+            // Handle pending_multi_question from done payload (for needs_more_information status)
+            const pendingMQ = donePayload.pending_multi_question;
+            if (pendingMQ && pendingMQ.remaining_qs?.length > 0) {
+              console.log("Setting pendingMultiQuestion from done payload:", pendingMQ);
+              patchConversation(conversationId, { pendingMultiQuestion: pendingMQ });
+            }
             patchConversation(conversationId, (current) => {
               const updated = [...(current.messages || [])];
               if (assistantContent.trim()) {
@@ -279,6 +310,51 @@ export function ClinicalChatRuntimeProvider({
         confirmationAction,
         pendingConfirmation,
       });
+    });
+    return unsubscribe;
+  }, [patchConversation, runClinicalStream]);
+
+  // Handle multi-question continue/stop trigger from PendingQuestionsBanner buttons
+  useEffect(() => {
+    const unsubscribe = multiQuestionTrigger.subscribe((action) => {
+      if (!activeRef.current) return;
+      const convId = activeRef.current.id;
+      const assistantId = `${convId}-assistant-${Date.now()}`;
+
+      if (action === "stop") {
+        // Clear multi-question state and show simple message
+        patchConversation(convId, {
+          multiQuestionAction: "stop",
+          pendingMultiQuestion: null,
+        });
+        // Add stop message
+        patchConversation(convId, (current) => ({
+          messages: [
+            ...(current.messages || []),
+            { id: `${convId}-user-stop-${Date.now()}`, role: "user", content: "stop" },
+            { id: assistantId, role: "assistant", content: "Stopped answering multi-question thread." },
+          ],
+          multiQuestionAction: null,
+        }));
+      } else {
+        // Continue - send continue message and trigger next question
+        patchConversation(convId, (current) => ({
+          messages: [
+            ...(current.messages || []),
+            { id: `${convId}-user-continue-${Date.now()}`, role: "user", content: "continue" },
+            { id: assistantId, role: "assistant", content: "" },
+          ],
+          multiQuestionAction: "continue",
+        }));
+
+        // Run the stream with continue action
+        runClinicalStream({
+          conversationId: convId,
+          userText: "continue",
+          assistantId,
+          multiQuestionAction: "continue",
+        });
+      }
     });
     return unsubscribe;
   }, [patchConversation, runClinicalStream]);
