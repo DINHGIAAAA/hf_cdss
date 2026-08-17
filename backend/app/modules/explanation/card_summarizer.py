@@ -356,7 +356,15 @@ async def attach_plain_language_summaries(
         await _write_cache(cache_key, summary_map)
         return merge_summaries(recommendation, summary_map)
     except Exception as exc:  # noqa: BLE001
-        logger.warning("card summarizer failed (%s); using deterministic fallback", exc)
+        # str(exc) is empty for some exception types (e.g. httpx.ReadTimeout),
+        # which previously made this warning useless for diagnosing repeated
+        # fallbacks — log the type and a full traceback instead.
+        logger.warning(
+            "card summarizer failed (%s: %s); using deterministic fallback",
+            type(exc).__name__,
+            exc or "<no message>",
+            exc_info=True,
+        )
         return apply_deterministic_summaries(recommendation)
 
 

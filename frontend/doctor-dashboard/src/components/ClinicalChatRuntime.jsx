@@ -246,8 +246,11 @@ export function ClinicalChatRuntimeProvider({
                 pendingConfirmation: preservedPendingConfirmation,
                 confirmationAction: null,
                 conflicts: preservedConflicts,
-                pendingMultiQuestion:
-                  donePayload.pending_multi_question ?? current.pendingMultiQuestion ?? null,
+                // The backend always includes this field, using null to mean
+                // "no more pending questions" — don't fall back to the stale
+                // current value or the Continue banner never clears after the
+                // last question is answered.
+                pendingMultiQuestion: donePayload.pending_multi_question ?? null,
                 multiQuestionAction: null,
               };
             });
@@ -322,20 +325,24 @@ export function ClinicalChatRuntimeProvider({
       const assistantId = `${convId}-assistant-${Date.now()}`;
 
       if (action === "stop") {
-        // Clear multi-question state and show simple message
-        patchConversation(convId, {
-          multiQuestionAction: "stop",
-          pendingMultiQuestion: null,
-        });
-        // Add stop message
+        // Send "stop" to the backend so it actually clears its server-side
+        // multi-question state — without this call the state only looked
+        // cleared locally and the pending questions could resurface later.
         patchConversation(convId, (current) => ({
           messages: [
             ...(current.messages || []),
             { id: `${convId}-user-stop-${Date.now()}`, role: "user", content: "stop" },
-            { id: assistantId, role: "assistant", content: "Stopped answering multi-question thread." },
+            { id: assistantId, role: "assistant", content: "" },
           ],
-          multiQuestionAction: null,
+          multiQuestionAction: "stop",
         }));
+
+        runClinicalStream({
+          conversationId: convId,
+          userText: "stop",
+          assistantId,
+          multiQuestionAction: "stop",
+        });
       } else {
         // Continue - send continue message and trigger next question
         patchConversation(convId, (current) => ({

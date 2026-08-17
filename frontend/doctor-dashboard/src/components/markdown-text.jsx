@@ -124,7 +124,10 @@ const defaultComponents = memoizeMarkdownComponents({
         // The clinical answer always ends with a mandatory safety disclaimer
         // paragraph — de-emphasize it so it reads as a footnote, not as more
         // clinical content competing with the actual answer above it.
-        "last:border-border/60 last:text-muted-foreground last:mt-4 last:border-t last:pt-3 last:text-xs last:leading-normal",
+        // :not(:only-child) keeps single-paragraph replies (confirmations,
+        // short prompts) at full size — only a *trailing* paragraph after
+        // other content is a disclaimer.
+        "[&:last-child:not(:only-child)]:border-border/60 [&:last-child:not(:only-child)]:text-muted-foreground [&:last-child:not(:only-child)]:mt-4 [&:last-child:not(:only-child)]:border-t [&:last-child:not(:only-child)]:pt-3 [&:last-child:not(:only-child)]:text-xs [&:last-child:not(:only-child)]:leading-normal",
         className
       )}
       {...props} />

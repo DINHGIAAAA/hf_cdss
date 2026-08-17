@@ -41,7 +41,7 @@ from app.schemas.chat import (
 from app.schemas.question_planner import PlannedQuestion, QuestionPlan
 from app.schemas.graphrag import GraphRAGContextRequest, GraphRAGContextResponse, VerificationRequest
 from app.schemas.llm import LLMAnswerRequest
-from app.schemas.patient import ClinicalDocument, PatientIdentity, PatientProfile
+from app.schemas.patient import ClinicalDocument, ClinicalValue, PatientIdentity, PatientProfile
 from app.schemas.recommendation import RecommendationRequest, RecommendationResponse
 
 
@@ -727,42 +727,67 @@ def _build_confirmation_message(conflicts: list[PatientConflict]) -> str:
     items = [c for c in conflicts if c.requires_confirmation]
     if not items:
         return ""
-    head = "Detected changes to important values. Confirm to update?"
-    lines = [f"- {item.label}: {item.old_value} → {item.new_value}" for item in items[:5]]
-    tail = "Reply 'yes' to apply, 'no' to keep the previous value."
-    return "\n".join([head, *lines, tail])
+    head = "I noticed a change to a value that affects the recommendation:"
+    lines = "\n".join(f"- **{item.label}:** {item.old_value} → {item.new_value}" for item in items[:5])
+    tail = "Reply **yes** to apply it, or **no** to keep the previous value."
+    # Blank lines between blocks so each renders as its own paragraph/list
+    # instead of the trailing sentence being swallowed into the list item.
+    return "\n\n".join([head, lines, tail])
+
+
+def _clinical_value_text(value: ClinicalValue | None) -> str:
+    """Render a ClinicalValue as plain 'value unit' text, e.g. '5.9 mmol/L'."""
+    if value is None or value.value is None:
+        return "—"
+    return f"{value.value} {value.unit}".strip() if value.unit else str(value.value)
+
+
+# Field key -> clinician-facing display label.
+_CONFIRMABLE_FIELD_LABELS = {
+    "potassium": "Potassium",
+    "egfr": "eGFR",
+    "sodium": "Sodium",
+    "creatinine": "Creatinine",
+    "hba1c": "HbA1c",
+    "sbp": "Systolic BP",
+    "hr": "Heart rate",
+    "bnp": "BNP",
+}
 
 
 def _get_confirmed_fields(merged: PatientProfile, base: PatientProfile) -> list[dict[str, str]]:
     """Get list of fields that were changed and confirmed."""
     confirmed = []
-    if merged.labs.potassium != base.labs.potassium:
-        confirmed.append({"field": "potassium", "old": str(base.labs.potassium), "new": str(merged.labs.potassium)})
-    if merged.labs.egfr != base.labs.egfr:
-        confirmed.append({"field": "egfr", "old": str(base.labs.egfr), "new": str(merged.labs.egfr)})
-    if merged.vitals.systolic_bp != base.vitals.systolic_bp:
-        confirmed.append({"field": "sbp", "old": str(base.vitals.systolic_bp), "new": str(merged.vitals.systolic_bp)})
-    if merged.vitals.heart_rate != base.vitals.heart_rate:
-        confirmed.append({"field": "hr", "old": str(base.vitals.heart_rate), "new": str(merged.vitals.heart_rate)})
-    if merged.labs.sodium != base.labs.sodium:
-        confirmed.append({"field": "sodium", "old": str(base.labs.sodium), "new": str(merged.labs.sodium)})
-    if merged.labs.creatinine != base.labs.creatinine:
-        confirmed.append({"field": "creatinine", "old": str(base.labs.creatinine), "new": str(merged.labs.creatinine)})
-    if merged.labs.bnp != base.labs.bnp:
-        confirmed.append({"field": "bnp", "old": str(base.labs.bnp), "new": str(merged.labs.bnp)})
-    if merged.labs.hba1c != base.labs.hba1c:
-        confirmed.append({"field": "hba1c", "old": str(base.labs.hba1c), "new": str(merged.labs.hba1c)})
+    for field in ("potassium", "egfr", "sodium", "creatinine", "hba1c"):
+        new_value = getattr(merged.labs, field)
+        if new_value != getattr(base.labs, field):
+            confirmed.append({"field": field, "old": _clinical_value_text(getattr(base.labs, field)), "new": _clinical_value_text(new_value)})
+    for field, label in [("systolic_bp", "sbp"), ("heart_rate", "hr")]:
+        new_value = getattr(merged.vitals, field)
+        if new_value != getattr(base.vitals, field):
+            confirmed.append({"field": label, "old": _clinical_value_text(getattr(base.vitals, field)), "new": _clinical_value_text(new_value)})
+    if merged.biomarkers.bnp != base.biomarkers.bnp:
+        confirmed.append({"field": "bnp", "old": _clinical_value_text(base.biomarkers.bnp), "new": _clinical_value_text(merged.biomarkers.bnp)})
     return confirmed
+
+
+# Shown instantly while the GDMT recommendation + evidence verification run in the
+# background, then wiped via answer_replace once the real, grounded answer is ready.
+# Deliberately static (no LLM call) — the answer LLM's system prompt requires it to
+# answer only from the recommendation payload, which doesn't exist yet at this point.
+_PRELIMINARY_ANSWER_MESSAGE = (
+    "Reviewing the patient profile against current GDMT guidelines and evidence — this'll just take a moment."
+)
 
 
 def _build_confirmation_success_message(confirmed_fields: list[dict[str, str]]) -> str:
     """Build a short confirmation message showing updated values."""
     if not confirmed_fields:
-        return "Values updated. Anything else you'd like to ask?"
-    lines = [f"{f['field']}: {f['old']} → {f['new']}" for f in confirmed_fields[:5]]
-    head = "Updated:"
-    tail = "Anything else you'd like to ask?"
-    return " | ".join([f"{f['field'].upper()}: {f['new']}" for f in confirmed_fields[:3]]) + ". " + tail
+        return "Done — the value is updated. Anything else you'd like to ask?"
+    summary = ", ".join(
+        f"**{_CONFIRMABLE_FIELD_LABELS.get(f['field'], f['field'])}:** {f['new']}" for f in confirmed_fields[:3]
+    )
+    return f"Updated {summary}. Anything else you'd like to ask?"
 
 
 def _prefilled_patient_complete(
@@ -1060,6 +1085,31 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
     current = _load_draft(conversation_id)
     base_patient = current.patient if current else _new_patient(conversation_id)
     is_initial_draft = current is None
+
+    # Stop shortcut — clear the server-side multi-question state (it lives in
+    # _pending_multi, keyed by conversation_id, independent of anything the
+    # client sends) and reply immediately without running extraction/recommendation
+    # on the literal "stop" text.
+    if request.multi_question_action == "stop":
+        _pending_multi.pop(conversation_id, None)
+        _question_plans.pop(conversation_id, None)
+        content = "Stopped the follow-up questions. Anything else you'd like to ask?"
+        assistant_message = _message(conversation_id, "assistant", content, {"status": "completed"})
+        await asyncio.to_thread(_append_message, assistant_message)
+        yield _sse("answer_delta", {"content": content})
+        yield _sse("done", {
+            "conversation_id": conversation_id,
+            "status": "completed",
+            "assistant_message": {
+                "message_id": assistant_message.message_id,
+                "role": "assistant",
+                "content": content,
+            },
+            "patient_draft": current.model_dump(mode="json") if current else None,
+            "pending_multi_question": None,
+        })
+        return
+
     attachment_context = _attachment_context(request)
     intake_base_message = "\n".join(value for value in [request.message, attachment_context] if value)
 
@@ -1285,6 +1335,11 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
         yield _sse("done", response.model_dump(mode="json"))
         return
 
+    # Show something immediately instead of a blank bubble for the whole
+    # building_recommendation/verifying_evidence stretch — replaced below once
+    # the real, grounded answer is ready.
+    yield _sse("answer_delta", {"content": _PRELIMINARY_ANSWER_MESSAGE})
+
     yield _sse("status", {"step": "building_recommendation"})
     recommendation, graphrag_context = await _build_recommendation_and_graphrag(
         patient=merged,
@@ -1312,6 +1367,9 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
     yield _sse("recommendation_ready", recommendation.model_dump(mode="json"))
     tool_outputs.append({"tool": "verification", "result": verification.model_dump(mode="json")})
     yield _sse("verification_ready", verification.model_dump(mode="json"))
+
+    # Clear the preliminary message — the real answer streams in below.
+    yield _sse("answer_replace", {"content": ""})
 
     yield _sse("status", {"step": "loading_model"})
     llm_request = LLMAnswerRequest(
@@ -1454,6 +1512,24 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
     current = _load_draft(conversation_id)
     base_patient = current.patient if current else _new_patient(conversation_id)
     is_initial_draft = current is None
+
+    if request.multi_question_action == "stop":
+        _pending_multi.pop(conversation_id, None)
+        _question_plans.pop(conversation_id, None)
+        content = "Stopped the follow-up questions. Anything else you'd like to ask?"
+        assistant_message = _message(conversation_id, "assistant", content, {"status": "completed"})
+        _append_message(assistant_message)
+        response = ChatResponse(
+            conversation_id=conversation_id,
+            status="completed",
+            assistant_message=assistant_message,
+            patient_draft=current,
+            missing_check=check_missing_fields(base_patient),
+        )
+        if request.idempotency_key:
+            _cache_idempotent_response(request.idempotency_key, response)
+        return response
+
     attachment_context = _attachment_context(request)
     intake_base_message = "\n".join(value for value in [request.message, attachment_context] if value)
 

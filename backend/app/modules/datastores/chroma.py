@@ -36,7 +36,12 @@ def _index_version() -> str:
     """
     from app.core.config import settings
     fingerprint = f"{settings.embedding_model}_v1"  # Add fields to force reindex on schema change
-    return f"hf_v{hash(fingerprint) & 0xFFFF:04x}"
+    # str hashing uses a per-process random seed (PYTHONHASHSEED) — the builtin
+    # hash() here produced a different collection name on every restart, which
+    # defeated the already-indexed check below and forced a full re-embed of
+    # all chunks (tying up Ollama's single inference slot) every time.
+    digest = hashlib.sha256(fingerprint.encode("utf-8")).hexdigest()
+    return f"hf_v{digest[:4]}"
 
 
 def _index_version_str() -> str:
