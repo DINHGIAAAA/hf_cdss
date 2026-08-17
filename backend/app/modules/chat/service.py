@@ -1186,9 +1186,12 @@ async def stream_chat(request: ChatRequest) -> AsyncIterator[str]:
     pending = _pending_multi.get(conversation_id)
     if pending and _is_multi_question_thread(pending):
         logger.info(f"Yielding multi_question_ready for conversation {conversation_id}: {pending}")
+        # Keys must match PendingMultiQuestion's field names (answered_qs/remaining_qs) —
+        # PendingQuestionsBanner.jsx reads those exact keys and silently renders nothing
+        # (falls back to empty arrays) if they're named differently.
         yield _sse("multi_question_ready", {
-            "answered": pending["answered"],
-            "remaining": pending["remaining"],
+            "answered_qs": pending["answered"],
+            "remaining_qs": pending["remaining"],
             "current_index": pending["current_index"],
             "total_questions": pending["total_questions"],
         })

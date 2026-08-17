@@ -391,7 +391,7 @@ export function ClinicalChatRuntimeProvider({
           ],
           multiQuestionAction: "continue",
         }));
-        await runClinicalStream({ conversationId, userText: text, assistantId });
+        await runClinicalStream({ conversationId, userText: text, assistantId, multiQuestionAction: "continue" });
         patchConversation(conversationId, () => ({ multiQuestionAction: null }));
         return;
       }
