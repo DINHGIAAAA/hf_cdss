@@ -189,8 +189,23 @@ def _compact_recommendation(payload: LLMAnswerRequest) -> dict[str, Any]:
         patient_fields["sbp"] = payload.patient.systolic_bp  # shorter key
     if payload.patient.heart_rate is not None:
         patient_fields["hr"] = payload.patient.heart_rate  # shorter key
-    if payload.patient.current_medications:
-        patient_fields["meds"] = payload.patient.current_medications  # shorter key
+    # Include medications with dose info
+    if payload.patient.medications:
+        meds_with_dose: dict[str, dict[str, Any]] = {}
+        for med in payload.patient.medications:
+            if med.status != "active":
+                continue
+            name = med.normalized_name or med.name
+            # Use drug name as key (canonical name from drug catalog)
+            key = name.lower()
+            meds_with_dose[key] = {
+                "name": name,
+                "drug_class": med.drug_class,  # include class for reference
+                "dose": f"{med.dose_value} {med.dose_unit}" if med.dose_value else None,
+                "frequency": med.frequency,
+            }
+        if meds_with_dose:
+            patient_fields["meds"] = meds_with_dose
 
     # Compact constraints to minimal text format
     constraints = []
@@ -200,6 +215,7 @@ def _compact_recommendation(payload: LLMAnswerRequest) -> dict[str, Any]:
     compact: dict[str, Any] = {
         "q": payload.user_input,  # shorter key
         "focus": sorted(focus) if focus else None,  # shorter key, omit if empty
+        "answering_for": (payload.clinical_state or {}).get("current_question") or None,  # question being answered in multi-Q flow
         "pt": patient_fields,  # shorter key
         "classes": [
             {

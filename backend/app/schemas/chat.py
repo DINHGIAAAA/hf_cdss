@@ -60,6 +60,10 @@ class PendingMultiQuestion(BaseModel):
     conversation_id: str
     answered_qs: list[str] = Field(default_factory=list)
     remaining_qs: list[str] = Field(default_factory=list)
+    current_question: str | None = Field(
+        default=None,
+        description="The question that was just answered in this turn (for labeling the answer)",
+    )
     current_index: int = 0
     patient_snapshot: dict[str, Any] = Field(default_factory=dict)
     clinical_state_snapshot: dict[str, Any] = Field(default_factory=dict)

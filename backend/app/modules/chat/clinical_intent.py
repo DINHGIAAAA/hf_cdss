@@ -64,4 +64,10 @@ def merge_planned_question_intent(
     if focus_ids:
         updated["focus_class_ids"] = focus_ids
         updated["focus_medication_classes"] = focus_ids
+
+    # Track current question being answered (for multi-Q flow)
+    planned_text = getattr(planned, "text", None)
+    if planned_text:
+        updated["current_question"] = planned_text
+
     return updated

@@ -331,6 +331,8 @@ export function ClinicalChatRuntimeProvider({
             { id: assistantId, role: "assistant", content: "" },
           ],
           multiQuestionAction: "stop",
+          // Clear banner immediately
+          pendingMultiQuestion: null,
         }));
 
         runClinicalStream({
@@ -348,6 +350,8 @@ export function ClinicalChatRuntimeProvider({
             { id: assistantId, role: "assistant", content: "" },
           ],
           multiQuestionAction: "continue",
+          // Clear banner immediately — new pendingMultiQuestion will be set after Q2 completes
+          pendingMultiQuestion: null,
         }));
 
         // Run the stream with continue action
@@ -386,6 +390,8 @@ export function ClinicalChatRuntimeProvider({
             { id: assistantId, role: "assistant", content: "" },
           ],
           multiQuestionAction: "continue",
+          // Clear banner immediately
+          pendingMultiQuestion: null,
         }));
         await runClinicalStream({ conversationId, userText: text, assistantId, multiQuestionAction: "continue" });
         patchConversation(conversationId, () => ({ multiQuestionAction: null }));

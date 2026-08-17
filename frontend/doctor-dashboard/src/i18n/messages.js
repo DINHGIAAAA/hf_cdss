@@ -66,6 +66,7 @@ export const MESSAGES = {
       title: "{count} questions detected",
       continue: "Continue",
       stop: "Stop here",
+      answering: "Answering",
     },
     conflict: {
       title: "Detected changes to important values",

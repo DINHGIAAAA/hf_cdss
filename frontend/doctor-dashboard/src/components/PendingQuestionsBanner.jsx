@@ -38,6 +38,7 @@ export function PendingQuestionsBanner({ pendingMultiQuestion, onContinue, onSto
 
   const answered = pendingMultiQuestion.answered_qs || [];
   const remaining = pendingMultiQuestion.remaining_qs || [];
+  const currentQuestion = pendingMultiQuestion.current_question;
   const total = answered.length + remaining.length;
 
   if (total <= 1) return null;
@@ -62,6 +63,13 @@ export function PendingQuestionsBanner({ pendingMultiQuestion, onContinue, onSto
   return (
     <div className="border-t border-[var(--color-rule)] bg-[var(--color-paper-2)] px-4 py-3">
       <div className="mx-auto max-w-3xl">
+        {currentQuestion && (
+          <div className="mb-2 rounded-md bg-primary/5 px-3 py-2">
+            <p className="text-xs font-medium text-primary">
+              {t("chat.multiQuestion.answering")}: {currentQuestion}
+            </p>
+          </div>
+        )}
         <div className="mb-2 flex items-center justify-between">
           <p className="text-xs font-medium text-muted-foreground">
             {t("chat.multiQuestion.title", { count: total })}
